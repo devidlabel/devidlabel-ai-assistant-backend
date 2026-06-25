@@ -272,3 +272,61 @@ wrangler secret put OPENAI_API_KEY
 3. Introdurre rate limiting produzione con Cloudflare WAF, Turnstile o rules.
 4. Aggiungere logging privacy-safe e metriche.
 5. Collegare il tema Shopify all'endpoint Worker e validare il response contract in staging.
+
+## Test manuali response contract Task 02
+
+Esegui il Worker in locale con `npm run dev`, poi usa questi curl per verificare che ogni risposta positiva mantenga sempre `primary_cta` come oggetto o `null`, `devid_label_alternatives` e `cross_sell` come array di oggetti e `requires_backend_order_lookup` booleano.
+
+1. T-shirt Saint Barth uomo: atteso `source: "ai_backend"`, `type: "product_advice"`, `primary_cta` non null, alternative Mosca + Monterosso come oggetti e `requires_backend_order_lookup: false`.
+
+```bash
+curl -X POST "http://localhost:8787/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"t-shirt saint barth uomo","locale":"it-IT","knowledge_version":"1.0"}'
+```
+
+2. Jeans Replay uomo: atteso `type: "product_advice"`, alternativa Jeans Globe come oggetto e `requires_backend_order_lookup: false`.
+
+```bash
+curl -X POST "http://localhost:8787/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"jeans replay uomo","locale":"it-IT","knowledge_version":"1.0"}'
+```
+
+3. Dov'è il mio ordine: atteso `type: "order_help"`, `requires_backend_order_lookup: true` e nessun tracking inventato.
+
+```bash
+curl -X POST "http://localhost:8787/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"dov’è il mio ordine","locale":"it-IT","knowledge_version":"1.0"}'
+```
+
+4. Pagamento alla consegna: atteso `type: "faq"`, `requires_backend_order_lookup: false` e messaggio che conferma contrassegno a domicilio sì, InPost no.
+
+```bash
+curl -X POST "http://localhost:8787/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"pagamento alla consegna","locale":"it-IT","knowledge_version":"1.0"}'
+```
+
+5. Zaino Sprayground: atteso `type: "product_advice"`, CTA Sprayground e nessuna alternativa Devid Label forzata.
+
+```bash
+curl -X POST "http://localhost:8787/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"zaino sprayground","locale":"it-IT","knowledge_version":"1.0"}'
+```
+
+6. Query generica non mappata: atteso `type: "fallback"` oppure `product_advice` se l'AI è sicura, schema sempre valido e nessun array di stringhe.
+
+```bash
+curl -X POST "http://localhost:8787/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mi consigli qualcosa per un look casual","locale":"it-IT","knowledge_version":"1.0"}'
+```
+
+Controllo automatico leggero della shape:
+
+```bash
+npm run validate:contract
+```
