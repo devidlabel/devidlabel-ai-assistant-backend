@@ -516,3 +516,50 @@ Query manuali consigliate con Worker locale: `t-shirt saint barth uomo`, `san ba
 - Ranking ordini V1 limitato a batch ragionevoli: cataloghi/volumi elevati possono richiedere job schedulato o endpoint admin protetto.
 - Refund/parziali complessi non sono perfetti in V1.
 - La coerenza intent è euristica e può essere raffinata con tag/collection Shopify più strutturati.
+
+## Task 06 — Endpoint diagnostico Shopify protetto
+
+Il Worker espone un endpoint diagnostico server-side per verificare in modo sicuro la configurazione Shopify senza passare dal frontend e senza restituire secret, token, dati cliente o dati ordine.
+
+### Secret admin richiesto
+
+L'endpoint `POST /debug/shopify` è protetto dal secret Cloudflare `ASSISTANT_ADMIN_TOKEN` e accetta esclusivamente l'header:
+
+```http
+X-Assistant-Admin-Token: <token>
+```
+
+Configura il secret con:
+
+```bash
+npx wrangler secret put ASSISTANT_ADMIN_TOKEN
+```
+
+Se `ASSISTANT_ADMIN_TOKEN` manca, oppure se l'header è assente o errato, il Worker risponde senza dettagli diagnostici. Non usare l'endpoint senza token e non condividere output diagnostici pubblicamente se contengono dettagli che non vuoi rendere noti, anche quando sono sanitizzati.
+
+### Esempio test endpoint
+
+```bash
+curl -X POST "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/debug/shopify" \
+  -H "X-Assistant-Admin-Token: $ASSISTANT_ADMIN_TOKEN"
+```
+
+### Cosa verifica
+
+La risposta JSON usa `source: "shopify_debug"` e contiene solo booleani, un hint mascherato del dominio e messaggi di errore sanitizzati. Non include access token, Client ID, Client Secret, header `Authorization`, header `X-Shopify-Access-Token`, dati cliente, email, indirizzi, telefoni, payment data, nomi cliente o dettagli ordine.
+
+Check principali:
+
+- `shop_domain_configured`, `client_id_configured`, `client_secret_configured`, `legacy_admin_token_configured`: indicano se la configurazione è presente, senza restituire i valori.
+- `auth_token_obtained`: chiama `getShopifyAdminAccessToken(env)` per verificare il token Admin API, senza restituirlo o loggarlo.
+- `products_graphql_ok`: esegue una query minimale `products(first: 1)` e restituisce al massimo `products_count_sample` come `0` o `1`, senza titoli prodotto.
+- `orders_graphql_ok`: esegue una query minimale sugli ordini degli ultimi 30 giorni leggendo solo id tecnico, data e quantità line item; non legge customer, email, indirizzi, telefoni, payment data o order name.
+- `inventory_graphql_ok`: esegue una query minimale sulle varianti per verificare `inventoryQuantity` e `availableForSale`.
+
+Il dominio shop viene mascherato con `maskShopDomain`, ad esempio `devid-label.myshopify.com` diventa `devi****.myshopify.com`; un formato non valido viene riportato come `configured_invalid_format`.
+
+Gli errori passano da `sanitizeDebugError`, che redige token, secret, bearer token e header sensibili, limita il messaggio a 300 caratteri e usa codici controllati come `shopify_auth_unavailable`, `shopify_config_missing` o `shopify_graphql_unavailable`.
+
+### Guardrail `/chat`
+
+`/chat` mantiene lo stesso response contract e non espone dettagli sensibili. Quando il layer Shopify fallisce, i guardrail possono ora distinguere in modo più utile tra `shopify_auth_unavailable`, `shopify_products_unavailable`, `shopify_orders_unavailable` e fallback generale `shopify_recommendations_unavailable`.
