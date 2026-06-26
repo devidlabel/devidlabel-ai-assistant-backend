@@ -33,7 +33,7 @@ const checks = [
   ['strict filters avoid filling incoherent recommendations', /recommendations_not_filled_due_to_strict_filter/],
   ['swimwear rejects upper apparel fallback', /function isExplicitlyDeniedSwimwearFallback[\s\S]*maglia[\s\S]*t-shirt[\s\S]*polo/],
   ['swimwear medium shorts require beach or swim signal', /function hasMediumSwimwearSignal[\s\S]*bermuda[\s\S]*mare[\s\S]*swim/],
-  ['costume Saint Barth corrected query remains specific', /mare_uomo: \{ correctedQuery: "mc2 saint barth costume uomo"/],
+  ['category-only mare uomo is not rewritten to Saint Barth', /mare_uomo: \{ correctedQuery: "mare uomo"/],
   ['outerwear Colmar category remains supported', /outerwear: \["giacca", "giacche", "giubbino", "piumino", "smanicato", "jacket", "outerwear"\]/],
 ];
 for (const [name, pattern] of checks) {
