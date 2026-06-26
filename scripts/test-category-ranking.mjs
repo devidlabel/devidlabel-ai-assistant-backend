@@ -27,6 +27,13 @@ const checks = [
   ['globe forced matcher targets Devid Label product', /jeans_globe_devid_label:[\s\S]*jeans\\s\+globe\|globe/],
   ['mosca forced matcher targets t-shirt product', /tshirt_mosca_devid_label:[\s\S]*mosca/],
   ['colmar vendor-only intent remains supported', /colmar originals", aliases: \["colmar originals", "colmar"\]/i],
+  ['strict swimwear guardrail exists', /strict_swimwear_filter_applied/],
+  ['no strong swimwear guardrail exists', /no_strong_swimwear_products_found/],
+  ['strict product intent guardrail exists', /strict_product_intent_filter_applied/],
+  ['strict filters avoid filling incoherent recommendations', /recommendations_not_filled_due_to_strict_filter/],
+  ['swimwear rejects upper apparel fallback', /function isExplicitlyDeniedSwimwearFallback[\s\S]*maglia[\s\S]*t-shirt[\s\S]*polo/],
+  ['swimwear medium shorts require beach or swim signal', /function hasMediumSwimwearSignal[\s\S]*bermuda[\s\S]*mare[\s\S]*swim/],
+  ['costume Saint Barth corrected query remains specific', /mare_uomo: \{ correctedQuery: "mc2 saint barth costume uomo"/],
   ['outerwear Colmar category remains supported', /outerwear: \["giacca", "giacche", "giubbino", "piumino", "smanicato", "jacket", "outerwear"\]/],
 ];
 for (const [name, pattern] of checks) {

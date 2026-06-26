@@ -148,7 +148,7 @@ const INTENT_ALIASES: Record<ProductIntent, { correctedQuery: string; aliases: s
   monterosso_devid_label: { correctedQuery: "monterosso devid label", aliases: ["monterosso", "t-shirt monterosso", "tshirt monterosso", "maglia monterosso", "filo monterosso", "cotone monterosso"] },
   jeans_replay_uomo: { correctedQuery: "jeans replay uomo", aliases: ["jeans replay", "jeans replay uomo", "replay jeans", "replay jeans uomo", "denim replay"] },
   kway: { correctedQuery: "k-way", aliases: ["kway", "k-way", "kayway", "kwai", "giacca kway", "giacca k-way"] },
-  mare_uomo: { correctedQuery: "mare uomo", aliases: ["costume uomo", "costumi uomo", "mare uomo", "boxer mare", "costume saint barth uomo", "mc2 costume uomo"] },
+  mare_uomo: { correctedQuery: "mc2 saint barth costume uomo", aliases: ["costume uomo", "costumi uomo", "mare uomo", "boxer mare", "costume saint barth uomo", "mc2 costume uomo", "mc2 saint barth costume uomo"] },
   bermuda_uomo: { correctedQuery: "bermuda uomo", aliases: ["bermuda uomo", "short uomo", "shorts uomo", "bermuda", "shorts"] },
 };
 
@@ -950,7 +950,7 @@ const VENDOR_ALIASES: Array<{ vendor: string; aliases: string[] }> = [
 const CATEGORY_KEYWORDS: Record<CommerceCategoryIntent, string[]> = {
   tshirt: ["t shirt", "t-shirt", "tshirt", "tee", "maglietta", "maglia manica corta"],
   polo: ["polo"], jeans: ["jeans", "denim"],
-  costumi_mare: ["costume", "costumi", "boxer mare", "swimwear", "mare uomo", "beachwear"],
+  costumi_mare: ["costume", "costumi", "boxer mare", "swim shorts", "swimwear", "beachwear", "mare uomo"],
   bermuda_shorts: ["bermuda", "shorts", "short"], zaini: ["zaino", "zaini", "backpack", "bagpack"],
   borse_accessori: ["borsa", "borse", "pochette", "vanity", "clutch", "marsupio"],
   outerwear: ["giacca", "giacche", "giubbino", "piumino", "smanicato", "jacket", "outerwear"],
@@ -963,7 +963,7 @@ const CATEGORY_KEYWORDS: Record<CommerceCategoryIntent, string[]> = {
 const CATEGORY_COMPATIBILITY: Record<CommerceCategoryIntent, { strong: CommerceCategoryIntent[]; medium: CommerceCategoryIntent[]; deny: CommerceCategoryIntent[] }> = {
   tshirt: { strong: ["tshirt"], medium: ["polo", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans"] },
   polo: { strong: ["polo"], medium: ["tshirt", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans"] },
-  costumi_mare: { strong: ["costumi_mare"], medium: ["bermuda_shorts"], deny: ["tshirt", "polo", "jeans", "outerwear", "zaini", "borse_accessori", "calzature"] },
+  costumi_mare: { strong: ["costumi_mare"], medium: ["bermuda_shorts"], deny: ["tshirt", "polo", "jeans", "outerwear", "zaini", "borse_accessori", "calzature", "felpe", "maglieria", "camicie", "top_donna", "teli_mare"] },
   teli_mare: { strong: ["teli_mare"], medium: [], deny: ["tshirt", "polo", "jeans", "outerwear", "zaini", "borse_accessori"] },
   jeans: { strong: ["jeans"], medium: ["cargo"], deny: ["tshirt", "polo", "zaini", "borse_accessori", "teli_mare", "costumi_mare"] },
   zaini: { strong: ["zaini"], medium: ["borse_accessori"], deny: ["tshirt", "jeans", "costumi_mare", "teli_mare"] },
@@ -989,7 +989,7 @@ const INTENT_CANDIDATES: Partial<Record<ProductIntent, Omit<CandidateIntent, "in
   tshirt_mosca_devid_label: { vendor: "Devid Label", queryTerms: ["mosca"], productTerms: ["mosca", "t-shirt", "scollo v"], categories: ["tshirt"] },
   monterosso_devid_label: { vendor: "Devid Label", queryTerms: ["monterosso"], productTerms: ["monterosso", "cotone", "filo"], categories: ["maglieria", "tshirt"] },
   kway: { vendor: "K-Way", queryTerms: ["k-way", "kway"], productTerms: [], categories: [], forceNoDevidAlternatives: true },
-  mare_uomo: { vendor: "MC2 Saint Barth", queryTerms: ["mare", "saint barth"], productTerms: ["costume", "mare", "beachwear"], categories: ["costumi_mare"], gender: "uomo", alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
+  mare_uomo: { vendor: "MC2 Saint Barth", queryTerms: ["mc2 saint barth", "costume", "mare"], productTerms: ["costume", "boxer mare", "swimwear", "beachwear"], categories: ["costumi_mare"], gender: "uomo" },
   bermuda_uomo: { vendor: "Devid Label", queryTerms: ["bermuda"], productTerms: ["bermuda", "short"], categories: ["bermuda_shorts"], gender: "uomo" },
 };
 
@@ -1085,7 +1085,9 @@ async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, 
   const ranking = rankRecommendationsWithGuardrails(products, salesStats, candidate, normalized.normalizedQuery);
   const ranked = applyForcedProductIntentPriority(ranking.ranked, candidate, normalized.normalizedQuery).slice(0, 3);
   const strategy = candidate.commerceIntent.isVendorOnlyQuery ? "vendor_only_sales_30d" : "vendor_category_gender_sales_30d";
-  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: [...guardrails, ...ranking.guardrails, ...(ranking.ranked[0] && ranked[0]?.productId === getForcedProductForIntent(ranking.ranked, candidate.commerceIntent.productIntent)?.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"], expiresAt: Date.now() + ttl * 1000, ranking_strategy: strategy, commerce_intent: candidate.commerceIntent };
+  const forced = getForcedProductForIntent(ranking.ranked, candidate.commerceIntent.productIntent);
+  const recommendationGuardrails = [...guardrails, ...ranking.guardrails, ...(forced && ranked[0]?.productId === forced.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"];
+  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: recommendationGuardrails, expiresAt: Date.now() + ttl * 1000, ranking_strategy: strategy, commerce_intent: candidate.commerceIntent };
   recommendationCache.set(key, snapshot);
   return snapshot;
 }
@@ -1232,13 +1234,16 @@ function rankRecommendationsWithGuardrails(products: ProductCandidate[], salesSt
   let compatible = scored;
   if (category && !candidateIntent.commerceIntent.isVendorOnlyQuery) {
     guardrails.push("hard_category_filter_applied");
+    if (category === "costumi_mare") guardrails.push("strict_swimwear_filter_applied");
+    if (candidateIntent.commerceIntent.productIntent) guardrails.push("strict_product_intent_filter_applied");
     const before = scored.length;
     compatible = scored.filter((product) => isProductCommerciallyCompatible(product, candidateIntent.commerceIntent, normalizedQuery, "strong"));
     if (compatible.length < before) guardrails.push("incompatible_category_excluded");
     if (!compatible.length) {
-      const medium = scored.filter((product) => isProductCommerciallyCompatible(product, candidateIntent.commerceIntent, normalizedQuery, "medium"));
+      const allowMedium = !candidateIntent.commerceIntent.productIntent;
+      const medium = allowMedium ? scored.filter((product) => isProductCommerciallyCompatible(product, candidateIntent.commerceIntent, normalizedQuery, "medium")) : [];
       if (medium.length) { compatible = medium; guardrails.push("medium_category_fallback_used"); }
-      else { guardrails.push("no_compatible_products_found"); compatible = []; }
+      else { guardrails.push(category === "costumi_mare" ? "no_strong_swimwear_products_found" : "no_compatible_products_found", "recommendations_not_filled_due_to_strict_filter"); compatible = []; }
     }
   }
   return { ranked: compatible.sort((a, b) => b.coherenceScore - a.coherenceScore || (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE"))), guardrails };
@@ -1247,14 +1252,32 @@ function rankRecommendationsWithGuardrails(products: ProductCandidate[], salesSt
 
 function isProductCommerciallyCompatible(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, commerceIntent: CommerceQueryIntent, normalizedQuery = "", mode: "strong" | "medium" = "strong"): boolean {
   if (!commerceIntent.categoryIntent || commerceIntent.isVendorOnlyQuery) return true;
-  const categoryMatch = classifyCategoryCompatibility(detectProductCategory(product), commerceIntent.categoryIntent);
+  const productCategory = detectProductCategory(product);
+  const categoryMatch = classifyCategoryCompatibility(productCategory, commerceIntent.categoryIntent);
   if (categoryMatch === "denied" || isDeniedAccessoryForCategory(product, commerceIntent.categoryIntent)) return false;
-  if (categoryMatch === "strong") return true;
-  if (mode === "medium" && categoryMatch === "medium") {
-    if (commerceIntent.categoryIntent === "costumi_mare" && detectProductCategory(product) === "teli_mare" && !/(telo|teli|towel|foutas)/.test(normalizedQuery)) return false;
-    return true;
+  if (commerceIntent.categoryIntent === "costumi_mare") {
+    if (isExplicitlyDeniedSwimwearFallback(product)) return false;
+    if (categoryMatch === "strong") return hasStrongSwimwearSignal(product);
+    if (mode === "medium" && categoryMatch === "medium") return hasMediumSwimwearSignal(product);
+    return false;
   }
+  if (commerceIntent.productIntent) return categoryMatch === "strong";
+  if (categoryMatch === "strong") return true;
+  if (mode === "medium" && categoryMatch === "medium") return true;
   return mode === "medium" && categoryMatch === "unknown" && !isAccessoryProduct(product);
+}
+
+function hasStrongSwimwearSignal(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): boolean {
+  return /(^|\s)(costume|costumi|boxer\s+mare|swim\s+shorts|swimwear|beachwear)(\s|$)/.test(productSearchText(product));
+}
+
+function hasMediumSwimwearSignal(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): boolean {
+  const text = productSearchText(product);
+  return /(^|\s)(bermuda|shorts|short)(\s|$)/.test(text) && /(^|\s)(mare|beach|swim|costume|costumi|boxer|beachwear|swimwear)(\s|$)/.test(text);
+}
+
+function isExplicitlyDeniedSwimwearFallback(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): boolean {
+  return /(^|\s)(maglia|maglieria|t\s?shirt|t-shirt|tshirt|polo|felpa|cardigan|outerwear|jeans|borsa|borse|accessori|cuffia|cappello|cap|hat|shopper|pochette|vanity|clutch|telo|teli|towel|foutas)(\s|$)/.test(productSearchText(product));
 }
 
 function isDeniedAccessoryForCategory(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, queryCategory: CommerceCategoryIntent): boolean {
