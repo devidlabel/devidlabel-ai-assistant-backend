@@ -6,6 +6,8 @@ export interface Env {
   ASSISTANT_MODEL?: string;
   SHOPIFY_SHOP_DOMAIN?: string;
   SHOPIFY_ADMIN_ACCESS_TOKEN?: string;
+  SHOPIFY_CLIENT_ID?: string;
+  SHOPIFY_CLIENT_SECRET?: string;
   SHOPIFY_API_VERSION?: string;
   SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS?: string;
 }
@@ -87,7 +89,11 @@ const ASSISTANT_TYPES: AssistantResponseType[] = ["product_advice", "faq", "orde
 const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
 const DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS = 3600;
 const SHOPIFY_TIMEOUT_MS = 4500;
+const SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS = 23 * 60 * 60;
+const SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS = 5 * 60;
 const OPENAI_TIMEOUT_MS = 7000;
+
+let shopifyTokenCache = { accessToken: "", expiresAt: 0 };
 
 const SENSITIVE_KEY_PATTERN = /(email|mail|phone|telefono|tel|first.?name|last.?name|nome|cognome|address|indirizzo|payment|card|customer.?id|order.?id|ordine|token|access.?token|password|secret)/i;
 
@@ -728,18 +734,52 @@ async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, 
   return snapshot;
 }
 
+function normalizeShopifyShopDomain(env: Env): string {
+  const domain = env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  if (!domain) throw new Error("shopify_config_missing");
+  return domain;
+}
+
 function assertShopifyConfigured(env: Env): void {
-  if (!env.SHOPIFY_SHOP_DOMAIN || !env.SHOPIFY_ADMIN_ACCESS_TOKEN) throw new Error("shopify_config_missing");
+  if (!env.SHOPIFY_SHOP_DOMAIN) throw new Error("shopify_config_missing");
+  if (!env.SHOPIFY_ADMIN_ACCESS_TOKEN && (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET)) throw new Error("shopify_auth_unavailable");
+}
+
+type ShopifyTokenResponse = { access_token?: unknown; expires_in?: unknown };
+
+async function getShopifyAdminAccessToken(env: Env): Promise<string> {
+  if (env.SHOPIFY_ADMIN_ACCESS_TOKEN) return env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  assertShopifyConfigured(env);
+  const now = Date.now();
+  if (shopifyTokenCache.accessToken && shopifyTokenCache.expiresAt > now) return shopifyTokenCache.accessToken;
+  const domain = normalizeShopifyShopDomain(env);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grant_type: "client_credentials", client_id: env.SHOPIFY_CLIENT_ID, client_secret: env.SHOPIFY_CLIENT_SECRET }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`shopify_auth_status_${response.status}`);
+    const payload = await response.json() as ShopifyTokenResponse;
+    if (typeof payload.access_token !== "string" || !payload.access_token) throw new Error("shopify_auth_empty_token");
+    const expiresIn = typeof payload.expires_in === "number" && payload.expires_in > SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS ? payload.expires_in - SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS : SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS;
+    shopifyTokenCache = { accessToken: payload.access_token, expiresAt: now + expiresIn * 1000 };
+    return payload.access_token;
+  } finally { clearTimeout(timeout); }
 }
 
 async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<string, unknown> = {}): Promise<T> {
   assertShopifyConfigured(env);
-  const domain = env.SHOPIFY_SHOP_DOMAIN!.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const token = await getShopifyAdminAccessToken(env);
+  const domain = normalizeShopifyShopDomain(env);
   const version = env.SHOPIFY_API_VERSION || DEFAULT_SHOPIFY_API_VERSION;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
   try {
-    const response = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, { method: "POST", headers: { "X-Shopify-Access-Token": env.SHOPIFY_ADMIN_ACCESS_TOKEN!, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: controller.signal });
+    const response = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, { method: "POST", headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: controller.signal });
     if (!response.ok) throw new Error(`shopify_status_${response.status}`);
     const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
     if (payload.errors?.length) throw new Error("shopify_graphql_error");
@@ -804,4 +844,4 @@ function coherenceScore(product: ProductCandidate, candidate: CandidateIntent): 
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives };
+export { getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives };

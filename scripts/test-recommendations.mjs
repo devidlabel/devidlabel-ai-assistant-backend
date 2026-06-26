@@ -29,3 +29,31 @@ for (const [name, product, expected] of cases) {
   }
 }
 console.log('Recommendation availability tests passed');
+
+
+import { readFileSync } from 'node:fs';
+
+const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+const sourceChecks = [
+  ['static token remains first priority', /if \(env\.SHOPIFY_ADMIN_ACCESS_TOKEN\) return env\.SHOPIFY_ADMIN_ACCESS_TOKEN;/],
+  ['client credentials endpoint is used', /\/admin\/oauth\/access_token/],
+  ['client credentials grant is sent', /grant_type: "client_credentials"/],
+  ['GraphQL obtains token through helper', /const token = await getShopifyAdminAccessToken\(env\)/],
+  ['missing Shopify auth has controlled guardrail', /shopify_auth_unavailable|shopify_recommendations_unavailable/],
+  ['token cache is in-memory and global', /let shopifyTokenCache = \{ accessToken: "", expiresAt: 0 \}/],
+];
+
+for (const [name, pattern] of sourceChecks) {
+  if (!pattern.test(source)) {
+    console.error(`${name}: expected source pattern was not found`);
+    process.exit(1);
+  }
+}
+
+const consoleLines = source.split('\n').filter((line) => /console\.(log|error|warn)/.test(line));
+if (consoleLines.some((line) => /access_token|SHOPIFY_ADMIN_ACCESS_TOKEN|SHOPIFY_CLIENT_SECRET|client_secret|token/i.test(line))) {
+  console.error('Shopify auth test failed: a console statement appears to include sensitive token or secret terms');
+  process.exit(1);
+}
+
+console.log('Shopify auth source checks passed');
