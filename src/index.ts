@@ -4,6 +4,10 @@ export interface Env {
   OPENAI_API_KEY?: string;
   ASSISTANT_ALLOWED_ORIGINS?: string;
   ASSISTANT_MODEL?: string;
+  SHOPIFY_SHOP_DOMAIN?: string;
+  SHOPIFY_ADMIN_ACCESS_TOKEN?: string;
+  SHOPIFY_API_VERSION?: string;
+  SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS?: string;
 }
 
 type AssistantResponseType = "product_advice" | "faq" | "order_help" | "fallback";
@@ -18,6 +22,7 @@ type AssistantSuggestion = {
   message: string;
   url: string;
   type: "product" | "collection" | "search";
+  image?: string;
 };
 
 type NormalizedQuery = {
@@ -79,6 +84,11 @@ type SanitizedPayload = {
 const DEFAULT_ALLOWED_ORIGINS = ["https://devidlabel.com", "https://www.devidlabel.com"];
 const ALLOWED_KEYS = new Set(["query", "locale", "page_context", "cart_context", "knowledge_version"]);
 const ASSISTANT_TYPES: AssistantResponseType[] = ["product_advice", "faq", "order_help", "fallback"];
+const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
+const DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS = 3600;
+const SHOPIFY_TIMEOUT_MS = 4500;
+const OPENAI_TIMEOUT_MS = 7000;
+
 const SENSITIVE_KEY_PATTERN = /(email|mail|phone|telefono|tel|first.?name|last.?name|nome|cognome|address|indirizzo|payment|card|customer.?id|order.?id|ordine|token|access.?token|password|secret)/i;
 
 const SAFE_DESTINATIONS = {
@@ -164,7 +174,7 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
 
   const normalized = normalizeQuery(parsed.payload.query);
   const deterministic = routeDeterministicIntent(parsed.payload, "ai_backend", normalized);
-  if (deterministic) return json(deterministic, 200, corsHeaders);
+  if (deterministic) return json(await enrichProductRecommendations(deterministic, env, normalized), 200, corsHeaders);
 
   const fallback = buildFallbackResponse(parsed.payload);
   if (!env.OPENAI_API_KEY) {
@@ -173,7 +183,7 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
 
   try {
     const aiResponse = await callOpenAI(parsed.payload, env);
-    return json(aiResponse, 200, corsHeaders);
+    return json(await enrichProductRecommendations(aiResponse, env, normalized), 200, corsHeaders);
   } catch (error) {
     console.error("AI provider failed", error instanceof Error ? error.message : "unknown_error");
     return json({ ...fallback, guardrails: [...fallback.guardrails, "provider_fallback"] }, 200, corsHeaders);
@@ -269,7 +279,7 @@ function normalizeString(value: unknown, max: number): string {
 
 async function callOpenAI(payload: SanitizedPayload, env: Env): Promise<AssistantResponse> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 7000);
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -641,11 +651,6 @@ function responseContractV2(normalized: NormalizedQuery): Pick<AssistantResponse
   };
 }
 
-// TODO(Task future bestseller/availability): use normalized intent to fetch Shopify candidates,
-// filter real availability (one-size stock > 0; size variants with at least 50% variants
-// available and quantity > 0), rank by sold quantity over the last 30 days, then return
-// top 2/3 brand products plus top 1/2 coherent Devid Label alternatives. This task does
-// not call Shopify APIs, read orders, compute sales, or invent availability.
 
 function hasAny(query: string, needles: string[]): boolean {
   return needles.some((needle) => query.includes(needle));
@@ -654,3 +659,149 @@ function hasAny(query: string, needles: string[]): boolean {
 function json(body: AssistantResponse | ErrorResponse, status: number, headers: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });
 }
+
+type CandidateIntent = {
+  intent: string;
+  vendor: string;
+  queryTerms: string[];
+  productTerms: string[];
+  categories: string[];
+  gender?: "uomo" | "donna";
+  forceNoDevidAlternatives?: boolean;
+  alternativeIntents?: ProductIntent[];
+};
+
+type SalesStats = { productId: string; variantIds: string[]; unitsSold30d: number; revenue30d?: number; lastSoldAt?: string };
+type ProductVariantCandidate = { variantId: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null };
+type ProductCandidate = { productId: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; image?: string; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; variants: ProductVariantCandidate[] };
+type AvailabilityResult = { isAvailableForRecommendation: boolean; availabilityRatio: number; availableVariantCount: number; totalVariantCount: number; isOneSize: boolean };
+type RankedRecommendation = ProductCandidate & { salesStats?: SalesStats; availability: AvailabilityResult; coherenceScore: number };
+type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; devid_label_alternatives: AssistantSuggestion[]; guardrails: string[]; expiresAt: number };
+
+type ShopifyOrdersData = { orders: { edges: Array<{ node: { processedAt: string; lineItems: { edges: Array<{ node: { quantity: number; discountedTotalSet?: { shopMoney?: { amount?: string } }; product?: { id: string; vendor: string; title: string; productType: string; tags: string[] }; variant?: { id: string } } }> } } }> } };
+type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; featuredImage?: { url: string }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
+
+const recommendationCache = new Map<string, RecommendationSnapshot>();
+const KNOWN_VENDORS = ["Colmar Originals", "MC2 Saint Barth", "Sprayground", "Replay", "K-Way", "Palm Angels", "Mou", "Rains", "Goorin Bros", "Flower Mountain", "4B12", "Puraai", "G-Star", "Distretto12", "Ko Samui", "Devid Label"];
+const INTENT_CANDIDATES: Partial<Record<ProductIntent, Omit<CandidateIntent, "intent">>> = {
+  mc2_saint_barth: { vendor: "MC2 Saint Barth", queryTerms: ["saint barth", "mc2"], productTerms: [], categories: ["t-shirt", "polo", "costume", "mare", "beachwear"], alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
+  sprayground: { vendor: "Sprayground", queryTerms: ["sprayground"], productTerms: [], categories: [], forceNoDevidAlternatives: true },
+  jeans_replay_uomo: { vendor: "Replay", queryTerms: ["replay"], productTerms: ["jeans", "denim"], categories: ["jeans", "denim"], gender: "uomo", alternativeIntents: ["jeans_globe_devid_label"] },
+  jeans_globe_devid_label: { vendor: "Devid Label", queryTerms: ["globe"], productTerms: ["globe", "jeans", "denim"], categories: ["jeans", "denim"] },
+  cargo_courmayeur_devid_label: { vendor: "Devid Label", queryTerms: ["courmayeur"], productTerms: ["cargo", "courmayeur"], categories: ["cargo"], alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
+  tshirt_mosca_devid_label: { vendor: "Devid Label", queryTerms: ["mosca"], productTerms: ["mosca", "t-shirt", "scollo v"], categories: ["t-shirt"] },
+  monterosso_devid_label: { vendor: "Devid Label", queryTerms: ["monterosso"], productTerms: ["monterosso", "cotone", "filo"], categories: ["maglia", "t-shirt"] },
+  kway: { vendor: "K-Way", queryTerms: ["k-way", "kway"], productTerms: [], categories: [], forceNoDevidAlternatives: true },
+  mare_uomo: { vendor: "MC2 Saint Barth", queryTerms: ["mare", "saint barth"], productTerms: ["costume", "mare", "beachwear"], categories: ["costume", "mare", "beachwear"], gender: "uomo", alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
+  bermuda_uomo: { vendor: "Devid Label", queryTerms: ["bermuda"], productTerms: ["bermuda", "short"], categories: ["bermuda"], gender: "uomo" },
+};
+
+async function enrichProductRecommendations(response: AssistantResponse, env: Env, normalized: NormalizedQuery): Promise<AssistantResponse> {
+  if (response.type !== "product_advice") return response;
+  const candidate = candidateIntentFromNormalized(normalized);
+  if (!candidate) return { ...response, guardrails: [...response.guardrails, "shopify_recommendations_unavailable"] };
+  try {
+    const snapshot = await getRecommendationSnapshot(env, normalized, candidate);
+    return { ...response, recommended_products: snapshot.recommended_products.length ? snapshot.recommended_products : response.recommended_products, devid_label_alternatives: snapshot.devid_label_alternatives.length ? snapshot.devid_label_alternatives : response.devid_label_alternatives, guardrails: [...response.guardrails, ...snapshot.guardrails] };
+  } catch (error) {
+    console.error("Shopify recommendations unavailable", error instanceof Error ? error.message : "unknown_error");
+    return { ...response, guardrails: [...response.guardrails, "shopify_recommendations_unavailable"] };
+  }
+}
+
+function candidateIntentFromNormalized(normalized: NormalizedQuery): CandidateIntent | null {
+  if (normalized.matchedIntent && INTENT_CANDIDATES[normalized.matchedIntent]) return { intent: normalized.matchedIntent, ...INTENT_CANDIDATES[normalized.matchedIntent]! };
+  const vendor = KNOWN_VENDORS.find((name) => normalized.normalizedQuery.includes(normalizeQueryText(name)));
+  return vendor ? { intent: `vendor:${vendor}`, vendor, queryTerms: [vendor], productTerms: [], categories: [] } : null;
+}
+
+async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, candidate: CandidateIntent): Promise<RecommendationSnapshot> {
+  const ttl = parsePositiveInt(env.SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS, DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS);
+  const key = `v1:${candidate.intent}:${candidate.vendor}:${normalized.correctedQuery}:${candidate.gender ?? "any"}`.toLowerCase();
+  const cached = recommendationCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return { ...cached, guardrails: [...cached.guardrails, "shopify_recommendations_cache_hit"] };
+  assertShopifyConfigured(env);
+  const [products, salesStats] = await Promise.all([fetchCandidateProducts(env, candidate), fetchSalesRankLast30Days(env, candidate)]);
+  const ranked = rankRecommendations(products, salesStats, candidate).slice(0, 3);
+  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: [salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"], expiresAt: Date.now() + ttl * 1000 };
+  recommendationCache.set(key, snapshot);
+  return snapshot;
+}
+
+function assertShopifyConfigured(env: Env): void {
+  if (!env.SHOPIFY_SHOP_DOMAIN || !env.SHOPIFY_ADMIN_ACCESS_TOKEN) throw new Error("shopify_config_missing");
+}
+
+async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  assertShopifyConfigured(env);
+  const domain = env.SHOPIFY_SHOP_DOMAIN!.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const version = env.SHOPIFY_API_VERSION || DEFAULT_SHOPIFY_API_VERSION;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, { method: "POST", headers: { "X-Shopify-Access-Token": env.SHOPIFY_ADMIN_ACCESS_TOKEN!, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: controller.signal });
+    if (!response.ok) throw new Error(`shopify_status_${response.status}`);
+    const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
+    if (payload.errors?.length) throw new Error("shopify_graphql_error");
+    if (!payload.data) throw new Error("shopify_empty_data");
+    return payload.data;
+  } finally { clearTimeout(timeout); }
+}
+
+async function fetchSalesRankLast30Days(env: Env, candidateIntent: CandidateIntent): Promise<Map<string, SalesStats>> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const queryText = `created_at:>=${since} -status:cancelled financial_status:paid OR financial_status:partially_paid`;
+  const data = await shopifyGraphQL<ShopifyOrdersData>(env, `query Sales($query: String!) { orders(first: 50, query: $query, sortKey: PROCESSED_AT, reverse: true) { edges { node { processedAt lineItems(first: 50) { edges { node { quantity discountedTotalSet { shopMoney { amount } } product { id vendor title productType tags } variant { id } } } } } } } }`, { query: queryText });
+  const stats = new Map<string, SalesStats>();
+  for (const edge of data.orders.edges) for (const itemEdge of edge.node.lineItems.edges) {
+    const item = itemEdge.node; if (!item.product || !matchesCandidateProduct(item.product, candidateIntent)) continue;
+    const current = stats.get(item.product.id) ?? { productId: item.product.id, variantIds: [], unitsSold30d: 0, revenue30d: 0, lastSoldAt: edge.node.processedAt };
+    current.unitsSold30d += Math.max(0, item.quantity || 0); if (item.variant?.id && !current.variantIds.includes(item.variant.id)) current.variantIds.push(item.variant.id);
+    current.revenue30d = (current.revenue30d ?? 0) + Number(item.discountedTotalSet?.shopMoney?.amount ?? 0); if (!current.lastSoldAt || edge.node.processedAt > current.lastSoldAt) current.lastSoldAt = edge.node.processedAt;
+    stats.set(item.product.id, current);
+  }
+  return stats;
+}
+
+async function fetchCandidateProducts(env: Env, candidateIntent: CandidateIntent): Promise<ProductCandidate[]> {
+  const terms = [`vendor:'${candidateIntent.vendor.replace(/'/g, "")}'`, ...candidateIntent.productTerms].join(" ");
+  const data = await shopifyGraphQL<ShopifyProductsData>(env, `query Products($query: String!) { products(first: 30, query: $query) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt featuredImage { url } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } }`, { query: terms });
+  return data.products.edges.map(({ node }) => ({ productId: node.id, title: node.title, handle: node.handle, vendor: node.vendor, productType: node.productType, tags: node.tags ?? [], image: node.featuredImage?.url, onlineStoreUrl: node.onlineStoreUrl, status: node.status, publishedAt: node.publishedAt, variants: node.variants.edges.map(({ node: variant }) => ({ variantId: variant.id, title: variant.title, selectedOptions: variant.selectedOptions ?? [], inventoryQuantity: variant.inventoryQuantity, availableForSale: variant.availableForSale })) })).filter((product) => matchesCandidateProduct(product, candidateIntent));
+}
+
+function computeAvailabilityScore(product: ProductCandidate): AvailabilityResult {
+  const variants = product.variants.length ? product.variants : [];
+  const isOneSize = variants.length <= 1 || variants.every((v) => /default title|taglia unica|unica|unico|one size/i.test(v.title) || v.selectedOptions.every((o) => /title|taglia|size|numero/i.test(o.name) && /default title|taglia unica|unica|unico|one size/i.test(o.value)));
+  const sizeVariants = variants.filter((v) => v.selectedOptions.some((o) => /size|taglia|numero/i.test(o.name)));
+  const relevant = isOneSize ? variants.slice(0, 1) : (sizeVariants.length ? sizeVariants : variants);
+  const totalVariantCount = Math.max(1, relevant.length || variants.length);
+  const availableVariantCount = (relevant.length ? relevant : variants).filter(isVariantAvailable).length;
+  const availabilityRatio = Math.min(1, availableVariantCount / totalVariantCount);
+  return { isAvailableForRecommendation: isOneSize ? availableVariantCount > 0 : availabilityRatio >= 0.5, availabilityRatio, availableVariantCount, totalVariantCount, isOneSize };
+}
+
+function rankRecommendations(products: ProductCandidate[], salesStats: Map<string, SalesStats>, candidateIntent: CandidateIntent): RankedRecommendation[] {
+  return products.map((product) => ({ ...product, salesStats: salesStats.get(product.productId), availability: computeAvailabilityScore(product), coherenceScore: coherenceScore(product, candidateIntent) })).filter((product) => product.availability.isAvailableForRecommendation).sort((a, b) => (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || b.coherenceScore - a.coherenceScore || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE")));
+}
+
+async function buildDevidLabelAlternatives(env: Env, normalizedIntent: NormalizedQuery, mainIntent: CandidateIntent): Promise<AssistantSuggestion[]> {
+  if (mainIntent.forceNoDevidAlternatives) return [];
+  const intents = mainIntent.alternativeIntents ?? (normalizedIntent.normalizedQuery.includes("mare") ? ["bermuda_uomo", "tshirt_mosca_devid_label", "monterosso_devid_label"] : []);
+  const out: AssistantSuggestion[] = [];
+  for (const intent of intents) {
+    const config = INTENT_CANDIDATES[intent]; if (!config) continue;
+    const products = await fetchCandidateProducts(env, { intent, ...config });
+    const ranked = rankRecommendations(products, new Map(), { intent, ...config });
+    if (ranked[0]) out.push(toAssistantSuggestion(ranked[0]));
+    if (out.length >= 2) break;
+  }
+  return out;
+}
+
+function isVariantAvailable(variant: ProductVariantCandidate): boolean { return (typeof variant.inventoryQuantity === "number" && variant.inventoryQuantity > 0) || variant.availableForSale === true; }
+function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "title" | "productType" | "tags">, candidate: CandidateIntent): boolean { const text = normalizeQueryText([product.title, product.productType, ...(product.tags ?? [])].join(" ")); const vendorMatches = normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor); return vendorMatches && (candidate.productTerms.length === 0 || candidate.productTerms.every((term) => text.includes(normalizeQueryText(term)))); }
+function coherenceScore(product: ProductCandidate, candidate: CandidateIntent): number { const text = normalizeQueryText([product.title, product.productType, product.vendor, ...product.tags].join(" ")); return [...candidate.queryTerms, ...candidate.productTerms, ...candidate.categories].reduce((score, term) => score + (text.includes(normalizeQueryText(term)) ? 1 : 0), 0); }
+function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
+function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
+
+export { shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives };
