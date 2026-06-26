@@ -398,6 +398,110 @@ curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d
 
 Atteso: le query alias prodotto rispondono `type: "product_advice"`, con `normalized_query` valorizzata e `requires_backend_order_lookup: false`; la query ordine risponde `type: "order_help"` e `requires_backend_order_lookup: true`; la query FAQ risponde `type: "faq"` e `requires_backend_order_lookup: false`; la query generica resta schema-valida con AI o fallback.
 
-### Preparazione futura bestseller/disponibilità
+## Task 04 — Shopify recommendation ranking cache V1
 
-Questa task non implementa Shopify Admin API, Storefront API, lookup ordini, venduto ultimi 30 giorni, stock, disponibilità varianti, sconti, add-to-cart, database o cache. Il codice contiene un TODO per il ranking futuro: intent normalizzato, fetch candidati Shopify, filtro disponibilità reale, soglia 50% varianti disponibili per capi taglia, ranking venduto 30 giorni e raccomandazioni top brand/alternative Devid Label coerenti.
+La V1 aggiunge un motore merchandising server-side e cache-based per arricchire le risposte `product_advice` con `recommended_products` dinamici e, quando coerente, `devid_label_alternatives` dinamiche. La Shopify Admin API resta chiamata solo dal Cloudflare Worker: il browser continua a usare esclusivamente `/chat` e non riceve token, vendite, quantità stock numeriche, dati ordine o dati cliente.
+
+### Env e secrets richiesti
+
+Variabili supportate dal Worker:
+
+- `SHOPIFY_SHOP_DOMAIN`: dominio `.myshopify.com` del negozio, ad esempio `devidlabel.myshopify.com`. Può essere configurato come variabile non sensibile o come secret.
+- `SHOPIFY_ADMIN_ACCESS_TOKEN`: token Admin API della Custom App Shopify. Deve essere sempre un secret Cloudflare.
+- `SHOPIFY_API_VERSION`: versione Admin API da usare. Default documentato e configurato: `2025-10`.
+- `SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS`: TTL della cache raccomandazioni. Default: `3600` secondi.
+
+Imposta i secret con Wrangler senza committare valori reali:
+
+```bash
+npx wrangler secret put SHOPIFY_ADMIN_ACCESS_TOKEN
+npx wrangler secret put SHOPIFY_SHOP_DOMAIN
+```
+
+`SHOPIFY_API_VERSION` e `SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS` possono stare in `wrangler.toml`, dashboard Cloudflare o variabili ambiente. Non inserire token in `wrangler.toml`, `.env.example`, README o tema Shopify.
+
+### Scope Shopify Custom App
+
+La Custom App Shopify deve avere questi scope Admin API:
+
+- `read_products`: legge titolo, vendor, handle, immagini, product type, tag e varianti.
+- `read_inventory`: legge quantità/availability delle varianti per evitare prodotti non disponibili.
+- `read_orders`: aggrega il venduto degli ultimi 30 giorni per ranking bestseller.
+
+La repository non crea automaticamente la Custom App e non contiene secret.
+
+### Shopify GraphQL client
+
+Il client `shopifyGraphQL<T>(env, query, variables)` costruisce l'endpoint `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, invia `X-Shopify-Access-Token` e `Content-Type: application/json`, applica timeout breve e converte errori HTTP/GraphQL in errori controllati. Non logga token, payload ordine o dati personali; in caso di config mancante, timeout, rate limit o errore API, `/chat` degrada al fallback esistente con guardrail `shopify_recommendations_unavailable`.
+
+### Intent, venduto 30 giorni e prodotti candidati
+
+La mappa server-side copre intent forti come MC2 Saint Barth, Sprayground, Replay jeans uomo, Devid Label Globe/Courmayeur/Mosca/Monterosso, K-Way, mare uomo e vendor generici tra i vendor iniziali documentati. Per ogni intent il Worker ricava vendor, termini prodotto/categoria e alternative Devid Label ammesse.
+
+`fetchSalesRankLast30Days` interroga gli ordini degli ultimi 30 giorni con batch limitato, esclude per quanto possibile ordini cancellati e preferisce ordini paid/partially paid. Legge solo line item product/variant/quantity e aggrega `unitsSold30d`, variant id vendute, revenue opzionale e ultimo venduto per `productId`. Non salva né restituisce email, nomi, indirizzi, telefoni, payment data, customer id o order id. Limite V1: i refund complessi non sono riconciliati perfettamente.
+
+`fetchCandidateProducts` legge via Admin GraphQL massimo 30 prodotti candidati e massimo 50 varianti per prodotto, con handle, vendor, product type, tag, immagine, published/status e variant availability/quantity. La Admin API non è mai chiamata dal frontend.
+
+### Availability score e regola 50% varianti
+
+`computeAvailabilityScore` distingue prodotti taglia unica e prodotti a taglie:
+
+- taglia unica: una sola variante `Default Title`, `Taglia unica`, `Unica`, `Unico` o `One Size`; passa se almeno una variante ha `inventoryQuantity > 0` o `availableForSale: true`;
+- taglie multiple: considera varianti con opzioni `Size`, `Taglia` o `Numero`; passa solo se `availableVariantCount / totalVariantCount >= 0.5`.
+
+Esempi: S:1, M:0, L:1, XL:0 passa perché 2/4 = 50%; S:1, M:0, L:0, XL:0 non passa perché 1/4 = 25%.
+
+### Ranking e alternative Devid Label
+
+`rankRecommendations` filtra i non disponibili e ordina per:
+
+1. unità vendute negli ultimi 30 giorni, discendente;
+2. availability ratio, discendente;
+3. coerenza con intent/query, discendente;
+4. prodotto pubblicato/attivo quando disponibile.
+
+Se non ci sono vendite recenti, usa un fallback coerente basato su disponibilità e coerenza, senza inventare bestseller. Restituisce massimo 3 prodotti principali.
+
+`buildDevidLabelAlternatives` propone massimo 2 alternative Devid Label solo quando coerenti e disponibili: Mosca/Monterosso per MC2 Saint Barth t-shirt o mare uomo, Globe per Replay jeans uomo, Mosca/Monterosso per Cargo/Courmayeur. Sprayground e K-Way non forzano alternative Devid Label.
+
+### Cache recommendation snapshot
+
+La cache V1 è in-memory globale per isolate Cloudflare Worker. La chiave include intent, vendor, query corretta e gender/categoria quando presente. Il TTL è configurabile con `SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS` e di default vale 3600 secondi. Su cache hit `/chat` riusa lo snapshot; su cache miss calcola prodotti, vendite e alternative e salva lo snapshot. Se Shopify non è configurato o fallisce, la risposta resta valida e usa il fallback/static advice esistente.
+
+### Integrazione `/chat`
+
+Per risposte `type: "product_advice"`, il Worker prova ad arricchire:
+
+- `recommended_products`: massimo 3 item dinamici con `{ label, message, url, image, type: "product" }`;
+- `devid_label_alternatives`: massimo 2 item dinamici quando coerenti;
+- `primary_cta` e `cross_sell`: mantenuti per compatibilità con il frontend attuale.
+
+FAQ e order help non chiamano il ranking Shopify. Le risposte ordine mantengono `requires_backend_order_lookup: true` senza tracking inventato e senza dati personali.
+
+### Test Task 04
+
+```bash
+npm run test:recommendations
+npm run validate:contract
+npm run typecheck
+npm run build
+git diff --check
+rg -n "<secret-patterns>" .
+```
+
+Query manuali consigliate con Worker locale: `t-shirt saint barth uomo`, `san bat`, `sprayground`, `jeans replay uomo`, `globe`, `mosca`, `colmar`, `pagamento alla consegna`, `dov’è il mio ordine`.
+
+### Deploy
+
+1. Crea/configura la Custom App Shopify con `read_products`, `read_inventory`, `read_orders`.
+2. Imposta i secret Cloudflare con `npx wrangler secret put SHOPIFY_ADMIN_ACCESS_TOKEN` e, se preferisci, `npx wrangler secret put SHOPIFY_SHOP_DOMAIN`.
+3. Verifica `SHOPIFY_API_VERSION` e `SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS` in Wrangler/Dashboard.
+4. Esegui `npm run typecheck`, `npm run build`, `npm run validate:contract`, `npm run test:recommendations`.
+5. Esegui `npm run deploy`.
+
+### Rischi residui e prossimi step
+
+- Cache in-memory per isolate: non è condivisa globalmente tra tutte le isolate Cloudflare; KV/Cache API può diventare il prossimo step se serve persistenza cross-isolate.
+- Ranking ordini V1 limitato a batch ragionevoli: cataloghi/volumi elevati possono richiedere job schedulato o endpoint admin protetto.
+- Refund/parziali complessi non sono perfetti in V1.
+- La coerenza intent è euristica e può essere raffinata con tag/collection Shopify più strutturati.

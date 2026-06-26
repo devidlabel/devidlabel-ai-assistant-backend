@@ -6,3 +6,5 @@ compatibility_date = "2026-06-25"
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. Override in Cloudflare dashboard or with environment-specific config.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
+SHOPIFY_API_VERSION = "2025-10"
+SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS = "3600"

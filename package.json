@@ -9,7 +9,8 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "validate:contract": "node scripts/validate-contract.mjs"
+    "validate:contract": "node scripts/validate-contract.mjs",
+    "test:recommendations": "node scripts/test-recommendations.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
