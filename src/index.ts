@@ -93,8 +93,11 @@ const SHOPIFY_TIMEOUT_MS = 4500;
 const SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS = 23 * 60 * 60;
 const SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS = 5 * 60;
 const OPENAI_TIMEOUT_MS = 7000;
+const SHOPIFY_OAUTH_SCOPES = "read_products,read_inventory,read_orders";
+const SHOPIFY_OAUTH_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback";
 
 let shopifyTokenCache = { accessToken: "", expiresAt: 0 };
+let shopifyOAuthInstallStateCache = { state: "", expiresAt: 0 };
 
 const SENSITIVE_KEY_PATTERN = /(email|mail|phone|telefono|tel|first.?name|last.?name|nome|cognome|address|indirizzo|payment|card|customer.?id|order.?id|ordine|token|access.?token|password|secret)/i;
 
@@ -163,6 +166,18 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
   }
 
   const url = new URL(request.url);
+  if (url.pathname === "/" && request.method === "GET") {
+    return html("Devid Label AI Assistant Backend is running.", 200, corsHeaders);
+  }
+
+  if (url.pathname === "/install") {
+    return handleShopifyInstallRequest(request, env, corsHeaders);
+  }
+
+  if (url.pathname === "/auth/callback") {
+    return handleShopifyAuthCallbackRequest(request, env, corsHeaders);
+  }
+
   if (url.pathname === "/debug/shopify") {
     return handleShopifyDebugRequest(request, env, corsHeaders);
   }
@@ -199,6 +214,66 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
     console.error("AI provider failed", error instanceof Error ? error.message : "unknown_error");
     return json({ ...fallback, guardrails: [...fallback.guardrails, "provider_fallback"] }, 200, corsHeaders);
   }
+}
+
+async function handleShopifyInstallRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
+  if (request.method !== "GET") {
+    return json({ ok: false, source: "ai_backend", type: "error", message: "Metodo non supportato.", guardrails: [] }, 405, { ...corsHeaders, Allow: "GET, OPTIONS" });
+  }
+  if (!env.SHOPIFY_CLIENT_ID) {
+    return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_client_id_missing"]), 500, corsHeaders);
+  }
+
+  const url = new URL(request.url);
+  const shop = normalizeShopifyDomainCandidate(url.searchParams.get("shop") || env.SHOPIFY_SHOP_DOMAIN || "");
+  if (!isValidShopifyShopDomain(shop)) {
+    return json(validationError("Shop Shopify non valido.", ["invalid_shopify_shop_domain"]), 400, corsHeaders);
+  }
+
+  const state = createOAuthState();
+  shopifyOAuthInstallStateCache = { state, expiresAt: Date.now() + 10 * 60 * 1000 };
+  const authorizeUrl = new URL(`https://${shop}/admin/oauth/authorize`);
+  authorizeUrl.searchParams.set("client_id", env.SHOPIFY_CLIENT_ID);
+  authorizeUrl.searchParams.set("scope", SHOPIFY_OAUTH_SCOPES);
+  authorizeUrl.searchParams.set("redirect_uri", SHOPIFY_OAUTH_REDIRECT_URI);
+  authorizeUrl.searchParams.set("state", state);
+
+  return new Response(null, { status: 302, headers: { ...corsHeaders, Location: authorizeUrl.toString(), "Cache-Control": "no-store" } });
+}
+
+async function handleShopifyAuthCallbackRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
+  if (request.method !== "GET") {
+    return json({ ok: false, source: "ai_backend", type: "error", message: "Metodo non supportato.", guardrails: [] }, 405, { ...corsHeaders, Allow: "GET, OPTIONS" });
+  }
+  if (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET) {
+    return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_config_missing"]), 500, corsHeaders);
+  }
+
+  const url = new URL(request.url);
+  const shop = normalizeShopifyDomainCandidate(url.searchParams.get("shop") || "");
+  if (!isValidShopifyShopDomain(shop)) {
+    return json(validationError("Shop Shopify non valido.", ["invalid_shopify_shop_domain"]), 400, corsHeaders);
+  }
+  if (!(await verifyShopifyHmac(url.searchParams, env.SHOPIFY_CLIENT_SECRET))) {
+    return json(validationError("Firma Shopify non valida.", ["invalid_shopify_hmac"]), 403, corsHeaders);
+  }
+
+  const state = url.searchParams.get("state") || "";
+  if (shopifyOAuthInstallStateCache.state && shopifyOAuthInstallStateCache.expiresAt > Date.now() && state !== shopifyOAuthInstallStateCache.state) {
+    return json(validationError("State Shopify OAuth non valido.", ["invalid_shopify_oauth_state"]), 403, corsHeaders);
+  }
+
+  const code = url.searchParams.get("code") || "";
+  if (!code) {
+    return json(validationError("Codice OAuth Shopify mancante.", ["missing_shopify_oauth_code"]), 400, corsHeaders);
+  }
+
+  const result = await exchangeShopifyOAuthCode(env, shop, code);
+  if (!result.ok) {
+    return json(validationError("Installazione Shopify non completata.", [result.error]), 502, corsHeaders);
+  }
+
+  return html("App installata correttamente. Puoi chiudere questa finestra.", 200, corsHeaders);
 }
 
 async function handleShopifyDebugRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
@@ -275,7 +350,7 @@ function buildCorsHeaders(request: Request, env: Env): HeadersInit {
   const origin = request.headers.get("Origin") ?? "";
   const allowed = parseAllowedOrigins(env.ASSISTANT_ALLOWED_ORIGINS);
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Assistant-Admin-Token",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
@@ -741,6 +816,76 @@ function json(body: unknown, status: number, headers: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });
 }
 
+function html(body: string, status: number, headers: HeadersInit): Response {
+  return new Response(`<!doctype html><html lang="it"><meta charset="utf-8"><title>Devid Label AI Assistant</title><body>${escapeHtml(body)}</body></html>`, {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...headers },
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char] ?? char));
+}
+
+function normalizeShopifyDomainCandidate(value: string): string {
+  return value.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "").toLowerCase();
+}
+
+function isValidShopifyShopDomain(value: string): boolean {
+  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(value);
+}
+
+function createOAuthState(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyShopifyHmac(params: URLSearchParams, clientSecret: string): Promise<boolean> {
+  const received = params.get("hmac") || "";
+  if (!received || !/^[a-f0-9]{64}$/i.test(received) || !clientSecret) return false;
+  const entries: Array<[string, string]> = [];
+  params.forEach((value, key) => entries.push([key, value]));
+  const message = entries
+    .filter(([key]) => key !== "hmac" && key !== "signature")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(clientSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  const expected = [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return timingSafeEqualHex(expected, received.toLowerCase());
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function exchangeShopifyOAuthCode(env: Env, shop: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: env.SHOPIFY_CLIENT_ID, client_secret: env.SHOPIFY_CLIENT_SECRET, code }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return { ok: false, error: `shopify_oauth_status_${response.status}` };
+    const payload = await response.json() as { access_token?: unknown };
+    if (typeof payload.access_token !== "string" || !payload.access_token) return { ok: false, error: "shopify_oauth_empty_token" };
+    shopifyOAuthInstallStateCache = { state: "", expiresAt: 0 };
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof DOMException && error.name === "AbortError" ? "shopify_oauth_timeout" : "shopify_oauth_unavailable" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 type CandidateIntent = {
   intent: string;
   vendor: string;
@@ -970,4 +1115,4 @@ function coherenceScore(product: ProductCandidate, candidate: CandidateIntent): 
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError };
+export { getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode };
