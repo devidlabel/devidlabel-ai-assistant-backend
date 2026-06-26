@@ -441,6 +441,34 @@ La Custom App Shopify deve avere questi scope Admin API:
 
 La repository non crea automaticamente la Custom App e non contiene secret.
 
+### Task 07 — Installazione OAuth Shopify Dev Dashboard
+
+Per permettere al pulsante **Installa app** della Shopify Dev Dashboard di completare l'autorizzazione sullo store DevidLabel, il Worker espone anche due endpoint OAuth minimi:
+
+- URL app: `https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/install`
+- Redirect URL: `https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback`
+- Scopes richiesti: `read_products,read_inventory,read_orders`
+
+`GET /install` legge `shop` dalla query Shopify e, se manca, usa `SHOPIFY_SHOP_DOMAIN` come fallback solo se configurato. Il dominio viene accettato solo nel formato `.myshopify.com`; poi il Worker genera uno `state` random best-effort in memoria e risponde con redirect `302` verso `https://{shop}/admin/oauth/authorize`, includendo `client_id`, scope, redirect URI e state. Lo state in-memory è un controllo aggiuntivo best-effort: può non sopravvivere a isolate diverse o cold start Cloudflare, quindi la callback mantiene come controllo principale la validazione HMAC Shopify.
+
+`GET /auth/callback` valida il dominio `.myshopify.com`, verifica l'HMAC Shopify con `SHOPIFY_CLIENT_SECRET`, controlla il `code` OAuth e scambia il code con `POST https://{shop}/admin/oauth/access_token`. Se Shopify restituisce un access token, il Worker considera completata l'installazione ma non mostra il token al browser, non lo logga, non lo committa e non lo restituisce in JSON. La risposta finale è una pagina HTML minimale: `App installata correttamente. Puoi chiudere questa finestra.`
+
+Procedura Shopify Dev Dashboard consigliata:
+
+1. Crea o rilascia una nuova versione della app con URL app e Redirect URL indicati sopra.
+2. Clicca **Installa app** dalla Dev Dashboard.
+3. Autorizza gli scope `read_products`, `read_inventory`, `read_orders`.
+4. Verifica in Shopify Dev Dashboard che **Installazioni** passi a `1`.
+5. Esegui `POST /debug/shopify` con `X-Assistant-Admin-Token`.
+6. Verifica che il client credentials grant continui a ottenere il token Admin API per raccomandazioni e diagnostica.
+
+Note sicurezza:
+
+- Il token OAuth della callback serve a completare installazione/autorizzazione della app e non diventa il metodo principale per le raccomandazioni.
+- Il metodo principale resta il client credentials grant già usato da `getShopifyAdminAccessToken`.
+- Token e Client Secret non vengono mai mostrati al browser, non vengono loggati e non devono mai essere committati.
+- `SHOPIFY_CLIENT_SECRET`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_SHOP_DOMAIN` e l'eventuale `SHOPIFY_ADMIN_ACCESS_TOKEN` devono restare Cloudflare secret o variabili protette; non inserirli nel tema, nel frontend o in file versionati.
+
 ### Shopify GraphQL client
 
 Il client `shopifyGraphQL<T>(env, query, variables)` costruisce l'endpoint `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, ottiene il token con `getShopifyAdminAccessToken(env)`, invia `X-Shopify-Access-Token` e `Content-Type: application/json`, applica timeout breve e converte errori HTTP/GraphQL in errori controllati. La priorità auth è: token statico legacy `SHOPIFY_ADMIN_ACCESS_TOKEN`, poi client credentials con `SHOPIFY_CLIENT_ID`/`SHOPIFY_CLIENT_SECRET`, poi fallback controllato. Non logga token, client secret, payload ordine o dati personali; in caso di config mancante, auth non disponibile, timeout, rate limit o errore API, `/chat` degrada al fallback esistente con guardrail `shopify_recommendations_unavailable`.
