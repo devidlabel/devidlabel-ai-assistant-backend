@@ -12,6 +12,22 @@ const checks = [
   ['GraphQL fetches collections', /collections\(first: 10\)/],
   ['fallback guardrail for no sales remains', /shopify_recommendations_no_recent_sales_fallback/],
   ['commerce intent is exposed without sensitive fields', /commerce_intent/],
+  ['hard category compatibility function exists', /function isProductCommerciallyCompatible\(/],
+  ['hard category filter runs before final ranking', /hard_category_filter_applied[\s\S]*isProductCommerciallyCompatible/],
+  ['incompatible products are excluded, not only penalized', /incompatible_category_excluded[\s\S]*filter\(\(product\) => isProductCommerciallyCompatible/],
+  ['medium fallback is controlled', /medium_category_fallback_used/],
+  ['no compatible products guardrail exists', /no_compatible_products_found/],
+  ['accessory detection catches hats bags towels', /cuffia\|cappello\|cap\|hat\|beanie\|shopper\|borsa[\s\S]*telo\|towel\|foutas/],
+  ['tshirt Saint Barth excludes accessories and beach categories', /tshirt:[\s\S]*deny:[\s\S]*costumi_mare[\s\S]*borse_accessori/],
+  ['costume Saint Barth excludes accessories and upper apparel', /costumi_mare:[\s\S]*deny:[\s\S]*tshirt[\s\S]*polo[\s\S]*borse_accessori/],
+  ['telo mare admits towel/foutas category', /teli_mare: \["telo", "teli", "towel", "foutas"/],
+  ['vendor-only bypasses hard category filtering', /isVendorOnlyQuery\) return true/],
+  ['forced product intent helper exists', /function getForcedProductForIntent\(/],
+  ['forced product intent is applied as first result', /return \[forced, \.\.\.products\.filter/],
+  ['globe forced matcher targets Devid Label product', /jeans_globe_devid_label:[\s\S]*jeans\\s\+globe\|globe/],
+  ['mosca forced matcher targets t-shirt product', /tshirt_mosca_devid_label:[\s\S]*mosca/],
+  ['colmar vendor-only intent remains supported', /colmar originals", aliases: \["colmar originals", "colmar"\]/i],
+  ['outerwear Colmar category remains supported', /outerwear: \["giacca", "giacche", "giubbino", "piumino", "smanicato", "jacket", "outerwear"\]/],
 ];
 for (const [name, pattern] of checks) {
   if (!pattern.test(source)) {
