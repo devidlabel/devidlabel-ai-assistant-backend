@@ -664,6 +664,19 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
   }
 
   const commerceIntent = analyzeCommerceQuery(payload.query, query);
+  if (!commerceIntent.vendorIntent && commerceIntent.categoryIntent === "costumi_mare") {
+    return {
+      ...base,
+      type: "product_advice",
+      title: "Costumi e mare uomo",
+      message: "Ti mostro solo proposte mare coerenti, senza riempire le card con prodotti fuori categoria.",
+      primary_cta: cta(SAFE_DESTINATIONS.mare),
+      devid_label_alternatives: [],
+      cross_sell: [SAFE_DESTINATIONS.bermuda],
+      commerce_intent: toResponseCommerceIntent(commerceIntent),
+    };
+  }
+
   if (commerceIntent.vendorIntent) {
     return {
       ...base,
@@ -926,6 +939,7 @@ type AvailabilityResult = { isAvailableForRecommendation: boolean; availabilityR
 type RankedRecommendation = ProductCandidate & { salesStats?: SalesStats; availability: AvailabilityResult; coherenceScore: number; categoryMatch: "strong" | "medium" | "denied" | "unknown" };
 type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; devid_label_alternatives: AssistantSuggestion[]; guardrails: string[]; expiresAt: number; ranking_strategy: string; commerce_intent: CommerceQueryIntent };
 type RecommendationRankingResult = { ranked: RankedRecommendation[]; guardrails: string[] };
+type SeasonSignal = "summer" | "winter" | "neutral";
 type ShopifyDebugError = { stage: string; code: string; message: string };
 type ShopifyDebugResponse = { ok: boolean; source: "shopify_debug"; checks: Record<string, boolean>; shop_domain_hint?: string; api_version: string; products_count_sample?: number; errors: ShopifyDebugError[] };
 
@@ -959,6 +973,12 @@ const CATEGORY_KEYWORDS: Record<CommerceCategoryIntent, string[]> = {
   teli_mare: ["telo", "teli", "towel", "foutas", "asciugamano mare"], cargo: ["cargo", "courma", "courmayeur"],
   maglieria: ["maglieria", "maglia", "cardigan", "girocollo", "scollo v", "serafino", "monterosso"],
 };
+
+const WINTER_KEYWORDS = /(^|\s)(cuffia|beanie|ski|lover\s+ski|winter|wool|lana|cashmere|piumino|giacca\s+pesante|maglia\s+invernale|knitwear\s+invernale)(\s|$)/;
+const SUMMER_KEYWORDS = /(^|\s)(costume|costumi|boxer|boxer\s+mare|mare|beach|swim|swim\s+shorts|swimwear|beachwear|telo|teli|towel|foutas|linen|lino|cotton|cotone|t\s?shirt|t-shirt|tshirt|polo|camicia|camicie|bermuda|short|shorts)(\s|$)/;
+// Gender source terms: uomo|man|male|men|maschile and donna|woman|women|female|femminile.
+const MALE_KEYWORDS = /(^|\s)(uomo|man|men|male|maschile)(\s|$)/;
+const FEMALE_KEYWORDS = /(^|\s)(donna|woman|women|female|femminile)(\s|$)/;
 
 const CATEGORY_COMPATIBILITY: Record<CommerceCategoryIntent, { strong: CommerceCategoryIntent[]; medium: CommerceCategoryIntent[]; deny: CommerceCategoryIntent[] }> = {
   tshirt: { strong: ["tshirt"], medium: ["polo", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans"] },
@@ -1047,8 +1067,8 @@ function detectCategoryIntent(query: string): CommerceCategoryIntent | null {
 
 function detectGenderIntent(query: string): CommerceGenderIntent | null {
   if (/(^|\s)unisex(\s|$)/.test(query)) return "unisex";
-  if (/(^|\s)(uomo|man|male|men|maschile)(\s|$)/.test(query)) return "uomo";
-  if (/(^|\s)(donna|woman|women|female|femminile)(\s|$)/.test(query)) return "donna";
+  if (MALE_KEYWORDS.test(query)) return "uomo";
+  if (FEMALE_KEYWORDS.test(query)) return "donna";
   return null;
 }
 
@@ -1065,9 +1085,15 @@ function candidateIntentFromNormalized(normalized: NormalizedQuery): CandidateIn
   if (commerceIntent.productIntent && INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]) return { intent: commerceIntent.productIntent, ...INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]!, commerceIntent };
   if (normalized.matchedIntent && INTENT_CANDIDATES[normalized.matchedIntent]) {
     const base = INTENT_CANDIDATES[normalized.matchedIntent]!;
-    return { intent: normalized.matchedIntent, ...base, commerceIntent: { ...commerceIntent, vendorIntent: commerceIntent.vendorIntent ?? base.vendor, categoryIntent: commerceIntent.categoryIntent ?? base.categories[0] ?? null, genderIntent: commerceIntent.genderIntent ?? base.gender ?? null } };
+    const shouldUseBaseCategory = !commerceIntent.vendorIntent && !commerceIntent.isVendorOnlyQuery;
+    return { intent: normalized.matchedIntent, ...base, commerceIntent: { ...commerceIntent, vendorIntent: commerceIntent.vendorIntent ?? base.vendor, categoryIntent: commerceIntent.categoryIntent ?? (shouldUseBaseCategory ? base.categories[0] ?? null : null), genderIntent: commerceIntent.genderIntent ?? base.gender ?? null } };
   }
-  if (!commerceIntent.vendorIntent) return null;
+  if (!commerceIntent.vendorIntent) {
+    if (commerceIntent.categoryIntent === "costumi_mare") {
+      return { intent: "category:costumi_mare", vendor: "MC2 Saint Barth", queryTerms: ["costume", "mare"], productTerms: ["costume", "boxer mare", "swimwear"], categories: ["costumi_mare"], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
+    }
+    return null;
+  }
   return { intent: `vendor:${commerceIntent.vendorIntent}:${commerceIntent.categoryIntent ?? "any"}:${commerceIntent.genderIntent ?? "any"}`, vendor: commerceIntent.vendorIntent, queryTerms: [commerceIntent.vendorIntent], productTerms: commerceIntent.productIntent ? [commerceIntent.productIntent] : [], categories: commerceIntent.categoryIntent ? [commerceIntent.categoryIntent] : [], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
 }
 
@@ -1084,9 +1110,9 @@ async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, 
   try { salesStats = await fetchSalesRankLast30Days(env, candidate); } catch (_error) { guardrails.push("shopify_orders_unavailable"); }
   const ranking = rankRecommendationsWithGuardrails(products, salesStats, candidate, normalized.normalizedQuery);
   const ranked = applyForcedProductIntentPriority(ranking.ranked, candidate, normalized.normalizedQuery).slice(0, 3);
-  const strategy = candidate.commerceIntent.isVendorOnlyQuery ? "vendor_only_sales_30d" : "vendor_category_gender_sales_30d";
+  const strategy = salesStats.size ? (candidate.commerceIntent.isVendorOnlyQuery ? "vendor_only_semantic_sales_30d" : "vendor_category_gender_semantic_sales_30d") : "semantic_no_recent_sales_fallback";
   const forced = getForcedProductForIntent(ranking.ranked, candidate.commerceIntent.productIntent);
-  const recommendationGuardrails = [...guardrails, ...ranking.guardrails, ...(forced && ranked[0]?.productId === forced.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"];
+  const recommendationGuardrails = [...guardrails, ...ranking.guardrails, ...(forced && ranked[0]?.productId === forced.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback", ...(salesStats.size ? [] : ["no_recent_sales_semantic_fallback_applied"])];
   const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: recommendationGuardrails, expiresAt: Date.now() + ttl * 1000, ranking_strategy: strategy, commerce_intent: candidate.commerceIntent };
   recommendationCache.set(key, snapshot);
   return snapshot;
@@ -1225,33 +1251,90 @@ function rankRecommendations(products: ProductCandidate[], salesStats: Map<strin
 function rankRecommendationsWithGuardrails(products: ProductCandidate[], salesStats: Map<string, SalesStats>, candidateIntent: CandidateIntent, normalizedQuery = ""): RecommendationRankingResult {
   const guardrails: string[] = [];
   const scored = products
-    .map((product) => {
+    .map((product, shopifyPosition) => {
       const scoredProduct = scoreProductCandidate(product, candidateIntent, salesStats.get(product.productId));
-      return { ...product, salesStats: salesStats.get(product.productId), availability: computeAvailabilityScore(product), coherenceScore: scoredProduct.score, categoryMatch: scoredProduct.categoryMatch };
+      return { ...product, salesStats: salesStats.get(product.productId), availability: computeAvailabilityScore(product), coherenceScore: scoredProduct.score - shopifyPosition / 1000, categoryMatch: scoredProduct.categoryMatch };
     })
     .filter((product) => product.availability.isAvailableForRecommendation);
-  const category = candidateIntent.commerceIntent.categoryIntent;
+  if (scored.length !== products.length) guardrails.push("availability_filter_applied");
+
   let compatible = scored;
-  if (category && !candidateIntent.commerceIntent.isVendorOnlyQuery) {
+  const commerce = candidateIntent.commerceIntent;
+  if (commerce.vendorIntent) {
+    const before = compatible.length;
+    compatible = compatible.filter((product) => normalizeQueryText(product.vendor) === normalizeQueryText(commerce.vendorIntent!));
+    if (compatible.length < before) guardrails.push("vendor_filter_applied");
+  }
+  if (commerce.genderIntent && commerce.genderIntent !== "unisex") {
+    const before = compatible.length;
+    compatible = compatible.filter((product) => isGenderCompatible(product, commerce.genderIntent!));
+    if (compatible.length < before) guardrails.push("hard_gender_filter_applied");
+  }
+
+  if (commerce.isVendorOnlyQuery) {
+    guardrails.push("vendor_only_seasonal_ranking_applied", "seasonal_filter_applied");
+    const summer = compatible.filter((product) => getSeasonSignal(product) === "summer" && !isWinterProduct(product));
+    if (summer.length) compatible = summer;
+    else guardrails.push("vendor_only_seasonal_fallback_unavailable");
+  }
+
+  const category = commerce.categoryIntent;
+  if (category && !commerce.isVendorOnlyQuery) {
     guardrails.push("hard_category_filter_applied");
-    if (category === "costumi_mare") guardrails.push("strict_swimwear_filter_applied");
-    if (candidateIntent.commerceIntent.productIntent) guardrails.push("strict_product_intent_filter_applied");
-    const before = scored.length;
-    compatible = scored.filter((product) => isProductCommerciallyCompatible(product, candidateIntent.commerceIntent, normalizedQuery, "strong"));
+    if (category === "costumi_mare") guardrails.push("strict_swimwear_filter_applied", "strict_swimwear_vendor_filter_applied");
+    if (commerce.productIntent) guardrails.push("strict_product_intent_filter_applied");
+    const before = compatible.length;
+    compatible = compatible.filter((product) => isProductCommerciallyCompatible(product, commerce, normalizedQuery, "strong"));
     if (compatible.length < before) guardrails.push("incompatible_category_excluded");
     if (!compatible.length) {
-      const allowMedium = !candidateIntent.commerceIntent.productIntent;
-      const medium = allowMedium ? scored.filter((product) => isProductCommerciallyCompatible(product, candidateIntent.commerceIntent, normalizedQuery, "medium")) : [];
+      const allowMedium = !commerce.productIntent && category !== "costumi_mare";
+      const medium = allowMedium ? scored.filter((product) => isProductCommerciallyCompatible(product, commerce, normalizedQuery, "medium") && (!commerce.genderIntent || commerce.genderIntent === "unisex" || isGenderCompatible(product, commerce.genderIntent))) : [];
       if (medium.length) { compatible = medium; guardrails.push("medium_category_fallback_used"); }
-      else { guardrails.push(category === "costumi_mare" ? "no_strong_swimwear_products_found" : "no_compatible_products_found", "recommendations_not_filled_due_to_strict_filter"); compatible = []; }
+      else { guardrails.push(category === "costumi_mare" ? "no_strong_mare_uomo_products_found" : "no_compatible_products_found", ...(category === "costumi_mare" ? ["no_strong_swimwear_products_found"] : []), "recommendations_not_filled_due_to_strict_filter"); compatible = []; }
     }
   }
+
+  const beforeFinal = compatible.length;
+  compatible = compatible.filter((product) => isFinalRecommendationAllowed(product, commerce, normalizedQuery));
+  guardrails.push("final_strict_recommendation_filter_applied");
+  if (compatible.length < beforeFinal) guardrails.push("final_incoherent_products_excluded");
+
   return { ranked: compatible.sort((a, b) => b.coherenceScore - a.coherenceScore || (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE"))), guardrails };
 }
 
+function isFinalRecommendationAllowed(product: RankedRecommendation, commerceIntent: CommerceQueryIntent, normalizedQuery = ""): boolean {
+  if (!product.availability.isAvailableForRecommendation) return false;
+  if (commerceIntent.vendorIntent && normalizeQueryText(product.vendor) !== normalizeQueryText(commerceIntent.vendorIntent)) return false;
+  if (commerceIntent.genderIntent && commerceIntent.genderIntent !== "unisex" && !isGenderCompatible(product, commerceIntent.genderIntent)) return false;
+  if (commerceIntent.categoryIntent && !commerceIntent.isVendorOnlyQuery && !isProductCommerciallyCompatible(product, commerceIntent, normalizedQuery, "strong")) return false;
+  if (requiresSummerContext(commerceIntent, normalizedQuery) && isWinterProduct(product)) return false;
+  if (commerceIntent.categoryIntent === "costumi_mare" && isExplicitlyDeniedSwimwearFallback(product)) return false;
+  return true;
+}
+
+function isGenderCompatible(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, gender: CommerceGenderIntent): boolean {
+  if (gender === "unisex") return true;
+  const text = productSearchText(product);
+  const female = FEMALE_KEYWORDS.test(text) || /(^|\s)(girl|girls|lady|ladies|top\s+donna)(\s|$)/.test(text);
+  const male = MALE_KEYWORDS.test(text) || /(^|\s)(boy|boys)(\s|$)/.test(text);
+  if (gender === "uomo") return !female;
+  if (gender === "donna") return !male;
+  return true;
+}
+
+function getSeasonSignal(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): SeasonSignal {
+  const text = productSearchText(product);
+  if (WINTER_KEYWORDS.test(text)) return "winter";
+  if (SUMMER_KEYWORDS.test(text)) return "summer";
+  return "neutral";
+}
+
+function isWinterProduct(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): boolean { return getSeasonSignal(product) === "winter"; }
+function requiresSummerContext(commerceIntent: CommerceQueryIntent, normalizedQuery = ""): boolean { return commerceIntent.isVendorOnlyQuery || commerceIntent.categoryIntent === "costumi_mare" || /(^|\s)(mare|costume|costumi|boxer|swim|beach)(\s|$)/.test(normalizedQuery); }
 
 function isProductCommerciallyCompatible(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, commerceIntent: CommerceQueryIntent, normalizedQuery = "", mode: "strong" | "medium" = "strong"): boolean {
   if (!commerceIntent.categoryIntent || commerceIntent.isVendorOnlyQuery) return true;
+  if (commerceIntent.genderIntent && commerceIntent.genderIntent !== "unisex" && !isGenderCompatible(product, commerceIntent.genderIntent)) return false;
   const productCategory = detectProductCategory(product);
   const categoryMatch = classifyCategoryCompatibility(productCategory, commerceIntent.categoryIntent);
   if (categoryMatch === "denied" || isDeniedAccessoryForCategory(product, commerceIntent.categoryIntent)) return false;
@@ -1261,6 +1344,7 @@ function isProductCommerciallyCompatible(product: Pick<ProductCandidate, "title"
     if (mode === "medium" && categoryMatch === "medium") return hasMediumSwimwearSignal(product);
     return false;
   }
+  if (commerceIntent.categoryIntent === "tshirt" && /(^|\s)(costume|costumi|boxer|swim|telo|teli|towel|foutas|cuffia|cappello|beanie|borsa|pochette)(\s|$)/.test(productSearchText(product))) return false;
   if (commerceIntent.productIntent) return categoryMatch === "strong";
   if (categoryMatch === "strong") return true;
   if (mode === "medium" && categoryMatch === "medium") return true;
@@ -1328,6 +1412,10 @@ function scoreProductCandidate(product: ProductCandidate, candidate: CandidateIn
     else if (productGender && productGender !== commerce.genderIntent) score -= 80;
   }
   if (commerce.productIntent && text.includes(normalizeQueryText(commerce.productIntent.replace(/_/g, " ")))) score += 30;
+  const season = getSeasonSignal(product);
+  if (requiresSummerContext(commerce, "") && season === "summer") score += 35;
+  if (requiresSummerContext(commerce, "") && season === "winter") score -= 160;
+  if (commerce.isVendorOnlyQuery && isAccessoryProduct(product)) score -= 25;
   const availability = computeAvailabilityScore(product); score += Math.round(availability.availabilityRatio * 20);
   score += Math.min(25, sales?.unitsSold30d ?? 0);
   return { score, categoryMatch };
