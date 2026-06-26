@@ -64,6 +64,9 @@ type AssistantResponse = {
   normalized_query?: { raw: string; normalized: string; corrected: string; intent: ProductIntent | null; confidence: number; aliases: string[] };
   intent?: ProductIntent | null;
   confidence?: number;
+  commerce_intent?: { vendor: string | null; category: string | null; gender: "uomo" | "donna" | "unisex" | null; product: string | null; confidence: number; is_vendor_only_query: boolean };
+  ranking_strategy?: string;
+  recommendation_guardrails?: string[];
 };
 
 type ErrorResponse = { ok: false; source: "ai_backend"; type: "error"; message: string; guardrails: string[] };
@@ -660,6 +663,19 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
+  const commerceIntent = analyzeCommerceQuery(payload.query, query);
+  if (commerceIntent.vendorIntent) {
+    return {
+      ...base,
+      type: "product_advice",
+      title: commerceIntent.categoryIntent ? `${commerceIntent.vendorIntent}: ${commerceIntent.categoryIntent.replace(/_/g, " ")}` : commerceIntent.vendorIntent,
+      message: commerceIntent.isVendorOnlyQuery ? `Ti mostro i prodotti ${commerceIntent.vendorIntent} disponibili ordinati per venduto recente.` : `Ti mostro prima prodotti ${commerceIntent.vendorIntent} coerenti con categoria e taglia/genere richiesti.`,
+      primary_cta: { label: `Cerca ${commerceIntent.vendorIntent}`, url: `/search?type=product&q=${encodeURIComponent([commerceIntent.vendorIntent, commerceIntent.categoryIntent ?? "", commerceIntent.genderIntent ?? ""].filter(Boolean).join(" "))}` },
+      devid_label_alternatives: [],
+      cross_sell: [],
+    };
+  }
+
   if (isOrderQuery(query)) {
     return {
       ...base,
@@ -730,7 +746,8 @@ function isFaqQuery(query: string): boolean {
 
 function isProductQuery(query: string): boolean {
   const normalized = normalizeQuery(query);
-  return Boolean(normalized.matchedIntent) || /t-?shirt|tshirt|saint barth|replay|jeans|cargo|courmayeur|sprayground|k-?way|costume|mare uomo|bermuda|polo/.test(normalized.normalizedQuery);
+  const commerceIntent = analyzeCommerceQuery(query, normalized.normalizedQuery);
+  return Boolean(normalized.matchedIntent || commerceIntent.vendorIntent || commerceIntent.categoryIntent) || /t-?shirt|tshirt|saint barth|replay|jeans|cargo|courmayeur|sprayground|k-?way|costume|mare uomo|bermuda|polo/.test(normalized.normalizedQuery);
 }
 
 function normalizeQuery(input: string): NormalizedQuery {
@@ -886,42 +903,93 @@ async function exchangeShopifyOAuthCode(env: Env, shop: string, code: string): P
   }
 }
 
+type CommerceGenderIntent = "uomo" | "donna" | "unisex";
+type CommerceCategoryIntent = "tshirt" | "polo" | "jeans" | "costumi_mare" | "bermuda_shorts" | "zaini" | "borse_accessori" | "outerwear" | "felpe" | "camicie" | "top_donna" | "calzature" | "teli_mare" | "cargo" | "maglieria";
+type CommerceQueryIntent = { vendorIntent: string | null; categoryIntent: CommerceCategoryIntent | null; genderIntent: CommerceGenderIntent | null; productIntent: string | null; isVendorOnlyQuery: boolean; confidence: number };
 type CandidateIntent = {
   intent: string;
   vendor: string;
   queryTerms: string[];
   productTerms: string[];
-  categories: string[];
-  gender?: "uomo" | "donna";
+  categories: CommerceCategoryIntent[];
+  gender?: CommerceGenderIntent;
+  commerceIntent: CommerceQueryIntent;
   forceNoDevidAlternatives?: boolean;
   alternativeIntents?: ProductIntent[];
 };
 
 type SalesStats = { productId: string; variantIds: string[]; unitsSold30d: number; revenue30d?: number; lastSoldAt?: string };
 type ProductVariantCandidate = { variantId: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null };
-type ProductCandidate = { productId: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; image?: string; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; variants: ProductVariantCandidate[] };
+type ProductCollectionCandidate = { handle: string; title: string };
+type ProductCandidate = { productId: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; collections: ProductCollectionCandidate[]; image?: string; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; variants: ProductVariantCandidate[] };
 type AvailabilityResult = { isAvailableForRecommendation: boolean; availabilityRatio: number; availableVariantCount: number; totalVariantCount: number; isOneSize: boolean };
-type RankedRecommendation = ProductCandidate & { salesStats?: SalesStats; availability: AvailabilityResult; coherenceScore: number };
-type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; devid_label_alternatives: AssistantSuggestion[]; guardrails: string[]; expiresAt: number };
+type RankedRecommendation = ProductCandidate & { salesStats?: SalesStats; availability: AvailabilityResult; coherenceScore: number; categoryMatch: "strong" | "medium" | "denied" | "unknown" };
+type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; devid_label_alternatives: AssistantSuggestion[]; guardrails: string[]; expiresAt: number; ranking_strategy: string; commerce_intent: CommerceQueryIntent };
 type ShopifyDebugError = { stage: string; code: string; message: string };
 type ShopifyDebugResponse = { ok: boolean; source: "shopify_debug"; checks: Record<string, boolean>; shop_domain_hint?: string; api_version: string; products_count_sample?: number; errors: ShopifyDebugError[] };
 
 type ShopifyOrdersData = { orders: { edges: Array<{ node: { processedAt: string; lineItems: { edges: Array<{ node: { quantity: number; discountedTotalSet?: { shopMoney?: { amount?: string } }; product?: { id: string; vendor: string; title: string; productType: string; tags: string[] }; variant?: { id: string } } }> } } }> } };
-type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; featuredImage?: { url: string }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
+type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; featuredImage?: { url: string }; collections?: { edges: Array<{ node: { handle: string; title: string } }> }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
+
+
+const VENDOR_ALIASES: Array<{ vendor: string; aliases: string[] }> = [
+  { vendor: "MC2 Saint Barth", aliases: ["mc2 saint barth", "saint barth", "saint bart", "san bat", "san bart", "mc2"] },
+  { vendor: "Sprayground", aliases: ["sprayground", "sprygrund", "sprygrounf", "sprayg", "spray ground"] },
+  { vendor: "Colmar Originals", aliases: ["colmar originals", "colmar"] },
+  { vendor: "K-Way", aliases: ["k-way", "kway"] },
+  { vendor: "Replay", aliases: ["replay"] },
+  { vendor: "Mou", aliases: ["mou"] },
+  { vendor: "Rains", aliases: ["rains"] },
+  { vendor: "Palm Angels", aliases: ["palm angels", "palm"] },
+  { vendor: "Flower Mountain", aliases: ["flower mountain", "flower"] },
+  { vendor: "Goorin Bros", aliases: ["goorin bros", "goorin"] },
+  { vendor: "Devid Label", aliases: ["devid label", "devid", "dl"] },
+];
+
+const CATEGORY_KEYWORDS: Record<CommerceCategoryIntent, string[]> = {
+  tshirt: ["t shirt", "t-shirt", "tshirt", "tee", "maglietta", "maglia manica corta"],
+  polo: ["polo"], jeans: ["jeans", "denim"],
+  costumi_mare: ["costume", "costumi", "boxer mare", "swimwear", "mare uomo", "beachwear"],
+  bermuda_shorts: ["bermuda", "shorts", "short"], zaini: ["zaino", "zaini", "backpack", "bagpack"],
+  borse_accessori: ["borsa", "borse", "pochette", "vanity", "clutch", "marsupio"],
+  outerwear: ["giacca", "giacche", "giubbino", "piumino", "smanicato", "jacket", "outerwear"],
+  felpe: ["felpa", "hoodie", "sweatshirt"], camicie: ["camicia", "camicie", "blusa", "bluse"],
+  top_donna: ["top", "canotta", "bralette"], calzature: ["scarpe", "sneaker", "sneakers", "sandali", "ciabatte"],
+  teli_mare: ["telo", "teli", "towel", "foutas", "asciugamano mare"], cargo: ["cargo", "courma", "courmayeur"],
+  maglieria: ["maglieria", "maglia", "cardigan", "girocollo", "scollo v", "serafino", "monterosso"],
+};
+
+const CATEGORY_COMPATIBILITY: Record<CommerceCategoryIntent, { strong: CommerceCategoryIntent[]; medium: CommerceCategoryIntent[]; deny: CommerceCategoryIntent[] }> = {
+  tshirt: { strong: ["tshirt"], medium: ["polo", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature"] },
+  polo: { strong: ["polo"], medium: ["tshirt", "maglieria"], deny: ["teli_mare", "zaini", "borse_accessori", "calzature"] },
+  costumi_mare: { strong: ["costumi_mare"], medium: ["teli_mare", "bermuda_shorts"], deny: ["tshirt", "jeans", "outerwear", "zaini"] },
+  teli_mare: { strong: ["teli_mare"], medium: ["costumi_mare"], deny: ["tshirt", "jeans", "outerwear"] },
+  jeans: { strong: ["jeans"], medium: ["cargo"], deny: ["tshirt", "zaini", "teli_mare"] },
+  zaini: { strong: ["zaini"], medium: ["borse_accessori"], deny: ["tshirt", "jeans", "teli_mare"] },
+  outerwear: { strong: ["outerwear"], medium: ["felpe"], deny: ["teli_mare", "costumi_mare", "tshirt"] },
+  bermuda_shorts: { strong: ["bermuda_shorts"], medium: ["costumi_mare", "cargo"], deny: ["zaini", "teli_mare", "outerwear"] },
+  borse_accessori: { strong: ["borse_accessori"], medium: ["zaini"], deny: ["tshirt", "jeans", "teli_mare"] },
+  felpe: { strong: ["felpe"], medium: ["outerwear", "maglieria"], deny: ["teli_mare", "costumi_mare"] },
+  camicie: { strong: ["camicie"], medium: ["top_donna", "tshirt"], deny: ["teli_mare", "zaini"] },
+  top_donna: { strong: ["top_donna"], medium: ["camicie", "tshirt"], deny: ["teli_mare", "zaini"] },
+  calzature: { strong: ["calzature"], medium: [], deny: ["tshirt", "jeans", "teli_mare", "zaini"] },
+  cargo: { strong: ["cargo"], medium: ["jeans", "bermuda_shorts"], deny: ["tshirt", "zaini", "teli_mare"] },
+  maglieria: { strong: ["maglieria"], medium: ["tshirt", "polo", "felpe"], deny: ["teli_mare", "zaini"] },
+};
 
 const recommendationCache = new Map<string, RecommendationSnapshot>();
 const KNOWN_VENDORS = ["Colmar Originals", "MC2 Saint Barth", "Sprayground", "Replay", "K-Way", "Palm Angels", "Mou", "Rains", "Goorin Bros", "Flower Mountain", "4B12", "Puraai", "G-Star", "Distretto12", "Ko Samui", "Devid Label"];
-const INTENT_CANDIDATES: Partial<Record<ProductIntent, Omit<CandidateIntent, "intent">>> = {
-  mc2_saint_barth: { vendor: "MC2 Saint Barth", queryTerms: ["saint barth", "mc2"], productTerms: [], categories: ["t-shirt", "polo", "costume", "mare", "beachwear"], alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
+const INTENT_CANDIDATES: Partial<Record<ProductIntent, Omit<CandidateIntent, "intent" | "commerceIntent">>> = {
+  mc2_saint_barth: { vendor: "MC2 Saint Barth", queryTerms: ["saint barth", "mc2"], productTerms: [], categories: ["tshirt", "polo", "costumi_mare"], alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
   sprayground: { vendor: "Sprayground", queryTerms: ["sprayground"], productTerms: [], categories: [], forceNoDevidAlternatives: true },
-  jeans_replay_uomo: { vendor: "Replay", queryTerms: ["replay"], productTerms: ["jeans", "denim"], categories: ["jeans", "denim"], gender: "uomo", alternativeIntents: ["jeans_globe_devid_label"] },
-  jeans_globe_devid_label: { vendor: "Devid Label", queryTerms: ["globe"], productTerms: ["globe", "jeans", "denim"], categories: ["jeans", "denim"] },
+  jeans_replay_uomo: { vendor: "Replay", queryTerms: ["replay"], productTerms: ["jeans", "denim"], categories: ["jeans"], gender: "uomo", alternativeIntents: ["jeans_globe_devid_label"] },
+  jeans_globe_devid_label: { vendor: "Devid Label", queryTerms: ["globe"], productTerms: ["globe", "jeans", "denim"], categories: ["jeans"] },
   cargo_courmayeur_devid_label: { vendor: "Devid Label", queryTerms: ["courmayeur"], productTerms: ["cargo", "courmayeur"], categories: ["cargo"], alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
-  tshirt_mosca_devid_label: { vendor: "Devid Label", queryTerms: ["mosca"], productTerms: ["mosca", "t-shirt", "scollo v"], categories: ["t-shirt"] },
-  monterosso_devid_label: { vendor: "Devid Label", queryTerms: ["monterosso"], productTerms: ["monterosso", "cotone", "filo"], categories: ["maglia", "t-shirt"] },
+  tshirt_mosca_devid_label: { vendor: "Devid Label", queryTerms: ["mosca"], productTerms: ["mosca", "t-shirt", "scollo v"], categories: ["tshirt"] },
+  monterosso_devid_label: { vendor: "Devid Label", queryTerms: ["monterosso"], productTerms: ["monterosso", "cotone", "filo"], categories: ["maglieria", "tshirt"] },
   kway: { vendor: "K-Way", queryTerms: ["k-way", "kway"], productTerms: [], categories: [], forceNoDevidAlternatives: true },
-  mare_uomo: { vendor: "MC2 Saint Barth", queryTerms: ["mare", "saint barth"], productTerms: ["costume", "mare", "beachwear"], categories: ["costume", "mare", "beachwear"], gender: "uomo", alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
-  bermuda_uomo: { vendor: "Devid Label", queryTerms: ["bermuda"], productTerms: ["bermuda", "short"], categories: ["bermuda"], gender: "uomo" },
+  mare_uomo: { vendor: "MC2 Saint Barth", queryTerms: ["mare", "saint barth"], productTerms: ["costume", "mare", "beachwear"], categories: ["costumi_mare"], gender: "uomo", alternativeIntents: ["tshirt_mosca_devid_label", "monterosso_devid_label"] },
+  bermuda_uomo: { vendor: "Devid Label", queryTerms: ["bermuda"], productTerms: ["bermuda", "short"], categories: ["bermuda_shorts"], gender: "uomo" },
 };
 
 async function enrichProductRecommendations(response: AssistantResponse, env: Env, normalized: NormalizedQuery): Promise<AssistantResponse> {
@@ -930,43 +998,97 @@ async function enrichProductRecommendations(response: AssistantResponse, env: En
   if (!candidate) return { ...response, guardrails: [...response.guardrails, "shopify_recommendations_unavailable"] };
   try {
     const snapshot = await getRecommendationSnapshot(env, normalized, candidate);
-    return { ...response, recommended_products: snapshot.recommended_products.length ? snapshot.recommended_products : response.recommended_products, devid_label_alternatives: snapshot.devid_label_alternatives.length ? snapshot.devid_label_alternatives : response.devid_label_alternatives, guardrails: [...response.guardrails, ...snapshot.guardrails] };
+    return { ...response, recommended_products: snapshot.recommended_products.length ? snapshot.recommended_products : response.recommended_products, devid_label_alternatives: snapshot.devid_label_alternatives.length ? snapshot.devid_label_alternatives : response.devid_label_alternatives, guardrails: [...response.guardrails, ...snapshot.guardrails], commerce_intent: toResponseCommerceIntent(snapshot.commerce_intent), ranking_strategy: snapshot.ranking_strategy, recommendation_guardrails: snapshot.guardrails };
   } catch (error) {
     console.error("Shopify recommendations unavailable", sanitizeDebugError(error).code);
     return { ...response, guardrails: [...response.guardrails, classifyShopifyGuardrail(error)] };
   }
 }
 
+function analyzeCommerceQuery(query: string, normalizedQuery = normalizeQueryText(query)): CommerceQueryIntent {
+  const vendor = detectVendorIntent(normalizedQuery);
+  const category = detectCategoryIntent(normalizedQuery);
+  const gender = detectGenderIntent(normalizedQuery);
+  const product = detectProductIntent(normalizedQuery);
+  const residue = normalizedQuery.split(" ").filter((token) => token && ![...(vendor?.matchedAliases ?? []), ...(category ? CATEGORY_KEYWORDS[category].flatMap((x) => x.split(" ")) : []), ...(gender ? [gender, "uomo", "donna", "man", "men", "woman", "women", "unisex", "maschile", "femminile"] : [])].includes(token));
+  const isVendorOnlyQuery = Boolean(vendor) && !category && !gender && !product && residue.length <= 1;
+  const confidence = Math.min(0.99, (vendor ? vendor.confidence : 0) + (category ? 0.2 : 0) + (gender ? 0.12 : 0) + (product ? 0.18 : 0));
+  return { vendorIntent: vendor?.vendor ?? null, categoryIntent: category, genderIntent: gender, productIntent: product, isVendorOnlyQuery, confidence: Number(confidence.toFixed(2)) };
+}
+
+function detectVendorIntent(query: string): { vendor: string; confidence: number; matchedAliases: string[] } | null {
+  let best: { vendor: string; confidence: number; matchedAliases: string[]; score: number } | null = null;
+  for (const vendor of VENDOR_ALIASES) {
+    const matches = vendor.aliases.map(normalizeQueryText).filter((alias) => query === alias || query.includes(alias));
+    if (!matches.length) continue;
+    const exact = matches.some((alias) => alias === query);
+    const longest = Math.max(...matches.map((alias) => alias.length));
+    const score = (exact ? 1000 : 900) + longest;
+    if (!best || score > best.score) best = { vendor: vendor.vendor, confidence: exact ? 0.95 : 0.9, matchedAliases: matches, score };
+  }
+  return best;
+}
+
+function detectCategoryIntent(query: string): CommerceCategoryIntent | null {
+  let best: { category: CommerceCategoryIntent; score: number } | null = null;
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS) as Array<[CommerceCategoryIntent, string[]]>) {
+    for (const keyword of keywords.map(normalizeQueryText)) {
+      if (!keyword) continue;
+      const pattern = new RegExp(`(^|\\s)${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`);
+      if (pattern.test(query) || query.includes(keyword)) {
+        const score = keyword.length + (query === keyword ? 100 : 0);
+        if (!best || score > best.score) best = { category, score };
+      }
+    }
+  }
+  return best?.category ?? null;
+}
+
+function detectGenderIntent(query: string): CommerceGenderIntent | null {
+  if (/(^|\s)unisex(\s|$)/.test(query)) return "unisex";
+  if (/(^|\s)(uomo|man|male|men|maschile)(\s|$)/.test(query)) return "uomo";
+  if (/(^|\s)(donna|woman|women|female|femminile)(\s|$)/.test(query)) return "donna";
+  return null;
+}
+
+function detectProductIntent(query: string): string | null {
+  if (/\b(globe|jeans globe)\b/.test(query)) return "jeans_globe_devid_label";
+  if (/\b(mosca|t shirt mosca|tshirt mosca)\b/.test(query)) return "tshirt_mosca_devid_label";
+  if (/\b(courma|courmayeur)\b/.test(query)) return "cargo_courmayeur_devid_label";
+  if (/\bmonterosso\b/.test(query)) return "monterosso_devid_label";
+  return null;
+}
+
 function candidateIntentFromNormalized(normalized: NormalizedQuery): CandidateIntent | null {
-  if (normalized.matchedIntent && INTENT_CANDIDATES[normalized.matchedIntent]) return { intent: normalized.matchedIntent, ...INTENT_CANDIDATES[normalized.matchedIntent]! };
-  const vendor = KNOWN_VENDORS.find((name) => normalized.normalizedQuery.includes(normalizeQueryText(name)));
-  return vendor ? { intent: `vendor:${vendor}`, vendor, queryTerms: [vendor], productTerms: [], categories: [] } : null;
+  const commerceIntent = analyzeCommerceQuery(normalized.rawQuery, normalized.normalizedQuery);
+  if (commerceIntent.productIntent && INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]) return { intent: commerceIntent.productIntent, ...INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]!, commerceIntent };
+  if (normalized.matchedIntent && INTENT_CANDIDATES[normalized.matchedIntent]) {
+    const base = INTENT_CANDIDATES[normalized.matchedIntent]!;
+    return { intent: normalized.matchedIntent, ...base, commerceIntent: { ...commerceIntent, vendorIntent: commerceIntent.vendorIntent ?? base.vendor, categoryIntent: commerceIntent.categoryIntent ?? base.categories[0] ?? null, genderIntent: commerceIntent.genderIntent ?? base.gender ?? null } };
+  }
+  if (!commerceIntent.vendorIntent) return null;
+  return { intent: `vendor:${commerceIntent.vendorIntent}:${commerceIntent.categoryIntent ?? "any"}:${commerceIntent.genderIntent ?? "any"}`, vendor: commerceIntent.vendorIntent, queryTerms: [commerceIntent.vendorIntent], productTerms: commerceIntent.productIntent ? [commerceIntent.productIntent] : [], categories: commerceIntent.categoryIntent ? [commerceIntent.categoryIntent] : [], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
 }
 
 async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, candidate: CandidateIntent): Promise<RecommendationSnapshot> {
   const ttl = parsePositiveInt(env.SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS, DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS);
-  const key = `v1:${candidate.intent}:${candidate.vendor}:${normalized.correctedQuery}:${candidate.gender ?? "any"}`.toLowerCase();
+  const key = `v2:${candidate.intent}:${candidate.vendor}:${normalized.correctedQuery}:${candidate.commerceIntent.categoryIntent ?? "any"}:${candidate.commerceIntent.genderIntent ?? "any"}`.toLowerCase();
   const cached = recommendationCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached, guardrails: [...cached.guardrails, "shopify_recommendations_cache_hit"] };
   assertShopifyConfigured(env);
   let products: ProductCandidate[];
-  try {
-    products = await fetchCandidateProducts(env, candidate);
-  } catch (error) {
-    throw new Error(classifyShopifyGuardrail(error, "shopify_products_unavailable"));
-  }
+  try { products = await fetchCandidateProducts(env, candidate); } catch (error) { throw new Error(classifyShopifyGuardrail(error, "shopify_products_unavailable")); }
   let salesStats = new Map<string, SalesStats>();
   const guardrails: string[] = [];
-  try {
-    salesStats = await fetchSalesRankLast30Days(env, candidate);
-  } catch (_error) {
-    guardrails.push("shopify_orders_unavailable");
-  }
+  try { salesStats = await fetchSalesRankLast30Days(env, candidate); } catch (_error) { guardrails.push("shopify_orders_unavailable"); }
   const ranked = rankRecommendations(products, salesStats, candidate).slice(0, 3);
-  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: [...guardrails, salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"], expiresAt: Date.now() + ttl * 1000 };
+  const strategy = candidate.commerceIntent.isVendorOnlyQuery ? "vendor_only_sales_30d" : "vendor_category_gender_sales_30d";
+  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: [...guardrails, salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"], expiresAt: Date.now() + ttl * 1000, ranking_strategy: strategy, commerce_intent: candidate.commerceIntent };
   recommendationCache.set(key, snapshot);
   return snapshot;
 }
+
+function toResponseCommerceIntent(intent: CommerceQueryIntent): AssistantResponse["commerce_intent"] { return { vendor: intent.vendorIntent, category: intent.categoryIntent, gender: intent.genderIntent, product: intent.productIntent, confidence: intent.confidence, is_vendor_only_query: intent.isVendorOnlyQuery }; }
 
 function normalizeShopifyShopDomain(env: Env): string {
   const domain = env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/+$/, "");
@@ -1075,9 +1197,10 @@ async function fetchSalesRankLast30Days(env: Env, candidateIntent: CandidateInte
 }
 
 async function fetchCandidateProducts(env: Env, candidateIntent: CandidateIntent): Promise<ProductCandidate[]> {
-  const terms = [`vendor:'${candidateIntent.vendor.replace(/'/g, "")}'`, ...candidateIntent.productTerms].join(" ");
-  const data = await shopifyGraphQL<ShopifyProductsData>(env, `query Products($query: String!) { products(first: 30, query: $query) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt featuredImage { url } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } }`, { query: terms });
-  return data.products.edges.map(({ node }) => ({ productId: node.id, title: node.title, handle: node.handle, vendor: node.vendor, productType: node.productType, tags: node.tags ?? [], image: node.featuredImage?.url, onlineStoreUrl: node.onlineStoreUrl, status: node.status, publishedAt: node.publishedAt, variants: node.variants.edges.map(({ node: variant }) => ({ variantId: variant.id, title: variant.title, selectedOptions: variant.selectedOptions ?? [], inventoryQuantity: variant.inventoryQuantity, availableForSale: variant.availableForSale })) })).filter((product) => matchesCandidateProduct(product, candidateIntent));
+  const terms = `vendor:'${candidateIntent.vendor.replace(/'/g, "")}'`;
+  const data = await shopifyGraphQL<ShopifyProductsData>(env, `query Products($query: String!) { products(first: 50, query: $query) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt featuredImage { url } collections(first: 10) { edges { node { handle title } } } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } }`, { query: terms });
+  const products = data.products.edges.map(({ node }) => ({ productId: node.id, title: node.title, handle: node.handle, vendor: node.vendor, productType: node.productType, tags: node.tags ?? [], collections: node.collections?.edges.map(({ node: collection }) => ({ handle: collection.handle, title: collection.title })) ?? [], image: node.featuredImage?.url, onlineStoreUrl: node.onlineStoreUrl, status: node.status, publishedAt: node.publishedAt, variants: node.variants.edges.map(({ node: variant }) => ({ variantId: variant.id, title: variant.title, selectedOptions: variant.selectedOptions ?? [], inventoryQuantity: variant.inventoryQuantity, availableForSale: variant.availableForSale })) }));
+  return products.filter((product) => matchesCandidateProduct(product, candidateIntent));
 }
 
 function computeAvailabilityScore(product: ProductCandidate): AvailabilityResult {
@@ -1092,8 +1215,42 @@ function computeAvailabilityScore(product: ProductCandidate): AvailabilityResult
 }
 
 function rankRecommendations(products: ProductCandidate[], salesStats: Map<string, SalesStats>, candidateIntent: CandidateIntent): RankedRecommendation[] {
-  return products.map((product) => ({ ...product, salesStats: salesStats.get(product.productId), availability: computeAvailabilityScore(product), coherenceScore: coherenceScore(product, candidateIntent) })).filter((product) => product.availability.isAvailableForRecommendation).sort((a, b) => (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || b.coherenceScore - a.coherenceScore || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE")));
+  return products
+    .map((product) => {
+      const scored = scoreProductCandidate(product, candidateIntent, salesStats.get(product.productId));
+      return { ...product, salesStats: salesStats.get(product.productId), availability: computeAvailabilityScore(product), coherenceScore: scored.score, categoryMatch: scored.categoryMatch };
+    })
+    .filter((product) => product.availability.isAvailableForRecommendation)
+    .filter((product) => candidateIntent.commerceIntent.isVendorOnlyQuery || product.categoryMatch !== "denied" || product.coherenceScore > 40)
+    .sort((a, b) => b.coherenceScore - a.coherenceScore || (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE")));
 }
+
+function scoreProductCandidate(product: ProductCandidate, candidate: CandidateIntent, sales?: SalesStats): { score: number; categoryMatch: RankedRecommendation["categoryMatch"] } {
+  const commerce = candidate.commerceIntent;
+  const text = productSearchText(product);
+  let score = 0;
+  if (normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor)) score += 100;
+  else if (commerce.vendorIntent) score -= 60;
+  const categoryMatch = commerce.categoryIntent ? classifyCategoryCompatibility(detectProductCategory(product), commerce.categoryIntent) : "unknown";
+  if (categoryMatch === "strong") score += 80;
+  if (categoryMatch === "medium") score += 45;
+  if (categoryMatch === "denied") score -= 120;
+  if (commerce.categoryIntent && isApparelCategory(commerce.categoryIntent) && ["teli_mare", "zaini", "borse_accessori"].includes(detectProductCategory(product) ?? "")) score -= 100;
+  if (commerce.genderIntent && commerce.genderIntent !== "unisex") {
+    const productGender = detectGenderIntent(text);
+    if (productGender === commerce.genderIntent || productGender === "unisex") score += 40;
+    else if (productGender && productGender !== commerce.genderIntent) score -= 80;
+  }
+  if (commerce.productIntent && text.includes(normalizeQueryText(commerce.productIntent.replace(/_/g, " ")))) score += 30;
+  const availability = computeAvailabilityScore(product); score += Math.round(availability.availabilityRatio * 20);
+  score += Math.min(25, sales?.unitsSold30d ?? 0);
+  return { score, categoryMatch };
+}
+
+function detectProductCategory(product: ProductCandidate | Pick<ProductCandidate, "title" | "productType" | "tags">): CommerceCategoryIntent | null { return detectCategoryIntent(productSearchText(product)); }
+function productSearchText(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): string { return normalizeQueryText([product.title, product.handle, product.vendor, product.productType, ...(product.tags ?? []), ...((product.collections ?? []).flatMap((c) => [c.handle, c.title]))].filter(Boolean).join(" ")); }
+function classifyCategoryCompatibility(productCategory: CommerceCategoryIntent | null, queryCategory: CommerceCategoryIntent): RankedRecommendation["categoryMatch"] { const map = CATEGORY_COMPATIBILITY[queryCategory]; if (!productCategory) return "unknown"; if (map.strong.includes(productCategory)) return "strong"; if (map.medium.includes(productCategory)) return "medium"; if (map.deny.includes(productCategory)) return "denied"; return "unknown"; }
+function isApparelCategory(category: CommerceCategoryIntent): boolean { return ["tshirt", "polo", "jeans", "outerwear", "felpe", "camicie", "top_donna", "cargo", "maglieria", "bermuda_shorts"].includes(category); }
 
 async function buildDevidLabelAlternatives(env: Env, normalizedIntent: NormalizedQuery, mainIntent: CandidateIntent): Promise<AssistantSuggestion[]> {
   if (mainIntent.forceNoDevidAlternatives) return [];
@@ -1101,8 +1258,10 @@ async function buildDevidLabelAlternatives(env: Env, normalizedIntent: Normalize
   const out: AssistantSuggestion[] = [];
   for (const intent of intents) {
     const config = INTENT_CANDIDATES[intent]; if (!config) continue;
-    const products = await fetchCandidateProducts(env, { intent, ...config });
-    const ranked = rankRecommendations(products, new Map(), { intent, ...config });
+    const commerceIntent: CommerceQueryIntent = { vendorIntent: config.vendor, categoryIntent: config.categories[0] ?? null, genderIntent: config.gender ?? null, productIntent: intent, isVendorOnlyQuery: false, confidence: 0.9 };
+    const alternativeCandidate: CandidateIntent = { intent, ...config, commerceIntent };
+    const products = await fetchCandidateProducts(env, alternativeCandidate);
+    const ranked = rankRecommendations(products, new Map(), alternativeCandidate);
     if (ranked[0]) out.push(toAssistantSuggestion(ranked[0]));
     if (out.length >= 2) break;
   }
@@ -1110,9 +1269,8 @@ async function buildDevidLabelAlternatives(env: Env, normalizedIntent: Normalize
 }
 
 function isVariantAvailable(variant: ProductVariantCandidate): boolean { return (typeof variant.inventoryQuantity === "number" && variant.inventoryQuantity > 0) || variant.availableForSale === true; }
-function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "title" | "productType" | "tags">, candidate: CandidateIntent): boolean { const text = normalizeQueryText([product.title, product.productType, ...(product.tags ?? [])].join(" ")); const vendorMatches = normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor); return vendorMatches && (candidate.productTerms.length === 0 || candidate.productTerms.every((term) => text.includes(normalizeQueryText(term)))); }
-function coherenceScore(product: ProductCandidate, candidate: CandidateIntent): number { const text = normalizeQueryText([product.title, product.productType, product.vendor, ...product.tags].join(" ")); return [...candidate.queryTerms, ...candidate.productTerms, ...candidate.categories].reduce((score, term) => score + (text.includes(normalizeQueryText(term)) ? 1 : 0), 0); }
+function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "title" | "productType" | "tags">, candidate: CandidateIntent): boolean { const vendorMatches = normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor); if (!vendorMatches) return false; if (candidate.commerceIntent.isVendorOnlyQuery) return true; const pseudo = { ...product, collections: [] as ProductCollectionCandidate[] }; const category = candidate.commerceIntent.categoryIntent; if (category && classifyCategoryCompatibility(detectProductCategory(pseudo), category) === "denied") return false; return true; }
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode };
+export { analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode };

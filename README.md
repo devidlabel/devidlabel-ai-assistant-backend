@@ -591,3 +591,44 @@ Gli errori passano da `sanitizeDebugError`, che redige token, secret, bearer tok
 ### Guardrail `/chat`
 
 `/chat` mantiene lo stesso response contract e non espone dettagli sensibili. Quando il layer Shopify fallisce, i guardrail possono ora distinguere in modo più utile tra `shopify_auth_unavailable`, `shopify_products_unavailable`, `shopify_orders_unavailable` e fallback generale `shopify_recommendations_unavailable`.
+
+## Task 08 — Category-aware Shopify recommendation ranking
+
+Il ranking Shopify ora applica la regola commerciale **coerenza prima del venduto**. Per ogni risposta `product_advice`, il Worker analizza la query con un intent commerciale non sensibile composto da vendor, categoria, gender, eventuale prodotto proprietario e flag `isVendorOnlyQuery`.
+
+### Query understanding commerciale
+
+`analyzeCommerceQuery(query, normalizedQuery)` riconosce alias e typo deterministici per brand come MC2 Saint Barth (`saint barth`, `mc2`, `san bat`, `saint bart`), Sprayground (`sprygrund`, `sprygrounf`, `sprayg`), Colmar Originals, K-Way, Replay, Mou, Rains, Palm Angels, Flower Mountain, Goorin Bros e Devid Label. Rileva anche categorie (`tshirt`, `polo`, `jeans`, `costumi_mare`, `teli_mare`, `zaini`, `outerwear`, `maglieria`, ecc.) e gender (`uomo`, `donna`, `unisex`).
+
+### Vendor-only vs vendor + category
+
+- Query vendor-only, ad esempio `colmar`, `saint barth`, `sprayground`: il Worker mostra prodotti disponibili del vendor e usa il venduto ultimi 30 giorni come ordinamento principale dopo disponibilità e coerenza base.
+- Query vendor + category, ad esempio `t-shirt saint barth uomo`, `giacca colmar uomo`, `zaino sprayground`: categoria e gender diventano segnali forti; prodotti incompatibili sono esclusi o penalizzati prima che il venduto possa incidere.
+
+### Scoring e compatibilità categoria
+
+Il ranking usa titolo, handle, vendor, product type, tag e collection Shopify. La compatibilità categoria distingue match forti, match medi e deny list. Esempio: una query `tshirt` ammette forte `tshirt`, medio `polo`/`maglieria`, ma nega `teli_mare`, `costumi_mare`, `zaini`, `borse_accessori` e `calzature`. Per questo un telo mare bestseller non può superare una t-shirt coerente nella query `t-shirt saint barth uomo`.
+
+### Fallback senza vendite recenti
+
+Se gli ordini degli ultimi 30 giorni non sono disponibili o non contengono vendite coerenti, il Worker non svuota `recommended_products` se esistono candidati disponibili. Applica il guardrail `shopify_recommendations_no_recent_sales_fallback` e ordina per coerenza vendor/categoria/gender, disponibilità, stato pubblicato/attivo e titolo/handle coerente.
+
+### Prodotti proprietari e alternative Devid Label
+
+Gli intent proprietari `globe`, `mosca`, `courma/courmayeur` e `monterosso` restano prioritari: se disponibili, il prodotto Devid Label coerente viene promosso come primo risultato. Le alternative Devid Label sono aggiunte solo quando commercialmente coerenti: sì per t-shirt/polo/maglieria Saint Barth uomo e jeans Replay uomo; no per zaini Sprayground, K-Way tecnico/pioggia, Mou calzature, Goorin cappelli, Rains borse/zaini o Colmar outerwear senza alternativa reale.
+
+### Test di accettazione Task 08
+
+Verificare in staging/local con `/chat`:
+
+1. `t-shirt saint barth uomo`: prodotti MC2 Saint Barth t-shirt/tee/polo/maglia uomo; niente teli/towel/accessori nei primi risultati.
+2. `saint barth`: vendor-only, best seller disponibili misti MC2 Saint Barth.
+3. `costume saint barth uomo`: costumi/boxer mare uomo, non t-shirt come primo risultato.
+4. `telo mare saint barth`: teli/foutas/towel MC2 Saint Barth.
+5. `colmar`: prodotti Colmar Originals disponibili.
+6. `giacca colmar uomo`: outerwear/giacche/smanicati Colmar uomo.
+7. `globe`: Jeans Globe Devid Label come primo risultato disponibile.
+8. `jeans replay uomo`: jeans Replay uomo e alternativa Jeans Globe.
+9. `sprayground` e `sprygrund`: prodotti Sprayground senza alternativa Devid Label forzata.
+10. `pagamento alla consegna`: `type: faq`, nessuna hydration prodotto.
+11. `dov’è il mio ordine`: `type: order_help`, nessun dato cliente/ordine e nessun lookup reale V1.
