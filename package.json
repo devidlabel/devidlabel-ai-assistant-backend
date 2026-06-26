@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
     "validate:contract": "node scripts/validate-contract.mjs",
-    "test:recommendations": "node scripts/test-recommendations.mjs"
+    "test:recommendations": "node scripts/test-recommendations.mjs",
+    "test:diagnostics": "node scripts/test-diagnostics.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

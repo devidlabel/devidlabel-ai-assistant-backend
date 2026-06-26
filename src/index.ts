@@ -10,6 +10,7 @@ export interface Env {
   SHOPIFY_CLIENT_SECRET?: string;
   SHOPIFY_API_VERSION?: string;
   SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS?: string;
+  ASSISTANT_ADMIN_TOKEN?: string;
 }
 
 type AssistantResponseType = "product_advice" | "faq" | "order_help" | "fallback";
@@ -162,6 +163,10 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
   }
 
   const url = new URL(request.url);
+  if (url.pathname === "/debug/shopify") {
+    return handleShopifyDebugRequest(request, env, corsHeaders);
+  }
+
   if (url.pathname !== "/chat") {
     return json({ ok: false, source: "ai_backend", type: "error", message: "Endpoint non trovato.", guardrails: [] }, 404, corsHeaders);
   }
@@ -196,12 +201,82 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
   }
 }
 
+async function handleShopifyDebugRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
+  if (request.method !== "POST") {
+    return json({ ok: false, source: "shopify_debug", errors: [] }, 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
+  }
+
+  if (!isValidAssistantAdminRequest(request, env)) {
+    return json({ ok: false, source: "shopify_debug", errors: [] }, 404, corsHeaders);
+  }
+
+  const checks: Record<string, boolean> = {
+    shop_domain_configured: Boolean(env.SHOPIFY_SHOP_DOMAIN),
+    client_id_configured: Boolean(env.SHOPIFY_CLIENT_ID),
+    client_secret_configured: Boolean(env.SHOPIFY_CLIENT_SECRET),
+    legacy_admin_token_configured: Boolean(env.SHOPIFY_ADMIN_ACCESS_TOKEN),
+    auth_token_obtained: false,
+    products_graphql_ok: false,
+    orders_graphql_ok: false,
+    inventory_graphql_ok: false,
+  };
+  const errors: ShopifyDebugError[] = [];
+  const response: ShopifyDebugResponse = {
+    ok: false,
+    source: "shopify_debug",
+    checks,
+    shop_domain_hint: maskShopDomain(env.SHOPIFY_SHOP_DOMAIN ?? ""),
+    api_version: env.SHOPIFY_API_VERSION || DEFAULT_SHOPIFY_API_VERSION,
+    errors,
+  };
+
+  try {
+    await getShopifyAdminAccessToken(env);
+    checks.auth_token_obtained = true;
+  } catch (error) {
+    errors.push({ stage: "auth", ...sanitizeDebugError(error) });
+    return json(response, 200, corsHeaders);
+  }
+
+  try {
+    const data = await shopifyGraphQL<{ products: { edges: unknown[] } }>(env, `query DebugProducts { products(first: 1) { edges { node { id title handle vendor } } } }`);
+    checks.products_graphql_ok = true;
+    response.products_count_sample = Math.min(1, data.products.edges.length);
+  } catch (error) {
+    errors.push({ stage: "products", ...sanitizeDebugError(error) });
+  }
+
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await shopifyGraphQL(env, `query DebugOrders($query: String!) { orders(first: 1, query: $query) { edges { node { id createdAt lineItems(first: 1) { edges { node { quantity } } } } } } }`, { query: `created_at:>=${since}` });
+    checks.orders_graphql_ok = true;
+  } catch (error) {
+    errors.push({ stage: "orders", ...sanitizeDebugError(error) });
+  }
+
+  try {
+    await shopifyGraphQL(env, `query DebugVariants { products(first: 1) { edges { node { variants(first: 1) { edges { node { id inventoryQuantity availableForSale } } } } } } }`);
+    checks.inventory_graphql_ok = true;
+  } catch (error) {
+    errors.push({ stage: "inventory", ...sanitizeDebugError(error) });
+  }
+
+  response.ok = errors.length === 0;
+  return json(response, 200, corsHeaders);
+}
+
+function isValidAssistantAdminRequest(request: Request, env: Env): boolean {
+  const expected = env.ASSISTANT_ADMIN_TOKEN;
+  const provided = request.headers.get("X-Assistant-Admin-Token");
+  return Boolean(expected && provided && provided === expected);
+}
+
 function buildCorsHeaders(request: Request, env: Env): HeadersInit {
   const origin = request.headers.get("Origin") ?? "";
   const allowed = parseAllowedOrigins(env.ASSISTANT_ALLOWED_ORIGINS);
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Assistant-Admin-Token",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -662,7 +737,7 @@ function hasAny(query: string, needles: string[]): boolean {
   return needles.some((needle) => query.includes(needle));
 }
 
-function json(body: AssistantResponse | ErrorResponse, status: number, headers: HeadersInit): Response {
+function json(body: unknown, status: number, headers: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });
 }
 
@@ -683,6 +758,8 @@ type ProductCandidate = { productId: string; title: string; handle: string; vend
 type AvailabilityResult = { isAvailableForRecommendation: boolean; availabilityRatio: number; availableVariantCount: number; totalVariantCount: number; isOneSize: boolean };
 type RankedRecommendation = ProductCandidate & { salesStats?: SalesStats; availability: AvailabilityResult; coherenceScore: number };
 type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; devid_label_alternatives: AssistantSuggestion[]; guardrails: string[]; expiresAt: number };
+type ShopifyDebugError = { stage: string; code: string; message: string };
+type ShopifyDebugResponse = { ok: boolean; source: "shopify_debug"; checks: Record<string, boolean>; shop_domain_hint?: string; api_version: string; products_count_sample?: number; errors: ShopifyDebugError[] };
 
 type ShopifyOrdersData = { orders: { edges: Array<{ node: { processedAt: string; lineItems: { edges: Array<{ node: { quantity: number; discountedTotalSet?: { shopMoney?: { amount?: string } }; product?: { id: string; vendor: string; title: string; productType: string; tags: string[] }; variant?: { id: string } } }> } } }> } };
 type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; featuredImage?: { url: string }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
@@ -710,8 +787,8 @@ async function enrichProductRecommendations(response: AssistantResponse, env: En
     const snapshot = await getRecommendationSnapshot(env, normalized, candidate);
     return { ...response, recommended_products: snapshot.recommended_products.length ? snapshot.recommended_products : response.recommended_products, devid_label_alternatives: snapshot.devid_label_alternatives.length ? snapshot.devid_label_alternatives : response.devid_label_alternatives, guardrails: [...response.guardrails, ...snapshot.guardrails] };
   } catch (error) {
-    console.error("Shopify recommendations unavailable", error instanceof Error ? error.message : "unknown_error");
-    return { ...response, guardrails: [...response.guardrails, "shopify_recommendations_unavailable"] };
+    console.error("Shopify recommendations unavailable", sanitizeDebugError(error).code);
+    return { ...response, guardrails: [...response.guardrails, classifyShopifyGuardrail(error)] };
   }
 }
 
@@ -727,9 +804,21 @@ async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, 
   const cached = recommendationCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached, guardrails: [...cached.guardrails, "shopify_recommendations_cache_hit"] };
   assertShopifyConfigured(env);
-  const [products, salesStats] = await Promise.all([fetchCandidateProducts(env, candidate), fetchSalesRankLast30Days(env, candidate)]);
+  let products: ProductCandidate[];
+  try {
+    products = await fetchCandidateProducts(env, candidate);
+  } catch (error) {
+    throw new Error(classifyShopifyGuardrail(error, "shopify_products_unavailable"));
+  }
+  let salesStats = new Map<string, SalesStats>();
+  const guardrails: string[] = [];
+  try {
+    salesStats = await fetchSalesRankLast30Days(env, candidate);
+  } catch (_error) {
+    guardrails.push("shopify_orders_unavailable");
+  }
   const ranked = rankRecommendations(products, salesStats, candidate).slice(0, 3);
-  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: [salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"], expiresAt: Date.now() + ttl * 1000 };
+  const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: await buildDevidLabelAlternatives(env, normalized, candidate), guardrails: [...guardrails, salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback"], expiresAt: Date.now() + ttl * 1000 };
   recommendationCache.set(key, snapshot);
   return snapshot;
 }
@@ -738,6 +827,43 @@ function normalizeShopifyShopDomain(env: Env): string {
   const domain = env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/+$/, "");
   if (!domain) throw new Error("shopify_config_missing");
   return domain;
+}
+
+function maskShopDomain(domain: string): string {
+  const normalized = domain.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase();
+  const match = normalized.match(/^([a-z0-9][a-z0-9-]*)\.myshopify\.com$/);
+  if (!match) return "configured_invalid_format";
+  const prefix = match[1];
+  return `${prefix.slice(0, Math.min(4, prefix.length))}****.myshopify.com`;
+}
+
+function sanitizeDebugError(error: unknown): { code: string; message: string } {
+  const rawMessage = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const knownCode = classifyKnownShopifyError(rawMessage);
+  if (!rawMessage) return { code: knownCode, message: "Errore Shopify non disponibile in forma sicura." };
+  const redacted = rawMessage
+    .replace(/(Authorization|X-Shopify-Access-Token)\s*[:=]\s*[^\s,;]+/gi, "$1:[redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(/(access_token|client_secret|token|secret)\s*[:=]\s*['\"]?[^'\"\\s,;}]+/gi, "$1:[redacted]")
+    .replace(/shpat_[A-Za-z0-9_]+/gi, "[redacted]")
+    .replace(/shp[a-z]?_[A-Za-z0-9_]+/gi, "[redacted]");
+  const safeMessage = redacted.length > 300 ? `${redacted.slice(0, 297)}...` : redacted;
+  return { code: knownCode, message: safeMessage || "Errore Shopify non disponibile in forma sicura." };
+}
+
+function classifyKnownShopifyError(message: string): string {
+  if (/shopify_auth|oauth|401|403/i.test(message)) return "shopify_auth_unavailable";
+  if (/shopify_config|domain/i.test(message)) return "shopify_config_missing";
+  if (/graphql|products|orders|inventory|status|timeout|abort/i.test(message)) return "shopify_graphql_unavailable";
+  return "shopify_debug_unavailable";
+}
+
+function classifyShopifyGuardrail(error: unknown, fallback = "shopify_recommendations_unavailable"): string {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (/shopify_auth|oauth|401|403/i.test(message)) return "shopify_auth_unavailable";
+  if (/shopify_products_unavailable/i.test(message)) return "shopify_products_unavailable";
+  if (/shopify_orders_unavailable/i.test(message)) return "shopify_orders_unavailable";
+  return fallback;
 }
 
 function assertShopifyConfigured(env: Env): void {
@@ -844,4 +970,4 @@ function coherenceScore(product: ProductCandidate, candidate: CandidateIntent): 
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives };
+export { getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError };
