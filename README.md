@@ -330,3 +330,74 @@ Controllo automatico leggero della shape:
 ```bash
 npm run validate:contract
 ```
+
+## Task 03 — Query normalization, alias typo e response contract V2
+
+Il Worker normalizza la query prima di decidere se usare routing deterministico o provider AI. Il flusso è:
+
+1. validazione payload;
+2. normalizzazione deterministica (`lowercase`, trim, accenti/apostrofi/punteggiatura e spazi multipli);
+3. alias, typo e partial intent matching;
+4. routing FAQ/order;
+5. routing prodotto per intenti forti;
+6. chiamata AI solo se non esiste un intent forte;
+7. normalizzazione della risposta AI;
+8. fallback statico se il provider fallisce o manca la API key.
+
+La response resta compatibile con il frontend V1 (`primary_cta`, `devid_label_alternatives`, `cross_sell`, `requires_backend_order_lookup`) e aggiunge campi opzionali V2:
+
+- `recommended_products`
+- `normalized_query`
+- `intent`
+- `confidence`
+
+`requires_backend_order_lookup` è `true` solo per richieste ordine/tracking/stato ordine. Per query prodotto, typo prodotto e FAQ resta sempre `false`.
+
+### Alias e typo gestiti
+
+Intenti prodotto coperti dal livello deterministico:
+
+- `mc2_saint_barth`: Saint Barth, MC2, `san bat`, `san bart`, `sain barth`, varianti simili.
+- `sprayground`: Sprayground, `sprygrund`, `sprygrounf`, `spraygrund`, `spraygr`, `spry`.
+- `jeans_globe_devid_label`: Jeans Globe Devid Label, `globe`, `denim globe`, `jeans dl`.
+- `cargo_courmayeur_devid_label`: Cargo Courmayeur, `courma`, `courmayer`, `courmay`.
+- `tshirt_mosca_devid_label`: Mosca, T-shirt Mosca, tee/maglia Mosca, scollo a V uomo.
+- `monterosso_devid_label`: Monterosso, T-shirt/Maglia/Filo/Cotone Monterosso.
+- `jeans_replay_uomo`: Jeans Replay uomo e varianti denim/replay.
+- `kway`: K-Way, Kway, `kayway`, `kwai`.
+- `mare_uomo`: costumi/mare uomo e costume Saint Barth uomo.
+- `bermuda_uomo`: bermuda e shorts uomo.
+
+Partial matching prudente:
+
+- `glo` / `glob` → Jeans Globe Devid Label.
+- `spry` / `sprayg` → Sprayground.
+- `san ba` / `saint b` → MC2 Saint Barth.
+- `courm` → Cargo Courmayeur Devid Label.
+- `mosc` → T-shirt Mosca Devid Label.
+- `mont` / `monte` → Monterosso Devid Label.
+- `repl` → Replay solo con jeans/denim; `repla` è sufficiente da solo.
+- `k-w` / `kwa` / `kway` → K-Way.
+
+### Test manuali Task 03
+
+Esegui il Worker locale con `npm run dev`, poi verifica:
+
+```bash
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"san bat","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"sprygrund","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"sprygrounf","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"globe","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"courma","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"mosca","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"monterosso","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"dov’è il mio ordine","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"pagamento alla consegna","locale":"it-IT"}'
+curl -X POST "http://localhost:8787/chat" -H "Content-Type: application/json" -d '{"query":"mi consigli qualcosa per un look casual","locale":"it-IT"}'
+```
+
+Atteso: le query alias prodotto rispondono `type: "product_advice"`, con `normalized_query` valorizzata e `requires_backend_order_lookup: false`; la query ordine risponde `type: "order_help"` e `requires_backend_order_lookup: true`; la query FAQ risponde `type: "faq"` e `requires_backend_order_lookup: false`; la query generica resta schema-valida con AI o fallback.
+
+### Preparazione futura bestseller/disponibilità
+
+Questa task non implementa Shopify Admin API, Storefront API, lookup ordini, venduto ultimi 30 giorni, stock, disponibilità varianti, sconti, add-to-cart, database o cache. Il codice contiene un TODO per il ranking futuro: intent normalizzato, fetch candidati Shopify, filtro disponibilità reale, soglia 50% varianti disponibili per capi taglia, ranking venduto 30 giorni e raccomandazioni top brand/alternative Devid Label coerenti.

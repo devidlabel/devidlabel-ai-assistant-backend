@@ -20,6 +20,27 @@ type AssistantSuggestion = {
   type: "product" | "collection" | "search";
 };
 
+type NormalizedQuery = {
+  rawQuery: string;
+  normalizedQuery: string;
+  correctedQuery: string;
+  matchedIntent: ProductIntent | null;
+  confidence: number;
+  matchedAliases: string[];
+};
+
+type ProductIntent =
+  | "mc2_saint_barth"
+  | "sprayground"
+  | "jeans_globe_devid_label"
+  | "cargo_courmayeur_devid_label"
+  | "tshirt_mosca_devid_label"
+  | "monterosso_devid_label"
+  | "jeans_replay_uomo"
+  | "kway"
+  | "mare_uomo"
+  | "bermuda_uomo";
+
 type AssistantResponse = {
   ok: boolean;
   source: "ai_backend" | "backend_fallback";
@@ -31,6 +52,10 @@ type AssistantResponse = {
   cross_sell: AssistantSuggestion[];
   requires_backend_order_lookup: boolean;
   guardrails: string[];
+  recommended_products?: AssistantSuggestion[];
+  normalized_query?: { raw: string; normalized: string; corrected: string; intent: ProductIntent | null; confidence: number; aliases: string[] };
+  intent?: ProductIntent | null;
+  confidence?: number;
 };
 
 type ErrorResponse = { ok: false; source: "ai_backend"; type: "error"; message: string; guardrails: string[] };
@@ -90,6 +115,20 @@ const SAFE_DESTINATIONS = {
   kwaySearch: { label: "Vedi risultati K-Way", message: "Apri la ricerca K-Way.", url: "/search?type=product&q=k-way", type: "search" },
 } as const satisfies Record<string, AssistantSuggestion>;
 
+
+const INTENT_ALIASES: Record<ProductIntent, { correctedQuery: string; aliases: string[] }> = {
+  mc2_saint_barth: { correctedQuery: "mc2 saint barth", aliases: ["saint barth", "mc2 saint barth", "mc2", "san barth", "san bart", "san bat", "sain barth", "sain bart", "saint bart", "saint bat", "mc2 san", "mc2 san barth", "mc2 saint", "mc2 saint bart"] },
+  sprayground: { correctedQuery: "sprayground", aliases: ["sprayground", "spray ground", "spryground", "sprygrund", "sprygrounf", "spraygrund", "spraygroun", "spraygr", "spry"] },
+  jeans_globe_devid_label: { correctedQuery: "jeans globe devid label", aliases: ["jeans globe", "globe", "denim globe", "pantalone globe", "jeans devid label", "jeans dl", "globe devid label"] },
+  cargo_courmayeur_devid_label: { correctedQuery: "cargo courmayeur devid label", aliases: ["cargo courmayeur", "courmayeur", "courma", "cargo uomo", "cargo devid label", "pantalone cargo", "courmayer", "courmay"] },
+  tshirt_mosca_devid_label: { correctedQuery: "t-shirt mosca devid label", aliases: ["mosca", "t-shirt mosca", "tshirt mosca", "tee mosca", "maglia mosca", "t shirt scollo v", "t-shirt scollo v", "scollo a v uomo"] },
+  monterosso_devid_label: { correctedQuery: "monterosso devid label", aliases: ["monterosso", "t-shirt monterosso", "tshirt monterosso", "maglia monterosso", "filo monterosso", "cotone monterosso"] },
+  jeans_replay_uomo: { correctedQuery: "jeans replay uomo", aliases: ["jeans replay", "jeans replay uomo", "replay jeans", "replay jeans uomo", "denim replay"] },
+  kway: { correctedQuery: "k-way", aliases: ["kway", "k-way", "kayway", "kwai", "giacca kway", "giacca k-way"] },
+  mare_uomo: { correctedQuery: "mare uomo", aliases: ["costume uomo", "costumi uomo", "mare uomo", "boxer mare", "costume saint barth uomo", "mc2 costume uomo"] },
+  bermuda_uomo: { correctedQuery: "bermuda uomo", aliases: ["bermuda uomo", "short uomo", "shorts uomo", "bermuda", "shorts"] },
+};
+
 const ALLOWED_SUGGESTION_URLS: Set<string> = new Set(Object.values(SAFE_DESTINATIONS).map((item) => item.url));
 const ALLOWED_CTA_URLS: Set<string> = ALLOWED_SUGGESTION_URLS;
 
@@ -123,7 +162,8 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
     return json(parsed.error, 400, corsHeaders);
   }
 
-  const deterministic = routeDeterministicIntent(parsed.payload, "ai_backend");
+  const normalized = normalizeQuery(parsed.payload.query);
+  const deterministic = routeDeterministicIntent(parsed.payload, "ai_backend", normalized);
   if (deterministic) return json(deterministic, 200, corsHeaders);
 
   const fallback = buildFallbackResponse(parsed.payload);
@@ -272,7 +312,8 @@ Se non sai, usa type fallback e arrays vuoti.`;
 }
 
 function normalizeAssistantResponse(raw: unknown, query: string, guardrails: string[]): AssistantResponse {
-  const deterministic = routeDeterministicIntent({ query, guardrails }, "ai_backend");
+  const normalized = normalizeQuery(query);
+  const deterministic = routeDeterministicIntent({ query, guardrails }, "ai_backend", normalized);
   if (deterministic) return deterministic;
 
   const fallback = buildFallbackResponse({ query, guardrails });
@@ -290,9 +331,11 @@ function normalizeAssistantResponse(raw: unknown, query: string, guardrails: str
     message: normalizeString(data.message, 800) || fallback.message,
     primary_cta: normalizeCta(data.primary_cta),
     devid_label_alternatives: normalizeSuggestionArray(data.devid_label_alternatives, true),
+    recommended_products: normalizeSuggestionArray(data.recommended_products, false),
     cross_sell: normalizeSuggestionArray(data.cross_sell, false),
     requires_backend_order_lookup: isOrderQuery(query),
     guardrails,
+    ...responseContractV2(normalized),
   };
 }
 
@@ -335,15 +378,15 @@ function deriveTypeFromQuery(query: string): AssistantResponseType {
   return "fallback";
 }
 
-function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "guardrails">, source: AssistantResponse["source"]): AssistantResponse | null {
-  const query = normalizeQuery(payload.query);
-  const base = responseBase(source, payload.guardrails);
+function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "guardrails">, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query)): AssistantResponse | null {
+  const query = normalized.normalizedQuery;
+  const base = responseBase(source, payload.guardrails, normalized);
 
-  if (hasAny(query, ["t-shirt saint barth uomo", "tshirt saint barth uomo", "mc2 saint barth t-shirt uomo", "saint barth uomo t-shirt"])) {
+  if (normalized.matchedIntent === "mc2_saint_barth" || hasAny(query, ["t-shirt saint barth uomo", "tshirt saint barth uomo", "mc2 saint barth t-shirt uomo", "saint barth uomo t-shirt"])) {
     return {
       ...base,
       type: "product_advice",
-      title: "T-shirt MC2 Saint Barth uomo",
+      title: query.includes("t-shirt") || query.includes("tshirt") ? "T-shirt MC2 Saint Barth uomo" : "MC2 Saint Barth",
       message: "Ti mostro prima le proposte MC2 Saint Barth coerenti con la tua ricerca.",
       primary_cta: cta(SAFE_DESTINATIONS.saintBarthSearch),
       devid_label_alternatives: [SAFE_DESTINATIONS.mosca, SAFE_DESTINATIONS.monterosso],
@@ -351,7 +394,7 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
-  if (hasAny(query, ["jeans replay uomo", "replay jeans uomo"])) {
+  if (normalized.matchedIntent === "jeans_replay_uomo" || hasAny(query, ["jeans replay uomo", "replay jeans uomo"])) {
     return {
       ...base,
       type: "product_advice",
@@ -363,11 +406,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
-  if (hasAny(query, ["cargo uomo", "cargo devid label", "courmayeur"])) {
+  if (normalized.matchedIntent === "cargo_courmayeur_devid_label" || hasAny(query, ["cargo uomo", "cargo devid label", "courmayeur"])) {
     return {
       ...base,
       type: "product_advice",
-      title: "Cargo uomo Devid Label",
+      title: "Cargo Courmayeur Devid Label",
       message: "Ti propongo il Cargo Courmayeur Devid Label come scelta versatile e continuativa.",
       primary_cta: cta(SAFE_DESTINATIONS.courmayeur),
       devid_label_alternatives: [],
@@ -375,7 +418,47 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
-  if (hasAny(query, ["zaino sprayground", "sprayground"])) {
+
+  if (normalized.matchedIntent === "jeans_globe_devid_label") {
+    return {
+      ...base,
+      type: "product_advice",
+      title: "Jeans Globe Devid Label",
+      message: "Ti propongo il Jeans Globe Devid Label come denim coerente con la tua ricerca.",
+      primary_cta: cta(SAFE_DESTINATIONS.globe),
+      recommended_products: [SAFE_DESTINATIONS.globe],
+      devid_label_alternatives: [],
+      cross_sell: [SAFE_DESTINATIONS.teePolo],
+    };
+  }
+
+  if (normalized.matchedIntent === "tshirt_mosca_devid_label") {
+    return {
+      ...base,
+      type: "product_advice",
+      title: "T-shirt Mosca Devid Label",
+      message: "Ti propongo la T-shirt Mosca Devid Label, essenziale e facile da abbinare.",
+      primary_cta: cta(SAFE_DESTINATIONS.mosca),
+      recommended_products: [SAFE_DESTINATIONS.mosca],
+      devid_label_alternatives: [],
+      cross_sell: [SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.globe],
+    };
+  }
+
+  if (normalized.matchedIntent === "monterosso_devid_label") {
+    return {
+      ...base,
+      type: "product_advice",
+      title: "Monterosso Devid Label",
+      message: "Ti propongo Monterosso Devid Label, una scelta in filo di cotone extrafine dal taglio premium.",
+      primary_cta: cta(SAFE_DESTINATIONS.monterosso),
+      recommended_products: [SAFE_DESTINATIONS.monterosso],
+      devid_label_alternatives: [],
+      cross_sell: [SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.globe],
+    };
+  }
+
+  if (normalized.matchedIntent === "sprayground" || hasAny(query, ["zaino sprayground", "sprayground"])) {
     return {
       ...base,
       type: "product_advice",
@@ -387,7 +470,7 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
-  if (hasAny(query, ["k-way", "kway"])) {
+  if (normalized.matchedIntent === "kway" || hasAny(query, ["k-way", "kway"])) {
     return {
       ...base,
       type: "product_advice",
@@ -399,7 +482,7 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
-  if (hasAny(query, ["costume uomo", "mare uomo"])) {
+  if (normalized.matchedIntent === "mare_uomo" || hasAny(query, ["costume uomo", "mare uomo"])) {
     return {
       ...base,
       type: "product_advice",
@@ -441,16 +524,30 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
 }
 
 function buildFallbackResponse(payload: Pick<SanitizedPayload, "query" | "guardrails">): AssistantResponse {
-  return routeDeterministicIntent(payload, "backend_fallback") ?? {
-    ...responseBase("backend_fallback", payload.guardrails),
+  const normalized = normalizeQuery(payload.query);
+  return routeDeterministicIntent(payload, "backend_fallback", normalized) ?? {
+    ...responseBase("backend_fallback", payload.guardrails, normalized),
     type: "fallback",
     title: "Assistente Devid Label",
     message: "Posso aiutarti con consigli prodotto, informazioni su spedizioni, InPost, contrassegno e supporto ordine. Prova a cercare un brand, una categoria o una domanda specifica.",
   };
 }
 
-function responseBase(source: AssistantResponse["source"], guardrails: string[]): AssistantResponse {
-  return { ok: true, source, type: "fallback", title: "", message: "", primary_cta: null, devid_label_alternatives: [], cross_sell: [], requires_backend_order_lookup: false, guardrails };
+function responseBase(source: AssistantResponse["source"], guardrails: string[], normalized?: NormalizedQuery): AssistantResponse {
+  return {
+    ok: true,
+    source,
+    type: "fallback",
+    title: "",
+    message: "",
+    primary_cta: null,
+    recommended_products: [],
+    devid_label_alternatives: [],
+    cross_sell: [],
+    requires_backend_order_lookup: false,
+    guardrails,
+    ...(normalized ? responseContractV2(normalized) : {}),
+  };
 }
 
 function cta(destination: AssistantSuggestion): AssistantCta {
@@ -458,20 +555,97 @@ function cta(destination: AssistantSuggestion): AssistantCta {
 }
 
 function isOrderQuery(query: string): boolean {
-  return /dov.?e il mio ordine|tracking ordine|stato ordine|tracking|ordine/.test(normalizeQuery(query));
+  return /dov.?e il mio ordine|tracking ordine|stato ordine|tracking|ordine/.test(normalizeQueryText(query));
 }
 
 function isFaqQuery(query: string): boolean {
-  return /pagamento alla consegna|contrassegno|prodotti originali|sono originali|original|inpost|spedizione|tempi di spedizione|reso|cambio taglia|guida taglie/.test(normalizeQuery(query));
+  return /pagamento alla consegna|contrassegno|prodotti originali|sono originali|original|inpost|spedizione|tempi di spedizione|reso|cambio taglia|guida taglie/.test(normalizeQueryText(query));
 }
 
 function isProductQuery(query: string): boolean {
-  return /t-?shirt|tshirt|saint barth|replay|jeans|cargo|courmayeur|sprayground|k-?way|costume|mare uomo|bermuda|polo/.test(normalizeQuery(query));
+  const normalized = normalizeQuery(query);
+  return Boolean(normalized.matchedIntent) || /t-?shirt|tshirt|saint barth|replay|jeans|cargo|courmayeur|sprayground|k-?way|costume|mare uomo|bermuda|polo/.test(normalized.normalizedQuery);
 }
 
-function normalizeQuery(query: string): string {
-  return query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’']/g, " ").replace(/\s+/g, " ").trim();
+function normalizeQuery(input: string): NormalizedQuery {
+  const rawQuery = input;
+  const normalizedQuery = normalizeQueryText(input);
+  const aliasMatch = findAliasMatch(normalizedQuery);
+  if (aliasMatch) {
+    return {
+      rawQuery,
+      normalizedQuery,
+      correctedQuery: INTENT_ALIASES[aliasMatch.intent].correctedQuery,
+      matchedIntent: aliasMatch.intent,
+      confidence: aliasMatch.confidence,
+      matchedAliases: aliasMatch.aliases,
+    };
+  }
+
+  return { rawQuery, normalizedQuery, correctedQuery: normalizedQuery, matchedIntent: null, confidence: 0, matchedAliases: [] };
 }
+
+function normalizeQueryText(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’`´]/g, "'")
+    .replace(/[^a-z0-9'\s-]/g, " ")
+    .replace(/'/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findAliasMatch(query: string): { intent: ProductIntent; confidence: number; aliases: string[] } | null {
+  let best: { intent: ProductIntent; confidence: number; aliases: string[]; score: number } | null = null;
+  for (const [intent, config] of Object.entries(INTENT_ALIASES) as Array<[ProductIntent, { correctedQuery: string; aliases: string[] }]>) {
+    const matches = config.aliases.map(normalizeQueryText).filter((alias) => alias === query || query.includes(alias));
+    if (matches.length > 0) {
+      const longest = Math.max(...matches.map((alias) => alias.length));
+      const exact = matches.some((alias) => alias === query);
+      const confidence = exact ? 0.95 : 0.9;
+      const score = confidence * 1000 + longest;
+      if (!best || score > best.score) best = { intent, confidence, aliases: matches, score };
+    }
+  }
+  return best ? { intent: best.intent, confidence: best.confidence, aliases: best.aliases } : findPartialIntentMatch(query);
+}
+
+function findPartialIntentMatch(query: string): { intent: ProductIntent; confidence: number; aliases: string[] } | null {
+  const has = (pattern: RegExp) => pattern.test(query);
+  if (has(/^(glo|glob)$/)) return { intent: "jeans_globe_devid_label", confidence: 0.86, aliases: [query] };
+  if (has(/^(spry|sprayg)$/)) return { intent: "sprayground", confidence: 0.88, aliases: [query] };
+  if (has(/^(san ba|saint b)$/)) return { intent: "mc2_saint_barth", confidence: 0.87, aliases: [query] };
+  if (has(/^courm$/)) return { intent: "cargo_courmayeur_devid_label", confidence: 0.87, aliases: [query] };
+  if (has(/^mosc$/)) return { intent: "tshirt_mosca_devid_label", confidence: 0.87, aliases: [query] };
+  if (has(/^(mont|monte)$/)) return { intent: "monterosso_devid_label", confidence: 0.84, aliases: [query] };
+  if (has(/^repl$/) && /jeans|denim/.test(query)) return { intent: "jeans_replay_uomo", confidence: 0.84, aliases: [query] };
+  if (has(/^repla$/)) return { intent: "jeans_replay_uomo", confidence: 0.86, aliases: [query] };
+  if (has(/^(k-w|kwa|kway)$/)) return { intent: "kway", confidence: 0.87, aliases: [query] };
+  return null;
+}
+
+function responseContractV2(normalized: NormalizedQuery): Pick<AssistantResponse, "normalized_query" | "intent" | "confidence"> {
+  return {
+    normalized_query: {
+      raw: normalized.rawQuery,
+      normalized: normalized.normalizedQuery,
+      corrected: normalized.correctedQuery,
+      intent: normalized.matchedIntent,
+      confidence: normalized.confidence,
+      aliases: normalized.matchedAliases,
+    },
+    intent: normalized.matchedIntent,
+    confidence: normalized.confidence,
+  };
+}
+
+// TODO(Task future bestseller/availability): use normalized intent to fetch Shopify candidates,
+// filter real availability (one-size stock > 0; size variants with at least 50% variants
+// available and quantity > 0), rank by sold quantity over the last 30 days, then return
+// top 2/3 brand products plus top 1/2 coherent Devid Label alternatives. This task does
+// not call Shopify APIs, read orders, compute sales, or invent availability.
 
 function hasAny(query: string, needles: string[]): boolean {
   return needles.some((needle) => query.includes(needle));
