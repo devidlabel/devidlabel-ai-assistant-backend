@@ -10,9 +10,12 @@ const { handleRequest, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderL
 const assert = (condition, message) => { if (!condition) { console.error(message); process.exit(1); } };
 const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8'));
 const orderLookupQuery = source.match(/const gql = `query OrderLookup\([\s\S]*?`;/)?.[0] ?? '';
-const forbiddenGraphqlFields = [/noteAttributes/, /billingAddress/, /shippingAddress/, /displayAddress/, /phone\b/, /customer\s*\{/, /lineItems\s*\(/, /totalPriceSet/, /currentTotalPriceSet/, /financialStatus|displayFinancialStatus/];
+const forbiddenGraphqlFields = [/noteAttributes/, /billingAddress/, /shippingAddress/, /displayAddress/, /phone\b/, /customer\s*\{/, /lineItems\s*\(/, /totalPriceSet/, /currentTotalPriceSet/, /financialStatus|displayFinancialStatus/, /transactions\s*\{/];
 for (const pattern of forbiddenGraphqlFields) assert(!pattern.test(orderLookupQuery), `forbidden GraphQL field in order lookup query: ${pattern}`);
-for (const required of ['customAttributes', 'sourceName', 'sourceIdentifier', 'paymentGatewayNames', 'shippingLines', 'fulfillments', 'trackingInfo', 'email', 'name', 'number', 'displayFulfillmentStatus', 'cancelledAt']) assert(orderLookupQuery.includes(required), `required safe GraphQL field missing: ${required}`);
+assert(!/fulfillments\s*\(\s*first\s*:/.test(orderLookupQuery), 'order lookup query must not paginate Order.fulfillments with first');
+assert(/fulfillments\s*\{/.test(orderLookupQuery), 'order lookup query must use plain fulfillments selection');
+for (const required of ['name', 'number', 'email', 'displayFulfillmentStatus', 'cancelledAt', 'sourceName', 'sourceIdentifier', 'tags', 'customAttributes', 'paymentGatewayNames', 'shippingLines', 'fulfillments', 'trackingInfo']) assert(orderLookupQuery.includes(required), `required safe GraphQL field missing: ${required}`);
+assert(/trackingInfo\s*\{\s*company\s+number\s+url\s*\}/.test(orderLookupQuery), 'trackingInfo should remain a safe field selection without extra fields');
 
 assert(normalizeOrderNumber('91991') === '91991', 'normalizes bare order number');
 assert(normalizeOrderNumber('#91991') === '91991', 'normalizes hash order number');
