@@ -67,6 +67,7 @@ type AssistantResponse = {
   commerce_intent?: { vendor: string | null; category: string | null; gender: "uomo" | "donna" | "unisex" | null; product: string | null; confidence: number; is_vendor_only_query: boolean };
   ranking_strategy?: string;
   recommendation_guardrails?: string[];
+  order_lookup?: { status: string; next_step: string };
 };
 
 type ErrorResponse = { ok: false; source: "ai_backend"; type: "error"; message: string; guardrails: string[] };
@@ -189,6 +190,10 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
     return handleRecommendationDebugRequest(request, env, corsHeaders);
   }
 
+  if (url.pathname === "/order/lookup") {
+    return handleOrderLookupRequest(request, env, corsHeaders);
+  }
+
   if (url.pathname !== "/chat") {
     return json({ ok: false, source: "ai_backend", type: "error", message: "Endpoint non trovato.", guardrails: [] }, 404, corsHeaders);
   }
@@ -222,6 +227,121 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
     console.error("AI provider failed", error instanceof Error ? error.message : "unknown_error");
     return json({ ...fallback, guardrails: [...fallback.guardrails, "provider_fallback"] }, 200, corsHeaders);
   }
+}
+
+
+type OrderLookupStatus = "ask_order_number" | "ask_email" | "found" | "email_mismatch" | "not_found" | "marketplace_unsupported" | "invalid_input" | "temporarily_unavailable";
+type OrderNextStep = "order_number" | "email" | "none";
+type FulfillmentState = "not_shipped" | "shipped" | "delivered" | "partial" | "cancelled" | "unknown";
+type OrderTrackingItem = { company: string | null; number: string | null; url?: string | null };
+type SafeOrderLookup = { public_order_name: string; fulfillment_state: FulfillmentState; shipping_message: string; tracking_items: OrderTrackingItem[]; cash_on_delivery_note?: boolean };
+type OrderLookupResponse = { ok: true; source: "order_lookup"; type: "order_lookup"; status: OrderLookupStatus; next_step: OrderNextStep; message: string; order_lookup: SafeOrderLookup | null; guardrails: string[] };
+type ShopifyOrderLookupNode = { name?: string | null; email?: string | null; displayFulfillmentStatus?: string | null; cancelledAt?: string | null; sourceName?: string | null; sourceIdentifier?: string | null; number?: number | null; tags?: string[] | null; customAttributes?: Array<{ key?: string | null; value?: string | null }> | null; shippingLines?: { edges?: Array<{ node?: { title?: string | null; code?: string | null } | null }> } | null; paymentGatewayNames?: string[] | null; fulfillments?: Array<{ status?: string | null; displayStatus?: string | null; trackingInfo?: Array<{ company?: string | null; number?: string | null; url?: string | null }> | null }> | null };
+type ShopifyOrderLookupData = { orders: { edges: Array<{ node: ShopifyOrderLookupNode }> } };
+
+const ORDER_LOOKUP_ALLOWED_KEYS = new Set(["order_number", "query", "email"]);
+const MARKETPLACE_MESSAGE = "Per gli ordini effettuati tramite marketplace, l’assistenza deve essere gestita direttamente dal servizio clienti del marketplace di riferimento. Ti consigliamo di aprire la richiesta dalla piattaforma da cui hai effettuato l’acquisto.";
+const EMAIL_MISMATCH_MESSAGE = "L’email inserita non corrisponde a quella associata all’ordine. Controlla l’indirizzo usato in fase d’acquisto e verifica anche la cartella spam/promozioni della tua casella email.";
+
+async function handleOrderLookupRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
+  if (request.method !== "POST") return json(orderLookupResponse("invalid_input", "none", "Metodo non supportato.", null, []), 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
+  const input = await parseOrderLookupPayload(request);
+  if (!input.ok) return json(orderLookupResponse("invalid_input", "order_number", "Inserisci un numero ordine valido, usando solo le cifre.", null, input.guardrails), 200, corsHeaders);
+  if (!input.orderNumber) return json(orderLookupResponse("ask_order_number", "order_number", "Inserisci il numero ordine per iniziare la verifica.", null, input.guardrails), 200, corsHeaders);
+  try {
+    const order = await fetchShopifyOrderByNumber(env, input.orderNumber);
+    if (!order) return json(orderLookupResponse("not_found", "order_number", "Non riesco a trovare un ordine con questo numero. Verifica di aver inserito correttamente il numero ordine, usando solo le cifre.", null, []), 200, corsHeaders);
+    if (isMarketplaceOrder(order)) return json(orderLookupResponse("marketplace_unsupported", "none", MARKETPLACE_MESSAGE, null, ["marketplace_order_blocked"]), 200, corsHeaders);
+    if (!input.email) return json(orderLookupResponse("ask_email", "email", "Perfetto, ora inserisci l’email usata per effettuare l’ordine.", null, []), 200, corsHeaders);
+    if (!order.email || normalizeEmail(order.email) !== input.email) return json(orderLookupResponse("email_mismatch", "email", EMAIL_MISMATCH_MESSAGE, null, ["email_mismatch_no_order_data_returned"]), 200, corsHeaders);
+    const safe = buildSafeOrderLookup(order);
+    return json(orderLookupResponse("found", "none", safe.shipping_message, safe, []), 200, corsHeaders);
+  } catch (error) {
+    console.error("Order lookup unavailable", classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable"));
+    return json(orderLookupResponse("temporarily_unavailable", "order_number", "Il servizio di verifica ordine è temporaneamente non disponibile. Riprova tra poco.", null, ["shopify_order_lookup_unavailable"]), 200, corsHeaders);
+  }
+}
+
+async function parseOrderLookupPayload(request: Request): Promise<{ ok: true; orderNumber: string; email: string; guardrails: string[] } | { ok: false; guardrails: string[] }> {
+  let body: unknown;
+  try { body = await request.json(); } catch { return { ok: false, guardrails: ["invalid_json"] }; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, guardrails: ["invalid_payload"] };
+  const input = body as Record<string, unknown>;
+  const guardrails = Object.keys(input).filter((key) => !ORDER_LOOKUP_ALLOWED_KEYS.has(key)).map((key) => SENSITIVE_KEY_PATTERN.test(key) ? `ignored_sensitive_field:${key}` : `ignored_extra_field:${key}`);
+  const orderNumber = normalizeOrderNumber(input.order_number ?? input.query);
+  const emailRaw = normalizeString(input.email, 254);
+  const email = emailRaw ? normalizeEmail(emailRaw) : "";
+  if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, guardrails: guardrails.concat("invalid_email") };
+  if (!orderNumber && (input.order_number !== undefined || input.query !== undefined)) return { ok: false, guardrails: guardrails.concat("invalid_order_number") };
+  return { ok: true, orderNumber, email, guardrails };
+}
+
+function normalizeOrderNumber(value: unknown): string {
+  const raw = normalizeString(value, 120);
+  const match = raw.replace(/[０-９]/g, (char) => String(char.charCodeAt(0) - 0xff10)).match(/#?\s*(\d{3,12})\b/);
+  return match ? match[1] : "";
+}
+function normalizeEmail(value: string): string { return value.trim().toLowerCase(); }
+function orderLookupResponse(status: OrderLookupStatus, next_step: OrderNextStep, message: string, order_lookup: SafeOrderLookup | null, guardrails: string[]): OrderLookupResponse { return { ok: true, source: "order_lookup", type: "order_lookup", status, next_step, message, order_lookup, guardrails }; }
+
+async function fetchShopifyOrderByNumber(env: Env, orderNumber: string): Promise<ShopifyOrderLookupNode | null> {
+  const fragments = [`name:#${orderNumber}`, `name:${orderNumber}`, `order_number:${orderNumber}`];
+  const gql = `query OrderLookup($query: String!) { orders(first: 1, query: $query) { edges { node { name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags customAttributes { key value } paymentGatewayNames shippingLines(first: 10) { edges { node { title code } } } fulfillments(first: 10) { status displayStatus trackingInfo { company number url } } } } } } }`;
+  for (const query of fragments) {
+    const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, gql, { query });
+    const node = data.orders.edges[0]?.node;
+    if (node) return node;
+  }
+  return null;
+}
+
+function isMarketplaceOrder(order: ShopifyOrderLookupNode): boolean {
+  const haystack = [order.sourceName, order.sourceIdentifier, ...(order.tags ?? []), ...(order.customAttributes ?? []).flatMap((a) => [a.key, a.value]), order.email].filter(Boolean).join(" ").toLowerCase();
+  return /marketplace|spartoo|amazon|tiktok|tik tok|miinto|packlink_pending|relay|seller|channeladvisor|mirakl/.test(haystack);
+}
+
+function isCashOnDeliveryOrder(order: ShopifyOrderLookupNode): boolean {
+  const haystack = [...(order.tags ?? []), ...(order.paymentGatewayNames ?? []), ...(order.customAttributes ?? []).flatMap((a) => [a.key, a.value]), ...(order.shippingLines?.edges ?? []).flatMap((e) => [e.node?.title, e.node?.code])].filter(Boolean).join(" ").toLowerCase();
+  return /contrassegno|cash on delivery|cod|pagamento alla consegna/.test(haystack);
+}
+
+function buildSafeOrderLookup(order: ShopifyOrderLookupNode): SafeOrderLookup {
+  const tracking_items = collectTrackingItems(order);
+  const lowerStatuses = (order.fulfillments ?? []).flatMap((f) => [f.status, f.displayStatus]).filter(Boolean).join(" ").toLowerCase();
+  let fulfillment_state: FulfillmentState = "unknown";
+  if (order.cancelledAt) fulfillment_state = "cancelled";
+  else if (/delivered|consegn/.test(lowerStatuses)) fulfillment_state = "delivered";
+  else if (tracking_items.length > 0) fulfillment_state = "shipped";
+  else if (/partial/.test(String(order.displayFulfillmentStatus).toLowerCase())) fulfillment_state = "partial";
+  else if (/unfulfilled|not_fulfilled|none|null|undefined/.test(String(order.displayFulfillmentStatus).toLowerCase()) || !(order.fulfillments ?? []).length) fulfillment_state = "not_shipped";
+  else if (/fulfilled|in_transit|out_for_delivery|shipped|success/.test(lowerStatuses + " " + String(order.displayFulfillmentStatus).toLowerCase())) fulfillment_state = "shipped";
+  const cod = isCashOnDeliveryOrder(order);
+  const shipping_message = buildShippingMessage(fulfillment_state, tracking_items.length, cod);
+  return { public_order_name: order.name || "", fulfillment_state, shipping_message, tracking_items, ...(cod ? { cash_on_delivery_note: true } : {}) };
+}
+
+function collectTrackingItems(order: ShopifyOrderLookupNode): OrderTrackingItem[] {
+  const items: OrderTrackingItem[] = [];
+  for (const fulfillment of order.fulfillments ?? []) for (const info of fulfillment.trackingInfo ?? []) {
+    const number = normalizeString(info.number, 120) || null;
+    const company = normalizeString(info.company, 80) || null;
+    items.push({ company, number, url: normalizeTrackingUrl(info.url, number) });
+  }
+  return items;
+}
+function normalizeTrackingUrl(url: unknown, trackingNumber: string | null): string | null {
+  let value = normalizeString(url, 500);
+  if (!value) return null;
+  if (trackingNumber) value = value.replace(/\[\[trackingNumber\]\]|\{\{trackingNumber\}\}|\{trackingNumber\}|\[trackingNumber\]/gi, encodeURIComponent(trackingNumber));
+  try { const parsed = new URL(value); return /^https?:$/.test(parsed.protocol) ? parsed.toString() : null; } catch { return null; }
+}
+function buildShippingMessage(state: FulfillmentState, trackingCount: number, cod: boolean): string {
+  const codNote = cod ? " Il pagamento è previsto alla consegna." : "";
+  if (trackingCount > 1) return `Sono presenti più spedizioni collegate all’ordine.${codNote}`;
+  if (state === "delivered") return `Il tuo ordine risulta consegnato.${codNote}`;
+  if (state === "shipped") return `${trackingCount > 0 ? "Il tuo ordine risulta spedito ed è stato affidato al corriere." : "Il tuo ordine risulta spedito."}${codNote}`;
+  if (state === "cancelled") return `L’ordine risulta annullato. Per maggiori dettagli contatta l’assistenza clienti.${codNote}`;
+  return `Il tuo ordine risulta ricevuto, ma non è ancora stato spedito. Appena verrà affidato al corriere riceverai il tracking via email.${codNote}`;
 }
 
 async function handleShopifyInstallRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
@@ -714,8 +834,9 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "order_help",
       title: "Dov’è il mio ordine?",
-      message: "In questa versione non posso ancora verificare automaticamente tracking o stato ordine. Non invento dati di spedizione: per il controllo reale servirà un lookup backend sicuro collegato agli ordini.",
+      message: "Inserisci il numero ordine per iniziare la verifica.",
       requires_backend_order_lookup: true,
+      order_lookup: { status: "ask_order_number", next_step: "order_number" },
     };
   }
 
@@ -1669,4 +1790,4 @@ function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "tit
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode };
+export { analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest };
