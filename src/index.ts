@@ -255,7 +255,46 @@ type ShopifyOrderLookupData = { orders: { edges: Array<{ node: ShopifyOrderLooku
 const ORDER_LOOKUP_ALLOWED_KEYS = new Set(["order_number", "query", "email"]);
 const MARKETPLACE_MESSAGE = "Per gli ordini effettuati tramite marketplace, l’assistenza deve essere gestita direttamente dal servizio clienti del marketplace di riferimento. Ti consigliamo di aprire la richiesta dalla piattaforma da cui hai effettuato l’acquisto.";
 const EMAIL_MISMATCH_MESSAGE = "L’email inserita non corrisponde a quella associata all’ordine. Controlla l’indirizzo usato in fase d’acquisto e verifica anche la cartella spam/promozioni della tua casella email.";
-const ORDER_LOOKUP_GRAPHQL_QUERY = `query OrderLookup($query: String!) { orders(first: 1, query: $query) { edges { node { name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags customAttributes { key value } paymentGatewayNames shippingLines(first: 10) { edges { node { title code } } } fulfillments { status displayStatus trackingInfo { company number url } } } } } } }`;
+const ORDER_LOOKUP_GRAPHQL_QUERY = `
+  query OrderLookup($query: String!) {
+    orders(first: 1, query: $query) {
+      edges {
+        node {
+          name
+          number
+          email
+          displayFulfillmentStatus
+          cancelledAt
+          sourceName
+          sourceIdentifier
+          tags
+          customAttributes {
+            key
+            value
+          }
+          paymentGatewayNames
+          shippingLines(first: 10) {
+            edges {
+              node {
+                title
+                code
+              }
+            }
+          }
+          fulfillments {
+            status
+            displayStatus
+            trackingInfo {
+              company
+              number
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+`;
 
 async function handleOrderLookupRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
   if (request.method !== "POST") return json(orderLookupResponse("invalid_input", "none", "Metodo non supportato.", null, []), 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
