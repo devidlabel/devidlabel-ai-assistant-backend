@@ -45,6 +45,9 @@ assert(normalizeOrderNumber('#91991') === '91991', 'normalizes hash order number
 assert(normalizeOrderNumber('Ordine #91991') === '91991', 'normalizes query order number');
 assert(normalizeTrackingUrl('https://track.test/[[trackingNumber]]', '123') === 'https://track.test/123', 'normalizes BRT placeholder');
 assert(isMarketplaceOrder({ sourceName: 'amazon', tags: [] }), 'detects marketplace internally');
+assert(!isMarketplaceOrder({ sourceName: 'web', email: 'buyer@amazon.example', tags: [], customAttributes: [], paymentGatewayNames: [] }), 'marketplace email alone must not block');
+assert(!isMarketplaceOrder({ sourceName: 'web', tags: ['packlink_shipped', 'tiktok'], customAttributes: [], paymentGatewayNames: [] }), 'logistics/generic social tags must not block');
+assert(isMarketplaceOrder({ sourceName: 'web', tags: [], customAttributes: [], paymentGatewayNames: ['tiktok_shop'] }), 'explicit TikTok Shop gateway must block');
 
 const makeOrder = (patch) => ({ name: '#91991', number: 91991, email: 'cliente@example.com', displayFulfillmentStatus: 'UNFULFILLED', fulfillments: [], tags: [], customAttributes: [], paymentGatewayNames: [], shippingLines: { edges: [] }, ...patch });
 const cases = new Map([
@@ -55,6 +58,10 @@ const cases = new Map([
   ['55555', makeOrder({ name: '#55555', displayFulfillmentStatus: 'FULFILLED', fulfillments: [{ trackingInfo: [{ company: 'BRT', number: 'A', url: 'https://brt.test/A' }] }, { trackingInfo: [{ company: 'InPost', number: 'B', url: 'https://inpost.test/B' }] }] })],
   ['66666', makeOrder({ name: '#66666', sourceName: 'Marketplace', tags: ['amazon'], fulfillments: [{ trackingInfo: [{ company: 'BRT', number: 'SECRET', url: 'https://x.test' }] }] })],
   ['77777', makeOrder({ name: '#77777', displayFulfillmentStatus: 'FULFILLED', fulfillments: [{ trackingInfo: [{ company: 'BRT', number: 'R1', url: 'https://brt.test/R1' }] }] })],
+  ['91991', makeOrder({ name: '#91991', number: 91991, sourceName: 'web', tags: [], paymentGatewayNames: ['shopify_payments'] })],
+  ['91957', makeOrder({ name: '#91957', number: 91957, sourceName: 'spartoo', email: 'technical@spartoo.example', paymentGatewayNames: ['spartoo'], customAttributes: [{ key: 'Spartoo Order ID', value: 'SP-123' }] })],
+  ['91918', makeOrder({ name: '#91918', number: 91918, sourceName: 'web', tags: ['packlink_shipped'], customAttributes: [{ key: 'Packlink', value: 'shipment' }], fulfillments: [{ trackingInfo: [{ company: 'BRT', number: 'PK1', url: 'https://brt.test/PK1' }] }] })],
+  ['91917', makeOrder({ name: '#91917', number: 91917, sourceName: 'web', customAttributes: [{ key: 'mondial_relay_country', value: 'IT' }, { key: 'mondial_relay_id', value: 'MR1' }, { key: 'mondial_relay_name', value: 'Relay Shop' }], fulfillments: [{ trackingInfo: [{ company: 'InPost', number: 'IP1', url: 'https://inpost.test/IP1' }] }] })],
 ]);
 
 let graphqlCalls = 0;
@@ -65,7 +72,10 @@ globalThis.fetch = async (_url, init) => {
   orderLookupRuntimeQueries.push(body.query);
   const q = body.variables.query;
   const number = (q.match(/(\d+)/) || [])[1];
-  const order = cases.get(number);
+  let order = cases.get(number);
+  if (number === '99998') order = makeOrder({ name: '#12345', number: 12345 });
+  if (number === '88888' && q === 'order_number:88888') order = makeOrder({ name: '#88888', number: 88888 });
+  else if (number === '88888') order = makeOrder({ name: '#12345', number: 12345 });
   return new Response(JSON.stringify({ data: { orders: { edges: order ? [{ node: order }] : [] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 const env = { SHOPIFY_SHOP_DOMAIN: 'devidlabel.myshopify.com', SHOPIFY_ADMIN_ACCESS_TOKEN: 'shpat_test', ASSISTANT_ADMIN_TOKEN: 'admin' };
@@ -101,6 +111,18 @@ assert(!/R1|BRT|cliente@example.com/i.test(JSON.stringify(r)), 'email mismatch l
 r = await lookup({ order_number: '77777', email: 'cliente@example.com' });
 assert(r.status === 'found' && r.order_lookup.tracking_items[0].number === 'R1', 'retry correct email failed');
 
+r = await lookup({ order_number: '91991' });
+assert(r.status === 'ask_email' && r.next_step === 'email', '#91991-like web Shopify Payments order should ask for email');
+r = await lookup({ order_number: '91957' });
+assert(r.status === 'marketplace_unsupported' && !/spartoo/i.test(JSON.stringify(r)), '#91957-like Spartoo order should be blocked without source name leak');
+r = await lookup({ order_number: '91918', email: 'cliente@example.com' });
+assert(r.status === 'found' && r.order_lookup.tracking_items[0].company === 'BRT', '#91918-like Packlink logistics order should not be marketplace');
+r = await lookup({ order_number: '91917', email: 'cliente@example.com' });
+assert(r.status === 'found' && r.order_lookup.tracking_items[0].company === 'InPost', '#91917-like Mondial Relay logistics order should not be marketplace');
+r = await lookup({ order_number: '99998' });
+assert(r.status === 'not_found', 'non-exact Shopify node should be ignored');
+r = await lookup({ order_number: '88888' });
+assert(r.status === 'ask_email', 'lookup should continue fragments and use later exact Shopify node');
 r = await lookup({ order_number: '99999' });
 assert(r.status === 'not_found' && r.next_step === 'order_number' && r.order_lookup === null, 'not found failed');
 const beforeInvalid = graphqlCalls;
@@ -124,6 +146,7 @@ r = await debugLookup({ order_number: '11111' });
 const debugNames = r.body.checks.map((check) => check.name);
 for (const expected of ORDER_LOOKUP_DEBUG_DEFINITIONS.map((definition) => definition.name)) assert(debugNames.includes(expected), `missing debug check: ${expected}`);
 assert(r.body.checks.find((check) => check.name === 'minimal_order').matched === true, 'minimal debug check should report matched only');
+assert(r.body.checks.find((check) => check.name === 'full_current_order_lookup_query').exact_match === true, 'full debug check should report exact match metadata');
 const safeDebugJson = JSON.stringify(r.body);
 for (const forbidden of ['cliente@example.com', 'shpat_test', 'address', 'phone', 'lineItems', 'totalPriceSet', 'currentTotalPriceSet']) assert(!safeDebugJson.includes(forbidden), `debug response leaks forbidden content: ${forbidden}`);
 let sawFullQuery = false;

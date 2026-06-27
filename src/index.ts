@@ -342,14 +342,42 @@ async function fetchShopifyOrderByNumber(env: Env, orderNumber: string): Promise
   for (const query of fragments) {
     const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, ORDER_LOOKUP_GRAPHQL_QUERY, { query });
     const node = data.orders.edges[0]?.node;
-    if (node) return node;
+    if (!node) continue;
+    const match = getOrderExactMatch(node, orderNumber);
+    if (match.exact_match) return node;
+    console.warn("shopify_order_lookup_non_exact_match_ignored", { requested_order_number: orderNumber, query_fragment: query, checked_order_number: normalizeOrderNumber(node.name), node_number_matches: String(node.number) === orderNumber, node_name_matches: normalizeOrderNumber(node.name) === orderNumber });
   }
   return null;
 }
 
+function getOrderExactMatch(node: ShopifyOrderLookupNode, orderNumber: string): { exact_match: boolean; matched_by: "number" | "name" | null } {
+  if (String(node.number) === orderNumber) return { exact_match: true, matched_by: "number" };
+  if (normalizeOrderNumber(node.name) === orderNumber) return { exact_match: true, matched_by: "name" };
+  return { exact_match: false, matched_by: null };
+}
+
+function collectMarketplaceSignals(order: ShopifyOrderLookupNode): string[] {
+  const signals: string[] = [];
+  const sourceName = normalizeString(order.sourceName, 120).toLowerCase();
+  const strongPattern = /\b(spartoo|amazon|miinto|mirakl|channel\s*advisor|marketplace|tiktok[_\s-]*shop|tik\s*tok\s*shop)\b/i;
+  const addIfStrong = (label: string, value: unknown) => {
+    const normalized = normalizeString(value, 500);
+    if (normalized && strongPattern.test(normalized)) signals.push(`${label}:${normalized.toLowerCase()}`);
+  };
+  if (sourceName === "tiktok") signals.push("sourceName:tiktok");
+  addIfStrong("sourceName", order.sourceName);
+  addIfStrong("sourceIdentifier", order.sourceIdentifier);
+  for (const tag of order.tags ?? []) addIfStrong("tags", tag);
+  for (const attr of order.customAttributes ?? []) {
+    addIfStrong("customAttributes.key", attr.key);
+    addIfStrong("customAttributes.value", attr.value);
+  }
+  for (const gateway of order.paymentGatewayNames ?? []) addIfStrong("paymentGatewayNames", gateway);
+  return Array.from(new Set(signals));
+}
+
 function isMarketplaceOrder(order: ShopifyOrderLookupNode): boolean {
-  const haystack = [order.sourceName, order.sourceIdentifier, ...(order.tags ?? []), ...(order.customAttributes ?? []).flatMap((a) => [a.key, a.value]), order.email].filter(Boolean).join(" ").toLowerCase();
-  return /marketplace|spartoo|amazon|tiktok|tik tok|miinto|packlink_pending|relay|seller|channeladvisor|mirakl/.test(haystack);
+  return collectMarketplaceSignals(order).length > 0;
 }
 
 function isCashOnDeliveryOrder(order: ShopifyOrderLookupNode): boolean {
@@ -455,7 +483,7 @@ async function handleShopifyAuthCallbackRequest(request: Request, env: Env, cors
   return html("App installata correttamente. Puoi chiudere questa finestra.", 200, corsHeaders);
 }
 
-type OrderLookupDebugCheck = { name: string; ok: boolean; matched: boolean; error_code: string | null; graphql_message: string | null; fields: string[] };
+type OrderLookupDebugCheck = { name: string; ok: boolean; matched: boolean; exact_match: boolean; matched_by: "number" | "name" | null; marketplace_detected: boolean; marketplace_signals: string[]; error_code: string | null; graphql_message: string | null; fields: string[] };
 type OrderLookupDebugResponse = { ok: boolean; source: "order_lookup_debug"; order_number_checked: string; query_fragments: string[]; checks: OrderLookupDebugCheck[]; first_failing_check: string | null; guardrails?: string[] };
 const ORDER_LOOKUP_DEBUG_DEFINITIONS: Array<{ name: string; selection: string; fields: string[] }> = [
   { name: "minimal_order", selection: "name", fields: ["name"] },
@@ -481,8 +509,8 @@ async function handleOrderLookupDebugRequest(request: Request, env: Env, corsHea
   let firstFail: string | null = null;
   for (const definition of ORDER_LOOKUP_DEBUG_DEFINITIONS) {
     const gql = definition.name === "full_current_order_lookup_query" ? ORDER_LOOKUP_GRAPHQL_QUERY : `query DebugOrder($query: String!) { orders(first: 1, query: $query) { edges { node { ${definition.selection} } } } }`;
-    const result = await runOrderLookupDebugCheck(env, gql, fragments);
-    const check = { name: definition.name, ok: result.ok, matched: result.matched, error_code: result.error_code, graphql_message: result.graphql_message, fields: definition.fields };
+    const result = await runOrderLookupDebugCheck(env, gql, fragments, input.orderNumber);
+    const check = { name: definition.name, ok: result.ok, matched: result.matched, exact_match: result.exact_match, matched_by: result.matched_by, marketplace_detected: result.marketplace_detected, marketplace_signals: result.marketplace_signals, error_code: result.error_code, graphql_message: result.graphql_message, fields: definition.fields };
     checks.push(check);
     if (!check.ok && !firstFail) firstFail = check.name;
   }
@@ -501,17 +529,28 @@ async function parseOrderLookupDebugPayload(request: Request): Promise<{ ok: tru
   return { ok: true, orderNumber: raw.replace(/^#/, "") };
 }
 
-async function runOrderLookupDebugCheck(env: Env, gql: string, fragments: string[]): Promise<{ ok: boolean; matched: boolean; error_code: string | null; graphql_message: string | null }> {
+async function runOrderLookupDebugCheck(env: Env, gql: string, fragments: string[], orderNumber: string): Promise<{ ok: boolean; matched: boolean; exact_match: boolean; matched_by: "number" | "name" | null; marketplace_detected: boolean; marketplace_signals: string[]; error_code: string | null; graphql_message: string | null }> {
   try {
     let matched = false;
+    let exact_match = false;
+    let matched_by: "number" | "name" | null = null;
+    let marketplace_signals: string[] = [];
     for (const query of fragments) {
       const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, gql, { query });
-      if (data.orders.edges[0]?.node) matched = true;
+      const node = data.orders.edges[0]?.node;
+      if (!node) continue;
+      matched = true;
+      const exact = getOrderExactMatch(node, orderNumber);
+      if (exact.exact_match) {
+        exact_match = true;
+        matched_by = exact.matched_by;
+        marketplace_signals = collectMarketplaceSignals(node);
+      }
     }
-    return { ok: true, matched, error_code: null, graphql_message: null };
+    return { ok: true, matched, exact_match, matched_by, marketplace_detected: marketplace_signals.length > 0, marketplace_signals, error_code: null, graphql_message: null };
   } catch (error) {
     const sanitized = sanitizeDebugError(error);
-    return { ok: false, matched: false, error_code: sanitized.code, graphql_message: sanitized.message };
+    return { ok: false, matched: false, exact_match: false, matched_by: null, marketplace_detected: false, marketplace_signals: [], error_code: sanitized.code, graphql_message: sanitized.message };
   }
 }
 
