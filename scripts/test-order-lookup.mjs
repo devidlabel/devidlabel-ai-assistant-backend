@@ -6,16 +6,17 @@ import { join } from 'node:path';
 const out = mkdtempSync(join(tmpdir(), 'order-lookup-'));
 execFileSync('npx', ['tsc', '--outDir', out, '--noEmit', 'false', '--module', 'ESNext', '--target', 'ES2022', '--moduleResolution', 'Bundler'], { stdio: 'inherit' });
 const mod = await import(`file://${out}/index.js`);
-const { handleRequest, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl } = mod;
+const { handleRequest, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, ORDER_LOOKUP_DEBUG_DEFINITIONS, ORDER_LOOKUP_GRAPHQL_QUERY } = mod;
 const assert = (condition, message) => { if (!condition) { console.error(message); process.exit(1); } };
 const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8'));
-const orderLookupQuery = source.match(/const gql = `query OrderLookup\([\s\S]*?`;/)?.[0] ?? '';
+const orderLookupQuery = ORDER_LOOKUP_GRAPHQL_QUERY;
 const forbiddenGraphqlFields = [/noteAttributes/, /billingAddress/, /shippingAddress/, /displayAddress/, /phone\b/, /customer\s*\{/, /lineItems\s*\(/, /totalPriceSet/, /currentTotalPriceSet/, /financialStatus|displayFinancialStatus/, /transactions\s*\{/];
 for (const pattern of forbiddenGraphqlFields) assert(!pattern.test(orderLookupQuery), `forbidden GraphQL field in order lookup query: ${pattern}`);
 assert(!/fulfillments\s*\(\s*first\s*:/.test(orderLookupQuery), 'order lookup query must not paginate Order.fulfillments with first');
 assert(/fulfillments\s*\{/.test(orderLookupQuery), 'order lookup query must use plain fulfillments selection');
 for (const required of ['name', 'number', 'email', 'displayFulfillmentStatus', 'cancelledAt', 'sourceName', 'sourceIdentifier', 'tags', 'customAttributes', 'paymentGatewayNames', 'shippingLines', 'fulfillments', 'trackingInfo']) assert(orderLookupQuery.includes(required), `required safe GraphQL field missing: ${required}`);
 assert(/trackingInfo\s*\{\s*company\s+number\s+url\s*\}/.test(orderLookupQuery), 'trackingInfo should remain a safe field selection without extra fields');
+assert(source.includes('const ORDER_LOOKUP_GRAPHQL_QUERY') && source.includes('ORDER_LOOKUP_GRAPHQL_QUERY, { query }'), 'order lookup must use shared real query constant');
 
 assert(normalizeOrderNumber('91991') === '91991', 'normalizes bare order number');
 assert(normalizeOrderNumber('#91991') === '91991', 'normalizes hash order number');
@@ -43,7 +44,7 @@ globalThis.fetch = async (_url, init) => {
   const order = cases.get(number);
   return new Response(JSON.stringify({ data: { orders: { edges: order ? [{ node: order }] : [] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
 };
-const env = { SHOPIFY_SHOP_DOMAIN: 'devidlabel.myshopify.com', SHOPIFY_ADMIN_ACCESS_TOKEN: 'shpat_test' };
+const env = { SHOPIFY_SHOP_DOMAIN: 'devidlabel.myshopify.com', SHOPIFY_ADMIN_ACCESS_TOKEN: 'shpat_test', ASSISTANT_ADMIN_TOKEN: 'admin' };
 async function lookup(payload) {
   const req = new Request('https://worker.test/order/lookup', { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json', origin: 'https://devidlabel.com' } });
   const res = await handleRequest(req, env);
@@ -81,6 +82,42 @@ assert(r.status === 'not_found' && r.next_step === 'order_number' && r.order_loo
 const beforeInvalid = graphqlCalls;
 r = await lookup({ query: '' });
 assert(r.status === 'invalid_input' && graphqlCalls === beforeInvalid, 'invalid input should not call Shopify');
+
+
+async function debugLookup(payload, headers = { 'X-Assistant-Admin-Token': 'admin' }) {
+  const req = new Request('https://worker.test/debug/order-lookup', { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json', ...headers } });
+  const res = await handleRequest(req, env);
+  return { status: res.status, body: await res.json() };
+}
+
+r = await debugLookup({ order_number: '11111' }, {});
+assert(r.status === 404, 'debug order lookup without admin token should return 404');
+r = await debugLookup({ order_number: 'cliente@example.com' });
+assert(r.status === 400 && r.body.ok === false && r.body.guardrails.includes('invalid_order_number'), 'debug order lookup invalid payload should fail safely');
+r = await debugLookup({ order_number: '11111', email: 'cliente@example.com' });
+assert(r.status === 400 && r.body.guardrails.includes('invalid_debug_payload_fields'), 'debug order lookup should reject email/customer fields');
+r = await debugLookup({ order_number: '11111' });
+const debugNames = r.body.checks.map((check) => check.name);
+for (const expected of ORDER_LOOKUP_DEBUG_DEFINITIONS.map((definition) => definition.name)) assert(debugNames.includes(expected), `missing debug check: ${expected}`);
+assert(r.body.checks.find((check) => check.name === 'minimal_order').matched === true, 'minimal debug check should report matched only');
+const safeDebugJson = JSON.stringify(r.body);
+for (const forbidden of ['cliente@example.com', 'shpat_test', 'address', 'phone', 'lineItems', 'totalPriceSet', 'currentTotalPriceSet']) assert(!safeDebugJson.includes(forbidden), `debug response leaks forbidden content: ${forbidden}`);
+let sawFullQuery = false;
+globalThis.fetch = async (_url, init) => {
+  const body = JSON.parse(init.body);
+  if (body.query === ORDER_LOOKUP_GRAPHQL_QUERY) sawFullQuery = true;
+  return new Response(JSON.stringify({ data: { orders: { edges: [{ node: cases.get('11111') }] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
+};
+r = await debugLookup({ order_number: '11111' });
+assert(sawFullQuery && r.body.checks.find((check) => check.name === 'full_current_order_lookup_query').ok, 'full debug check should use the real order lookup query');
+globalThis.fetch = async (_url, init) => {
+  const body = JSON.parse(init.body);
+  if (body.query.includes('paymentGatewayNames')) return new Response(JSON.stringify({ errors: [{ message: 'Field paymentGatewayNames broke for cliente@example.com token shpat_secret phone +390000 address Via Roma' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify({ data: { orders: { edges: [{ node: cases.get('11111') }] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
+};
+r = await debugLookup({ order_number: '11111' });
+assert(r.body.first_failing_check === 'payment_gateway_names', 'debug should expose first failing check');
+assert(!/cliente@example\.com|shpat_secret|\+390000|Via Roma/i.test(JSON.stringify(r.body)), 'debug failing check should sanitize PII and tokens');
 
 const safe = buildSafeOrderLookup(cases.get('22222'));
 assert(!('email' in safe) && !('id' in safe) && !('tags' in safe), 'safe lookup includes raw/private fields');

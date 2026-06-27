@@ -195,6 +195,10 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
     return handleShopifyDebugRequest(request, env, corsHeaders);
   }
 
+  if (url.pathname === "/debug/order-lookup") {
+    return handleOrderLookupDebugRequest(request, env, corsHeaders);
+  }
+
   if (url.pathname === "/debug/recommendation") {
     return handleRecommendationDebugRequest(request, env, corsHeaders);
   }
@@ -251,6 +255,7 @@ type ShopifyOrderLookupData = { orders: { edges: Array<{ node: ShopifyOrderLooku
 const ORDER_LOOKUP_ALLOWED_KEYS = new Set(["order_number", "query", "email"]);
 const MARKETPLACE_MESSAGE = "Per gli ordini effettuati tramite marketplace, l’assistenza deve essere gestita direttamente dal servizio clienti del marketplace di riferimento. Ti consigliamo di aprire la richiesta dalla piattaforma da cui hai effettuato l’acquisto.";
 const EMAIL_MISMATCH_MESSAGE = "L’email inserita non corrisponde a quella associata all’ordine. Controlla l’indirizzo usato in fase d’acquisto e verifica anche la cartella spam/promozioni della tua casella email.";
+const ORDER_LOOKUP_GRAPHQL_QUERY = `query OrderLookup($query: String!) { orders(first: 1, query: $query) { edges { node { name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags customAttributes { key value } paymentGatewayNames shippingLines(first: 10) { edges { node { title code } } } fulfillments { status displayStatus trackingInfo { company number url } } } } } } }`;
 
 async function handleOrderLookupRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
   if (request.method !== "POST") return json(orderLookupResponse("invalid_input", "none", "Metodo non supportato.", null, []), 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
@@ -295,9 +300,8 @@ function orderLookupResponse(status: OrderLookupStatus, next_step: OrderNextStep
 
 async function fetchShopifyOrderByNumber(env: Env, orderNumber: string): Promise<ShopifyOrderLookupNode | null> {
   const fragments = [`name:#${orderNumber}`, `name:${orderNumber}`, `order_number:${orderNumber}`];
-  const gql = `query OrderLookup($query: String!) { orders(first: 1, query: $query) { edges { node { name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags customAttributes { key value } paymentGatewayNames shippingLines(first: 10) { edges { node { title code } } } fulfillments { status displayStatus trackingInfo { company number url } } } } } } }`;
   for (const query of fragments) {
-    const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, gql, { query });
+    const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, ORDER_LOOKUP_GRAPHQL_QUERY, { query });
     const node = data.orders.edges[0]?.node;
     if (node) return node;
   }
@@ -410,6 +414,66 @@ async function handleShopifyAuthCallbackRequest(request: Request, env: Env, cors
   await env.SHOPIFY_TOKENS_KV.delete(stateKey);
   shopifyTokenCache = { accessToken: result.accessToken, expiresAt: Date.now() + SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS * 1000, source: "oauth_kv" };
   return html("App installata correttamente. Puoi chiudere questa finestra.", 200, corsHeaders);
+}
+
+type OrderLookupDebugCheck = { name: string; ok: boolean; matched: boolean; error_code: string | null; graphql_message: string | null; fields: string[] };
+type OrderLookupDebugResponse = { ok: boolean; source: "order_lookup_debug"; order_number_checked: string; query_fragments: string[]; checks: OrderLookupDebugCheck[]; first_failing_check: string | null; guardrails?: string[] };
+const ORDER_LOOKUP_DEBUG_DEFINITIONS: Array<{ name: string; selection: string; fields: string[] }> = [
+  { name: "minimal_order", selection: "name", fields: ["name"] },
+  { name: "base_order_fields", selection: "name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags", fields: ["name", "number", "email", "displayFulfillmentStatus", "cancelledAt", "sourceName", "sourceIdentifier", "tags"] },
+  { name: "custom_attributes", selection: "customAttributes { key value }", fields: ["customAttributes.key", "customAttributes.value"] },
+  { name: "payment_gateway_names", selection: "paymentGatewayNames", fields: ["paymentGatewayNames"] },
+  { name: "shipping_lines_title_only", selection: "shippingLines(first: 10) { edges { node { title } } }", fields: ["shippingLines.title"] },
+  { name: "shipping_lines_title_code", selection: "shippingLines(first: 10) { edges { node { title code } } }", fields: ["shippingLines.title", "shippingLines.code"] },
+  { name: "fulfillments_status_only", selection: "fulfillments { status }", fields: ["fulfillments.status"] },
+  { name: "fulfillments_status_display_status", selection: "fulfillments { status displayStatus }", fields: ["fulfillments.status", "fulfillments.displayStatus"] },
+  { name: "fulfillments_tracking_company_number", selection: "fulfillments { trackingInfo { company number } }", fields: ["fulfillments.trackingInfo.company", "fulfillments.trackingInfo.number"] },
+  { name: "fulfillments_tracking_company_number_url", selection: "fulfillments { trackingInfo { company number url } }", fields: ["fulfillments.trackingInfo.company", "fulfillments.trackingInfo.number", "fulfillments.trackingInfo.url"] },
+  { name: "full_current_order_lookup_query", selection: "", fields: ["ORDER_LOOKUP_GRAPHQL_QUERY"] },
+];
+
+async function handleOrderLookupDebugRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
+  if (request.method !== "POST") return json({ ok: false, source: "order_lookup_debug", guardrails: ["method_not_allowed"] }, 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
+  if (!isValidAssistantAdminRequest(request, env)) return json({ ok: false, source: "order_lookup_debug", guardrails: [] }, 404, corsHeaders);
+  const input = await parseOrderLookupDebugPayload(request);
+  if (!input.ok) return json({ ok: false, source: "order_lookup_debug", guardrails: input.guardrails }, 400, corsHeaders);
+  const fragments = [`name:#${input.orderNumber}`, `name:${input.orderNumber}`, `order_number:${input.orderNumber}`];
+  const checks: OrderLookupDebugCheck[] = [];
+  let firstFail: string | null = null;
+  for (const definition of ORDER_LOOKUP_DEBUG_DEFINITIONS) {
+    const gql = definition.name === "full_current_order_lookup_query" ? ORDER_LOOKUP_GRAPHQL_QUERY : `query DebugOrder($query: String!) { orders(first: 1, query: $query) { edges { node { ${definition.selection} } } } }`;
+    const result = await runOrderLookupDebugCheck(env, gql, fragments);
+    const check = { name: definition.name, ok: result.ok, matched: result.matched, error_code: result.error_code, graphql_message: result.graphql_message, fields: definition.fields };
+    checks.push(check);
+    if (!check.ok && !firstFail) firstFail = check.name;
+  }
+  const response: OrderLookupDebugResponse = { ok: firstFail === null, source: "order_lookup_debug", order_number_checked: input.orderNumber, query_fragments: fragments, checks, first_failing_check: firstFail };
+  return json(response, 200, corsHeaders);
+}
+
+async function parseOrderLookupDebugPayload(request: Request): Promise<{ ok: true; orderNumber: string } | { ok: false; guardrails: string[] }> {
+  let body: unknown;
+  try { body = await request.json(); } catch { return { ok: false, guardrails: ["invalid_json"] }; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, guardrails: ["invalid_payload"] };
+  const input = body as Record<string, unknown>;
+  if (Object.keys(input).some((key) => key !== "order_number")) return { ok: false, guardrails: ["invalid_debug_payload_fields"] };
+  const raw = normalizeString(input.order_number, 32).replace(/[０-９]/g, (char) => String(char.charCodeAt(0) - 0xff10)).trim();
+  if (!/^#?\d{3,12}$/.test(raw)) return { ok: false, guardrails: ["invalid_order_number"] };
+  return { ok: true, orderNumber: raw.replace(/^#/, "") };
+}
+
+async function runOrderLookupDebugCheck(env: Env, gql: string, fragments: string[]): Promise<{ ok: boolean; matched: boolean; error_code: string | null; graphql_message: string | null }> {
+  try {
+    let matched = false;
+    for (const query of fragments) {
+      const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, gql, { query });
+      if (data.orders.edges[0]?.node) matched = true;
+    }
+    return { ok: true, matched, error_code: null, graphql_message: null };
+  } catch (error) {
+    const sanitized = sanitizeDebugError(error);
+    return { ok: false, matched: false, error_code: sanitized.code, graphql_message: sanitized.message };
+  }
 }
 
 async function handleShopifyDebugRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
@@ -1507,7 +1571,10 @@ function sanitizeDebugError(error: unknown): { code: string; message: string } {
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
     .replace(/(access_token|client_secret|token|secret)\s*[:=]\s*['\"]?[^'\"\\s,;}]+/gi, "$1:[redacted]")
     .replace(/shpat_[A-Za-z0-9_]+/gi, "[redacted]")
-    .replace(/shp[a-z]?_[A-Za-z0-9_]+/gi, "[redacted]");
+    .replace(/shp[a-z]*_[A-Za-z0-9_]+/gi, "[redacted]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
+    .replace(/\+?\d[\d\s().-]{4,}\d/g, "[redacted-phone]")
+    .replace(/\b(via|viale|corso|piazza|address|indirizzo)\b[^,;|]{0,80}/gi, "[redacted-address]");
   const safeMessage = redacted.length > 300 ? `${redacted.slice(0, 297)}...` : redacted;
   return { code: knownCode, message: safeMessage || "Errore Shopify non disponibile in forma sicura." };
 }
@@ -1564,7 +1631,7 @@ async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<stri
     const response = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, { method: "POST", headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: controller.signal });
     if (!response.ok) throw new Error(`shopify_status_${response.status}`);
     const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
-    if (payload.errors?.length) throw new Error("shopify_graphql_validation_error");
+    if (payload.errors?.length) throw new Error(`shopify_graphql_validation_error:${payload.errors.map((item) => item.message || "graphql_error").join(" | ").slice(0, 240)}`);
     if (!payload.data) throw new Error("shopify_empty_data");
     return payload.data;
   } finally { clearTimeout(timeout); }
@@ -1877,4 +1944,4 @@ function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "tit
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { handleShopifyInstallRequest, handleShopifyAuthCallbackRequest, handleShopifyDebugRequest, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken, resolveShopifyAdminAccessToken, analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest };
+export { handleShopifyInstallRequest, handleShopifyAuthCallbackRequest, handleShopifyDebugRequest, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken, resolveShopifyAdminAccessToken, analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest, handleOrderLookupDebugRequest, ORDER_LOOKUP_DEBUG_DEFINITIONS, ORDER_LOOKUP_GRAPHQL_QUERY };
