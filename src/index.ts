@@ -1222,10 +1222,12 @@ async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, 
   const guardrails: string[] = [];
   try { salesStats = await fetchSalesRankLast30Days(env, candidate); } catch (_error) { guardrails.push("shopify_orders_unavailable"); }
   const ranking = rankRecommendationsWithGuardrails(products, salesStats, candidate, normalized.normalizedQuery);
-  const ranked = candidate.commerceIntent.confidence < 0.85 ? [] : applyForcedProductIntentPriority(ranking.ranked, candidate, normalized.normalizedQuery).slice(0, 3);
+  const prioritized = candidate.commerceIntent.confidence < 0.85 ? [] : applyForcedProductIntentPriority(ranking.ranked, candidate, normalized.normalizedQuery);
+  const strictProductIntent = filterProductIntentRecommendations(prioritized, candidate.commerceIntent.productIntent);
+  const ranked = strictProductIntent.ranked.slice(0, 3);
   const strategy = salesStats.size ? (candidate.commerceIntent.isVendorOnlyQuery ? "vendor_only_semantic_sales_30d" : "vendor_category_gender_semantic_sales_30d") : "semantic_no_recent_sales_fallback";
   const forced = getForcedProductForIntent(ranking.ranked, candidate.commerceIntent.productIntent);
-  const recommendationGuardrails = [...guardrails, ...ranking.guardrails, ...(candidate.commerceIntent.guardrails ?? []), ...(candidate.commerceIntent.confidence < 0.85 ? ["recommendations_empty_due_to_low_confidence"] : []), ...(ranking.ranked.length < 1 ? ["no_safe_recommendations"] : []), ...(forced && ranked[0]?.productId === forced.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback", ...(salesStats.size ? [] : ["no_recent_sales_semantic_fallback_applied"])];
+  const recommendationGuardrails = [...guardrails, ...ranking.guardrails, ...strictProductIntent.guardrails, ...(candidate.commerceIntent.guardrails ?? []), ...(candidate.commerceIntent.confidence < 0.85 ? ["recommendations_empty_due_to_low_confidence"] : []), ...(ranking.ranked.length < 1 ? ["no_safe_recommendations"] : []), ...(forced && ranked[0]?.productId === forced.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback", ...(salesStats.size ? [] : ["no_recent_sales_semantic_fallback_applied"])];
   const snapshot: RecommendationSnapshot = { recommended_products: ranked.map(toAssistantSuggestion), devid_label_alternatives: ranked.length ? await buildDevidLabelAlternatives(env, normalized, candidate) : [], guardrails: recommendationGuardrails, expiresAt: Date.now() + ttl * 1000, ranking_strategy: strategy, commerce_intent: candidate.commerceIntent, debug: buildRecommendationDebug(products, ranking.ranked, salesStats) };
   recommendationCache.set(key, snapshot);
   return snapshot;
@@ -1485,9 +1487,38 @@ function isFinalRecommendationAllowed(product: RankedRecommendation, commerceInt
   if (commerceIntent.vendorIntent && normalizeQueryText(product.vendor) !== normalizeQueryText(commerceIntent.vendorIntent)) return false;
   if (commerceIntent.genderIntent && commerceIntent.genderIntent !== "unisex" && !isGenderCompatible(product, commerceIntent.genderIntent)) return false;
   if (commerceIntent.categoryIntent && !commerceIntent.isVendorOnlyQuery && !isProductCommerciallyCompatible(product, commerceIntent, normalizedQuery, "strong")) return false;
+  if (commerceIntent.productIntent && !isStrongProductIntentMatch(product, commerceIntent.productIntent)) return false;
   if (requiresSummerContext(commerceIntent, normalizedQuery) && isWinterProduct(product)) return false;
   if (commerceIntent.categoryIntent === "costumi_mare" && isExplicitlyDeniedSwimwearFallback(product)) return false;
   return true;
+}
+
+function isStrongProductIntentMatch(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, productIntent: string | null): boolean {
+  if (!productIntent) return true;
+  if (normalizeQueryText(product.vendor ?? "") !== "devid label") return false;
+  if (isAccessoryProduct(product)) return false;
+  const text = productSearchText(product);
+  const category = detectProductCategory(product);
+  const rules: Record<string, { model: RegExp; categories: CommerceCategoryIntent[]; denied: RegExp }> = {
+    jeans_globe_devid_label: { model: /(^|\s)(globe|jeans\s+globe)(\s|$)/, categories: ["jeans"], denied: /(^|\s)(shopper|ecopelle|borsa|borse|accessori|pochette|vanity|clutch|zaino|backpack|t\s?shirt|t-shirt|tshirt|maglia|cargo|bermuda)(\s|$)/ },
+    tshirt_mosca_devid_label: { model: /(^|\s)(mosca|t\s?shirt\s+mosca|t-shirt\s+mosca|tshirt\s+mosca)(\s|$)/, categories: ["tshirt"], denied: /(^|\s)(monterosso|corniglia|globe|shopper|ecopelle|borsa|borse|accessori|pochette|vanity|clutch|zaino|backpack|jeans|denim|cargo|bermuda)(\s|$)/ },
+    cargo_courmayeur_devid_label: { model: /(^|\s)(courmayeur|courma|courmayer|cargo\s+courmayeur|cargo\s+courma|cargo\s+courmayer)(\s|$)/, categories: ["cargo"], denied: /(^|\s)(globe|jeans|denim|bermuda|shopper|ecopelle|borsa|borse|accessori|pochette|vanity|clutch|zaino|backpack|t\s?shirt|t-shirt|tshirt|maglia)(\s|$)/ },
+    monterosso_devid_label: { model: /(^|\s)monterosso(\s|$)/, categories: ["maglieria", "tshirt"], denied: /(^|\s)(mosca|corniglia|shopper|ecopelle|borsa|borse|accessori|pochette|vanity|clutch|zaino|backpack|globe|jeans|denim|cargo|bermuda)(\s|$)/ },
+  };
+  const rule = rules[productIntent];
+  if (!rule) return true;
+  if (rule.denied.test(text)) return false;
+  if (!rule.model.test(text)) return false;
+  return Boolean(category && rule.categories.includes(category));
+}
+
+function filterProductIntentRecommendations(products: RankedRecommendation[], productIntent: string | null): RecommendationRankingResult {
+  if (!productIntent) return { ranked: products, guardrails: [] };
+  const ranked = products.filter((product) => isStrongProductIntentMatch(product, productIntent));
+  const guardrails = ["product_intent_strict_filter_applied"];
+  if (ranked.length < products.length) guardrails.push("product_intent_incoherent_fill_excluded");
+  if (ranked.length <= 1) guardrails.push("product_intent_no_fill_applied");
+  return { ranked, guardrails };
 }
 
 function isGenderCompatible(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, gender: CommerceGenderIntent): boolean {
