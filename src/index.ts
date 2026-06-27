@@ -1,5 +1,11 @@
 type ExecutionContext = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
+type KVNamespace = {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+};
+
 export interface Env {
   OPENAI_API_KEY?: string;
   ASSISTANT_ALLOWED_ORIGINS?: string;
@@ -9,6 +15,8 @@ export interface Env {
   SHOPIFY_CLIENT_ID?: string;
   SHOPIFY_CLIENT_SECRET?: string;
   SHOPIFY_API_VERSION?: string;
+  SHOPIFY_TOKENS_KV?: KVNamespace;
+  SHOPIFY_TOKEN_ENCRYPTION_KEY?: string;
   SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS?: string;
   ASSISTANT_ADMIN_TOKEN?: string;
 }
@@ -99,9 +107,10 @@ const SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS = 5 * 60;
 const OPENAI_TIMEOUT_MS = 7000;
 const SHOPIFY_OAUTH_SCOPES = "read_products,read_inventory,read_orders";
 const SHOPIFY_OAUTH_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback";
+const SHOPIFY_OAUTH_STATE_TTL_SECONDS = 600;
+type ShopifyAuthTokenSource = "oauth_kv" | "legacy_secret" | "none";
 
-let shopifyTokenCache = { accessToken: "", expiresAt: 0 };
-let shopifyOAuthInstallStateCache = { state: "", expiresAt: 0 };
+let shopifyTokenCache = { accessToken: "", expiresAt: 0, source: "none" as ShopifyAuthTokenSource };
 
 const SENSITIVE_KEY_PATTERN = /(email|mail|phone|telefono|tel|first.?name|last.?name|nome|cognome|address|indirizzo|payment|card|customer.?id|order.?id|ordine|token|access.?token|password|secret)/i;
 
@@ -348,18 +357,20 @@ async function handleShopifyInstallRequest(request: Request, env: Env, corsHeade
   if (request.method !== "GET") {
     return json({ ok: false, source: "ai_backend", type: "error", message: "Metodo non supportato.", guardrails: [] }, 405, { ...corsHeaders, Allow: "GET, OPTIONS" });
   }
-  if (!env.SHOPIFY_CLIENT_ID) {
-    return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_client_id_missing"]), 500, corsHeaders);
-  }
+  const configuredShop = normalizeShopifyDomainCandidate(env.SHOPIFY_SHOP_DOMAIN || "");
+  if (!env.SHOPIFY_CLIENT_ID) return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_client_id_missing"]), 500, corsHeaders);
+  if (!env.SHOPIFY_CLIENT_SECRET) return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_client_secret_missing"]), 500, corsHeaders);
+  if (!isValidShopifyShopDomain(configuredShop)) return json(validationError("Shop Shopify configurato non valido.", ["shopify_shop_domain_missing_or_invalid"]), 500, corsHeaders);
+  if (!env.SHOPIFY_TOKENS_KV) return json(validationError("Storage Shopify OAuth non configurato.", ["shopify_tokens_kv_missing"]), 500, corsHeaders);
+  if (!env.SHOPIFY_TOKEN_ENCRYPTION_KEY) return json(validationError("Chiave cifratura Shopify OAuth non configurata.", ["shopify_token_encryption_key_missing"]), 500, corsHeaders);
 
   const url = new URL(request.url);
-  const shop = normalizeShopifyDomainCandidate(url.searchParams.get("shop") || env.SHOPIFY_SHOP_DOMAIN || "");
-  if (!isValidShopifyShopDomain(shop)) {
-    return json(validationError("Shop Shopify non valido.", ["invalid_shopify_shop_domain"]), 400, corsHeaders);
-  }
+  const shop = normalizeShopifyDomainCandidate(url.searchParams.get("shop") || configuredShop);
+  if (!isValidShopifyShopDomain(shop)) return json(validationError("Shop Shopify non valido.", ["invalid_shopify_shop_domain"]), 400, corsHeaders);
+  if (shop !== configuredShop) return json(validationError("Shop Shopify non autorizzato.", ["shopify_shop_not_allowed"]), 403, corsHeaders);
 
   const state = createOAuthState();
-  shopifyOAuthInstallStateCache = { state, expiresAt: Date.now() + 10 * 60 * 1000 };
+  await env.SHOPIFY_TOKENS_KV.put(shopifyOAuthStateKey(state), JSON.stringify({ shop, created_at: new Date().toISOString() }), { expirationTtl: SHOPIFY_OAUTH_STATE_TTL_SECONDS });
   const authorizeUrl = new URL(`https://${shop}/admin/oauth/authorize`);
   authorizeUrl.searchParams.set("client_id", env.SHOPIFY_CLIENT_ID);
   authorizeUrl.searchParams.set("scope", SHOPIFY_OAUTH_SCOPES);
@@ -373,34 +384,31 @@ async function handleShopifyAuthCallbackRequest(request: Request, env: Env, cors
   if (request.method !== "GET") {
     return json({ ok: false, source: "ai_backend", type: "error", message: "Metodo non supportato.", guardrails: [] }, 405, { ...corsHeaders, Allow: "GET, OPTIONS" });
   }
-  if (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET) {
-    return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_config_missing"]), 500, corsHeaders);
-  }
+  if (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET) return json(validationError("Configurazione Shopify OAuth incompleta.", ["shopify_oauth_config_missing"]), 500, corsHeaders);
+  if (!env.SHOPIFY_TOKENS_KV) return json(validationError("Storage Shopify OAuth non configurato.", ["shopify_tokens_kv_missing"]), 500, corsHeaders);
+  if (!env.SHOPIFY_TOKEN_ENCRYPTION_KEY) return json(validationError("Chiave cifratura Shopify OAuth non configurata.", ["shopify_token_encryption_key_missing"]), 500, corsHeaders);
 
+  const configuredShop = normalizeShopifyDomainCandidate(env.SHOPIFY_SHOP_DOMAIN || "");
   const url = new URL(request.url);
   const shop = normalizeShopifyDomainCandidate(url.searchParams.get("shop") || "");
-  if (!isValidShopifyShopDomain(shop)) {
-    return json(validationError("Shop Shopify non valido.", ["invalid_shopify_shop_domain"]), 400, corsHeaders);
-  }
-  if (!(await verifyShopifyHmac(url.searchParams, env.SHOPIFY_CLIENT_SECRET))) {
-    return json(validationError("Firma Shopify non valida.", ["invalid_shopify_hmac"]), 403, corsHeaders);
-  }
+  if (!isValidShopifyShopDomain(shop)) return json(validationError("Shop Shopify non valido.", ["invalid_shopify_shop_domain"]), 400, corsHeaders);
+  if (shop !== configuredShop) return json(validationError("Shop Shopify non autorizzato.", ["shopify_shop_not_allowed"]), 403, corsHeaders);
+  if (!(await verifyShopifyHmac(url.searchParams, env.SHOPIFY_CLIENT_SECRET))) return json(validationError("Firma Shopify non valida.", ["invalid_shopify_hmac"]), 403, corsHeaders);
 
   const state = url.searchParams.get("state") || "";
-  if (shopifyOAuthInstallStateCache.state && shopifyOAuthInstallStateCache.expiresAt > Date.now() && state !== shopifyOAuthInstallStateCache.state) {
-    return json(validationError("State Shopify OAuth non valido.", ["invalid_shopify_oauth_state"]), 403, corsHeaders);
-  }
+  const stateKey = shopifyOAuthStateKey(state);
+  const stateValue = state ? await env.SHOPIFY_TOKENS_KV.get(stateKey) : null;
+  if (!stateValue) return json(validationError("State Shopify OAuth non valido.", ["invalid_shopify_oauth_state"]), 403, corsHeaders);
 
   const code = url.searchParams.get("code") || "";
-  if (!code) {
-    return json(validationError("Codice OAuth Shopify mancante.", ["missing_shopify_oauth_code"]), 400, corsHeaders);
-  }
+  if (!code) return json(validationError("Codice OAuth Shopify mancante.", ["missing_shopify_oauth_code"]), 400, corsHeaders);
 
   const result = await exchangeShopifyOAuthCode(env, shop, code);
-  if (!result.ok) {
-    return json(validationError("Installazione Shopify non completata.", [result.error]), 502, corsHeaders);
-  }
+  if (!result.ok) return json(validationError("Installazione Shopify non completata.", [result.error]), 502, corsHeaders);
 
+  await persistShopifyOAuthToken(env, shop, result.accessToken, result.scope || SHOPIFY_OAUTH_SCOPES);
+  await env.SHOPIFY_TOKENS_KV.delete(stateKey);
+  shopifyTokenCache = { accessToken: result.accessToken, expiresAt: Date.now() + SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS * 1000, source: "oauth_kv" };
   return html("App installata correttamente. Puoi chiudere questa finestra.", 200, corsHeaders);
 }
 
@@ -417,6 +425,9 @@ async function handleShopifyDebugRequest(request: Request, env: Env, corsHeaders
     shop_domain_configured: Boolean(env.SHOPIFY_SHOP_DOMAIN),
     client_id_configured: Boolean(env.SHOPIFY_CLIENT_ID),
     client_secret_configured: Boolean(env.SHOPIFY_CLIENT_SECRET),
+    kv_token_store_configured: Boolean(env.SHOPIFY_TOKENS_KV),
+    token_encryption_key_configured: Boolean(env.SHOPIFY_TOKEN_ENCRYPTION_KEY),
+    stored_oauth_token_found: false,
     legacy_admin_token_configured: Boolean(env.SHOPIFY_ADMIN_ACCESS_TOKEN),
     auth_token_obtained: false,
     products_graphql_ok: false,
@@ -428,14 +439,17 @@ async function handleShopifyDebugRequest(request: Request, env: Env, corsHeaders
     ok: false,
     source: "shopify_debug",
     checks,
+    auth_token_source: "none",
     shop_domain_hint: maskShopDomain(env.SHOPIFY_SHOP_DOMAIN ?? ""),
     api_version: env.SHOPIFY_API_VERSION || DEFAULT_SHOPIFY_API_VERSION,
     errors,
   };
 
   try {
-    await getShopifyAdminAccessToken(env);
-    checks.auth_token_obtained = true;
+    checks.stored_oauth_token_found = await hasStoredShopifyOAuthToken(env);
+    const auth = await resolveShopifyAdminAccessToken(env);
+    checks.auth_token_obtained = Boolean(auth.accessToken);
+    response.auth_token_source = auth.source;
   } catch (error) {
     errors.push({ stage: "auth", ...sanitizeDebugError(error) });
     return json(response, 200, corsHeaders);
@@ -1035,7 +1049,7 @@ function timingSafeEqualHex(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function exchangeShopifyOAuthCode(env: Env, shop: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
+async function exchangeShopifyOAuthCode(env: Env, shop: string, code: string): Promise<{ ok: true; accessToken: string; scope: string } | { ok: false; error: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
   try {
@@ -1046,15 +1060,93 @@ async function exchangeShopifyOAuthCode(env: Env, shop: string, code: string): P
       signal: controller.signal,
     });
     if (!response.ok) return { ok: false, error: `shopify_oauth_status_${response.status}` };
-    const payload = await response.json() as { access_token?: unknown };
+    const payload = await response.json() as { access_token?: unknown; scope?: unknown };
     if (typeof payload.access_token !== "string" || !payload.access_token) return { ok: false, error: "shopify_oauth_empty_token" };
-    shopifyOAuthInstallStateCache = { state: "", expiresAt: 0 };
-    return { ok: true };
+    return { ok: true, accessToken: payload.access_token, scope: typeof payload.scope === "string" && payload.scope ? payload.scope : SHOPIFY_OAUTH_SCOPES };
   } catch (error) {
     return { ok: false, error: error instanceof DOMException && error.name === "AbortError" ? "shopify_oauth_timeout" : "shopify_oauth_unavailable" };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function shopifyOfflineTokenKey(shop: string): string { return `shopify:offline_token:${shop}`; }
+function shopifyOAuthStateKey(state: string): string { return `shopify:oauth_state:${state}`; }
+
+type StoredShopifyOAuthToken = { shop: string; scope: string; created_at: string; updated_at: string; encrypted_access_token: string; iv: string };
+
+async function persistShopifyOAuthToken(env: Env, shop: string, accessToken: string, scope: string): Promise<void> {
+  if (!env.SHOPIFY_TOKENS_KV) throw new Error("shopify_tokens_kv_missing");
+  const existingRaw = await env.SHOPIFY_TOKENS_KV.get(shopifyOfflineTokenKey(shop));
+  const existing = parseStoredShopifyOAuthToken(existingRaw);
+  const encrypted = await encryptShopifyToken(env, accessToken);
+  const now = new Date().toISOString();
+  const value: StoredShopifyOAuthToken = { shop, scope, created_at: existing?.created_at || now, updated_at: now, encrypted_access_token: encrypted.ciphertext, iv: encrypted.iv };
+  await env.SHOPIFY_TOKENS_KV.put(shopifyOfflineTokenKey(shop), JSON.stringify(value));
+}
+
+async function hasStoredShopifyOAuthToken(env: Env): Promise<boolean> {
+  if (!env.SHOPIFY_TOKENS_KV || !env.SHOPIFY_SHOP_DOMAIN) return false;
+  return Boolean(await env.SHOPIFY_TOKENS_KV.get(shopifyOfflineTokenKey(normalizeShopifyShopDomain(env))));
+}
+
+async function loadStoredShopifyOAuthToken(env: Env): Promise<string | null> {
+  if (!env.SHOPIFY_TOKENS_KV) return null;
+  const shop = normalizeShopifyShopDomain(env);
+  const stored = parseStoredShopifyOAuthToken(await env.SHOPIFY_TOKENS_KV.get(shopifyOfflineTokenKey(shop)));
+  if (!stored || stored.shop !== shop) return null;
+  return decryptShopifyToken(env, stored.encrypted_access_token, stored.iv);
+}
+
+function parseStoredShopifyOAuthToken(value: string | null): StoredShopifyOAuthToken | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredShopifyOAuthToken>;
+    return typeof parsed.shop === "string" && typeof parsed.encrypted_access_token === "string" && typeof parsed.iv === "string" && typeof parsed.scope === "string" && typeof parsed.created_at === "string" && typeof parsed.updated_at === "string" ? parsed as StoredShopifyOAuthToken : null;
+  } catch { return null; }
+}
+
+async function importShopifyTokenEncryptionKey(env: Env): Promise<CryptoKey> {
+  const raw = base64ToBytes(env.SHOPIFY_TOKEN_ENCRYPTION_KEY || "");
+  if (raw.byteLength !== 32) throw new Error("shopify_token_encryption_key_invalid");
+  return crypto.subtle.importKey("raw", toArrayBuffer(raw), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function encryptShopifyToken(env: Env, token: string): Promise<{ ciphertext: string; iv: string }> {
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const key = await importShopifyTokenEncryptionKey(env);
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(token));
+  return { ciphertext: bytesToBase64(new Uint8Array(encrypted)), iv: bytesToBase64(iv) };
+}
+
+async function decryptShopifyToken(env: Env, ciphertext: string, iv: string): Promise<string> {
+  const key = await importShopifyTokenEncryptionKey(env);
+  const ivBytes = base64ToBytes(iv);
+  const cipherBytes = base64ToBytes(ciphertext);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: toArrayBuffer(ivBytes) }, key, toArrayBuffer(cipherBytes));
+  return new TextDecoder().decode(plain);
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  try {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch { return new Uint8Array(); }
 }
 
 type CommerceGenderIntent = "uomo" | "donna" | "unisex";
@@ -1097,7 +1189,7 @@ type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; dev
 type RecommendationRankingResult = { ranked: RankedRecommendation[]; guardrails: string[] };
 type SeasonSignal = "summer" | "winter" | "neutral";
 type ShopifyDebugError = { stage: string; code: string; message: string };
-type ShopifyDebugResponse = { ok: boolean; source: "shopify_debug"; checks: Record<string, boolean>; shop_domain_hint?: string; api_version: string; products_count_sample?: number; errors: ShopifyDebugError[] };
+type ShopifyDebugResponse = { ok: boolean; source: "shopify_debug"; checks: Record<string, boolean>; auth_token_source: ShopifyAuthTokenSource; shop_domain_hint?: string; api_version: string; products_count_sample?: number; errors: ShopifyDebugError[] };
 
 type ShopifyOrdersData = { orders: { edges: Array<{ node: { processedAt: string; lineItems: { edges: Array<{ node: { quantity: number; discountedTotalSet?: { shopMoney?: { amount?: string } }; product?: { id: string; vendor: string; title: string; productType: string; tags: string[] }; variant?: { id: string } } }> } } }> } };
 type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; updatedAt?: string | null; featuredImage?: { url: string }; collections?: { edges: Array<{ node: { handle: string; title: string } }> }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
@@ -1437,33 +1529,26 @@ function classifyShopifyGuardrail(error: unknown, fallback = "shopify_recommenda
 
 function assertShopifyConfigured(env: Env): void {
   if (!env.SHOPIFY_SHOP_DOMAIN) throw new Error("shopify_config_missing");
-  if (!env.SHOPIFY_ADMIN_ACCESS_TOKEN && (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET)) throw new Error("shopify_auth_unavailable");
 }
 
-type ShopifyTokenResponse = { access_token?: unknown; expires_in?: unknown };
-
-async function getShopifyAdminAccessToken(env: Env): Promise<string> {
-  if (env.SHOPIFY_ADMIN_ACCESS_TOKEN) return env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+async function resolveShopifyAdminAccessToken(env: Env): Promise<{ accessToken: string; source: ShopifyAuthTokenSource }> {
   assertShopifyConfigured(env);
   const now = Date.now();
-  if (shopifyTokenCache.accessToken && shopifyTokenCache.expiresAt > now) return shopifyTokenCache.accessToken;
-  const domain = normalizeShopifyShopDomain(env);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
-  try {
-    const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grant_type: "client_credentials", client_id: env.SHOPIFY_CLIENT_ID, client_secret: env.SHOPIFY_CLIENT_SECRET }),
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`shopify_auth_status_${response.status}`);
-    const payload = await response.json() as ShopifyTokenResponse;
-    if (typeof payload.access_token !== "string" || !payload.access_token) throw new Error("shopify_auth_empty_token");
-    const expiresIn = typeof payload.expires_in === "number" && payload.expires_in > SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS ? payload.expires_in - SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS : SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS;
-    shopifyTokenCache = { accessToken: payload.access_token, expiresAt: now + expiresIn * 1000 };
-    return payload.access_token;
-  } finally { clearTimeout(timeout); }
+  const storedToken = await loadStoredShopifyOAuthToken(env);
+  if (storedToken) {
+    shopifyTokenCache = { accessToken: storedToken, expiresAt: now + SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS * 1000, source: "oauth_kv" };
+    return { accessToken: storedToken, source: "oauth_kv" };
+  }
+
+  if (env.SHOPIFY_ADMIN_ACCESS_TOKEN) {
+    return { accessToken: env.SHOPIFY_ADMIN_ACCESS_TOKEN, source: "legacy_secret" };
+  }
+
+  throw new Error("shopify_admin_token_missing");
+}
+
+async function getShopifyAdminAccessToken(env: Env): Promise<string> {
+  return (await resolveShopifyAdminAccessToken(env)).accessToken;
 }
 
 async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<string, unknown> = {}): Promise<T> {
@@ -1790,4 +1875,4 @@ function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "tit
 function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest };
+export { handleShopifyInstallRequest, handleShopifyAuthCallbackRequest, handleShopifyDebugRequest, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken, resolveShopifyAdminAccessToken, analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest };

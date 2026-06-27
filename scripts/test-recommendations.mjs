@@ -35,12 +35,12 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 const sourceChecks = [
-  ['static token remains first priority', /if \(env\.SHOPIFY_ADMIN_ACCESS_TOKEN\) return env\.SHOPIFY_ADMIN_ACCESS_TOKEN;/],
-  ['client credentials endpoint is used', /\/admin\/oauth\/access_token/],
-  ['client credentials grant is sent', /grant_type: "client_credentials"/],
+  ['OAuth KV token is resolved before legacy fallback', /const storedToken = await loadStoredShopifyOAuthToken\(env\)[\s\S]*if \(env\.SHOPIFY_ADMIN_ACCESS_TOKEN\)/],
+  ['OAuth exchange endpoint is used', /\/admin\/oauth\/access_token/],
+  ['OAuth exchange does not request per-user grant options', /authorizeUrl\.searchParams\.set\("scope", SHOPIFY_OAUTH_SCOPES\)/],
   ['GraphQL obtains token through helper', /const token = await getShopifyAdminAccessToken\(env\)/],
-  ['missing Shopify auth has controlled guardrail', /shopify_auth_unavailable|shopify_recommendations_unavailable/],
-  ['token cache is in-memory and global', /let shopifyTokenCache = \{ accessToken: "", expiresAt: 0 \}/],
+  ['missing Shopify auth has controlled guardrail', /shopify_admin_token_missing|shopify_recommendations_unavailable/],
+  ['token cache tracks source without replacing persistent KV', /let shopifyTokenCache = \{ accessToken: "", expiresAt: 0, source: "none" as ShopifyAuthTokenSource \}/],
 ];
 
 for (const [name, pattern] of sourceChecks) {
