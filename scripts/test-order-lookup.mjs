@@ -10,6 +10,28 @@ const { handleRequest, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderL
 const assert = (condition, message) => { if (!condition) { console.error(message); process.exit(1); } };
 const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8'));
 const orderLookupQuery = ORDER_LOOKUP_GRAPHQL_QUERY;
+const normalizeGraphql = (query) => query.replace(/\s+/g, ' ').trim();
+const extractSourceTemplate = (name) => {
+  const match = source.match(new RegExp('const ' + name + ' = `([\\s\\S]*?)`;'));
+  assert(match, `${name} source template missing`);
+  return match[1];
+};
+const assertBalancedGraphqlBraces = (query) => {
+  let depth = 0;
+  for (const char of query) {
+    if (char === '{') depth += 1;
+    if (char === '}') depth -= 1;
+    assert(depth >= 0, 'order lookup GraphQL query has an unexpected closing brace');
+  }
+  assert(depth === 0, 'order lookup GraphQL query must have balanced braces');
+};
+const orderLookupSourceQuery = extractSourceTemplate('ORDER_LOOKUP_GRAPHQL_QUERY');
+assert(orderLookupSourceQuery.startsWith('\n  query OrderLookup'), 'order lookup GraphQL query should remain a readable multiline template');
+assertBalancedGraphqlBraces(orderLookupQuery);
+assertBalancedGraphqlBraces(orderLookupSourceQuery);
+assert(normalizeGraphql(orderLookupQuery) === normalizeGraphql(orderLookupSourceQuery), 'compiled and source order lookup GraphQL queries should match syntactically');
+assert(source.includes('shopifyGraphQL<ShopifyOrderLookupData>(env, ORDER_LOOKUP_GRAPHQL_QUERY, { query })'), '/order/lookup must use ORDER_LOOKUP_GRAPHQL_QUERY directly');
+assert(source.includes('definition.name === "full_current_order_lookup_query" ? ORDER_LOOKUP_GRAPHQL_QUERY'), 'full debug query must use ORDER_LOOKUP_GRAPHQL_QUERY directly');
 const forbiddenGraphqlFields = [/noteAttributes/, /billingAddress/, /shippingAddress/, /displayAddress/, /phone\b/, /customer\s*\{/, /lineItems\s*\(/, /totalPriceSet/, /currentTotalPriceSet/, /financialStatus|displayFinancialStatus/, /transactions\s*\{/];
 for (const pattern of forbiddenGraphqlFields) assert(!pattern.test(orderLookupQuery), `forbidden GraphQL field in order lookup query: ${pattern}`);
 assert(!/fulfillments\s*\(\s*first\s*:/.test(orderLookupQuery), 'order lookup query must not paginate Order.fulfillments with first');
@@ -36,9 +58,11 @@ const cases = new Map([
 ]);
 
 let graphqlCalls = 0;
+const orderLookupRuntimeQueries = [];
 globalThis.fetch = async (_url, init) => {
   graphqlCalls += 1;
   const body = JSON.parse(init.body);
+  orderLookupRuntimeQueries.push(body.query);
   const q = body.variables.query;
   const number = (q.match(/(\d+)/) || [])[1];
   const order = cases.get(number);
@@ -103,13 +127,15 @@ assert(r.body.checks.find((check) => check.name === 'minimal_order').matched ===
 const safeDebugJson = JSON.stringify(r.body);
 for (const forbidden of ['cliente@example.com', 'shpat_test', 'address', 'phone', 'lineItems', 'totalPriceSet', 'currentTotalPriceSet']) assert(!safeDebugJson.includes(forbidden), `debug response leaks forbidden content: ${forbidden}`);
 let sawFullQuery = false;
+let debugFullQuery = '';
 globalThis.fetch = async (_url, init) => {
   const body = JSON.parse(init.body);
-  if (body.query === ORDER_LOOKUP_GRAPHQL_QUERY) sawFullQuery = true;
+  if (body.query === ORDER_LOOKUP_GRAPHQL_QUERY) { sawFullQuery = true; debugFullQuery = body.query; }
   return new Response(JSON.stringify({ data: { orders: { edges: [{ node: cases.get('11111') }] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 r = await debugLookup({ order_number: '11111' });
 assert(sawFullQuery && r.body.checks.find((check) => check.name === 'full_current_order_lookup_query').ok, 'full debug check should use the real order lookup query');
+assert(orderLookupRuntimeQueries.some((query) => normalizeGraphql(query) === normalizeGraphql(debugFullQuery)), 'full debug query should be syntactically equal to the /order/lookup query');
 globalThis.fetch = async (_url, init) => {
   const body = JSON.parse(init.body);
   if (body.query.includes('paymentGatewayNames')) return new Response(JSON.stringify({ errors: [{ message: 'Field paymentGatewayNames broke for cliente@example.com token shpat_secret phone +390000 address Via Roma' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
