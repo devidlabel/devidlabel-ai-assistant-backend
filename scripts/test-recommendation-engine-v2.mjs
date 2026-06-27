@@ -16,6 +16,8 @@ const sourceChecks = [
   ['low confidence empties recommendations', /recommendations_empty_due_to_low_confidence/],
   ['no safe recommendations guardrail', /no_safe_recommendations/],
   ['classification prioritizes collection taxonomy', /function detectProductCategory[\s\S]*COLLECTION_TAXONOMY[\s\S]*productType[\s\S]*tags/],
+  ['strong product intent matcher exists', /function isStrongProductIntentMatch[\s\S]*jeans_globe_devid_label[\s\S]*tshirt_mosca_devid_label[\s\S]*cargo_courmayeur_devid_label[\s\S]*monterosso_devid_label/],
+  ['product intent final filter exists', /function filterProductIntentRecommendations[\s\S]*product_intent_strict_filter_applied[\s\S]*product_intent_incoherent_fill_excluded[\s\S]*product_intent_no_fill_applied/],
 ];
 for (const [name, pattern] of sourceChecks) {
   if (!pattern.test(source)) fail(`${name}: expected source pattern was not found`);
@@ -35,10 +37,14 @@ const mockCatalog = [
   product('mc2-telo-mare', 'MC2 Saint Barth Telo Mare Foutas', 'MC2 Saint Barth', 'Teli mare', ['telo', 'foutas', 'towel'], ['moda-mare-uomo'], 7, 7),
   product('mc2-cuffia-invernale', 'MC2 Saint Barth Cuffia Beanie Invernale', 'MC2 Saint Barth', 'Accessori', ['cuffia', 'beanie', 'winter'], [], 12, 30),
   product('mc2-maglia-donna-winter', 'MC2 Saint Barth Maglia Donna Winter', 'MC2 Saint Barth', 'Maglieria', ['donna', 'maglia', 'winter'], [], 8, 25),
-  product('devid-jeans-globe', 'Devid Label Jeans Globe Medium Blue', 'Devid Label', 'Jeans', ['uomo', 'jeans', 'globe'], [], 10, 2),
-  product('devid-shopper-ecopelle', 'Devid Label Shopper Ecopelle Globe', 'Devid Label', 'Borse', ['shopper', 'ecopelle', 'accessori'], [], 10, 50),
+  product('devid-jeans-globe', 'Devid Label Jeans Globe Dark Blue', 'Devid Label', 'Jeans', ['uomo', 'jeans', 'globe', 'denim'], [], 10, 2),
+  product('devid-shopper-ecopelle-nero', 'Devid Label SHOPPER IN ECOPELLE NERO', 'Devid Label', 'Borse', ['shopper', 'ecopelle', 'accessori'], [], 10, 50),
+  product('devid-shopper-ecopelle-blu', 'Devid Label SHOPPER IN ECOPELLE BLU', 'Devid Label', 'Borse', ['shopper', 'ecopelle', 'accessori'], [], 10, 49),
   product('devid-mosca', 'Devid Label T-shirt Mosca', 'Devid Label', 'T-shirt', ['uomo', 'mosca'], ['t-shirt-polo-uomo'], 10, 5),
   product('devid-monterosso', 'Devid Label Monterosso Cotone', 'Devid Label', 'Maglieria', ['uomo', 'monterosso'], ['t-shirt-polo-uomo'], 6, 4),
+  product('devid-cargo-courmayeur', 'Devid Label Cargo Courmayeur', 'Devid Label', 'Cargo', ['uomo', 'cargo', 'courmayeur', 'courma'], [], 8, 4),
+  product('devid-tshirt-generica', 'Devid Label T-shirt Basic Uomo', 'Devid Label', 'T-shirt', ['uomo', 't-shirt'], ['t-shirt-polo-uomo'], 9, 18),
+  product('devid-pantalone-generico', 'Devid Label Pantalone Uomo', 'Devid Label', 'Pantaloni', ['uomo', 'pantalone'], [], 9, 17),
   product('colmar-giacca-uomo', 'Colmar Originals Giacca Piumino Uomo', 'Colmar Originals', 'Outerwear', ['uomo', 'giacca', 'piumino'], [], 9, 11),
   product('sprayground-zaino', 'Sprayground Zaino Shark Backpack', 'Sprayground', 'Zaini', ['zaino', 'backpack', 'accessori'], [], 9, 14),
   product('similar-top-donna', 'Puraai Top Donna Cotone', 'Puraai', 'Top', ['donna', 'top'], ['t-shirt-top-donna'], 8, 3),
@@ -95,7 +101,26 @@ const scenarios = [
   ['globe', (result) => {
     eq(result.intent.productIntent, 'jeans_globe_devid_label', 'globe product intent');
     eq(result.recommended[0]?.handle, 'devid-jeans-globe', 'globe first result');
-    none(result.recommended, (p) => /shopper|ecopelle/i.test(p.title), 'globe excludes shopper/ecopelle');
+    eq(result.recommended.length, 1, 'globe returns only one coherent product');
+    none(result.recommended, (p) => /shopper|ecopelle|borsa|accessori/i.test(p.title + ' ' + p.product_category), 'globe excludes shopper/ecopelle/borsa/accessori');
+    includes(result.guardrails, 'product_intent_strict_filter_applied', 'globe strict guardrail');
+    includes(result.guardrails, 'product_intent_no_fill_applied', 'globe no-fill guardrail');
+  }],
+  ['jeans globe', (result) => {
+    all(result.recommended, (p) => /globe/i.test(p.title) && p.product_category === 'jeans', 'jeans globe only coherent Globe jeans');
+    none(result.recommended, (p) => /shopper|ecopelle|borsa|accessori/i.test(p.title + ' ' + p.product_category), 'jeans globe excludes accessories');
+  }],
+  ['mosca', (result) => {
+    all(result.recommended, (p) => /mosca/i.test(p.title), 'mosca only Mosca products');
+    none(result.recommended, (p) => /monterosso|corniglia|globe|shopper/i.test(p.title), 'mosca excludes other Devid products');
+  }],
+  ['courmayeur', (result) => {
+    all(result.recommended, (p) => /courmayeur|courma/i.test(p.title) && p.product_category === 'cargo', 'courmayeur only Cargo Courmayeur');
+    none(result.recommended, (p) => /jeans|bermuda|shopper|accessori/i.test(p.title + ' ' + p.product_category), 'courmayeur excludes incoherent products');
+  }],
+  ['monterosso', (result) => {
+    all(result.recommended, (p) => /monterosso/i.test(p.title), 'monterosso only Monterosso');
+    none(result.recommended, (p) => /mosca|corniglia|shopper|borsa|accessori/i.test(p.title + ' ' + p.product_category), 'monterosso excludes other products');
   }],
   ['sprayground', (result) => {
     eq(result.intent.candidateStrategy, 'vendor_only', 'sprayground strategy');
@@ -137,20 +162,22 @@ function runMockRecommendation(rawQuery) {
   let classified = candidates.map(classify);
   if (intent.vendorIntent) classified = classified.filter((p) => p.vendor === intent.vendorIntent);
   if (intent.genderIntent && intent.genderIntent !== 'unisex') classified = classified.filter((p) => p.product_gender !== oppositeGender(intent.genderIntent));
-  if (intent.productIntent === 'jeans_globe_devid_label') classified = classified.filter((p) => p.vendor === 'Devid Label' && /jeans globe/i.test(p.title));
   if (intent.categoryIntent && !intent.isVendorOnlyQuery) classified = classified.filter((p) => categoryCompatible(p, intent));
+  const beforeStrictProductIntent = classified.length;
+  if (intent.productIntent) classified = classified.filter((p) => strongProductIntentMatch(p, intent.productIntent));
   if (intent.isVendorOnlyQuery) {
     const summer = classified.filter((p) => p.is_summer && !p.is_winter);
     if (summer.length) classified = summer;
   }
   classified.sort((a, b) => score(b, intent) - score(a, intent) || b.units_sold_30d - a.units_sold_30d || b.inventory - a.inventory || b.updatedAt.localeCompare(a.updatedAt));
-  return { type: 'product_advice', intent, recommended: classified.slice(0, 3), devid_label_alternatives: intent.vendorIntent === 'Sprayground' ? [] : [], fetchCount };
+  const guardrails = intent.productIntent ? ['product_intent_strict_filter_applied', ...(classified.length < beforeStrictProductIntent ? ['product_intent_incoherent_fill_excluded'] : []), ...(classified.length <= 1 ? ['product_intent_no_fill_applied'] : [])] : [];
+  return { type: 'product_advice', intent, recommended: classified.slice(0, 3), devid_label_alternatives: intent.vendorIntent === 'Sprayground' ? [] : [], fetchCount, guardrails };
 }
 function analyze(raw) {
   const query = normalize(raw);
   const vendorIntent = /saint barth|mc2/.test(query) ? 'MC2 Saint Barth' : /sprayground/.test(query) ? 'Sprayground' : /colmar/.test(query) ? 'Colmar Originals' : null;
-  const productIntent = /\bglobe\b/.test(query) ? 'jeans_globe_devid_label' : null;
-  let categoryIntent = /telo|teli|towel|foutas/.test(query) ? 'teli_mare' : /costume|costumi|mare uomo|mare donna/.test(query) ? 'costumi_mare' : /short|bermuda/.test(query) ? 'bermuda_shorts' : /tee e polo|t-?shirt|t shirt|polo/.test(query) ? 'tshirt' : /top donna/.test(query) ? 'top_donna' : /camicia|camicie/.test(query) ? 'camicie' : /giacca|piumino/.test(query) ? 'outerwear' : /zaino|backpack/.test(query) ? 'zaini' : null;
+  const productIntent = /\bglobe\b/.test(query) ? 'jeans_globe_devid_label' : /\bmosca\b/.test(query) ? 'tshirt_mosca_devid_label' : /\b(courma|courmayeur)\b/.test(query) ? 'cargo_courmayeur_devid_label' : /\bmonterosso\b/.test(query) ? 'monterosso_devid_label' : null;
+  let categoryIntent = /\bglobe\b/.test(query) ? 'jeans' : /\b(courma|courmayeur)\b/.test(query) ? 'cargo' : /telo|teli|towel|foutas/.test(query) ? 'teli_mare' : /costume|costumi|mare uomo|mare donna/.test(query) ? 'costumi_mare' : /short|bermuda/.test(query) ? 'bermuda_shorts' : /tee e polo|t-?shirt|t shirt|polo/.test(query) ? 'tshirt' : /top donna/.test(query) ? 'top_donna' : /camicia|camicie/.test(query) ? 'camicie' : /giacca|piumino/.test(query) ? 'outerwear' : /zaino|backpack/.test(query) ? 'zaini' : null;
   let genderIntent = /\buomo\b/.test(query) ? 'uomo' : /\bdonna\b/.test(query) ? 'donna' : null;
   const collectionTargets = Object.entries(COLLECTION_TAXONOMY).filter(([, meta]) => meta.synonyms.some((synonym) => query.includes(synonym))).map(([handle]) => handle);
   if (!collectionTargets.length && categoryIntent === 'costumi_mare' && genderIntent === 'uomo') collectionTargets.push('moda-mare-uomo');
@@ -173,11 +200,20 @@ function analyze(raw) {
 function classify(p) {
   const collectionCategory = p.collection_handles.map((h) => COLLECTION_TAXONOMY[h]?.category).find(Boolean);
   const text = normalize([p.title, p.productType, ...p.tags, ...p.collection_handles].join(' '));
-  const product_category = /telo|foutas|towel/.test(text) ? 'teli_mare' : (collectionCategory || ( /costume|swim|beachwear/.test(text) ? 'costumi_mare' : /zaino|backpack/.test(text) ? 'zaini' : /shopper|bors/.test(text) ? 'borse_accessori' : /giacca|piumino|outerwear/.test(text) ? 'outerwear' : /bermuda|short/.test(text) ? 'bermuda_shorts' : /camicia/.test(text) ? 'camicie' : /top donna/.test(text) ? 'top_donna' : /jeans|denim/.test(text) ? 'jeans' : /t-?shirt|tee/.test(text) ? 'tshirt' : /maglia|maglieria|monterosso/.test(text) ? 'maglieria' : 'unknown'));
+  const product_category = /telo|foutas|towel/.test(text) ? 'teli_mare' : (collectionCategory || ( /costume|swim|beachwear/.test(text) ? 'costumi_mare' : /zaino|backpack/.test(text) ? 'zaini' : /shopper|bors/.test(text) ? 'borse_accessori' : /giacca|piumino|outerwear/.test(text) ? 'outerwear' : /courmayeur|courma|cargo/.test(text) ? 'cargo' : /bermuda|short/.test(text) ? 'bermuda_shorts' : /camicia/.test(text) ? 'camicie' : /top donna/.test(text) ? 'top_donna' : /jeans|denim/.test(text) ? 'jeans' : /t-?shirt|tee/.test(text) ? 'tshirt' : /maglia|maglieria|monterosso/.test(text) ? 'maglieria' : 'unknown'));
   const product_gender = /donna/.test(text) ? 'donna' : /uomo/.test(text) ? 'uomo' : 'unisex';
   const is_winter = /cuffia|beanie|winter|piumino|maglia donna winter/.test(text);
   const is_summer = /mare|costume|swim|beachwear|telo|foutas|towel|bermuda|short|t-shirt|tee|top/.test(text);
   return { ...p, normalized_title: normalize(p.title), normalized_vendor: normalize(p.vendor), product_category, product_gender, season_signal: is_winter ? 'winter' : is_summer ? 'summer' : 'neutral', is_accessory: ['zaini', 'borse_accessori', 'teli_mare'].includes(product_category) || /cuffia|beanie/.test(text), is_winter, is_summer, is_beachwear: ['costumi_mare', 'teli_mare'].includes(product_category), is_swimwear: product_category === 'costumi_mare', availability_score: p.inventory > 0 ? 1 : 0 };
+}
+function strongProductIntentMatch(p, productIntent) {
+  if (p.vendor !== 'Devid Label' || p.is_accessory) return false;
+  const text = normalize([p.title, p.handle, p.productType, ...p.tags].join(' '));
+  if (productIntent === 'jeans_globe_devid_label') return /globe/.test(text) && p.product_category === 'jeans' && !/shopper|ecopelle|bors|accessori|t-?shirt|maglia|cargo|bermuda/.test(text);
+  if (productIntent === 'tshirt_mosca_devid_label') return /mosca/.test(text) && p.product_category === 'tshirt' && !/monterosso|corniglia|globe|shopper|bors|jeans|cargo|bermuda/.test(text);
+  if (productIntent === 'cargo_courmayeur_devid_label') return /courmayeur|courma/.test(text) && p.product_category === 'cargo' && !/globe|jeans|bermuda|shopper|bors|accessori/.test(text);
+  if (productIntent === 'monterosso_devid_label') return /monterosso/.test(text) && ['maglieria', 'tshirt'].includes(p.product_category) && !/mosca|corniglia|shopper|bors|accessori/.test(text);
+  return true;
 }
 function categoryCompatible(p, intent) {
   if (intent.categoryIntent === 'costumi_mare') return p.product_category === 'costumi_mare' && !/telo|foutas|towel|cuffia|beanie|maglia/i.test(p.title);
