@@ -14,7 +14,8 @@
     "test:diagnostics": "node scripts/test-diagnostics.mjs",
     "test:category-ranking": "node scripts/test-category-ranking.mjs",
     "test:recommendation-engine-v2": "node scripts/test-recommendation-engine-v2.mjs",
-    "test:order-lookup": "node scripts/test-order-lookup.mjs"
+    "test:order-lookup": "node scripts/test-order-lookup.mjs",
+    "test:shopify-oauth": "node scripts/test-shopify-oauth.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
