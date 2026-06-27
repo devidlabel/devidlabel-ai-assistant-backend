@@ -295,7 +295,7 @@ function orderLookupResponse(status: OrderLookupStatus, next_step: OrderNextStep
 
 async function fetchShopifyOrderByNumber(env: Env, orderNumber: string): Promise<ShopifyOrderLookupNode | null> {
   const fragments = [`name:#${orderNumber}`, `name:${orderNumber}`, `order_number:${orderNumber}`];
-  const gql = `query OrderLookup($query: String!) { orders(first: 1, query: $query) { edges { node { name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags customAttributes { key value } paymentGatewayNames shippingLines(first: 10) { edges { node { title code } } } fulfillments(first: 10) { status displayStatus trackingInfo { company number url } } } } } } }`;
+  const gql = `query OrderLookup($query: String!) { orders(first: 1, query: $query) { edges { node { name number email displayFulfillmentStatus cancelledAt sourceName sourceIdentifier tags customAttributes { key value } paymentGatewayNames shippingLines(first: 10) { edges { node { title code } } } fulfillments { status displayStatus trackingInfo { company number url } } } } } } }`;
   for (const query of fragments) {
     const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, gql, { query });
     const node = data.orders.edges[0]?.node;
@@ -1515,6 +1515,7 @@ function sanitizeDebugError(error: unknown): { code: string; message: string } {
 function classifyKnownShopifyError(message: string): string {
   if (/shopify_auth|oauth|401|403/i.test(message)) return "shopify_auth_unavailable";
   if (/shopify_config|domain/i.test(message)) return "shopify_config_missing";
+  if (/shopify_graphql_validation_error/i.test(message)) return "shopify_graphql_validation_error";
   if (/graphql|products|orders|inventory|status|timeout|abort/i.test(message)) return "shopify_graphql_unavailable";
   return "shopify_debug_unavailable";
 }
@@ -1524,6 +1525,7 @@ function classifyShopifyGuardrail(error: unknown, fallback = "shopify_recommenda
   if (/shopify_auth|oauth|401|403/i.test(message)) return "shopify_auth_unavailable";
   if (/shopify_products_unavailable/i.test(message)) return "shopify_products_unavailable";
   if (/shopify_orders_unavailable/i.test(message)) return "shopify_orders_unavailable";
+  if (/shopify_graphql_validation_error/i.test(message)) return "shopify_graphql_validation_error";
   return fallback;
 }
 
@@ -1562,7 +1564,7 @@ async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<stri
     const response = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, { method: "POST", headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: controller.signal });
     if (!response.ok) throw new Error(`shopify_status_${response.status}`);
     const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
-    if (payload.errors?.length) throw new Error("shopify_graphql_error");
+    if (payload.errors?.length) throw new Error("shopify_graphql_validation_error");
     if (!payload.data) throw new Error("shopify_empty_data");
     return payload.data;
   } finally { clearTimeout(timeout); }
