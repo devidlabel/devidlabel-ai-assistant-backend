@@ -759,7 +759,7 @@ function determineResponseLanguage(input: { query?: string; locale?: string; lan
   if (paths.some((path) => /(^|\/)en($|[\/?#-])|(^|\/)en-(us|gb|uk|ca|au)($|[\/?#])/.test(path))) return "en";
 
   const query = normalizeQueryText(input.query || "");
-  if (/\b(where is my order|track my order|order tracking|order status|where is my package|track shipment|cash on delivery|pay on delivery|can i pay on delivery|shipping times|delivery times|shipping cost|free shipping|return|returns|easy returns|size exchange|exchange size|size guide|what size should i choose|fit|sizing|authentic products|are products original|authorized retailer|genuine products|where are you located|physical store|store location|contacts|men swimwear)\b/.test(query)) return "en";
+  if (/\b(where is my order|track my order|track order|order tracking|order status|where is my package|track shipment|cash on delivery|pay on delivery|can i pay on delivery|shipping times|delivery times|shipping cost|free shipping|return|returns|easy returns|size exchange|exchange size|size guide|what size should i choose|fit|sizing|authentic products|are products original|authorized retailer|genuine products|where are you located|physical store|store location|contacts|men swimwear)\b/.test(query)) return "en";
   return "it";
 }
 
@@ -896,6 +896,9 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
   const query = normalized.normalizedQuery;
   const lang = payload.responseLanguage ?? determineResponseLanguage({ query: payload.query });
   const base = responseBase(source, payload.guardrails, normalized);
+
+  const supportResponse = routeSupportIntent(query, lang, base);
+  if (supportResponse) return supportResponse;
 
   if (["collection_category", "vendor_collection_category", "vendor_only", "product_intent"].includes(commerceV2.candidateStrategy ?? "fallback_search")) {
     return {
@@ -1050,39 +1053,46 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     };
   }
 
+  return null;
+}
+
+function routeSupportIntent(query: string, lang: ResponseLanguage, base: AssistantResponse): AssistantResponse | null {
   if (isOrderQuery(query)) {
+    const orderNumber = normalizeOrderNumber(query);
+    const hasOrderNumber = Boolean(orderNumber);
     return {
       ...base,
       type: "order_help",
       title: lang === "en" ? "Where is my order?" : "Dov’è il mio ordine?",
-      message: lang === "en" ? "Enter your order number to start the secure order flow." : "Inserisci il numero ordine per iniziare la verifica.",
+      message: hasOrderNumber
+        ? (lang === "en" ? "I found the order number. To check the status securely, please also enter the email used for the order." : "Ho rilevato il numero d’ordine. Per verificare lo stato in modo sicuro, inserisci anche l’e-mail usata per l’ordine.")
+        : (lang === "en" ? "Enter your order number to start the secure order flow." : "Inserisci il numero ordine per iniziare la verifica."),
       requires_backend_order_lookup: true,
-      order_lookup: { status: "ask_order_number", next_step: "order_number" },
+      order_lookup: { status: hasOrderNumber ? "ask_email" : "ask_order_number", next_step: hasOrderNumber ? "email" : "order_number" },
     };
   }
 
   if (/pagamento alla consegna|contrassegno|pago alla consegna|cash on delivery|pay on delivery|\bcod\b|can i pay on delivery/.test(query)) {
-    return { ...base, type: "faq", title: lang === "en" ? "Cash on delivery" : "Pagamento alla consegna", message: lang === "en" ? "Cash on delivery is available with home delivery. It is not available with InPost, Locker or Punto InPost." : "Il pagamento alla consegna è disponibile con spedizione a domicilio. Non è disponibile con InPost, Locker o Punto InPost." };
+    return { ...base, type: "faq", title: lang === "en" ? "Cash on delivery" : "Pagamento alla consegna", message: lang === "en" ? "Cash on delivery is available when you choose home delivery at checkout. It is not available with InPost, lockers or InPost points." : "Il pagamento alla consegna è disponibile scegliendo la spedizione a domicilio al checkout. Non è disponibile con InPost, locker o punti InPost." };
   }
-  if (/prodotti originali|prodotti autentici|rivenditori autorizzati|sono originali|original products|authentic products|are products original|authorized retailer|genuine products|original/.test(query)) {
-    return { ...base, type: "faq", title: lang === "en" ? "Original products" : "Prodotti originali", message: lang === "en" ? "External-brand products sold by Devid Label are original; for those brands Devid Label acts as an authorized retailer where applicable. Devid Label is also our own brand." : "I prodotti dei brand esterni venduti da Devid Label sono originali. Devid Label propone anche capi del proprio brand come alternative o abbinamenti coerenti." };
+  if (/prodotti originali|prodotti autentici|rivenditore autorizzato|rivenditori autorizzati|sono originali|original products|authentic products|are your products original|are products original|authorized retailer|genuine products|original/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Original products" : "Prodotti originali", message: lang === "en" ? "Yes, products from external brands are original and selected from authorized channels. Devid Label items are our own brand." : "Sì, i prodotti dei brand esterni sono originali e selezionati da canali autorizzati. I prodotti Devid Label sono del nostro brand." };
   }
   if (/inpost/.test(query)) {
-    return { ...base, type: "faq", title: "InPost", message: lang === "en" ? "InPost is available by choosing Locker or Punto InPost at checkout, including the free InPost option when shown. Cash on delivery is not available with InPost." : "InPost è disponibile scegliendo Locker o Punto InPost al checkout, anche con opzione InPost gratis quando mostrata. Il pagamento alla consegna non è disponibile con questa modalità." };
+    return { ...base, type: "faq", title: "InPost", message: lang === "en" ? "Shipping times depend on the delivery method selected and the destination. Available options are shown at checkout. Orders are not shipped on Saturdays or Sundays." : "I tempi di spedizione dipendono dal metodo scelto e dalla destinazione. Le opzioni disponibili sono mostrate al checkout. Gli ordini non vengono spediti sabato e domenica." };
   }
   if (/spedizione|tempi di spedizione|quanto costa la spedizione|spedizione gratis|shipping times|delivery times|shipping cost|free shipping|free inpost/.test(query)) {
-    return { ...base, type: "faq", title: lang === "en" ? "Shipping" : "Spedizioni", message: lang === "en" ? "Orders are handled on business days, Monday to Friday. Shipping costs and any free InPost option are shown at checkout before payment." : "Gli ordini vengono gestiti nei giorni lavorativi, dal lunedì al venerdì. Costi di spedizione ed eventuale InPost gratis sono mostrati al checkout prima del pagamento." };
+    return { ...base, type: "faq", title: lang === "en" ? "Shipping" : "Spedizioni", message: lang === "en" ? "Shipping times depend on the delivery method selected and the destination. Available options are shown at checkout. Orders are not shipped on Saturdays or Sundays." : "I tempi di spedizione dipendono dal metodo scelto e dalla destinazione. Le opzioni disponibili sono mostrate al checkout. Gli ordini non vengono spediti sabato e domenica." };
   }
-  if (/reso|resi|restituzione|cambio taglia|return|returns|easy returns|size exchange|exchange size/.test(query)) {
-    return { ...base, type: "faq", title: lang === "en" ? "Returns and exchanges" : "Resi e cambi", message: lang === "en" ? "Easy returns are available within 14 days. For a size exchange, follow the return instructions available in the store or contact support if you need help." : "Il reso facile è disponibile entro 14 giorni. Per cambio taglia segui le indicazioni presenti nel negozio o contatta l’assistenza se hai bisogno di aiuto." };
+  if (/reso facile|reso|resi|restituzione|cambio taglia|return policy|return|returns|easy returns|size exchange|exchange size/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Returns" : "Resi", message: lang === "en" ? "Returns are simple. The latest conditions are listed in the returns policy on the site." : "Il reso è semplice. Le condizioni aggiornate sono indicate nella policy resi del sito." };
   }
   if (/guida taglie|che taglia prendo|vestibilita|size guide|what size should i choose|fit|sizing/.test(query)) {
-    return { ...base, type: "faq", title: lang === "en" ? "Size guide" : "Guida taglie", message: lang === "en" ? "Check the size guide when available on the product page. If you are between sizes, tell me the product and your usual size and I’ll help you choose." : "Consulta la guida taglie quando disponibile nella scheda prodotto. Se sei indeciso tra due taglie, indicami prodotto e taglia abituale e ti aiuto a scegliere." };
+    return { ...base, type: "faq", title: lang === "en" ? "Size guide" : "Guida taglie", message: lang === "en" ? "You can find the size guide on supported product pages. If you are unsure, check the fit notes or contact us before ordering." : "La guida taglie è disponibile sulle schede prodotto supportate. Se hai dubbi, controlla le note di vestibilità o contattaci prima dell’ordine." };
   }
   if (/dove siete|negozio fisico|contatti|where are you located|physical store|store location|contacts/.test(query)) {
     return { ...base, type: "faq", title: lang === "en" ? "Store and contacts" : "Negozio e contatti", message: lang === "en" ? "For store location and contacts, use the contact information shown on the Devid Label website. I can also help you find products or support information here in chat." : "Per sede del negozio e contatti, usa le informazioni di contatto presenti sul sito Devid Label. Qui posso aiutarti anche con prodotti e informazioni di supporto." };
   }
-
   return null;
 }
 
@@ -1159,7 +1169,7 @@ function localizeCta(item: AssistantCta, responseLanguage: ResponseLanguage): As
 }
 
 function isOrderQuery(query: string): boolean {
-  return /dov.?e il mio ordine|dove si trova il mio ordine|traccia ordine|tracking ordine|stato ordine|tracking|ordine|where is my order|track my order|order tracking|order status|where is my package|track shipment/.test(normalizeQueryText(query));
+  return /dov.?e il mio ordine|dove si trova il mio ordine|traccia ordine|tracking ordine|stato ordine|tracking|ordine|where is my order|track my order|track order|order tracking|order status|where is my package|track shipment/.test(normalizeQueryText(query));
 }
 
 function isFaqQuery(query: string): boolean {
