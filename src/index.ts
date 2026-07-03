@@ -87,17 +87,23 @@ type CartItem = {
   variant?: unknown;
 };
 
+type ResponseLanguage = "it" | "en";
+
 type SanitizedPayload = {
   query: string;
   locale?: string;
-  page_context?: { page_type?: string; path?: string };
+  language?: string;
+  country?: string;
+  path?: string;
+  responseLanguage: ResponseLanguage;
+  page_context?: { page_type?: string; path?: string; locale?: string; language?: string };
   cart_context: Array<Record<string, string>>;
   knowledge_version?: string;
   guardrails: string[];
 };
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://devidlabel.com", "https://www.devidlabel.com"];
-const ALLOWED_KEYS = new Set(["query", "locale", "page_context", "cart_context", "knowledge_version"]);
+const ALLOWED_KEYS = new Set(["query", "message", "locale", "language", "country", "path", "page_context", "cart_context", "knowledge_version"]);
 const ASSISTANT_TYPES: AssistantResponseType[] = ["product_advice", "faq", "order_help", "fallback"];
 const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
 const DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS = 3600;
@@ -226,7 +232,7 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
   const normalized = normalizeQuery(parsed.payload.query);
   const commerceV2 = analyzeCommerceQueryV2(parsed.payload.query);
   const deterministic = routeDeterministicIntent(parsed.payload, "ai_backend", normalized, commerceV2);
-  if (deterministic) return json(await enrichProductRecommendations(deterministic, env, normalized), 200, corsHeaders);
+  if (deterministic) return json(await enrichProductRecommendations(deterministic, env, normalized, parsed.payload.responseLanguage), 200, corsHeaders);
 
   const fallback = buildFallbackResponse(parsed.payload);
   if (!env.OPENAI_API_KEY) {
@@ -235,7 +241,7 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
 
   try {
     const aiResponse = await callOpenAI(parsed.payload, env);
-    return json(await enrichProductRecommendations(aiResponse, env, normalized), 200, corsHeaders);
+    return json(await enrichProductRecommendations(aiResponse, env, normalized, parsed.payload.responseLanguage), 200, corsHeaders);
   } catch (error) {
     console.error("AI provider failed", error instanceof Error ? error.message : "unknown_error");
     return json({ ...fallback, guardrails: [...fallback.guardrails, "provider_fallback"] }, 200, corsHeaders);
@@ -252,9 +258,29 @@ type OrderLookupResponse = { ok: true; source: "order_lookup"; type: "order_look
 type ShopifyOrderLookupNode = { name?: string | null; email?: string | null; displayFulfillmentStatus?: string | null; cancelledAt?: string | null; sourceName?: string | null; sourceIdentifier?: string | null; number?: number | null; tags?: string[] | null; customAttributes?: Array<{ key?: string | null; value?: string | null }> | null; shippingLines?: { edges?: Array<{ node?: { title?: string | null; code?: string | null } | null }> } | null; paymentGatewayNames?: string[] | null; fulfillments?: Array<{ status?: string | null; displayStatus?: string | null; trackingInfo?: Array<{ company?: string | null; number?: string | null; url?: string | null }> | null }> | null };
 type ShopifyOrderLookupData = { orders: { edges: Array<{ node: ShopifyOrderLookupNode }> } };
 
-const ORDER_LOOKUP_ALLOWED_KEYS = new Set(["order_number", "query", "email"]);
-const MARKETPLACE_MESSAGE = "Per gli ordini effettuati tramite marketplace, l’assistenza deve essere gestita direttamente dal servizio clienti del marketplace di riferimento. Ti consigliamo di aprire la richiesta dalla piattaforma da cui hai effettuato l’acquisto.";
-const EMAIL_MISMATCH_MESSAGE = "L’email inserita non corrisponde a quella associata all’ordine. Controlla l’indirizzo usato in fase d’acquisto e verifica anche la cartella spam/promozioni della tua casella email.";
+const ORDER_LOOKUP_ALLOWED_KEYS = new Set(["order_number", "query", "email", "locale", "language", "path", "page_context"]);
+const ORDER_LOOKUP_COPY: Record<ResponseLanguage, Record<string, string>> = {
+  it: {
+    marketplace: "Per gli ordini effettuati tramite marketplace, l’assistenza deve essere gestita direttamente dal servizio clienti del marketplace di riferimento. Ti consigliamo di aprire la richiesta dalla piattaforma da cui hai effettuato l’acquisto.",
+    email_mismatch: "L’email inserita non corrisponde a quella associata all’ordine. Controlla l’indirizzo usato in fase d’acquisto e verifica anche la cartella spam/promozioni della tua casella email.",
+    method: "Metodo non supportato.",
+    invalid_input: "Inserisci un numero ordine valido, usando solo le cifre.",
+    ask_order_number: "Inserisci il numero ordine per iniziare la verifica.",
+    not_found: "Non riesco a trovare un ordine con questo numero. Verifica di aver inserito correttamente il numero ordine, usando solo le cifre.",
+    ask_email: "Perfetto, ora inserisci l’email usata per effettuare l’ordine.",
+    unavailable: "Il servizio di verifica ordine è temporaneamente non disponibile. Riprova tra poco.",
+  },
+  en: {
+    marketplace: "For marketplace orders, support must be handled directly by the marketplace customer service. Please open the request from the platform where you placed the order.",
+    email_mismatch: "The email address does not match the one linked to the order. Please check the email used at checkout, including spam or promotions folders.",
+    method: "Method not supported.",
+    invalid_input: "Enter a valid order number using digits only.",
+    ask_order_number: "Enter your order number to start the secure order flow.",
+    not_found: "I can’t find an order with this number. Please check the order number and use digits only.",
+    ask_email: "Great, now enter the email used to place the order.",
+    unavailable: "Order status is temporarily unavailable. Please try again shortly.",
+  },
+};
 const ORDER_LOOKUP_GRAPHQL_QUERY = `
   query OrderLookup($query: String!) {
     orders(first: 1, query: $query) {
@@ -297,36 +323,38 @@ const ORDER_LOOKUP_GRAPHQL_QUERY = `
 `;
 
 async function handleOrderLookupRequest(request: Request, env: Env, corsHeaders: HeadersInit): Promise<Response> {
-  if (request.method !== "POST") return json(orderLookupResponse("invalid_input", "none", "Metodo non supportato.", null, []), 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
+  if (request.method !== "POST") return json(orderLookupResponse("invalid_input", "none", ORDER_LOOKUP_COPY.it.method, null, []), 405, { ...corsHeaders, Allow: "POST, OPTIONS" });
   const input = await parseOrderLookupPayload(request);
-  if (!input.ok) return json(orderLookupResponse("invalid_input", "order_number", "Inserisci un numero ordine valido, usando solo le cifre.", null, input.guardrails), 200, corsHeaders);
-  if (!input.orderNumber) return json(orderLookupResponse("ask_order_number", "order_number", "Inserisci il numero ordine per iniziare la verifica.", null, input.guardrails), 200, corsHeaders);
+  const copy = ORDER_LOOKUP_COPY[input.ok ? input.responseLanguage : "it"];
+  if (!input.ok) return json(orderLookupResponse("invalid_input", "order_number", copy.invalid_input, null, input.guardrails), 200, corsHeaders);
+  if (!input.orderNumber) return json(orderLookupResponse("ask_order_number", "order_number", copy.ask_order_number, null, input.guardrails), 200, corsHeaders);
   try {
     const order = await fetchShopifyOrderByNumber(env, input.orderNumber);
-    if (!order) return json(orderLookupResponse("not_found", "order_number", "Non riesco a trovare un ordine con questo numero. Verifica di aver inserito correttamente il numero ordine, usando solo le cifre.", null, []), 200, corsHeaders);
-    if (isMarketplaceOrder(order)) return json(orderLookupResponse("marketplace_unsupported", "none", MARKETPLACE_MESSAGE, null, ["marketplace_order_blocked"]), 200, corsHeaders);
-    if (!input.email) return json(orderLookupResponse("ask_email", "email", "Perfetto, ora inserisci l’email usata per effettuare l’ordine.", null, []), 200, corsHeaders);
-    if (!order.email || normalizeEmail(order.email) !== input.email) return json(orderLookupResponse("email_mismatch", "email", EMAIL_MISMATCH_MESSAGE, null, ["email_mismatch_no_order_data_returned"]), 200, corsHeaders);
-    const safe = buildSafeOrderLookup(order);
+    if (!order) return json(orderLookupResponse("not_found", "order_number", copy.not_found, null, []), 200, corsHeaders);
+    if (isMarketplaceOrder(order)) return json(orderLookupResponse("marketplace_unsupported", "none", copy.marketplace, null, ["marketplace_order_blocked"]), 200, corsHeaders);
+    if (!input.email) return json(orderLookupResponse("ask_email", "email", copy.ask_email, null, []), 200, corsHeaders);
+    if (!order.email || normalizeEmail(order.email) !== input.email) return json(orderLookupResponse("email_mismatch", "email", copy.email_mismatch, null, ["email_mismatch_no_order_data_returned"]), 200, corsHeaders);
+    const safe = buildSafeOrderLookup(order, input.responseLanguage);
     return json(orderLookupResponse("found", "none", safe.shipping_message, safe, []), 200, corsHeaders);
   } catch (error) {
     console.error("Order lookup unavailable", classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable"));
-    return json(orderLookupResponse("temporarily_unavailable", "order_number", "Il servizio di verifica ordine è temporaneamente non disponibile. Riprova tra poco.", null, ["shopify_order_lookup_unavailable"]), 200, corsHeaders);
+    return json(orderLookupResponse("temporarily_unavailable", "order_number", copy.unavailable, null, ["shopify_order_lookup_unavailable"]), 200, corsHeaders);
   }
 }
 
-async function parseOrderLookupPayload(request: Request): Promise<{ ok: true; orderNumber: string; email: string; guardrails: string[] } | { ok: false; guardrails: string[] }> {
+async function parseOrderLookupPayload(request: Request): Promise<{ ok: true; orderNumber: string; email: string; responseLanguage: ResponseLanguage; guardrails: string[] } | { ok: false; responseLanguage: ResponseLanguage; guardrails: string[] }> {
   let body: unknown;
-  try { body = await request.json(); } catch { return { ok: false, guardrails: ["invalid_json"] }; }
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, guardrails: ["invalid_payload"] };
+  try { body = await request.json(); } catch { return { ok: false, responseLanguage: "it", guardrails: ["invalid_json"] }; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, responseLanguage: "it", guardrails: ["invalid_payload"] };
   const input = body as Record<string, unknown>;
   const guardrails = Object.keys(input).filter((key) => !ORDER_LOOKUP_ALLOWED_KEYS.has(key)).map((key) => SENSITIVE_KEY_PATTERN.test(key) ? `ignored_sensitive_field:${key}` : `ignored_extra_field:${key}`);
   const orderNumber = normalizeOrderNumber(input.order_number ?? input.query);
   const emailRaw = normalizeString(input.email, 254);
   const email = emailRaw ? normalizeEmail(emailRaw) : "";
-  if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, guardrails: guardrails.concat("invalid_email") };
-  if (!orderNumber && (input.order_number !== undefined || input.query !== undefined)) return { ok: false, guardrails: guardrails.concat("invalid_order_number") };
-  return { ok: true, orderNumber, email, guardrails };
+  const responseLanguage = determineResponseLanguage({ query: normalizeString(input.query, 120), locale: normalizeString(input.locale, 20), language: normalizeString(input.language, 20), path: normalizeString(input.path, 200), page_context: sanitizePageContext(input.page_context) });
+  if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, responseLanguage, guardrails: guardrails.concat("invalid_email") };
+  if (!orderNumber && (input.order_number !== undefined || input.query !== undefined)) return { ok: false, responseLanguage, guardrails: guardrails.concat("invalid_order_number") };
+  return { ok: true, orderNumber, email, responseLanguage, guardrails };
 }
 
 function normalizeOrderNumber(value: unknown): string {
@@ -385,7 +413,7 @@ function isCashOnDeliveryOrder(order: ShopifyOrderLookupNode): boolean {
   return /contrassegno|cash on delivery|cod|pagamento alla consegna/.test(haystack);
 }
 
-function buildSafeOrderLookup(order: ShopifyOrderLookupNode): SafeOrderLookup {
+function buildSafeOrderLookup(order: ShopifyOrderLookupNode, responseLanguage: ResponseLanguage = "it"): SafeOrderLookup {
   const tracking_items = collectTrackingItems(order);
   const lowerStatuses = (order.fulfillments ?? []).flatMap((f) => [f.status, f.displayStatus]).filter(Boolean).join(" ").toLowerCase();
   let fulfillment_state: FulfillmentState = "unknown";
@@ -396,7 +424,7 @@ function buildSafeOrderLookup(order: ShopifyOrderLookupNode): SafeOrderLookup {
   else if (/unfulfilled|not_fulfilled|none|null|undefined/.test(String(order.displayFulfillmentStatus).toLowerCase()) || !(order.fulfillments ?? []).length) fulfillment_state = "not_shipped";
   else if (/fulfilled|in_transit|out_for_delivery|shipped|success/.test(lowerStatuses + " " + String(order.displayFulfillmentStatus).toLowerCase())) fulfillment_state = "shipped";
   const cod = isCashOnDeliveryOrder(order);
-  const shipping_message = buildShippingMessage(fulfillment_state, tracking_items.length, cod);
+  const shipping_message = buildShippingMessage(fulfillment_state, tracking_items.length, cod, responseLanguage);
   return { public_order_name: order.name || "", fulfillment_state, shipping_message, tracking_items, ...(cod ? { cash_on_delivery_note: true } : {}) };
 }
 
@@ -415,7 +443,15 @@ function normalizeTrackingUrl(url: unknown, trackingNumber: string | null): stri
   if (trackingNumber) value = value.replace(/\[\[trackingNumber\]\]|\{\{trackingNumber\}\}|\{trackingNumber\}|\[trackingNumber\]/gi, encodeURIComponent(trackingNumber));
   try { const parsed = new URL(value); return /^https?:$/.test(parsed.protocol) ? parsed.toString() : null; } catch { return null; }
 }
-function buildShippingMessage(state: FulfillmentState, trackingCount: number, cod: boolean): string {
+function buildShippingMessage(state: FulfillmentState, trackingCount: number, cod: boolean, responseLanguage: ResponseLanguage = "it"): string {
+  if (responseLanguage === "en") {
+    const codNote = cod ? " Payment is due on delivery." : "";
+    if (trackingCount > 1) return `There are multiple shipments linked to this order.${codNote}`;
+    if (state === "delivered") return `Your order appears to be delivered.${codNote}`;
+    if (state === "shipped") return `${trackingCount > 0 ? "Your order has been shipped and handed to the courier." : "Your order appears to be shipped."}${codNote}`;
+    if (state === "cancelled") return `The order appears to be cancelled. For more details, please contact customer support.${codNote}`;
+    return `Your order has been received but has not shipped yet. As soon as it is handed to the courier, you will receive shipment tracking by email.${codNote}`;
+  }
   const codNote = cod ? " Il pagamento è previsto alla consegna." : "";
   if (trackingCount > 1) return `Sono presenti più spedizioni collegate all’ordine.${codNote}`;
   if (state === "delivered") return `Il tuo ordine risulta consegnato.${codNote}`;
@@ -672,10 +708,17 @@ async function parseAndValidatePayload(request: Request): Promise<{ ok: true; pa
     }
   }
 
-  const query = normalizeString(input.query, 500);
+  const query = normalizeString(input.query ?? input.message, 500);
   if (!query) {
     return { ok: false, error: validationError("Il campo query è obbligatorio.", guardrails.concat("missing_query")) };
   }
+
+  const pageContext = sanitizePageContext(input.page_context);
+  const locale = normalizeString(input.locale, 20);
+  const language = normalizeString(input.language, 20);
+  const country = normalizeString(input.country, 10);
+  const path = normalizeString(input.path, 200);
+  const responseLanguage = determineResponseLanguage({ query, locale, language, path, page_context: pageContext });
 
   const cart = Array.isArray(input.cart_context) ? input.cart_context.slice(0, 10) : [];
   if (Array.isArray(input.cart_context) && input.cart_context.length > 10) guardrails.push("cart_context_truncated");
@@ -684,8 +727,12 @@ async function parseAndValidatePayload(request: Request): Promise<{ ok: true; pa
     ok: true,
     payload: {
       query,
-      locale: normalizeString(input.locale, 20) || "it-IT",
-      page_context: sanitizePageContext(input.page_context),
+      locale: locale || pageContext?.locale || "it-IT",
+      language: language || pageContext?.language,
+      country,
+      path: path || pageContext?.path,
+      responseLanguage,
+      page_context: pageContext,
       cart_context: cart.map(sanitizeCartItem),
       knowledge_version: normalizeString(input.knowledge_version, 50),
       guardrails,
@@ -700,7 +747,20 @@ function validationError(message: string, guardrails: string[]): ErrorResponse {
 function sanitizePageContext(value: unknown): SanitizedPayload["page_context"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const page = value as Record<string, unknown>;
-  return { page_type: normalizeString(page.page_type, 100), path: normalizeString(page.path, 200) };
+  return { page_type: normalizeString(page.page_type, 100), path: normalizeString(page.path, 200), locale: normalizeString(page.locale, 20), language: normalizeString(page.language, 20) };
+}
+
+function determineResponseLanguage(input: { query?: string; locale?: string; language?: string; path?: string; page_context?: { locale?: string; language?: string; path?: string } }): ResponseLanguage {
+  const languageSignals = [input.language, input.locale, input.page_context?.language, input.page_context?.locale].map((value) => normalizeString(value, 30).toLowerCase()).filter(Boolean);
+  if (languageSignals.some((value) => value === "en" || value.startsWith("en-") || value.startsWith("en_"))) return "en";
+  if (languageSignals.some((value) => value === "it" || value.startsWith("it-") || value.startsWith("it_"))) return "it";
+
+  const paths = [input.path, input.page_context?.path].map((value) => normalizeString(value, 300).toLowerCase()).filter(Boolean);
+  if (paths.some((path) => /(^|\/)en($|[\/?#-])|(^|\/)en-(us|gb|uk|ca|au)($|[\/?#])/.test(path))) return "en";
+
+  const query = normalizeQueryText(input.query || "");
+  if (/\b(where is my order|track my order|order tracking|order status|where is my package|track shipment|cash on delivery|pay on delivery|can i pay on delivery|shipping times|delivery times|shipping cost|free shipping|return|returns|easy returns|size exchange|exchange size|size guide|what size should i choose|fit|sizing|authentic products|are products original|authorized retailer|genuine products|where are you located|physical store|store location|contacts|men swimwear)\b/.test(query)) return "en";
+  return "it";
 }
 
 function sanitizeCartItem(value: unknown): Record<string, string> {
@@ -728,7 +788,7 @@ async function callOpenAI(payload: SanitizedPayload, env: Env): Promise<Assistan
         model: env.ASSISTANT_MODEL || "gpt-4o-mini",
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: buildSystemPrompt() },
+          { role: "system", content: buildSystemPrompt(payload.responseLanguage) },
           { role: "user", content: JSON.stringify(payload) },
         ],
         temperature: 0.1,
@@ -739,14 +799,18 @@ async function callOpenAI(payload: SanitizedPayload, env: Env): Promise<Assistan
     const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error("provider_empty_content");
-    return normalizeAssistantResponse(JSON.parse(content), payload.query, payload.guardrails);
+    return normalizeAssistantResponse(JSON.parse(content), payload.query, payload.guardrails, payload.responseLanguage);
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function buildSystemPrompt(): string {
-  return `Rispondi sempre in italiano con tono commerciale sintetico.
+function buildSystemPrompt(responseLanguage: ResponseLanguage): string {
+  const languageInstruction = responseLanguage === "en"
+    ? "Always answer in natural English for a fashion e-commerce storefront. Keep brand names, product names, vendors, SKU, handles and URLs unchanged."
+    : "Rispondi sempre in italiano naturale, coerente con Devid Label. Mantieni invariati brand, nomi prodotto, vendor, SKU, handle e URL.";
+  return `${languageInstruction}
+Tono: utile, commerciale ma non aggressivo, breve, orientato alla conversione e adatto a mobile.
 Devi restituire SOLO JSON valido.
 Non usare markdown.
 Non usare testo fuori dal JSON.
@@ -761,12 +825,12 @@ Non si spedisce sabato/domenica. Non dire Made in Italy se non verificato.
 Se non sai, usa type fallback e arrays vuoti.`;
 }
 
-function normalizeAssistantResponse(raw: unknown, query: string, guardrails: string[]): AssistantResponse {
+function normalizeAssistantResponse(raw: unknown, query: string, guardrails: string[], responseLanguage: ResponseLanguage = "it"): AssistantResponse {
   const normalized = normalizeQuery(query);
-  const deterministic = routeDeterministicIntent({ query, guardrails }, "ai_backend", normalized);
+  const deterministic = routeDeterministicIntent({ query, guardrails, responseLanguage }, "ai_backend", normalized);
   if (deterministic) return deterministic;
 
-  const fallback = buildFallbackResponse({ query, guardrails });
+  const fallback = buildFallbackResponse({ query, guardrails, responseLanguage });
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return fallback;
 
   const data = raw as Record<string, unknown>;
@@ -780,9 +844,9 @@ function normalizeAssistantResponse(raw: unknown, query: string, guardrails: str
     title: normalizeString(data.title, 120) || fallback.title,
     message: normalizeString(data.message, 800) || fallback.message,
     primary_cta: normalizeCta(data.primary_cta),
-    devid_label_alternatives: normalizeSuggestionArray(data.devid_label_alternatives, true),
-    recommended_products: normalizeSuggestionArray(data.recommended_products, false),
-    cross_sell: normalizeSuggestionArray(data.cross_sell, false),
+    devid_label_alternatives: normalizeSuggestionArray(data.devid_label_alternatives, true, responseLanguage),
+    recommended_products: normalizeSuggestionArray(data.recommended_products, false, responseLanguage),
+    cross_sell: normalizeSuggestionArray(data.cross_sell, false, responseLanguage),
     requires_backend_order_lookup: isOrderQuery(query),
     guardrails,
     ...responseContractV2(normalized),
@@ -798,7 +862,7 @@ function normalizeCta(value: unknown): AssistantCta | null {
   return { label, url };
 }
 
-function normalizeSuggestionArray(value: unknown, onlyDevidLabel: boolean): AssistantSuggestion[] {
+function normalizeSuggestionArray(value: unknown, onlyDevidLabel: boolean, responseLanguage: ResponseLanguage = "it"): AssistantSuggestion[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const output: AssistantSuggestion[] = [];
@@ -811,7 +875,7 @@ function normalizeSuggestionArray(value: unknown, onlyDevidLabel: boolean): Assi
     if (!safe) continue;
     if (onlyDevidLabel && !safe.label.toLowerCase().includes("devid label")) continue;
     seen.add(url);
-    output.push({ ...safe });
+    output.push(localizeSuggestion(safe, responseLanguage));
     if (output.length === 3) break;
   }
   return output;
@@ -828,19 +892,20 @@ function deriveTypeFromQuery(query: string): AssistantResponseType {
   return "fallback";
 }
 
-function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "guardrails">, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query), commerceV2 = analyzeCommerceQueryV2(payload.query)): AssistantResponse | null {
+function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "guardrails"> & { responseLanguage?: ResponseLanguage }, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query), commerceV2 = analyzeCommerceQueryV2(payload.query)): AssistantResponse | null {
   const query = normalized.normalizedQuery;
+  const lang = payload.responseLanguage ?? determineResponseLanguage({ query: payload.query });
   const base = responseBase(source, payload.guardrails, normalized);
 
   if (["collection_category", "vendor_collection_category", "vendor_only", "product_intent"].includes(commerceV2.candidateStrategy ?? "fallback_search")) {
     return {
       ...base,
       type: "product_advice",
-      title: commerceV2.vendorIntent ? `${commerceV2.vendorIntent}${commerceV2.categoryIntent ? `: ${commerceV2.categoryIntent.replace(/_/g, " ")}` : ""}` : commerceV2.categoryIntent ? commerceV2.categoryIntent.replace(/_/g, " ") : "Consigli prodotto",
-      message: commerceV2.isCategoryOnlyQuery ? "Ti mostro prodotti dalla collection Shopify più coerente, senza forzare brand specifici." : commerceV2.isVendorCategoryQuery ? "Ti mostro prodotti della collection coerente filtrati per brand." : "Ti mostro prodotti coerenti ordinati per stagione, disponibilità e venduto recente.",
-      primary_cta: buildPrimaryCtaForIntent(commerceV2),
+      title: commerceV2.vendorIntent ? `${commerceV2.vendorIntent}${commerceV2.categoryIntent ? `: ${formatCategoryLabel(commerceV2.categoryIntent, lang)}` : ""}` : commerceV2.categoryIntent ? formatCategoryLabel(commerceV2.categoryIntent, lang) : lang === "en" ? "Product suggestions" : "Consigli prodotto",
+      message: commerceV2.isCategoryOnlyQuery ? (lang === "en" ? "I’ll show products from the most relevant Shopify collection, without forcing a specific brand." : "Ti mostro prodotti dalla collection Shopify più coerente, senza forzare brand specifici.") : commerceV2.isVendorCategoryQuery ? (lang === "en" ? "I’ll show relevant collection products filtered by brand." : "Ti mostro prodotti della collection coerente filtrati per brand.") : (lang === "en" ? "I’ll show relevant products ranked by season, availability and recent sales." : "Ti mostro prodotti coerenti ordinati per stagione, disponibilità e venduto recente."),
+      primary_cta: buildPrimaryCtaForIntent(commerceV2, lang),
       devid_label_alternatives: [],
-      cross_sell: commerceV2.categoryIntent === "costumi_mare" ? [SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.teePolo] : [],
+      cross_sell: commerceV2.categoryIntent === "costumi_mare" ? suggestions([SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.teePolo], lang) : [],
       commerce_intent: toResponseCommerceIntent(commerceV2),
       ranking_strategy: commerceV2.candidateStrategy,
       recommendation_guardrails: commerceV2.guardrails,
@@ -851,11 +916,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     return {
       ...base,
       type: "product_advice",
-      title: query.includes("t-shirt") || query.includes("tshirt") ? "T-shirt MC2 Saint Barth uomo" : "MC2 Saint Barth",
-      message: "Ti mostro prima le proposte MC2 Saint Barth coerenti con la tua ricerca.",
-      primary_cta: cta(SAFE_DESTINATIONS.saintBarthSearch),
-      devid_label_alternatives: [SAFE_DESTINATIONS.mosca, SAFE_DESTINATIONS.monterosso],
-      cross_sell: [SAFE_DESTINATIONS.bermuda],
+      title: query.includes("t-shirt") || query.includes("tshirt") ? (lang === "en" ? "Men’s MC2 Saint Barth T-shirts" : "T-shirt MC2 Saint Barth uomo") : "MC2 Saint Barth",
+      message: lang === "en" ? "I’ll show the MC2 Saint Barth styles that best match your search first." : "Ti mostro prima le proposte MC2 Saint Barth coerenti con la tua ricerca.",
+      primary_cta: cta(SAFE_DESTINATIONS.saintBarthSearch, lang),
+      devid_label_alternatives: suggestions([SAFE_DESTINATIONS.mosca, SAFE_DESTINATIONS.monterosso], lang),
+      cross_sell: suggestions([SAFE_DESTINATIONS.bermuda], lang),
     };
   }
 
@@ -863,11 +928,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     return {
       ...base,
       type: "product_advice",
-      title: "Jeans Replay uomo",
-      message: "Ti mostro prima i risultati Replay coerenti con la tua ricerca.",
-      primary_cta: cta(SAFE_DESTINATIONS.replaySearch),
-      devid_label_alternatives: [SAFE_DESTINATIONS.globe],
-      cross_sell: [SAFE_DESTINATIONS.teePolo],
+      title: lang === "en" ? "Men’s Replay jeans" : "Jeans Replay uomo",
+      message: lang === "en" ? "I’ll show the Replay results that best match your search first." : "Ti mostro prima i risultati Replay coerenti con la tua ricerca.",
+      primary_cta: cta(SAFE_DESTINATIONS.replaySearch, lang),
+      devid_label_alternatives: suggestions([SAFE_DESTINATIONS.globe], lang),
+      cross_sell: suggestions([SAFE_DESTINATIONS.teePolo], lang),
     };
   }
 
@@ -876,10 +941,10 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: "Cargo Courmayeur Devid Label",
-      message: "Ti propongo il Cargo Courmayeur Devid Label come scelta versatile e continuativa.",
-      primary_cta: cta(SAFE_DESTINATIONS.courmayeur),
+      message: lang === "en" ? "I recommend Cargo Courmayeur Devid Label as a versatile continuative choice." : "Ti propongo il Cargo Courmayeur Devid Label come scelta versatile e continuativa.",
+      primary_cta: cta(SAFE_DESTINATIONS.courmayeur, lang),
       devid_label_alternatives: [],
-      cross_sell: [SAFE_DESTINATIONS.mosca, SAFE_DESTINATIONS.monterosso, SAFE_DESTINATIONS.teePolo],
+      cross_sell: suggestions([SAFE_DESTINATIONS.mosca, SAFE_DESTINATIONS.monterosso, SAFE_DESTINATIONS.teePolo], lang),
     };
   }
 
@@ -889,11 +954,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: "Jeans Globe Devid Label",
-      message: "Ti propongo il Jeans Globe Devid Label come denim coerente con la tua ricerca.",
-      primary_cta: cta(SAFE_DESTINATIONS.globe),
-      recommended_products: [SAFE_DESTINATIONS.globe],
+      message: lang === "en" ? "I recommend Jeans Globe Devid Label as the denim option that matches your search." : "Ti propongo il Jeans Globe Devid Label come denim coerente con la tua ricerca.",
+      primary_cta: cta(SAFE_DESTINATIONS.globe, lang),
+      recommended_products: suggestions([SAFE_DESTINATIONS.globe], lang),
       devid_label_alternatives: [],
-      cross_sell: [SAFE_DESTINATIONS.teePolo],
+      cross_sell: suggestions([SAFE_DESTINATIONS.teePolo], lang),
     };
   }
 
@@ -902,11 +967,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: "T-shirt Mosca Devid Label",
-      message: "Ti propongo la T-shirt Mosca Devid Label, essenziale e facile da abbinare.",
-      primary_cta: cta(SAFE_DESTINATIONS.mosca),
-      recommended_products: [SAFE_DESTINATIONS.mosca],
+      message: lang === "en" ? "I recommend the T-shirt Mosca Devid Label: essential and easy to match." : "Ti propongo la T-shirt Mosca Devid Label, essenziale e facile da abbinare.",
+      primary_cta: cta(SAFE_DESTINATIONS.mosca, lang),
+      recommended_products: suggestions([SAFE_DESTINATIONS.mosca], lang),
       devid_label_alternatives: [],
-      cross_sell: [SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.globe],
+      cross_sell: suggestions([SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.globe], lang),
     };
   }
 
@@ -915,11 +980,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: "Monterosso Devid Label",
-      message: "Ti propongo Monterosso Devid Label, una scelta in filo di cotone extrafine dal taglio premium.",
-      primary_cta: cta(SAFE_DESTINATIONS.monterosso),
-      recommended_products: [SAFE_DESTINATIONS.monterosso],
+      message: lang === "en" ? "I recommend Monterosso Devid Label, a premium-cut style in extra-fine cotton yarn." : "Ti propongo Monterosso Devid Label, una scelta in filo di cotone extrafine dal taglio premium.",
+      primary_cta: cta(SAFE_DESTINATIONS.monterosso, lang),
+      recommended_products: suggestions([SAFE_DESTINATIONS.monterosso], lang),
       devid_label_alternatives: [],
-      cross_sell: [SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.globe],
+      cross_sell: suggestions([SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.globe], lang),
     };
   }
 
@@ -928,8 +993,8 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: "Sprayground",
-      message: "Ti mostro i risultati Sprayground disponibili nella ricerca del negozio.",
-      primary_cta: cta(SAFE_DESTINATIONS.spraygroundSearch),
+      message: lang === "en" ? "I’ll show the Sprayground results available in store search." : "Ti mostro i risultati Sprayground disponibili nella ricerca del negozio.",
+      primary_cta: cta(SAFE_DESTINATIONS.spraygroundSearch, lang),
       devid_label_alternatives: [],
       cross_sell: [],
     };
@@ -940,8 +1005,8 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: "K-Way",
-      message: "Ti mostro i risultati K-Way coerenti con la tua ricerca.",
-      primary_cta: cta(SAFE_DESTINATIONS.kwaySearch),
+      message: lang === "en" ? "I’ll show the K-Way results that match your search." : "Ti mostro i risultati K-Way coerenti con la tua ricerca.",
+      primary_cta: cta(SAFE_DESTINATIONS.kwaySearch, lang),
       devid_label_alternatives: [],
       cross_sell: [],
     };
@@ -951,11 +1016,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     return {
       ...base,
       type: "product_advice",
-      title: "Mare uomo",
-      message: "Ti porto alla selezione mare uomo e ti suggerisco abbinamenti estivi coerenti.",
-      primary_cta: cta(SAFE_DESTINATIONS.mare),
+      title: lang === "en" ? "Men’s swimwear" : "Mare uomo",
+      message: lang === "en" ? "I’ll take you to the men’s swimwear selection and suggest coherent summer pairings." : "Ti porto alla selezione mare uomo e ti suggerisco abbinamenti estivi coerenti.",
+      primary_cta: cta(SAFE_DESTINATIONS.mare, lang),
       devid_label_alternatives: [],
-      cross_sell: [SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.teePolo],
+      cross_sell: suggestions([SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.teePolo], lang),
     };
   }
 
@@ -964,11 +1029,11 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     return {
       ...base,
       type: "product_advice",
-      title: "Costumi e mare uomo",
-      message: "Ti mostro solo proposte mare coerenti, senza riempire le card con prodotti fuori categoria.",
-      primary_cta: cta(SAFE_DESTINATIONS.mare),
+      title: lang === "en" ? "Men’s swimwear" : "Costumi e mare uomo",
+      message: lang === "en" ? "I’ll show only relevant swimwear styles, without filling cards with off-category products." : "Ti mostro solo proposte mare coerenti, senza riempire le card con prodotti fuori categoria.",
+      primary_cta: cta(SAFE_DESTINATIONS.mare, lang),
       devid_label_alternatives: [],
-      cross_sell: [SAFE_DESTINATIONS.bermuda],
+      cross_sell: suggestions([SAFE_DESTINATIONS.bermuda], lang),
       commerce_intent: toResponseCommerceIntent(commerceIntent),
     };
   }
@@ -978,8 +1043,8 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: commerceIntent.categoryIntent ? `${commerceIntent.vendorIntent}: ${commerceIntent.categoryIntent.replace(/_/g, " ")}` : commerceIntent.vendorIntent,
-      message: commerceIntent.isVendorOnlyQuery ? `Ti mostro i prodotti ${commerceIntent.vendorIntent} disponibili ordinati per venduto recente.` : `Ti mostro prima prodotti ${commerceIntent.vendorIntent} coerenti con categoria e taglia/genere richiesti.`,
-      primary_cta: { label: `Cerca ${commerceIntent.vendorIntent}`, url: `/search?type=product&q=${encodeURIComponent([commerceIntent.vendorIntent, commerceIntent.categoryIntent ?? "", commerceIntent.genderIntent ?? ""].filter(Boolean).join(" "))}` },
+      message: commerceIntent.isVendorOnlyQuery ? (lang === "en" ? `I’ll show available ${commerceIntent.vendorIntent} products ranked by recent sales.` : `Ti mostro i prodotti ${commerceIntent.vendorIntent} disponibili ordinati per venduto recente.`) : (lang === "en" ? `I’ll show ${commerceIntent.vendorIntent} products matching the requested category and size/gender first.` : `Ti mostro prima prodotti ${commerceIntent.vendorIntent} coerenti con categoria e taglia/genere richiesti.`),
+      primary_cta: { label: lang === "en" ? `Search ${commerceIntent.vendorIntent}` : `Cerca ${commerceIntent.vendorIntent}`, url: `/search?type=product&q=${encodeURIComponent([commerceIntent.vendorIntent, commerceIntent.categoryIntent ?? "", commerceIntent.genderIntent ?? ""].filter(Boolean).join(" "))}` },
       devid_label_alternatives: [],
       cross_sell: [],
     };
@@ -989,39 +1054,46 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
     return {
       ...base,
       type: "order_help",
-      title: "Dov’è il mio ordine?",
-      message: "Inserisci il numero ordine per iniziare la verifica.",
+      title: lang === "en" ? "Where is my order?" : "Dov’è il mio ordine?",
+      message: lang === "en" ? "Enter your order number to start the secure order flow." : "Inserisci il numero ordine per iniziare la verifica.",
       requires_backend_order_lookup: true,
       order_lookup: { status: "ask_order_number", next_step: "order_number" },
     };
   }
 
-  if (/pagamento alla consegna|contrassegno/.test(query)) {
-    return { ...base, type: "faq", title: "Pagamento alla consegna", message: "Il pagamento alla consegna è disponibile con spedizione a domicilio. Non è disponibile con InPost, Locker o Punto InPost." };
+  if (/pagamento alla consegna|contrassegno|pago alla consegna|cash on delivery|pay on delivery|\bcod\b|can i pay on delivery/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Cash on delivery" : "Pagamento alla consegna", message: lang === "en" ? "Cash on delivery is available with home delivery. It is not available with InPost, Locker or Punto InPost." : "Il pagamento alla consegna è disponibile con spedizione a domicilio. Non è disponibile con InPost, Locker o Punto InPost." };
   }
-  if (/prodotti originali|sono originali|original/.test(query)) {
-    return { ...base, type: "faq", title: "Prodotti originali", message: "I prodotti dei brand esterni venduti da Devid Label sono originali. Devid Label propone anche capi del proprio brand come alternative o abbinamenti coerenti." };
+  if (/prodotti originali|prodotti autentici|rivenditori autorizzati|sono originali|original products|authentic products|are products original|authorized retailer|genuine products|original/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Original products" : "Prodotti originali", message: lang === "en" ? "External-brand products sold by Devid Label are original; for those brands Devid Label acts as an authorized retailer where applicable. Devid Label is also our own brand." : "I prodotti dei brand esterni venduti da Devid Label sono originali. Devid Label propone anche capi del proprio brand come alternative o abbinamenti coerenti." };
   }
   if (/inpost/.test(query)) {
-    return { ...base, type: "faq", title: "InPost", message: "InPost è disponibile scegliendo Locker o Punto InPost. Il pagamento alla consegna non è disponibile con questa modalità." };
+    return { ...base, type: "faq", title: "InPost", message: lang === "en" ? "InPost is available by choosing Locker or Punto InPost at checkout, including the free InPost option when shown. Cash on delivery is not available with InPost." : "InPost è disponibile scegliendo Locker o Punto InPost al checkout, anche con opzione InPost gratis quando mostrata. Il pagamento alla consegna non è disponibile con questa modalità." };
   }
-  if (/spedizione|tempi di spedizione/.test(query)) {
-    return { ...base, type: "faq", title: "Tempi di spedizione", message: "Gli ordini vengono gestiti nei giorni lavorativi. Non vengono effettuate spedizioni il sabato e la domenica." };
+  if (/spedizione|tempi di spedizione|quanto costa la spedizione|spedizione gratis|shipping times|delivery times|shipping cost|free shipping|free inpost/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Shipping" : "Spedizioni", message: lang === "en" ? "Orders are handled on business days, Monday to Friday. Shipping costs and any free InPost option are shown at checkout before payment." : "Gli ordini vengono gestiti nei giorni lavorativi, dal lunedì al venerdì. Costi di spedizione ed eventuale InPost gratis sono mostrati al checkout prima del pagamento." };
   }
-  if (/reso|cambio taglia|guida taglie/.test(query)) {
-    return { ...base, type: "faq", title: "Resi, cambi e taglie", message: "Per resi, cambi taglia e guida taglie segui le indicazioni presenti nel negozio. In questa versione non apro pratiche né verifico ordini reali." };
+  if (/reso|resi|restituzione|cambio taglia|return|returns|easy returns|size exchange|exchange size/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Returns and exchanges" : "Resi e cambi", message: lang === "en" ? "Easy returns are available within 14 days. For a size exchange, follow the return instructions available in the store or contact support if you need help." : "Il reso facile è disponibile entro 14 giorni. Per cambio taglia segui le indicazioni presenti nel negozio o contatta l’assistenza se hai bisogno di aiuto." };
+  }
+  if (/guida taglie|che taglia prendo|vestibilita|size guide|what size should i choose|fit|sizing/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Size guide" : "Guida taglie", message: lang === "en" ? "Check the size guide when available on the product page. If you are between sizes, tell me the product and your usual size and I’ll help you choose." : "Consulta la guida taglie quando disponibile nella scheda prodotto. Se sei indeciso tra due taglie, indicami prodotto e taglia abituale e ti aiuto a scegliere." };
+  }
+  if (/dove siete|negozio fisico|contatti|where are you located|physical store|store location|contacts/.test(query)) {
+    return { ...base, type: "faq", title: lang === "en" ? "Store and contacts" : "Negozio e contatti", message: lang === "en" ? "For store location and contacts, use the contact information shown on the Devid Label website. I can also help you find products or support information here in chat." : "Per sede del negozio e contatti, usa le informazioni di contatto presenti sul sito Devid Label. Qui posso aiutarti anche con prodotti e informazioni di supporto." };
   }
 
   return null;
 }
 
-function buildFallbackResponse(payload: Pick<SanitizedPayload, "query" | "guardrails">): AssistantResponse {
+function buildFallbackResponse(payload: Pick<SanitizedPayload, "query" | "guardrails"> & { responseLanguage?: ResponseLanguage }): AssistantResponse {
   const normalized = normalizeQuery(payload.query);
+  const lang = payload.responseLanguage ?? determineResponseLanguage({ query: payload.query });
   return routeDeterministicIntent(payload, "backend_fallback", normalized) ?? {
     ...responseBase("backend_fallback", payload.guardrails, normalized),
     type: "fallback",
-    title: "Assistente Devid Label",
-    message: "Posso aiutarti con consigli prodotto, informazioni su spedizioni, InPost, contrassegno e supporto ordine. Prova a cercare un brand, una categoria o una domanda specifica.",
+    title: lang === "en" ? "Devid Label Assistant" : "Assistente Devid Label",
+    message: lang === "en" ? "I can help with product suggestions, shipping, InPost, cash on delivery and order support. Try a brand, a category or a specific question." : "Posso aiutarti con consigli prodotto, informazioni su spedizioni, InPost, contrassegno e supporto ordine. Prova a cercare un brand, una categoria o una domanda specifica.",
   };
 }
 
@@ -1042,16 +1114,56 @@ function responseBase(source: AssistantResponse["source"], guardrails: string[],
   };
 }
 
-function cta(destination: AssistantSuggestion): AssistantCta {
-  return { label: destination.label, url: destination.url };
+function cta(destination: AssistantSuggestion, responseLanguage: ResponseLanguage = "it"): AssistantCta {
+  const localized = localizeSuggestion(destination, responseLanguage);
+  return { label: localized.label, url: localized.url };
+}
+
+function suggestions(destinations: AssistantSuggestion[], responseLanguage: ResponseLanguage): AssistantSuggestion[] {
+  return destinations.map((destination) => localizeSuggestion(destination, responseLanguage));
+}
+
+function localizeSuggestion(destination: AssistantSuggestion, responseLanguage: ResponseLanguage): AssistantSuggestion {
+  if (responseLanguage === "it") return { ...destination };
+  const byUrl: Record<string, Pick<AssistantSuggestion, "label" | "message">> = {
+    [SAFE_DESTINATIONS.mosca.url]: { label: "T-shirt Mosca Devid Label", message: "Devid Label jersey alternative, essential and easy to match." },
+    [SAFE_DESTINATIONS.monterosso.url]: { label: "Monterosso Devid Label", message: "Premium alternative in extra-fine cotton yarn." },
+    [SAFE_DESTINATIONS.globe.url]: { label: "Jeans Globe Devid Label", message: "Consistent Devid Label denim alternative." },
+    [SAFE_DESTINATIONS.courmayeur.url]: { label: "Cargo Courmayeur Devid Label", message: "Continuative Devid Label cargo trousers, versatile across seasons." },
+    [SAFE_DESTINATIONS.bermuda.url]: { label: "Men’s Bermuda shorts", message: "Complete your summer look." },
+    [SAFE_DESTINATIONS.teePolo.url]: { label: "Men’s T-shirts and polo shirts", message: "Discover easy-to-match men’s styles." },
+    [SAFE_DESTINATIONS.mare.url]: { label: "Men’s swimwear", message: "Men’s swimwear and beachwear styles." },
+    [SAFE_DESTINATIONS.saintBarthSearch.url]: { label: "View Saint Barth results", message: "Open the MC2 Saint Barth men’s T-shirt search." },
+    [SAFE_DESTINATIONS.replaySearch.url]: { label: "View Replay results", message: "Open the Replay men’s jeans search." },
+    [SAFE_DESTINATIONS.spraygroundSearch.url]: { label: "View Sprayground results", message: "Open the Sprayground search." },
+    [SAFE_DESTINATIONS.kwaySearch.url]: { label: "View K-Way results", message: "Open the K-Way search." },
+  };
+  const localized = byUrl[destination.url];
+  return localized ? { ...destination, ...localized } : { ...destination };
+}
+
+function localizeResponseSuggestions(items: AssistantSuggestion[], responseLanguage: ResponseLanguage): AssistantSuggestion[] {
+  return items.map((item) => {
+    const safe = Object.values(SAFE_DESTINATIONS).find((destination) => destination.url === item.url);
+    const localized = safe ? localizeSuggestion(safe, responseLanguage) : { ...item };
+    if (responseLanguage === "en" && localized.message === "Prodotto consigliato") return { ...localized, message: "Recommended product" };
+    return localized;
+  });
+}
+
+function localizeCta(item: AssistantCta, responseLanguage: ResponseLanguage): AssistantCta {
+  const safe = Object.values(SAFE_DESTINATIONS).find((destination) => destination.url === item.url);
+  if (!safe) return item;
+  const localized = localizeSuggestion(safe, responseLanguage);
+  return { label: localized.label, url: localized.url };
 }
 
 function isOrderQuery(query: string): boolean {
-  return /dov.?e il mio ordine|tracking ordine|stato ordine|tracking|ordine/.test(normalizeQueryText(query));
+  return /dov.?e il mio ordine|dove si trova il mio ordine|traccia ordine|tracking ordine|stato ordine|tracking|ordine|where is my order|track my order|order tracking|order status|where is my package|track shipment/.test(normalizeQueryText(query));
 }
 
 function isFaqQuery(query: string): boolean {
-  return /pagamento alla consegna|contrassegno|prodotti originali|sono originali|original|inpost|spedizione|tempi di spedizione|reso|cambio taglia|guida taglie/.test(normalizeQueryText(query));
+  return /pagamento alla consegna|contrassegno|pago alla consegna|cash on delivery|pay on delivery|\bcod\b|can i pay on delivery|prodotti originali|prodotti autentici|rivenditori autorizzati|sono originali|original products|authentic products|are products original|authorized retailer|genuine products|original|inpost|spedizione|tempi di spedizione|quanto costa la spedizione|spedizione gratis|shipping times|delivery times|shipping cost|free shipping|free inpost|reso|resi|restituzione|cambio taglia|return|returns|easy returns|size exchange|exchange size|guida taglie|che taglia prendo|vestibilita|size guide|what size should i choose|fit|sizing|dove siete|negozio fisico|contatti|where are you located|physical store|store location|contacts/.test(normalizeQueryText(query));
 }
 
 function isProductQuery(query: string): boolean {
@@ -1405,13 +1517,13 @@ const INTENT_CANDIDATES: Partial<Record<ProductIntent, Omit<CandidateIntent, "in
   bermuda_uomo: { vendor: "Devid Label", queryTerms: ["bermuda"], productTerms: ["bermuda", "short"], categories: ["bermuda_shorts"], gender: "uomo" },
 };
 
-async function enrichProductRecommendations(response: AssistantResponse, env: Env, normalized: NormalizedQuery): Promise<AssistantResponse> {
+async function enrichProductRecommendations(response: AssistantResponse, env: Env, normalized: NormalizedQuery, responseLanguage: ResponseLanguage = "it"): Promise<AssistantResponse> {
   if (response.type !== "product_advice") return response;
   const candidate = candidateIntentFromNormalized(normalized);
   if (!candidate) return { ...response, guardrails: [...response.guardrails, "shopify_recommendations_unavailable"] };
   try {
     const snapshot = await getRecommendationSnapshot(env, normalized, candidate);
-    return { ...response, recommended_products: snapshot.recommended_products.length ? snapshot.recommended_products : response.recommended_products, devid_label_alternatives: snapshot.devid_label_alternatives.length ? snapshot.devid_label_alternatives : response.devid_label_alternatives, guardrails: [...response.guardrails, ...snapshot.guardrails], commerce_intent: toResponseCommerceIntent(snapshot.commerce_intent), ranking_strategy: snapshot.ranking_strategy, recommendation_guardrails: snapshot.guardrails };
+    return { ...response, recommended_products: localizeResponseSuggestions(snapshot.recommended_products.length ? snapshot.recommended_products : (response.recommended_products ?? []), responseLanguage), devid_label_alternatives: localizeResponseSuggestions(snapshot.devid_label_alternatives.length ? snapshot.devid_label_alternatives : response.devid_label_alternatives, responseLanguage), cross_sell: localizeResponseSuggestions(response.cross_sell, responseLanguage), primary_cta: response.primary_cta ? localizeCta(response.primary_cta, responseLanguage) : null, guardrails: [...response.guardrails, ...snapshot.guardrails], commerce_intent: toResponseCommerceIntent(snapshot.commerce_intent), ranking_strategy: snapshot.ranking_strategy, recommendation_guardrails: snapshot.guardrails };
   } catch (error) {
     console.error("Shopify recommendations unavailable", sanitizeDebugError(error).code);
     return { ...response, guardrails: [...response.guardrails, classifyShopifyGuardrail(error)] };
@@ -1485,11 +1597,18 @@ function inferCollectionTargets(category: CommerceCategoryIntent | null, gender:
   return [];
 }
 
-function buildPrimaryCtaForIntent(intent: CommerceQueryIntent): AssistantCta | null {
+function buildPrimaryCtaForIntent(intent: CommerceQueryIntent, lang: ResponseLanguage = "it"): AssistantCta | null {
   const handle = intent.collectionTargets?.[0];
-  if (handle) return { label: "Vedi collection", url: `/collections/${handle}` };
+  if (handle) return { label: lang === "en" ? "View collection" : "Vedi collection", url: `/collections/${handle}` };
   const q = [intent.vendorIntent, intent.categoryIntent, intent.genderIntent].filter(Boolean).join(" ") || intent.normalized_query || "";
-  return { label: "Cerca nel catalogo", url: `/search?type=product&q=${encodeURIComponent(q)}` };
+  return { label: lang === "en" ? "Search the catalog" : "Cerca nel catalogo", url: `/search?type=product&q=${encodeURIComponent(q)}` };
+}
+
+function formatCategoryLabel(category: CommerceCategoryIntent, lang: ResponseLanguage): string {
+  const labels: Record<CommerceCategoryIntent, { it: string; en: string }> = {
+    tshirt: { it: "t-shirt", en: "T-shirts" }, polo: { it: "polo", en: "Polo shirts" }, jeans: { it: "jeans", en: "Jeans" }, costumi_mare: { it: "costumi mare", en: "Swimwear" }, bermuda_shorts: { it: "bermuda shorts", en: "Bermuda shorts" }, zaini: { it: "zaini", en: "Backpacks" }, borse_accessori: { it: "borse e accessori", en: "Bags and accessories" }, outerwear: { it: "outerwear", en: "Outerwear" }, felpe: { it: "felpe", en: "Sweatshirts" }, camicie: { it: "camicie", en: "Shirts" }, top_donna: { it: "top donna", en: "Women’s tops" }, calzature: { it: "calzature", en: "Shoes" }, teli_mare: { it: "teli mare", en: "Beach towels" }, cargo: { it: "cargo", en: "Cargo pants" }, maglieria: { it: "maglieria", en: "Knitwear" },
+  };
+  return labels[category][lang];
 }
 
 function analyzeCommerceQuery(query: string, normalizedQuery = normalizeQueryText(query)): CommerceQueryIntent {
@@ -2019,7 +2138,7 @@ async function buildDevidLabelAlternatives(env: Env, normalizedIntent: Normalize
 
 function isVariantAvailable(variant: ProductVariantCandidate): boolean { return (typeof variant.inventoryQuantity === "number" && variant.inventoryQuantity > 0) || variant.availableForSale === true; }
 function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "title" | "productType" | "tags">, candidate: CandidateIntent): boolean { const vendorMatches = normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor); if (!vendorMatches) return false; if (candidate.commerceIntent.isVendorOnlyQuery) return true; const pseudo = { ...product, collections: [] as ProductCollectionCandidate[] }; const category = candidate.commerceIntent.categoryIntent; if (category && !isProductCommerciallyCompatible(pseudo, candidate.commerceIntent, "", "medium")) return false; return true; }
-function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Prodotto consigliato", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
+function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Recommended product", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
-export { handleShopifyInstallRequest, handleShopifyAuthCallbackRequest, handleShopifyDebugRequest, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken, resolveShopifyAdminAccessToken, analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest, handleOrderLookupDebugRequest, ORDER_LOOKUP_DEBUG_DEFINITIONS, ORDER_LOOKUP_GRAPHQL_QUERY };
+export { handleShopifyInstallRequest, handleShopifyAuthCallbackRequest, handleShopifyDebugRequest, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken, resolveShopifyAdminAccessToken, analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest, handleOrderLookupDebugRequest, ORDER_LOOKUP_DEBUG_DEFINITIONS, ORDER_LOOKUP_GRAPHQL_QUERY, determineResponseLanguage, routeDeterministicIntent };
