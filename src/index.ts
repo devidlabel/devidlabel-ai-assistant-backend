@@ -76,7 +76,14 @@ type AssistantResponse = {
   ranking_strategy?: string;
   recommendation_guardrails?: string[];
   order_lookup?: { status: string; next_step: string };
+  needs_input?: boolean;
+  missing_fields?: string[];
+  conversation_state?: ConversationState | null;
+  suggested_replies?: string[];
 };
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+type ConversationState = { flow?: "order_lookup"; order_number?: string; email?: string; next_step?: "order_number" | "email" | "lookup" | "none" };
 
 type ErrorResponse = { ok: false; source: "ai_backend"; type: "error"; message: string; guardrails: string[] };
 
@@ -100,10 +107,12 @@ type SanitizedPayload = {
   cart_context: Array<Record<string, string>>;
   knowledge_version?: string;
   guardrails: string[];
+  messages: ChatMessage[];
+  conversation_state: ConversationState | null;
 };
 
 const DEFAULT_ALLOWED_ORIGINS = ["https://devidlabel.com", "https://www.devidlabel.com"];
-const ALLOWED_KEYS = new Set(["query", "message", "locale", "language", "country", "path", "page_context", "cart_context", "knowledge_version"]);
+const ALLOWED_KEYS = new Set(["query", "message", "locale", "language", "country", "path", "page_context", "cart_context", "knowledge_version", "messages", "conversation_state"]);
 const ASSISTANT_TYPES: AssistantResponseType[] = ["product_advice", "faq", "order_help", "fallback"];
 const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
 const DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS = 3600;
@@ -231,6 +240,9 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
 
   const normalized = normalizeQuery(parsed.payload.query);
   const commerceV2 = analyzeCommerceQueryV2(parsed.payload.query);
+  const contextual = routeContextualConversation(parsed.payload, "ai_backend", normalized);
+  if (contextual) return json(contextual, 200, corsHeaders);
+
   const deterministic = routeDeterministicIntent(parsed.payload, "ai_backend", normalized, commerceV2);
   if (deterministic) return json(await enrichProductRecommendations(deterministic, env, normalized, parsed.payload.responseLanguage), 200, corsHeaders);
 
@@ -362,7 +374,11 @@ function normalizeOrderNumber(value: unknown): string {
   const match = raw.replace(/[０-９]/g, (char) => String(char.charCodeAt(0) - 0xff10)).match(/#?\s*(\d{3,12})\b/);
   return match ? match[1] : "";
 }
-function normalizeEmail(value: string): string { return value.trim().toLowerCase(); }
+function normalizeEmail(value: unknown): string {
+  const text = normalizeString(value, 500).toLowerCase();
+  const match = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+  return match ? match[0] : "";
+}
 function orderLookupResponse(status: OrderLookupStatus, next_step: OrderNextStep, message: string, order_lookup: SafeOrderLookup | null, guardrails: string[]): OrderLookupResponse { return { ok: true, source: "order_lookup", type: "order_lookup", status, next_step, message, order_lookup, guardrails }; }
 
 async function fetchShopifyOrderByNumber(env: Env, orderNumber: string): Promise<ShopifyOrderLookupNode | null> {
@@ -722,6 +738,8 @@ async function parseAndValidatePayload(request: Request): Promise<{ ok: true; pa
 
   const cart = Array.isArray(input.cart_context) ? input.cart_context.slice(0, 10) : [];
   if (Array.isArray(input.cart_context) && input.cart_context.length > 10) guardrails.push("cart_context_truncated");
+  const messages = sanitizeMessages(input.messages, guardrails);
+  const conversationState = sanitizeConversationState(input.conversation_state, guardrails);
 
   return {
     ok: true,
@@ -736,9 +754,35 @@ async function parseAndValidatePayload(request: Request): Promise<{ ok: true; pa
       cart_context: cart.map(sanitizeCartItem),
       knowledge_version: normalizeString(input.knowledge_version, 50),
       guardrails,
+      messages,
+      conversation_state: conversationState,
     },
   };
 }
+
+
+function sanitizeMessages(value: unknown, guardrails: string[]): ChatMessage[] {
+  if (!Array.isArray(value)) return [];
+  if (value.length > 10) guardrails.push("messages_truncated");
+  return value.slice(-10).flatMap((item): ChatMessage[] => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const message = item as Record<string, unknown>;
+    const role = message.role === "user" || message.role === "assistant" ? message.role : null;
+    const content = normalizeString(message.content ?? message.message ?? message.text, 500);
+    return role && content ? [{ role, content }] : [];
+  });
+}
+
+function sanitizeConversationState(value: unknown, guardrails: string[]): ConversationState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  const flow = input.flow === "order_lookup" ? "order_lookup" : undefined;
+  const next = input.next_step === "order_number" || input.next_step === "email" || input.next_step === "lookup" || input.next_step === "none" ? input.next_step : undefined;
+  const state: ConversationState = { flow, next_step: next, order_number: normalizeOrderNumber(normalizeString(input.order_number, 40)), email: normalizeEmail(input.email) };
+  if (!state.flow && (state.order_number || state.email || state.next_step)) guardrails.push("conversation_state_flow_missing");
+  return state.flow ? state : null;
+}
+
 
 function validationError(message: string, guardrails: string[]): ErrorResponse {
   return { ok: false, source: "ai_backend", type: "error", message, guardrails };
@@ -848,8 +892,25 @@ function normalizeAssistantResponse(raw: unknown, query: string, guardrails: str
     recommended_products: normalizeSuggestionArray(data.recommended_products, false, responseLanguage),
     cross_sell: normalizeSuggestionArray(data.cross_sell, false, responseLanguage),
     requires_backend_order_lookup: isOrderQuery(query),
+    needs_input: typeof data.needs_input === "boolean" ? data.needs_input : undefined,
+    missing_fields: Array.isArray(data.missing_fields) ? data.missing_fields.map((field) => normalizeString(field, 50)).filter(Boolean).slice(0, 5) : undefined,
+    conversation_state: sanitizeResponseConversationState(data.conversation_state),
+    suggested_replies: Array.isArray(data.suggested_replies) ? data.suggested_replies.map((reply) => normalizeString(reply, 80)).filter(Boolean).slice(0, 4) : undefined,
     guardrails,
     ...responseContractV2(normalized),
+  };
+}
+
+
+function sanitizeResponseConversationState(value: unknown): ConversationState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  if (input.flow !== "order_lookup") return null;
+  return {
+    flow: "order_lookup",
+    order_number: normalizeOrderNumber(normalizeString(input.order_number, 40)) || undefined,
+    email: normalizeEmail(input.email) || undefined,
+    next_step: input.next_step === "order_number" || input.next_step === "email" || input.next_step === "lookup" || input.next_step === "none" ? input.next_step : undefined,
   };
 }
 
@@ -890,6 +951,58 @@ function deriveTypeFromQuery(query: string): AssistantResponseType {
   if (isFaqQuery(query)) return "faq";
   if (isProductQuery(query)) return "product_advice";
   return "fallback";
+}
+
+
+function routeContextualConversation(payload: SanitizedPayload, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query)): AssistantResponse | null {
+  const lang = payload.responseLanguage;
+  const query = normalizeQueryText(payload.query);
+  const state = inferConversationState(payload, query);
+  if (state?.flow !== "order_lookup") return null;
+
+  const orderNumber = normalizeOrderNumber(payload.query) || state.order_number || "";
+  const email = normalizeEmail(payload.query) || state.email || "";
+  const base = responseBase(source, payload.guardrails, normalized);
+  if (orderNumber && email) {
+    return {
+      ...base,
+      type: "order_help",
+      title: lang === "en" ? "Secure order lookup" : "Verifica ordine sicura",
+      message: lang === "en" ? "Thanks. I have the order number and email needed to continue with the secure order lookup." : "Grazie. Ho numero ordine ed e-mail necessari per proseguire con la verifica sicura dell’ordine.",
+      requires_backend_order_lookup: true,
+      needs_input: false,
+      missing_fields: [],
+      order_lookup: { status: "ready", next_step: "lookup" },
+      conversation_state: { flow: "order_lookup", order_number: orderNumber, email, next_step: "lookup" },
+    };
+  }
+  if (orderNumber) {
+    return {
+      ...base,
+      type: "order_help",
+      title: lang === "en" ? "Order number received" : "Numero ordine ricevuto",
+      message: lang === "en" ? "I found the order number. To check the status securely, please enter the email used for the order." : "Ho rilevato il numero d’ordine. Per verificare lo stato in modo sicuro, inserisci l’e-mail usata per l’ordine.",
+      requires_backend_order_lookup: true,
+      needs_input: true,
+      missing_fields: ["email"],
+      order_lookup: { status: "ask_email", next_step: "email" },
+      conversation_state: { flow: "order_lookup", order_number: orderNumber, next_step: "email" },
+    };
+  }
+  return null;
+}
+
+function inferConversationState(payload: SanitizedPayload, query: string): ConversationState | null {
+  const explicit = payload.conversation_state?.flow === "order_lookup" ? payload.conversation_state : null;
+  const previousText = payload.messages.map((message) => message.content).join(" ");
+  const inOrderFlow = explicit || isOrderQuery(previousText) || payload.messages.some((message) => /order_number|ask_order_number|ask_email|numero ordine|order number/i.test(message.content));
+  if (!inOrderFlow && !isOrderQuery(query)) return null;
+  return {
+    flow: "order_lookup",
+    order_number: explicit?.order_number || normalizeOrderNumber(previousText) || "",
+    email: explicit?.email || normalizeEmail(previousText) || "",
+    next_step: explicit?.next_step || "order_number",
+  };
 }
 
 function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "guardrails"> & { responseLanguage?: ResponseLanguage }, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query), commerceV2 = analyzeCommerceQueryV2(payload.query)): AssistantResponse | null {
@@ -1068,7 +1181,11 @@ function routeSupportIntent(query: string, lang: ResponseLanguage, base: Assista
         ? (lang === "en" ? "I found the order number. To check the status securely, please also enter the email used for the order." : "Ho rilevato il numero d’ordine. Per verificare lo stato in modo sicuro, inserisci anche l’e-mail usata per l’ordine.")
         : (lang === "en" ? "Enter your order number to start the secure order flow." : "Inserisci il numero ordine per iniziare la verifica."),
       requires_backend_order_lookup: true,
+      needs_input: true,
+      missing_fields: hasOrderNumber ? ["email"] : ["order_number"],
       order_lookup: { status: hasOrderNumber ? "ask_email" : "ask_order_number", next_step: hasOrderNumber ? "email" : "order_number" },
+      conversation_state: { flow: "order_lookup", order_number: orderNumber || undefined, next_step: hasOrderNumber ? "email" : "order_number" },
+      suggested_replies: hasOrderNumber ? undefined : [lang === "en" ? "I have my order number" : "Ho il numero ordine"],
     };
   }
 
