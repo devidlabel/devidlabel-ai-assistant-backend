@@ -34,6 +34,16 @@ type AssistantSuggestion = {
   url: string;
   type: "product" | "collection" | "search";
   image?: string;
+  title?: string;
+  vendor?: string;
+  handle?: string;
+  price?: string;
+  compare_at_price?: string;
+  discount?: string;
+  availability?: { available: boolean; available_variant_count?: number; total_variant_count?: number };
+  variants?: Array<{ title: string; available?: boolean }>;
+  reason?: string;
+  badge?: string;
 };
 
 type NormalizedQuery = {
@@ -1646,7 +1656,7 @@ type CandidateIntent = {
 type SalesStats = { productId: string; variantIds: string[]; unitsSold30d: number; revenue30d?: number; lastSoldAt?: string };
 type ProductVariantCandidate = { variantId: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null };
 type ProductCollectionCandidate = { handle: string; title: string };
-type ProductCandidate = { productId: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; collections: ProductCollectionCandidate[]; image?: string; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; updatedAt?: string | null; variants: ProductVariantCandidate[] };
+type ProductCandidate = { productId: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; collections: ProductCollectionCandidate[]; image?: string; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; updatedAt?: string | null; price?: string; compareAtPrice?: string; variants: ProductVariantCandidate[] };
 type AvailabilityResult = { isAvailableForRecommendation: boolean; availabilityRatio: number; availableVariantCount: number; totalVariantCount: number; isOneSize: boolean };
 type RankedRecommendation = ProductCandidate & { salesStats?: SalesStats; availability: AvailabilityResult; coherenceScore: number; categoryMatch: "strong" | "medium" | "denied" | "unknown" };
 type RecommendationSnapshot = { recommended_products: AssistantSuggestion[]; devid_label_alternatives: AssistantSuggestion[]; guardrails: string[]; expiresAt: number; ranking_strategy: string; commerce_intent: CommerceQueryIntent; debug?: RecommendationDebugSummary };
@@ -1656,7 +1666,7 @@ type ShopifyDebugError = { stage: string; code: string; message: string };
 type ShopifyDebugResponse = { ok: boolean; source: "shopify_debug"; checks: Record<string, boolean>; auth_token_source: ShopifyAuthTokenSource; shop_domain_hint?: string; api_version: string; products_count_sample?: number; errors: ShopifyDebugError[] };
 
 type ShopifyOrdersData = { orders: { edges: Array<{ node: { processedAt: string; lineItems: { edges: Array<{ node: { quantity: number; discountedTotalSet?: { shopMoney?: { amount?: string } }; product?: { id: string; vendor: string; title: string; productType: string; tags: string[] }; variant?: { id: string } } }> } } }> } };
-type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; updatedAt?: string | null; featuredImage?: { url: string }; collections?: { edges: Array<{ node: { handle: string; title: string } }> }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
+type ShopifyProductsData = { products: { edges: Array<{ node: { id: string; title: string; handle: string; vendor: string; productType: string; tags: string[]; onlineStoreUrl?: string; status?: string; publishedAt?: string | null; updatedAt?: string | null; featuredImage?: { url: string }; priceRangeV2?: { minVariantPrice?: { amount?: string; currencyCode?: string } }; compareAtPriceRange?: { minVariantCompareAtPrice?: { amount?: string; currencyCode?: string } }; collections?: { edges: Array<{ node: { handle: string; title: string } }> }; variants: { edges: Array<{ node: { id: string; title: string; selectedOptions: Array<{ name: string; value: string }>; inventoryQuantity?: number | null; availableForSale?: boolean | null } }> } } }> } };
 type ShopifyCollectionProductsData = { collectionByHandle?: { products: ShopifyProductsData["products"] } | null };
 type RecommendationDebugSummary = { candidateCountBeforeFilters: number; candidateCountAfterFilters: number; excludedReasonCounts: Record<string, number>; topCandidates: Array<{ label: string; handle: string; vendor: string; category: string | null; availability: number; units_sold_30d: number }> };
 
@@ -1780,7 +1790,7 @@ function analyzeCommerceQueryV2(query: string): CommerceQueryIntent {
   if (faq) candidateStrategy = "faq";
   else if (product) candidateStrategy = "product_intent";
   else if (isVendorCategoryQuery) candidateStrategy = "vendor_collection_category";
-  else if (isCategoryOnlyQuery && collectionTargets.length) candidateStrategy = "collection_category";
+  else if (isCategoryOnlyQuery) candidateStrategy = "collection_category";
   else if (isVendorOnlyQuery) candidateStrategy = "vendor_only";
   const confidence = faq ? 0.95 : product ? 0.97 : candidateStrategy === "fallback_search" ? 0.6 : vendor || collectionTargets.length || category ? 0.92 : 0.5;
   const guardrails = ["recommendation_engine_v2", ...(isCategoryOnlyQuery ? ["category_only_uses_collection_targets"] : []), ...(collectionTargets.length ? ["collection_taxonomy_primary"] : [])];
@@ -1878,7 +1888,7 @@ function detectProductIntent(query: string): string | null {
 function candidateIntentFromNormalized(normalized: NormalizedQuery): CandidateIntent | null {
   const commerceIntent = analyzeCommerceQueryV2(normalized.rawQuery);
   if (commerceIntent.productIntent && INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]) return { intent: commerceIntent.productIntent, ...INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]!, commerceIntent };
-  if (!commerceIntent.vendorIntent && commerceIntent.categoryIntent && (commerceIntent.collectionTargets?.length ?? 0) > 0) return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: [commerceIntent.categoryIntent], productTerms: [], categories: [commerceIntent.categoryIntent], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
+  if (!commerceIntent.vendorIntent && commerceIntent.categoryIntent) return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: [commerceIntent.categoryIntent, commerceIntent.genderIntent ?? ""].filter(Boolean), productTerms: [], categories: [commerceIntent.categoryIntent], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
   if (normalized.matchedIntent && INTENT_CANDIDATES[normalized.matchedIntent]) {
     const base = INTENT_CANDIDATES[normalized.matchedIntent]!;
     const shouldUseBaseCategory = !commerceIntent.vendorIntent && !commerceIntent.isVendorOnlyQuery;
@@ -1908,7 +1918,7 @@ async function getRecommendationSnapshot(env: Env, normalized: NormalizedQuery, 
   const ranking = rankRecommendationsWithGuardrails(products, salesStats, candidate, normalized.normalizedQuery);
   const prioritized = candidate.commerceIntent.confidence < 0.85 ? [] : applyForcedProductIntentPriority(ranking.ranked, candidate, normalized.normalizedQuery);
   const strictProductIntent = filterProductIntentRecommendations(prioritized, candidate.commerceIntent.productIntent);
-  const ranked = strictProductIntent.ranked.slice(0, 3);
+  const ranked = applyCoherentDevidLabelPriority(strictProductIntent.ranked, candidate, normalized.normalizedQuery).slice(0, 10);
   const strategy = salesStats.size ? (candidate.commerceIntent.isVendorOnlyQuery ? "vendor_only_semantic_sales_30d" : "vendor_category_gender_semantic_sales_30d") : "semantic_no_recent_sales_fallback";
   const forced = getForcedProductForIntent(ranking.ranked, candidate.commerceIntent.productIntent);
   const recommendationGuardrails = [...guardrails, ...ranking.guardrails, ...strictProductIntent.guardrails, ...(candidate.commerceIntent.guardrails ?? []), ...(candidate.commerceIntent.confidence < 0.85 ? ["recommendations_empty_due_to_low_confidence"] : []), ...(ranking.ranked.length < 1 ? ["no_safe_recommendations"] : []), ...(forced && ranked[0]?.productId === forced.productId ? ["forced_product_intent_applied"] : []), salesStats.size ? "shopify_recommendations_live" : "shopify_recommendations_no_recent_sales_fallback", ...(salesStats.size ? [] : ["no_recent_sales_semantic_fallback_applied"])];
@@ -2100,17 +2110,17 @@ async function fetchRecommendationCandidates(env: Env, candidateIntent: Candidat
 }
 
 async function fetchProductsByQuery(env: Env, terms: string): Promise<ProductCandidate[]> {
-  const data = await shopifyGraphQL<ShopifyProductsData>(env, `query Products($query: String!) { products(first: 50, query: $query) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt updatedAt featuredImage { url } collections(first: 10) { edges { node { handle title } } } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } }`, { query: terms });
+  const data = await shopifyGraphQL<ShopifyProductsData>(env, `query Products($query: String!) { products(first: 50, query: $query) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt updatedAt featuredImage { url } priceRangeV2 { minVariantPrice { amount currencyCode } } compareAtPriceRange { minVariantCompareAtPrice { amount currencyCode } } collections(first: 10) { edges { node { handle title } } } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } }`, { query: terms });
   return mapShopifyProducts(data.products.edges);
 }
 
 async function fetchProductsByCollection(env: Env, handle: string): Promise<ProductCandidate[]> {
-  const data = await shopifyGraphQL<ShopifyCollectionProductsData>(env, `query CollectionProducts($handle: String!) { collectionByHandle(handle: $handle) { products(first: 50) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt updatedAt featuredImage { url } collections(first: 10) { edges { node { handle title } } } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } } }`, { handle });
+  const data = await shopifyGraphQL<ShopifyCollectionProductsData>(env, `query CollectionProducts($handle: String!) { collectionByHandle(handle: $handle) { products(first: 50) { edges { node { id title handle vendor productType tags onlineStoreUrl status publishedAt updatedAt featuredImage { url } priceRangeV2 { minVariantPrice { amount currencyCode } } compareAtPriceRange { minVariantCompareAtPrice { amount currencyCode } } collections(first: 10) { edges { node { handle title } } } variants(first: 50) { edges { node { id title selectedOptions { name value } inventoryQuantity availableForSale } } } } } } } }`, { handle });
   return mapShopifyProducts(data.collectionByHandle?.products.edges ?? []);
 }
 
 function mapShopifyProducts(edges: ShopifyProductsData["products"]["edges"]): ProductCandidate[] {
-  return edges.map(({ node }) => ({ productId: node.id, title: node.title, handle: node.handle, vendor: node.vendor, productType: node.productType, tags: node.tags ?? [], collections: node.collections?.edges.map(({ node: collection }) => ({ handle: collection.handle, title: collection.title })) ?? [], image: node.featuredImage?.url, onlineStoreUrl: node.onlineStoreUrl, status: node.status, publishedAt: node.publishedAt, updatedAt: node.updatedAt, variants: node.variants.edges.map(({ node: variant }) => ({ variantId: variant.id, title: variant.title, selectedOptions: variant.selectedOptions ?? [], inventoryQuantity: variant.inventoryQuantity, availableForSale: variant.availableForSale })) }));
+  return edges.map(({ node }) => ({ productId: node.id, title: node.title, handle: node.handle, vendor: node.vendor, productType: node.productType, tags: node.tags ?? [], collections: node.collections?.edges.map(({ node: collection }) => ({ handle: collection.handle, title: collection.title })) ?? [], image: node.featuredImage?.url, onlineStoreUrl: node.onlineStoreUrl, status: node.status, publishedAt: node.publishedAt, updatedAt: node.updatedAt, price: formatMoney(node.priceRangeV2?.minVariantPrice?.amount, node.priceRangeV2?.minVariantPrice?.currencyCode), compareAtPrice: formatMoney(node.compareAtPriceRange?.minVariantCompareAtPrice?.amount, node.compareAtPriceRange?.minVariantCompareAtPrice?.currencyCode), variants: node.variants.edges.map(({ node: variant }) => ({ variantId: variant.id, title: variant.title, selectedOptions: variant.selectedOptions ?? [], inventoryQuantity: variant.inventoryQuantity, availableForSale: variant.availableForSale })) }));
 }
 
 function computeAvailabilityScore(product: ProductCandidate): AvailabilityResult {
@@ -2304,12 +2314,21 @@ function applyForcedProductIntentPriority(products: RankedRecommendation[], cand
   return [forced, ...products.filter((product) => product.productId !== forced.productId)];
 }
 
+function applyCoherentDevidLabelPriority(products: RankedRecommendation[], candidateIntent: CandidateIntent, normalizedQuery = ""): RankedRecommendation[] {
+  const commerce = candidateIntent.commerceIntent;
+  if (commerce.vendorIntent || commerce.productIntent || !commerce.categoryIntent) return products;
+  const firstDevid = products.find((product) => normalizeQueryText(product.vendor) === "devid label" && isProductCommerciallyCompatible(product, commerce, normalizedQuery, "strong") && (!commerce.genderIntent || commerce.genderIntent === "unisex" || isGenderCompatible(product, commerce.genderIntent)));
+  if (!firstDevid) return products;
+  return [firstDevid, ...products.filter((product) => product.productId !== firstDevid.productId)];
+}
+
 function scoreProductCandidate(product: ProductCandidate, candidate: CandidateIntent, sales?: SalesStats): { score: number; categoryMatch: RankedRecommendation["categoryMatch"] } {
   const commerce = candidate.commerceIntent;
   const text = productSearchText(product);
   let score = 0;
   if (normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor)) score += 100;
   else if (commerce.vendorIntent) score -= 60;
+  if (!commerce.vendorIntent && commerce.categoryIntent && normalizeQueryText(product.vendor) === "devid label" && isProductCommerciallyCompatible(product, commerce, "", "strong")) score += 30;
   const categoryMatch = commerce.categoryIntent ? classifyCategoryCompatibility(detectProductCategory(product), commerce.categoryIntent) : "unknown";
   if (categoryMatch === "strong") score += 80;
   if (categoryMatch === "medium") score += 45;
@@ -2366,7 +2385,16 @@ async function buildDevidLabelAlternatives(env: Env, normalizedIntent: Normalize
 
 function isVariantAvailable(variant: ProductVariantCandidate): boolean { return (typeof variant.inventoryQuantity === "number" && variant.inventoryQuantity > 0) || variant.availableForSale === true; }
 function matchesCandidateProduct(product: Pick<ProductCandidate, "vendor" | "title" | "productType" | "tags">, candidate: CandidateIntent): boolean { const vendorMatches = normalizeQueryText(product.vendor) === normalizeQueryText(candidate.vendor); if (!vendorMatches) return false; if (candidate.commerceIntent.isVendorOnlyQuery) return true; const pseudo = { ...product, collections: [] as ProductCollectionCandidate[] }; const category = candidate.commerceIntent.categoryIntent; if (category && !isProductCommerciallyCompatible(pseudo, candidate.commerceIntent, "", "medium")) return false; return true; }
-function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion { return { label: product.title, message: product.vendor || product.productType || "Recommended product", url: product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`, image: product.image, type: "product" }; }
+function toAssistantSuggestion(product: ProductCandidate): AssistantSuggestion {
+  const availability = computeAvailabilityScore(product);
+  const compare = parseMoneyAmount(product.compareAtPrice);
+  const price = parseMoneyAmount(product.price);
+  const discount = compare && price && compare > price ? `${Math.round(((compare - price) / compare) * 100)}%` : undefined;
+  const badge = normalizeQueryText(product.vendor) === "devid label" ? "Devid Label" : "Best match";
+  return { label: product.title, title: product.title, vendor: product.vendor, handle: product.handle, message: badge, reason: badge, badge, url: product.onlineStoreUrl || (product.handle.startsWith("/products/") ? product.handle : `/products/${product.handle}`), image: product.image, price: product.price, compare_at_price: product.compareAtPrice, discount, availability: { available: availability.isAvailableForRecommendation, available_variant_count: availability.availableVariantCount, total_variant_count: availability.totalVariantCount }, variants: product.variants.slice(0, 10).map((variant) => ({ title: variant.title, available: isVariantAvailable(variant) })), type: "product" };
+}
+function formatMoney(amount?: string, currencyCode = "EUR"): string | undefined { const value = Number(amount); if (!Number.isFinite(value)) return undefined; return `${value.toFixed(2)} ${currencyCode}`; }
+function parseMoneyAmount(value?: string): number | null { const parsed = Number.parseFloat(value ?? ""); return Number.isFinite(parsed) ? parsed : null; }
 function parsePositiveInt(value: string | undefined, fallback: number): number { const parsed = Number.parseInt(value ?? "", 10); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
 
 export { handleShopifyInstallRequest, handleShopifyAuthCallbackRequest, handleShopifyDebugRequest, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken, resolveShopifyAdminAccessToken, analyzeCommerceQuery, detectVendorIntent, detectCategoryIntent, detectGenderIntent, isProductCommerciallyCompatible, isAccessoryProduct, getForcedProductForIntent, scoreProductCandidate, getShopifyAdminAccessToken, shopifyGraphQL, fetchSalesRankLast30Days, fetchCandidateProducts, computeAvailabilityScore, rankRecommendations, buildDevidLabelAlternatives, maskShopDomain, sanitizeDebugError, verifyShopifyHmac, exchangeShopifyOAuthCode, normalizeOrderNumber, isMarketplaceOrder, buildSafeOrderLookup, normalizeTrackingUrl, handleOrderLookupRequest, handleOrderLookupDebugRequest, ORDER_LOOKUP_DEBUG_DEFINITIONS, ORDER_LOOKUP_GRAPHQL_QUERY, determineResponseLanguage, routeDeterministicIntent };

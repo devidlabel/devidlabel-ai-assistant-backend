@@ -57,3 +57,95 @@ if (consoleLines.some((line) => /access_token|SHOPIFY_ADMIN_ACCESS_TOKEN|SHOPIFY
 }
 
 console.log('Shopify auth source checks passed');
+
+
+import { mkdir, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import assert from "node:assert/strict";
+
+const execFileAsync = promisify(execFile);
+const outDir = ".tmp/recommendations-commerce-test";
+await rm(outDir, { recursive: true, force: true });
+await mkdir(outDir, { recursive: true });
+try {
+  await execFileAsync("./node_modules/.bin/tsc", ["src/index.ts", "--target", "ES2022", "--module", "ES2022", "--moduleResolution", "Bundler", "--outDir", outDir, "--skipLibCheck", "--noEmitOnError", "false"]);
+} catch (error) {
+  if (!String(error?.stdout || "").includes("error TS")) throw error;
+}
+const { handleRequest } = await import(`../${outDir}/index.js?cache=${Date.now()}`);
+
+const productNode = (id, title, vendor, handle, tags = [], quantity = 5, amount = "100.00", compare = null) => ({
+  id: `gid://shopify/Product/${id}`,
+  title,
+  handle,
+  vendor,
+  productType: tags[0] || "",
+  tags,
+  onlineStoreUrl: `https://devidlabel.com/products/${handle}`,
+  status: "ACTIVE",
+  publishedAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+  featuredImage: { url: `https://cdn.example/${handle}.jpg` },
+  priceRangeV2: { minVariantPrice: { amount, currencyCode: "EUR" } },
+  compareAtPriceRange: { minVariantCompareAtPrice: compare ? { amount: compare, currencyCode: "EUR" } : null },
+  collections: { edges: [] },
+  variants: { edges: [{ node: { id: `gid://shopify/ProductVariant/${id}`, title: "M", selectedOptions: [{ name: "Taglia", value: "M" }], inventoryQuantity: quantity, availableForSale: quantity > 0 } }] },
+});
+
+const cargoProducts = [
+  productNode(1, "Cargo Courmayeur Devid Label Uomo", "Devid Label", "cargo-courmayeur-devid-label", ["cargo", "uomo"], 6, "129.00", "159.00"),
+  productNode(2, "Cargo Uomo Brand A", "Brand A", "cargo-uomo-brand-a", ["cargo", "uomo"], 4, "119.00"),
+  productNode(3, "Cargo Donna Brand B", "Brand B", "cargo-donna-brand-b", ["cargo", "donna"], 5, "109.00"),
+];
+const saintProducts = [
+  productNode(10, "T-shirt MC2 Saint Barth Uomo", "MC2 Saint Barth", "t-shirt-mc2-saint-barth-uomo", ["t-shirt", "uomo"], 5, "89.00"),
+  productNode(11, "T-shirt Mosca Devid Label Uomo", "Devid Label", "t-shirt-mosca-devid-label", ["t-shirt", "uomo"], 5, "49.00"),
+];
+const tshirts = Array.from({ length: 12 }, (_, index) => productNode(100 + index, `${index === 0 ? "T-shirt Mosca Devid Label Uomo" : `T-shirt Uomo Brand ${index}`}`, index === 0 ? "Devid Label" : `Brand ${index}`, `t-shirt-uomo-${index}`, ["t-shirt", "uomo"], 5, `${49 + index}.00`));
+
+let lastQuery = "";
+globalThis.fetch = async (_url, init) => {
+  const body = JSON.parse(init?.body || "{}");
+  if (body.query.includes("orders")) return new Response(JSON.stringify({ data: { orders: { edges: [] } } }), { status: 200 });
+  lastQuery = body.variables?.query || body.variables?.handle || "";
+  const source = body.variables?.handle ? [...saintProducts, ...tshirts] : /MC2 Saint Barth/i.test(lastQuery) ? saintProducts : /cargo/i.test(lastQuery) ? cargoProducts : tshirts;
+  return new Response(JSON.stringify({ data: { products: { edges: source.map((node) => ({ node })) }, collectionByHandle: { products: { edges: source.map((node) => ({ node })) } } } }), { status: 200 });
+};
+
+async function chat(query, locale = "it") {
+  const request = new Request("https://assistant.test/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, locale, language: locale }) });
+  const response = await handleRequest(request, { SHOPIFY_SHOP_DOMAIN: "devid-label.myshopify.com", SHOPIFY_ADMIN_ACCESS_TOKEN: "shpat_test", SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS: "1" }, { waitUntil() {}, passThroughOnException() {} });
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
+const support = await chat("cash on delivery", "en");
+assert.equal(support.type, "faq", "support intent remains FAQ");
+assert.equal((support.recommended_products || []).length, 0, "support intent does not return products");
+
+const cargo = await chat("pantaloni cargo uomo");
+assert.equal(cargo.type, "product_advice", "shopping intent returns product_advice");
+assert(cargo.recommended_products.length > 0, "shopping intent returns structured products");
+assert.equal(cargo.recommended_products[0].vendor, "Devid Label", "Devid Label is first for coherent cargo uomo");
+assert.equal(cargo.recommended_products[0].badge, "Devid Label", "Devid Label badge is set");
+assert(cargo.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "men request does not show women products first/results after hard filter");
+assert(cargo.recommended_products[0].price && cargo.recommended_products[0].availability, "structured product fields include price and availability");
+assert(cargo.recommended_products.length <= 10, "maximum 10 products");
+
+const saint = await chat("t-shirt saint barth uomo");
+assert.equal(saint.type, "product_advice", "brand shopping intent returns product_advice");
+assert.equal(saint.recommended_products[0].vendor, "MC2 Saint Barth", "requested brand is respected before Devid Label");
+assert.notEqual(saint.recommended_products[0].vendor, "Devid Label", "Devid Label is not forced for requested external brand");
+assert.equal(saint.commerce_intent?.vendor, "MC2 Saint Barth", "commerce intent records requested brand");
+
+const many = await chat("t-shirt uomo");
+assert(many.recommended_products.length <= 10, "generic product carousel is capped at 10");
+assert.equal(many.recommended_products[0].vendor, "Devid Label", "coherent Devid Label item is favored for generic category");
+
+const english = await chat("men t-shirt", "en");
+assert.equal(english.type, "product_advice", "EN shopping intent returns product_advice");
+assert.match(`${english.title} ${english.message}`, /T-shirts|products|collection|show/i, "EN response uses English commerce copy");
+assert.doesNotMatch(`${english.title} ${english.message}`, /Ti mostro|Consigli prodotto/i, "EN response does not leak Italian commerce copy");
+
+console.log("Commerce recommendation routing and ranking tests passed");
