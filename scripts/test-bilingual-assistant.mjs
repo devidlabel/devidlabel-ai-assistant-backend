@@ -14,9 +14,20 @@ try {
 }
 const { handleRequest } = await import(`../${outDir}/index.js?cache=${Date.now()}`);
 
-async function chat(payload) {
+const lookupEnv = { SHOPIFY_SHOP_DOMAIN: "devid-label.myshopify.com", SHOPIFY_ADMIN_ACCESS_TOKEN: "shpat_test" };
+const lookupFetchCalls = [];
+globalThis.fetch = async (_url, init) => {
+  const body = JSON.parse(init?.body || "{}");
+  lookupFetchCalls.push(body);
+  const query = body.variables?.query || "";
+  const found = /91991/.test(query);
+  const node = found ? { name: "#91991", number: 91991, email: "test@example.com", displayFulfillmentStatus: "FULFILLED", cancelledAt: null, sourceName: "web", sourceIdentifier: null, tags: [], customAttributes: [], paymentGatewayNames: [], shippingLines: { edges: [] }, fulfillments: [{ status: "SUCCESS", displayStatus: "FULFILLED", trackingInfo: [{ company: "BRT", number: "TRACK91991", url: "https://tracking.example/TRACK91991" }] }] } : null;
+  return new Response(JSON.stringify({ data: { orders: { edges: node ? [{ node }] : [] } } }), { status: 200, headers: { "content-type": "application/json" } });
+};
+
+async function chat(payload, env = {}) {
   const request = new Request("https://assistant.test/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-  const response = await handleRequest(request, {}, { waitUntil() {}, passThroughOnException() {} });
+  const response = await handleRequest(request, env, { waitUntil() {}, passThroughOnException() {} });
   assert.equal(response.status, 200);
   return response.json();
 }
@@ -79,4 +90,36 @@ for (const testCase of cases) {
   }
 }
 
-console.log(`Validated ${cases.length} bilingual assistant cases, including support-first intent routing checks.`);
+const enStart = await chat({ message: "Where is my order?", ...enContext }, lookupEnv);
+assert.equal(enStart.order_lookup?.status, "ask_order_number", "EN flow starts by asking order number");
+const enNumber = await chat({ message: "91991", ...enContext, conversation_state: enStart.conversation_state }, lookupEnv);
+assert.equal(enNumber.order_lookup?.status, "ask_email", "EN flow asks email after order number");
+const beforeEnEmailCalls = lookupFetchCalls.length;
+const enEmail = await chat({ message: "test@example.com", ...enContext, conversation_state: enNumber.conversation_state }, lookupEnv);
+assert.equal(enEmail.order_lookup?.status, "found", "EN flow reaches final lookup after email");
+assert.match(enEmail.message, /shipped|Tracking|TRACK91991/i, "EN final lookup returns useful order status/tracking");
+assert(lookupFetchCalls.length > beforeEnEmailCalls, "EN email follow-up triggers Shopify lookup");
+assert.doesNotMatch(enEmail.message, /Thanks\. I have the order number and email needed/i, "EN flow must not stop at acknowledgement");
+
+const itStart = await chat({ message: "Dov’è il mio ordine?", ...itContext }, lookupEnv);
+assert.equal(itStart.order_lookup?.status, "ask_order_number", "IT flow starts by asking order number");
+const itNumber = await chat({ message: "91991", ...itContext, conversation_state: itStart.conversation_state }, lookupEnv);
+assert.equal(itNumber.order_lookup?.status, "ask_email", "IT flow asks email after order number");
+const beforeItEmailCalls = lookupFetchCalls.length;
+const itEmail = await chat({ message: "test@example.com", ...itContext, conversation_state: itNumber.conversation_state }, lookupEnv);
+assert.equal(itEmail.order_lookup?.status, "found", "IT flow reaches final lookup after email");
+assert.match(itEmail.message, /spedito|Tracking|TRACK91991/i, "IT final lookup returns useful order status/tracking");
+assert(lookupFetchCalls.length > beforeItEmailCalls, "IT email follow-up triggers Shopify lookup");
+
+const enSingle = await chat({ message: "Where is my order? 91991 test@example.com", ...enContext }, lookupEnv);
+assert.equal(enSingle.order_lookup?.status, "found", "EN single-message order and email reaches lookup");
+const itSingle = await chat({ message: "Dov’è il mio ordine 91991 test@example.com", ...itContext }, lookupEnv);
+assert.equal(itSingle.order_lookup?.status, "found", "IT single-message order and email reaches lookup");
+const enMissing = await chat({ message: "Where is my order? 99999 test@example.com", ...enContext }, lookupEnv);
+assert.equal(enMissing.order_lookup?.status, "not_found", "missing order returns safe not_found");
+assert.match(enMissing.message, /couldn’t find an order matching those details/i, "missing order returns prudent EN copy");
+const enMismatch = await chat({ message: "Where is my order? 91991 wrong@example.com", ...enContext }, lookupEnv);
+assert.equal(enMismatch.order_lookup?.status, "email_mismatch", "email mismatch returns safe status");
+assert(!JSON.stringify(enMismatch).includes("TRACK91991"), "email mismatch must not leak tracking");
+
+console.log(`Validated ${cases.length} bilingual assistant cases, including support-first intent routing and conversational order lookup checks.`);

@@ -75,7 +75,7 @@ type AssistantResponse = {
   commerce_intent?: { vendor: string | null; category: string | null; gender: "uomo" | "donna" | "unisex" | null; product: string | null; confidence: number; is_vendor_only_query: boolean };
   ranking_strategy?: string;
   recommendation_guardrails?: string[];
-  order_lookup?: { status: string; next_step: string };
+  order_lookup?: { status: string; next_step: string; details?: SafeOrderLookup | null };
   needs_input?: boolean;
   missing_fields?: string[];
   conversation_state?: ConversationState | null;
@@ -240,7 +240,7 @@ export async function handleRequest(request: Request, env: Env, _ctx?: Execution
 
   const normalized = normalizeQuery(parsed.payload.query);
   const commerceV2 = analyzeCommerceQueryV2(parsed.payload.query);
-  const contextual = routeContextualConversation(parsed.payload, "ai_backend", normalized);
+  const contextual = await routeContextualConversation(parsed.payload, env, "ai_backend", normalized);
   if (contextual) return json(contextual, 200, corsHeaders);
 
   const deterministic = routeDeterministicIntent(parsed.payload, "ai_backend", normalized, commerceV2);
@@ -954,7 +954,7 @@ function deriveTypeFromQuery(query: string): AssistantResponseType {
 }
 
 
-function routeContextualConversation(payload: SanitizedPayload, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query)): AssistantResponse | null {
+async function routeContextualConversation(payload: SanitizedPayload, env: Env, source: AssistantResponse["source"], normalized = normalizeQuery(payload.query)): Promise<AssistantResponse | null> {
   const lang = payload.responseLanguage;
   const query = normalizeQueryText(payload.query);
   const state = inferConversationState(payload, query);
@@ -964,17 +964,7 @@ function routeContextualConversation(payload: SanitizedPayload, source: Assistan
   const email = normalizeEmail(payload.query) || state.email || "";
   const base = responseBase(source, payload.guardrails, normalized);
   if (orderNumber && email) {
-    return {
-      ...base,
-      type: "order_help",
-      title: lang === "en" ? "Secure order lookup" : "Verifica ordine sicura",
-      message: lang === "en" ? "Thanks. I have the order number and email needed to continue with the secure order lookup." : "Grazie. Ho numero ordine ed e-mail necessari per proseguire con la verifica sicura dell’ordine.",
-      requires_backend_order_lookup: true,
-      needs_input: false,
-      missing_fields: [],
-      order_lookup: { status: "ready", next_step: "lookup" },
-      conversation_state: { flow: "order_lookup", order_number: orderNumber, email, next_step: "lookup" },
-    };
+    return lookupOrderForChat(env, base, orderNumber, email, lang);
   }
   if (orderNumber) {
     return {
@@ -990,6 +980,83 @@ function routeContextualConversation(payload: SanitizedPayload, source: Assistan
     };
   }
   return null;
+}
+
+
+async function lookupOrderForChat(env: Env, base: AssistantResponse, orderNumber: string, email: string, lang: ResponseLanguage): Promise<AssistantResponse> {
+  const state: ConversationState = { flow: "order_lookup", order_number: orderNumber, email, next_step: "none" };
+  const title = lang === "en" ? "Order status" : "Stato ordine";
+  try {
+    const order = await fetchShopifyOrderByNumber(env, orderNumber);
+    if (!order) return {
+      ...base,
+      type: "order_help",
+      title,
+      message: lang === "en" ? "I couldn’t find an order matching those details. Please check the order number and email used at checkout." : "Non ho trovato un ordine corrispondente a questi dati. Controlla numero ordine ed e-mail usata al checkout.",
+      requires_backend_order_lookup: true,
+      needs_input: false,
+      missing_fields: [],
+      order_lookup: { status: "not_found", next_step: "order_number" },
+      conversation_state: { ...state, next_step: "order_number" },
+    };
+    if (isMarketplaceOrder(order)) return {
+      ...base,
+      type: "order_help",
+      title,
+      message: ORDER_LOOKUP_COPY[lang].marketplace,
+      requires_backend_order_lookup: true,
+      needs_input: false,
+      missing_fields: [],
+      order_lookup: { status: "marketplace_unsupported", next_step: "none" },
+      conversation_state: state,
+      guardrails: [...base.guardrails, "marketplace_order_blocked"],
+    };
+    if (!order.email || normalizeEmail(order.email) !== email) return {
+      ...base,
+      type: "order_help",
+      title,
+      message: lang === "en" ? "I couldn’t find an order matching those details. Please check the order number and email used at checkout." : "Non ho trovato un ordine corrispondente a questi dati. Controlla numero ordine ed e-mail usata al checkout.",
+      requires_backend_order_lookup: true,
+      needs_input: false,
+      missing_fields: [],
+      order_lookup: { status: "email_mismatch", next_step: "email" },
+      conversation_state: { ...state, next_step: "email" },
+      guardrails: [...base.guardrails, "email_mismatch_no_order_data_returned"],
+    };
+    const safe = buildSafeOrderLookup(order, lang);
+    return {
+      ...base,
+      type: "order_help",
+      title,
+      message: formatChatOrderFoundMessage(safe, lang),
+      requires_backend_order_lookup: true,
+      needs_input: false,
+      missing_fields: [],
+      order_lookup: { status: "found", next_step: "none", details: safe },
+      conversation_state: state,
+    };
+  } catch (error) {
+    console.error("Chat order lookup unavailable", classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable"));
+    return {
+      ...base,
+      type: "order_help",
+      title,
+      message: lang === "en" ? "I can’t complete the secure order check right now, but I have your order number and email. Please try again shortly or contact customer support with those details." : "Non riesco a completare ora la verifica sicura dell’ordine, ma ho numero ordine ed e-mail. Riprova tra poco o contatta l’assistenza con questi dati.",
+      requires_backend_order_lookup: true,
+      needs_input: false,
+      missing_fields: [],
+      order_lookup: { status: "temporarily_unavailable", next_step: "order_number" },
+      conversation_state: { ...state, next_step: "lookup" },
+      guardrails: [...base.guardrails, "shopify_order_lookup_unavailable"],
+    };
+  }
+}
+
+function formatChatOrderFoundMessage(safe: SafeOrderLookup, lang: ResponseLanguage): string {
+  const tracking = safe.tracking_items.filter((item) => item.number || item.url || item.company);
+  if (!tracking.length) return safe.shipping_message;
+  const lines = tracking.map((item) => [item.company, item.number, item.url].filter(Boolean).join(" - "));
+  return `${safe.shipping_message}${lang === "en" ? " Tracking:" : " Tracking:"} ${lines.join("; ")}`;
 }
 
 function inferConversationState(payload: SanitizedPayload, query: string): ConversationState | null {
@@ -1172,7 +1239,9 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
 function routeSupportIntent(query: string, lang: ResponseLanguage, base: AssistantResponse): AssistantResponse | null {
   if (isOrderQuery(query)) {
     const orderNumber = normalizeOrderNumber(query);
+    const email = normalizeEmail(query);
     const hasOrderNumber = Boolean(orderNumber);
+    if (hasOrderNumber && email) return null;
     return {
       ...base,
       type: "order_help",
