@@ -42,6 +42,7 @@ assert(source.includes('const ORDER_LOOKUP_GRAPHQL_QUERY') && source.includes('O
 
 assert(normalizeOrderNumber('91991') === '91991', 'normalizes bare order number');
 assert(normalizeOrderNumber('#91991') === '91991', 'normalizes hash order number');
+assert(normalizeOrderNumber('  # 91991 ') === '91991', 'normalizes spaced hash order number');
 assert(normalizeOrderNumber('Ordine #91991') === '91991', 'normalizes query order number');
 assert(normalizeTrackingUrl('https://track.test/[[trackingNumber]]', '123') === 'https://track.test/123', 'normalizes BRT placeholder');
 assert(isMarketplaceOrder({ sourceName: 'amazon', tags: [] }), 'detects marketplace internally');
@@ -79,9 +80,9 @@ globalThis.fetch = async (_url, init) => {
   return new Response(JSON.stringify({ data: { orders: { edges: order ? [{ node: order }] : [] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 const env = { SHOPIFY_SHOP_DOMAIN: 'devidlabel.myshopify.com', SHOPIFY_ADMIN_ACCESS_TOKEN: 'shpat_test', ASSISTANT_ADMIN_TOKEN: 'admin' };
-async function lookup(payload) {
+async function lookup(payload, lookupEnv = env) {
   const req = new Request('https://worker.test/order/lookup', { method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json', origin: 'https://devidlabel.com' } });
-  const res = await handleRequest(req, env);
+  const res = await handleRequest(req, lookupEnv);
   return res.json();
 }
 
@@ -128,6 +129,16 @@ assert(r.status === 'not_found' && r.next_step === 'order_number' && r.order_loo
 const beforeInvalid = graphqlCalls;
 r = await lookup({ query: '' });
 assert(r.status === 'invalid_input' && graphqlCalls === beforeInvalid, 'invalid input should not call Shopify');
+
+const savedFetch = globalThis.fetch;
+r = await lookup({ order_number: '11111', email: 'cliente@example.com' }, { SHOPIFY_SHOP_DOMAIN: 'devidlabel.myshopify.com' });
+assert(r.status === 'temporarily_unavailable' && r.guardrails.includes('shopify_token_missing') && r.order_lookup === null, 'missing Shopify token should be diagnosed without looking like not found');
+r = await lookup({ order_number: '11111', email: 'cliente@example.com' }, { SHOPIFY_ADMIN_ACCESS_TOKEN: 'shpat_test' });
+assert(r.status === 'temporarily_unavailable' && r.guardrails.includes('shopify_config_missing') && r.order_lookup === null, 'missing shop domain should be diagnosed without looking like not found');
+globalThis.fetch = async () => new Response(JSON.stringify({ errors: [{ message: 'Unauthorized' }] }), { status: 401, headers: { 'content-type': 'application/json' } });
+r = await lookup({ order_number: '11111', email: 'cliente@example.com' });
+assert(r.status === 'temporarily_unavailable' && r.guardrails.includes('shopify_lookup_unauthorized') && r.order_lookup === null, 'unauthorized Shopify response should be a technical lookup unavailable state');
+globalThis.fetch = savedFetch;
 
 
 async function debugLookup(payload, headers = { 'X-Assistant-Admin-Token': 'admin' }) {
