@@ -349,8 +349,9 @@ async function handleOrderLookupRequest(request: Request, env: Env, corsHeaders:
     const safe = buildSafeOrderLookup(order, input.responseLanguage);
     return json(orderLookupResponse("found", "none", safe.shipping_message, safe, []), 200, corsHeaders);
   } catch (error) {
-    console.error("Order lookup unavailable", classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable"));
-    return json(orderLookupResponse("temporarily_unavailable", "order_number", copy.unavailable, null, ["shopify_order_lookup_unavailable"]), 200, corsHeaders);
+    const guardrail = classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable");
+    console.error("Order lookup unavailable", guardrail);
+    return json(orderLookupResponse("temporarily_unavailable", "order_number", copy.unavailable, null, [guardrail]), 200, corsHeaders);
   }
 }
 
@@ -382,15 +383,27 @@ function normalizeEmail(value: unknown): string {
 function orderLookupResponse(status: OrderLookupStatus, next_step: OrderNextStep, message: string, order_lookup: SafeOrderLookup | null, guardrails: string[]): OrderLookupResponse { return { ok: true, source: "order_lookup", type: "order_lookup", status, next_step, message, order_lookup, guardrails }; }
 
 async function fetchShopifyOrderByNumber(env: Env, orderNumber: string): Promise<ShopifyOrderLookupNode | null> {
-  const fragments = [`name:#${orderNumber}`, `name:${orderNumber}`, `order_number:${orderNumber}`];
+  const normalizedOrderNumber = normalizeOrderNumber(orderNumber);
+  if (!normalizedOrderNumber) throw new Error("shopify_lookup_query_error:invalid_order_number");
+  const hasShopDomain = Boolean(env.SHOPIFY_SHOP_DOMAIN);
+  const hasAdminAuth = Boolean(env.SHOPIFY_ADMIN_ACCESS_TOKEN || env.SHOPIFY_TOKENS_KV);
+  console.info("shopify_order_lookup_started", { normalized_order_number: normalizedOrderNumber, has_admin_auth: hasAdminAuth, has_shop_domain: hasShopDomain });
+  const fragments = [`name:#${normalizedOrderNumber}`, `name:${normalizedOrderNumber}`, `order_number:${normalizedOrderNumber}`];
   for (const query of fragments) {
     const data = await shopifyGraphQL<ShopifyOrderLookupData>(env, ORDER_LOOKUP_GRAPHQL_QUERY, { query });
     const node = data.orders.edges[0]?.node;
-    if (!node) continue;
-    const match = getOrderExactMatch(node, orderNumber);
-    if (match.exact_match) return node;
-    console.warn("shopify_order_lookup_non_exact_match_ignored", { requested_order_number: orderNumber, query_fragment: query, checked_order_number: normalizeOrderNumber(node.name), node_number_matches: String(node.number) === orderNumber, node_name_matches: normalizeOrderNumber(node.name) === orderNumber });
+    if (!node) {
+      console.info("shopify_order_lookup_result", { normalized_order_number: normalizedOrderNumber, query_fragment: query, category: "not_found_fragment" });
+      continue;
+    }
+    const match = getOrderExactMatch(node, normalizedOrderNumber);
+    if (match.exact_match) {
+      console.info("shopify_order_lookup_result", { normalized_order_number: normalizedOrderNumber, query_fragment: query, category: "found", matched_by: match.matched_by });
+      return node;
+    }
+    console.warn("shopify_order_lookup_non_exact_match_ignored", { normalized_order_number: normalizedOrderNumber, query_fragment: query, checked_order_number: normalizeOrderNumber(node.name), node_number_matches: String(node.number) === normalizedOrderNumber, node_name_matches: normalizeOrderNumber(node.name) === normalizedOrderNumber });
   }
+  console.info("shopify_order_lookup_result", { normalized_order_number: normalizedOrderNumber, category: "not_found" });
   return null;
 }
 
@@ -1036,7 +1049,8 @@ async function lookupOrderForChat(env: Env, base: AssistantResponse, orderNumber
       conversation_state: state,
     };
   } catch (error) {
-    console.error("Chat order lookup unavailable", classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable"));
+    const guardrail = classifyShopifyGuardrail(error, "shopify_order_lookup_unavailable");
+    console.error("Chat order lookup unavailable", guardrail);
     return {
       ...base,
       type: "order_help",
@@ -1047,7 +1061,7 @@ async function lookupOrderForChat(env: Env, base: AssistantResponse, orderNumber
       missing_fields: [],
       order_lookup: { status: "temporarily_unavailable", next_step: "order_number" },
       conversation_state: { ...state, next_step: "lookup" },
-      guardrails: [...base.guardrails, "shopify_order_lookup_unavailable"],
+      guardrails: [...base.guardrails, guardrail],
     };
   }
 }
@@ -1973,19 +1987,28 @@ function sanitizeDebugError(error: unknown): { code: string; message: string } {
 }
 
 function classifyKnownShopifyError(message: string): string {
-  if (/shopify_auth|oauth|401|403/i.test(message)) return "shopify_auth_unavailable";
+  if (/shopify_token_missing|shopify_admin_token_missing/i.test(message)) return "shopify_token_missing";
+  if (/shopify_lookup_unauthorized|shopify_status_401/i.test(message)) return "shopify_lookup_unauthorized";
+  if (/shopify_lookup_forbidden|shopify_status_403/i.test(message)) return "shopify_lookup_forbidden";
+  if (/shopify_lookup_rate_limited|shopify_status_429/i.test(message)) return "shopify_lookup_rate_limited";
+  if (/shopify_lookup_query_error|shopify_graphql_validation_error/i.test(message)) return "shopify_lookup_query_error";
   if (/shopify_config|domain/i.test(message)) return "shopify_config_missing";
-  if (/shopify_graphql_validation_error/i.test(message)) return "shopify_graphql_validation_error";
+  if (/shopify_auth|oauth/i.test(message)) return "shopify_auth_unavailable";
   if (/graphql|products|orders|inventory|status|timeout|abort/i.test(message)) return "shopify_graphql_unavailable";
   return "shopify_debug_unavailable";
 }
 
 function classifyShopifyGuardrail(error: unknown, fallback = "shopify_recommendations_unavailable"): string {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  if (/shopify_auth|oauth|401|403/i.test(message)) return "shopify_auth_unavailable";
+  if (/shopify_token_missing|shopify_admin_token_missing/i.test(message)) return "shopify_token_missing";
+  if (/shopify_lookup_unauthorized|shopify_status_401/i.test(message)) return "shopify_lookup_unauthorized";
+  if (/shopify_lookup_forbidden|shopify_status_403/i.test(message)) return "shopify_lookup_forbidden";
+  if (/shopify_lookup_rate_limited|shopify_status_429/i.test(message)) return "shopify_lookup_rate_limited";
+  if (/shopify_lookup_query_error|shopify_graphql_validation_error/i.test(message)) return "shopify_lookup_query_error";
+  if (/shopify_config|domain/i.test(message)) return "shopify_config_missing";
+  if (/shopify_auth|oauth/i.test(message)) return "shopify_auth_unavailable";
   if (/shopify_products_unavailable/i.test(message)) return "shopify_products_unavailable";
   if (/shopify_orders_unavailable/i.test(message)) return "shopify_orders_unavailable";
-  if (/shopify_graphql_validation_error/i.test(message)) return "shopify_graphql_validation_error";
   return fallback;
 }
 
@@ -2006,7 +2029,7 @@ async function resolveShopifyAdminAccessToken(env: Env): Promise<{ accessToken: 
     return { accessToken: env.SHOPIFY_ADMIN_ACCESS_TOKEN, source: "legacy_secret" };
   }
 
-  throw new Error("shopify_admin_token_missing");
+  throw new Error("shopify_token_missing");
 }
 
 async function getShopifyAdminAccessToken(env: Env): Promise<string> {
@@ -2022,9 +2045,18 @@ async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<stri
   const timeout = setTimeout(() => controller.abort(), SHOPIFY_TIMEOUT_MS);
   try {
     const response = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, { method: "POST", headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: controller.signal });
-    if (!response.ok) throw new Error(`shopify_status_${response.status}`);
+    if (!response.ok) {
+      console.warn("shopify_graphql_http_status", { status: response.status });
+      if (response.status === 401) throw new Error("shopify_lookup_unauthorized");
+      if (response.status === 403) throw new Error("shopify_lookup_forbidden");
+      if (response.status === 429) throw new Error("shopify_lookup_rate_limited");
+      throw new Error(`shopify_status_${response.status}`);
+    }
     const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
-    if (payload.errors?.length) throw new Error(`shopify_graphql_validation_error:${payload.errors.map((item) => item.message || "graphql_error").join(" | ").slice(0, 240)}`);
+    if (payload.errors?.length) {
+      console.warn("shopify_graphql_error_category", { category: "shopify_lookup_query_error", count: payload.errors.length });
+      throw new Error(`shopify_lookup_query_error:${payload.errors.map((item) => item.message || "graphql_error").join(" | ").slice(0, 240)}`);
+    }
     if (!payload.data) throw new Error("shopify_empty_data");
     return payload.data;
   } finally { clearTimeout(timeout); }
