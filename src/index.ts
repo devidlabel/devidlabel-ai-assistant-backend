@@ -1109,7 +1109,7 @@ function routeDeterministicIntent(payload: Pick<SanitizedPayload, "query" | "gua
       ...base,
       type: "product_advice",
       title: commerceV2.vendorIntent ? `${commerceV2.vendorIntent}${commerceV2.categoryIntent ? `: ${formatCategoryLabel(commerceV2.categoryIntent, lang)}` : ""}` : commerceV2.categoryIntent ? formatCategoryLabel(commerceV2.categoryIntent, lang) : lang === "en" ? "Product suggestions" : "Consigli prodotto",
-      message: commerceV2.isCategoryOnlyQuery ? (lang === "en" ? "I’ll show products from the most relevant Shopify collection, without forcing a specific brand." : "Ti mostro prodotti dalla collection Shopify più coerente, senza forzare brand specifici.") : commerceV2.isVendorCategoryQuery ? (lang === "en" ? "I’ll show relevant collection products filtered by brand." : "Ti mostro prodotti della collection coerente filtrati per brand.") : (lang === "en" ? "I’ll show relevant products ranked by season, availability and recent sales." : "Ti mostro prodotti coerenti ordinati per stagione, disponibilità e venduto recente."),
+      message: commerceV2.vendorIntent ? (lang === "en" ? `I selected a few ${commerceV2.vendorIntent} styles that match your search.` : `Ho selezionato alcune proposte ${commerceV2.vendorIntent} coerenti con la tua ricerca.`) : (lang === "en" ? "I’ll start with the most relevant Devid Label options, then show available alternatives." : "Parto dai prodotti Devid Label più coerenti, poi ti mostro altri brand disponibili."),
       primary_cta: buildPrimaryCtaForIntent(commerceV2, lang),
       devid_label_alternatives: [],
       cross_sell: commerceV2.categoryIntent === "costumi_mare" ? suggestions([SAFE_DESTINATIONS.bermuda, SAFE_DESTINATIONS.teePolo], lang) : [],
@@ -1389,7 +1389,7 @@ function isFaqQuery(query: string): boolean {
 function isProductQuery(query: string): boolean {
   const normalized = normalizeQuery(query);
   const commerceIntent = analyzeCommerceQuery(query, normalized.normalizedQuery);
-  return Boolean(normalized.matchedIntent || commerceIntent.vendorIntent || commerceIntent.categoryIntent) || /t-?shirt|tshirt|saint barth|replay|jeans|cargo|courmayeur|sprayground|k-?way|costume|mare uomo|bermuda|polo/.test(normalized.normalizedQuery);
+  return Boolean(normalized.matchedIntent || commerceIntent.vendorIntent || commerceIntent.categoryIntent) || /t-?shirt|tshirt|saint barth|replay|jeans|denim|pantaloni|pantalone|pants|trousers|cargo|courmayeur|sprayground|k-?way|costume|mare uomo|bermuda|polo|maglia|maglieria|giacca|giacche/.test(normalized.normalizedQuery);
 }
 
 function normalizeQuery(input: string): NormalizedQuery {
@@ -1624,7 +1624,7 @@ function base64ToBytes(value: string): Uint8Array {
 }
 
 type CommerceGenderIntent = "uomo" | "donna" | "unisex";
-type CommerceCategoryIntent = "tshirt" | "polo" | "jeans" | "costumi_mare" | "bermuda_shorts" | "zaini" | "borse_accessori" | "outerwear" | "felpe" | "camicie" | "top_donna" | "calzature" | "teli_mare" | "cargo" | "maglieria";
+type CommerceCategoryIntent = "tshirt" | "polo" | "pants" | "jeans" | "costumi_mare" | "bermuda_shorts" | "zaini" | "borse_accessori" | "outerwear" | "felpe" | "camicie" | "top_donna" | "calzature" | "teli_mare" | "cargo" | "maglieria";
 type CandidateStrategy = "faq" | "product_intent" | "collection_category" | "vendor_collection_category" | "vendor_only" | "fallback_search";
 type CommerceQueryIntent = {
   normalized_query?: string;
@@ -1687,7 +1687,7 @@ const VENDOR_ALIASES: Array<{ vendor: string; aliases: string[] }> = [
 
 const CATEGORY_KEYWORDS: Record<CommerceCategoryIntent, string[]> = {
   tshirt: ["t shirt", "t-shirt", "tshirt", "tee", "maglietta", "maglia manica corta"],
-  polo: ["polo"], jeans: ["jeans", "denim"],
+  polo: ["polo"], pants: ["pantaloni", "pantalone", "pants", "trousers", "chino", "chinos"], jeans: ["jeans", "denim"],
   costumi_mare: ["costume", "costumi", "boxer mare", "swim shorts", "swimwear", "beachwear", "mare uomo"],
   bermuda_shorts: ["bermuda", "shorts", "short"], zaini: ["zaino", "zaini", "backpack", "bagpack"],
   borse_accessori: ["borsa", "borse", "pochette", "vanity", "clutch", "marsupio"],
@@ -1698,18 +1698,19 @@ const CATEGORY_KEYWORDS: Record<CommerceCategoryIntent, string[]> = {
   maglieria: ["maglieria", "maglia", "cardigan", "girocollo", "scollo v", "serafino", "monterosso"],
 };
 
-const WINTER_KEYWORDS = /(^|\s)(cuffia|beanie|ski|lover\s+ski|winter|wool|lana|cashmere|piumino|giacca\s+pesante|maglia\s+invernale|knitwear\s+invernale)(\s|$)/;
+const WINTER_KEYWORDS = /(^|\s)(cuffia|beanie|sci|neve|ski|snow|winter|inverno|lover\s+ski|wool|lana|cashmere|piumino|giacca\s+pesante|maglia\s+invernale|knitwear\s+invernale)(\s|$)/;
 const SUMMER_KEYWORDS = /(^|\s)(costume|costumi|boxer|boxer\s+mare|mare|beach|swim|swim\s+shorts|swimwear|beachwear|telo|teli|towel|foutas|linen|lino|cotton|cotone|t\s?shirt|t-shirt|tshirt|polo|camicia|camicie|bermuda|short|shorts)(\s|$)/;
 // Gender source terms: uomo|man|male|men|maschile and donna|woman|women|female|femminile.
 const MALE_KEYWORDS = /(^|\s)(uomo|man|men|male|maschile)(\s|$)/;
 const FEMALE_KEYWORDS = /(^|\s)(donna|woman|women|female|femminile)(\s|$)/;
 
 const CATEGORY_COMPATIBILITY: Record<CommerceCategoryIntent, { strong: CommerceCategoryIntent[]; medium: CommerceCategoryIntent[]; deny: CommerceCategoryIntent[] }> = {
-  tshirt: { strong: ["tshirt"], medium: ["polo", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans"] },
-  polo: { strong: ["polo"], medium: ["tshirt", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans"] },
-  costumi_mare: { strong: ["costumi_mare"], medium: ["bermuda_shorts"], deny: ["tshirt", "polo", "jeans", "outerwear", "zaini", "borse_accessori", "calzature", "felpe", "maglieria", "camicie", "top_donna", "teli_mare"] },
-  teli_mare: { strong: ["teli_mare"], medium: [], deny: ["tshirt", "polo", "jeans", "outerwear", "zaini", "borse_accessori"] },
-  jeans: { strong: ["jeans"], medium: ["cargo"], deny: ["tshirt", "polo", "zaini", "borse_accessori", "teli_mare", "costumi_mare"] },
+  tshirt: { strong: ["tshirt"], medium: ["polo", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans", "pants", "cargo"] },
+  polo: { strong: ["polo"], medium: ["tshirt", "maglieria"], deny: ["teli_mare", "costumi_mare", "zaini", "borse_accessori", "calzature", "jeans", "pants", "cargo"] },
+  costumi_mare: { strong: ["costumi_mare"], medium: ["bermuda_shorts"], deny: ["tshirt", "polo", "jeans", "pants", "outerwear", "zaini", "borse_accessori", "calzature", "felpe", "maglieria", "camicie", "top_donna", "teli_mare"] },
+  teli_mare: { strong: ["teli_mare"], medium: [], deny: ["tshirt", "polo", "jeans", "pants", "outerwear", "zaini", "borse_accessori"] },
+  pants: { strong: ["pants", "cargo", "jeans"], medium: ["bermuda_shorts"], deny: ["tshirt", "polo", "zaini", "borse_accessori", "teli_mare", "costumi_mare", "outerwear", "maglieria"] },
+  jeans: { strong: ["jeans"], medium: ["cargo", "pants"], deny: ["tshirt", "polo", "zaini", "borse_accessori", "teli_mare", "costumi_mare"] },
   zaini: { strong: ["zaini"], medium: ["borse_accessori"], deny: ["tshirt", "jeans", "costumi_mare", "teli_mare"] },
   outerwear: { strong: ["outerwear"], medium: ["felpe"], deny: ["teli_mare", "costumi_mare", "tshirt", "borse_accessori", "zaini"] },
   bermuda_shorts: { strong: ["bermuda_shorts"], medium: ["costumi_mare", "cargo"], deny: ["zaini", "teli_mare", "outerwear"] },
@@ -1778,7 +1779,8 @@ function analyzeCommerceQueryV2(query: string): CommerceQueryIntent {
   if (/\btee e polo uomo\b|\bt-shirt uomo\b|\bt shirt uomo\b/.test(normalized)) category = "tshirt";
   if (/\btop donna\b/.test(normalized)) category = "top_donna";
   if (/\btelo|teli|towel|foutas\b/.test(normalized)) category = "teli_mare";
-  if (/\bgiacca|giacche|piumino|giubbino\b/.test(normalized)) category = "outerwear";
+  if (/\bgiacca|giacche|piumino|giubbino|jacket|jackets\b/.test(normalized)) category = "outerwear";
+  if (/\bpantaloni|pantalone|pants|trousers|chino|chinos\b/.test(normalized)) category = /\bcargo|courma|courmayeur\b/.test(normalized) ? "cargo" : "pants";
   if (/\bzaino|zaini|backpack\b/.test(normalized)) category = "zaini";
   const faq = isFaqQuery(normalized) || isOrderQuery(normalized);
   const isVendorOnlyQuery = Boolean(vendor) && !category && !gender && !product;
@@ -1826,7 +1828,7 @@ function buildPrimaryCtaForIntent(intent: CommerceQueryIntent, lang: ResponseLan
 
 function formatCategoryLabel(category: CommerceCategoryIntent, lang: ResponseLanguage): string {
   const labels: Record<CommerceCategoryIntent, { it: string; en: string }> = {
-    tshirt: { it: "t-shirt", en: "T-shirts" }, polo: { it: "polo", en: "Polo shirts" }, jeans: { it: "jeans", en: "Jeans" }, costumi_mare: { it: "costumi mare", en: "Swimwear" }, bermuda_shorts: { it: "bermuda shorts", en: "Bermuda shorts" }, zaini: { it: "zaini", en: "Backpacks" }, borse_accessori: { it: "borse e accessori", en: "Bags and accessories" }, outerwear: { it: "outerwear", en: "Outerwear" }, felpe: { it: "felpe", en: "Sweatshirts" }, camicie: { it: "camicie", en: "Shirts" }, top_donna: { it: "top donna", en: "Women’s tops" }, calzature: { it: "calzature", en: "Shoes" }, teli_mare: { it: "teli mare", en: "Beach towels" }, cargo: { it: "cargo", en: "Cargo pants" }, maglieria: { it: "maglieria", en: "Knitwear" },
+    tshirt: { it: "t-shirt", en: "T-shirts" }, polo: { it: "polo", en: "Polo shirts" }, jeans: { it: "jeans", en: "Jeans" }, costumi_mare: { it: "costumi mare", en: "Swimwear" }, bermuda_shorts: { it: "bermuda shorts", en: "Bermuda shorts" }, zaini: { it: "zaini", en: "Backpacks" }, borse_accessori: { it: "borse e accessori", en: "Bags and accessories" }, outerwear: { it: "outerwear", en: "Outerwear" }, pants: { it: "pantaloni", en: "Pants" }, felpe: { it: "felpe", en: "Sweatshirts" }, camicie: { it: "camicie", en: "Shirts" }, top_donna: { it: "top donna", en: "Women’s tops" }, calzature: { it: "calzature", en: "Shoes" }, teli_mare: { it: "teli mare", en: "Beach towels" }, cargo: { it: "cargo", en: "Cargo pants" }, maglieria: { it: "maglieria", en: "Knitwear" },
   };
   return labels[category][lang];
 }
@@ -1885,10 +1887,28 @@ function detectProductIntent(query: string): string | null {
   return null;
 }
 
+function buildCategorySearchTerms(intent: CommerceQueryIntent): string[] {
+  const categoryTerms: Record<CommerceCategoryIntent, string[]> = {
+    tshirt: ["t-shirt", "tshirt", "maglietta"], polo: ["polo"], pants: ["pantaloni", "pantalone", "chino"], jeans: ["jeans", "denim"], costumi_mare: ["costume", "costumi", "boxer mare"], bermuda_shorts: ["bermuda", "shorts"], zaini: ["zaino", "backpack"], borse_accessori: ["borsa", "accessori"], outerwear: ["giacca", "giacche", "outerwear"], felpe: ["felpa", "hoodie"], camicie: ["camicia", "camicie"], top_donna: ["top", "t-shirt"], calzature: ["scarpe", "sneakers"], teli_mare: ["telo", "foutas"], cargo: ["cargo", "pantaloni cargo"], maglieria: ["maglia", "maglieria", "knitwear"],
+  };
+  const terms = intent.categoryIntent ? [...categoryTerms[intent.categoryIntent]] : [];
+  if (intent.genderIntent) terms.push(intent.genderIntent);
+  return terms;
+}
+
+function computeRecencyScore(product: Pick<ProductCandidate, "publishedAt" | "updatedAt" | "status">): number {
+  const dateValue = product.publishedAt || product.updatedAt || "";
+  const ts = Date.parse(dateValue);
+  const activeBoost = product.status === "ACTIVE" || product.publishedAt ? 20 : 0;
+  if (!Number.isFinite(ts)) return activeBoost;
+  const ageDays = Math.max(0, (Date.now() - ts) / 86400000);
+  return activeBoost + Math.max(0, 80 - Math.min(80, ageDays / 7));
+}
+
 function candidateIntentFromNormalized(normalized: NormalizedQuery): CandidateIntent | null {
   const commerceIntent = analyzeCommerceQueryV2(normalized.rawQuery);
   if (commerceIntent.productIntent && INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]) return { intent: commerceIntent.productIntent, ...INTENT_CANDIDATES[commerceIntent.productIntent as ProductIntent]!, commerceIntent };
-  if (!commerceIntent.vendorIntent && commerceIntent.categoryIntent) return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: [commerceIntent.categoryIntent, commerceIntent.genderIntent ?? ""].filter(Boolean), productTerms: [], categories: [commerceIntent.categoryIntent], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
+  if (!commerceIntent.vendorIntent && commerceIntent.categoryIntent) return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: buildCategorySearchTerms(commerceIntent), productTerms: [], categories: [commerceIntent.categoryIntent], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
   if (normalized.matchedIntent && INTENT_CANDIDATES[normalized.matchedIntent]) {
     const base = INTENT_CANDIDATES[normalized.matchedIntent]!;
     const shouldUseBaseCategory = !commerceIntent.vendorIntent && !commerceIntent.isVendorOnlyQuery;
@@ -1896,9 +1916,9 @@ function candidateIntentFromNormalized(normalized: NormalizedQuery): CandidateIn
   }
   if (!commerceIntent.vendorIntent) {
     if (commerceIntent.categoryIntent === "costumi_mare") {
-      return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: [commerceIntent.categoryIntent ?? ""], productTerms: [], categories: commerceIntent.categoryIntent ? [commerceIntent.categoryIntent] : [], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
+      return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: buildCategorySearchTerms(commerceIntent), productTerms: [], categories: commerceIntent.categoryIntent ? [commerceIntent.categoryIntent] : [], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
     }
-    if (commerceIntent.categoryIntent && (commerceIntent.collectionTargets?.length ?? 0) > 0) return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: [commerceIntent.categoryIntent], productTerms: [], categories: [commerceIntent.categoryIntent], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
+    if (commerceIntent.categoryIntent && (commerceIntent.collectionTargets?.length ?? 0) > 0) return { intent: `category:${commerceIntent.categoryIntent}:${commerceIntent.genderIntent ?? "any"}`, vendor: "", queryTerms: buildCategorySearchTerms(commerceIntent), productTerms: [], categories: [commerceIntent.categoryIntent], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
     return null;
   }
   return { intent: `vendor:${commerceIntent.vendorIntent}:${commerceIntent.categoryIntent ?? "any"}:${commerceIntent.genderIntent ?? "any"}`, vendor: commerceIntent.vendorIntent, queryTerms: [commerceIntent.vendorIntent], productTerms: commerceIntent.productIntent ? [commerceIntent.productIntent] : [], categories: commerceIntent.categoryIntent ? [commerceIntent.categoryIntent] : [], gender: commerceIntent.genderIntent ?? undefined, commerceIntent };
@@ -2189,7 +2209,7 @@ function rankRecommendationsWithGuardrails(products: ProductCandidate[], salesSt
   guardrails.push("final_strict_recommendation_filter_applied");
   if (compatible.length < beforeFinal) guardrails.push("final_incoherent_products_excluded");
 
-  return { ranked: compatible.sort((a, b) => b.coherenceScore - a.coherenceScore || (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE"))), guardrails };
+  return { ranked: compatible.sort((a, b) => b.coherenceScore - a.coherenceScore || computeRecencyScore(b) - computeRecencyScore(a) || (b.salesStats?.unitsSold30d ?? 0) - (a.salesStats?.unitsSold30d ?? 0) || b.availability.availabilityRatio - a.availability.availabilityRatio || Number(Boolean(b.publishedAt || b.status === "ACTIVE")) - Number(Boolean(a.publishedAt || a.status === "ACTIVE"))), guardrails };
 }
 
 function isFinalRecommendationAllowed(product: RankedRecommendation, commerceIntent: CommerceQueryIntent, normalizedQuery = ""): boolean {
@@ -2249,7 +2269,9 @@ function getSeasonSignal(product: Pick<ProductCandidate, "title" | "productType"
 }
 
 function isWinterProduct(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): boolean { return getSeasonSignal(product) === "winter"; }
-function requiresSummerContext(commerceIntent: CommerceQueryIntent, normalizedQuery = ""): boolean { return commerceIntent.isVendorOnlyQuery || commerceIntent.categoryIntent === "costumi_mare" || /(^|\s)(mare|costume|costumi|boxer|swim|beach)(\s|$)/.test(normalizedQuery); }
+function requiresSummerContext(commerceIntent: CommerceQueryIntent, normalizedQuery = ""): boolean { return commerceIntent.isVendorOnlyQuery || commerceIntent.categoryIntent === "costumi_mare" || /(^|\s)(mare|costume|costumi|boxer|swim|beach|estate|summer)(\s|$)/.test(normalizedQuery); }
+function allowsWinterContext(normalizedQuery = ""): boolean { return /(^|\s)(sci|neve|inverno|ski|snow|winter)(\s|$)/.test(normalizedQuery); }
+function isGenericNonWinterQuery(commerceIntent: CommerceQueryIntent, normalizedQuery = ""): boolean { return Boolean(commerceIntent.categoryIntent) && !allowsWinterContext(normalizedQuery); }
 
 function isProductCommerciallyCompatible(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }, commerceIntent: CommerceQueryIntent, normalizedQuery = "", mode: "strong" | "medium" = "strong"): boolean {
   if (!commerceIntent.categoryIntent || commerceIntent.isVendorOnlyQuery) return true;
@@ -2263,6 +2285,7 @@ function isProductCommerciallyCompatible(product: Pick<ProductCandidate, "title"
     if (mode === "medium" && categoryMatch === "medium") return hasMediumSwimwearSignal(product);
     return false;
   }
+  if (isGenericNonWinterQuery(commerceIntent, normalizedQuery) && isWinterProduct(product)) return false;
   if (commerceIntent.categoryIntent === "tshirt" && /(^|\s)(costume|costumi|boxer|swim|telo|teli|towel|foutas|cuffia|cappello|beanie|borsa|pochette)(\s|$)/.test(productSearchText(product))) return false;
   if (commerceIntent.productIntent) return categoryMatch === "strong";
   if (categoryMatch === "strong") return true;
@@ -2342,7 +2365,8 @@ function scoreProductCandidate(product: ProductCandidate, candidate: CandidateIn
   if (commerce.productIntent && text.includes(normalizeQueryText(commerce.productIntent.replace(/_/g, " ")))) score += 30;
   const season = getSeasonSignal(product);
   if (requiresSummerContext(commerce, "") && season === "summer") score += 35;
-  if (requiresSummerContext(commerce, "") && season === "winter") score -= 160;
+  if (season === "winter" && !allowsWinterContext(commerce.normalized_query ?? "")) score -= 220;
+  score += computeRecencyScore(product);
   if (commerce.isVendorOnlyQuery && isAccessoryProduct(product)) score -= 25;
   const availability = computeAvailabilityScore(product); score += Math.round(availability.availabilityRatio * 20);
   score += Math.min(25, sales?.unitsSold30d ?? 0);
@@ -2361,11 +2385,14 @@ function detectProductCategory(product: ProductCandidate | Pick<ProductCandidate
   if (productTypeCategory) return productTypeCategory;
   const tagsCategory = detectCategoryIntent(normalizeQueryText(((product as ProductCandidate).tags ?? []).join(" ")));
   if (tagsCategory) return tagsCategory;
-  return detectCategoryIntent(productSearchText(product));
+  const textCategory = detectCategoryIntent(productSearchText(product));
+  if (textCategory) return textCategory;
+  if (/(^|\s)(chino|pantalone|pantaloni|pants|trousers)(\s|$)/.test(preciseText)) return "pants";
+  return null;
 }
 function productSearchText(product: Pick<ProductCandidate, "title" | "productType" | "tags"> & { handle?: string; vendor?: string; collections?: ProductCollectionCandidate[] }): string { return normalizeQueryText([product.title, product.handle, product.vendor, product.productType, ...(product.tags ?? []), ...((product.collections ?? []).flatMap((c) => [c.handle, c.title]))].filter(Boolean).join(" ")); }
 function classifyCategoryCompatibility(productCategory: CommerceCategoryIntent | null, queryCategory: CommerceCategoryIntent): RankedRecommendation["categoryMatch"] { const map = CATEGORY_COMPATIBILITY[queryCategory]; if (!productCategory) return "unknown"; if (map.strong.includes(productCategory)) return "strong"; if (map.medium.includes(productCategory)) return "medium"; if (map.deny.includes(productCategory)) return "denied"; return "unknown"; }
-function isApparelCategory(category: CommerceCategoryIntent): boolean { return ["tshirt", "polo", "jeans", "outerwear", "felpe", "camicie", "top_donna", "cargo", "maglieria", "bermuda_shorts"].includes(category); }
+function isApparelCategory(category: CommerceCategoryIntent): boolean { return ["tshirt", "polo", "jeans", "pants", "outerwear", "felpe", "camicie", "top_donna", "cargo", "maglieria", "bermuda_shorts"].includes(category); }
 
 async function buildDevidLabelAlternatives(env: Env, normalizedIntent: NormalizedQuery, mainIntent: CandidateIntent): Promise<AssistantSuggestion[]> {
   if (mainIntent.forceNoDevidAlternatives) return [];
