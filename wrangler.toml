@@ -8,3 +8,6 @@ ASSISTANT_MODEL = "gpt-4o-mini"
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
 SHOPIFY_API_VERSION = "2025-10"
 SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS = "3600"
+[[kv_namespaces]]
+binding = "SHOPIFY_TOKENS_KV"
+id = "1677a2da44da455fa3b15977ff0099e4"
