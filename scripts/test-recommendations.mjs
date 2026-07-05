@@ -104,8 +104,12 @@ const saintProducts = [
 ];
 const tshirts = Array.from({ length: 12 }, (_, index) => productNode(100 + index, `${index === 0 ? "T-shirt Mosca Devid Label Uomo" : `T-shirt Uomo Brand ${index}`}`, index === 0 ? "Devid Label" : `Brand ${index}`, `t-shirt-uomo-${index}`, ["t-shirt", "uomo"], 5, `${49 + index}.00`));
 const maglie = [
-  productNode(200, "Maglia Monterosso Devid Label Uomo", "Devid Label", "maglia-monterosso-devid-label-uomo", ["maglieria", "uomo", "cotone"], 5, "99.00"),
-  productNode(201, "Maglia MC2 Saint Barth Donna Winter", "MC2 Saint Barth", "maglia-mc2-saint-barth-donna-winter", ["maglieria", "donna", "winter"], 5, "149.00"),
+  productNode(200, "Maglia Cotone Devid Label Uomo SS26", "Devid Label", "maglia-cotone-devid-label-uomo-ss26", ["topwear", "maglieria", "uomo", "cotone", "SS26", "PE2026"], 5, "99.00"),
+  productNode(201, "Vision of Super Black Sweater With Star Hole Nero", "Vision of Super", "vision-of-super-black-sweater-star-hole-nero", ["sweater", "winter"], 5, "149.00"),
+  productNode(202, "Vision of Super Offwhite Sweater With Embroired", "Vision of Super", "vision-of-super-offwhite-sweater-embroired", ["sweater", "winter"], 5, "149.00"),
+  productNode(203, "MC2 Saint Barth Maglia New queen Vacanze di Natale", "MC2 Saint Barth", "mc2-saint-barth-maglia-new-queen-vacanze-di-natale", ["maglia", "Natale", "winter"], 5, "129.00"),
+  productNode(204, "MC2 Saint Barth Maglia Heron light", "MC2 Saint Barth", "mc2-saint-barth-maglia-heron-light", ["maglia", "light"], 5, "119.00"),
+  productNode(205, "Maglia Donna Brand", "Brand B", "maglia-donna-brand", ["maglieria", "donna"], 5, "109.00"),
 ];
 const pants = [
   productNode(300, "Pantalone Chino Devid Label Uomo", "Devid Label", "pantalone-chino-devid-label-uomo", ["pantaloni", "uomo", "chino"], 5, "119.00"),
@@ -137,6 +141,9 @@ async function chat(query, locale = "it") {
 const support = await chat("cash on delivery", "en");
 assert.equal(support.type, "faq", "support intent remains FAQ");
 assert.equal((support.recommended_products || []).length, 0, "support intent does not return products");
+const pagamento = await chat("pagamento alla consegna");
+assert.equal(pagamento.type, "faq", "cash payment FAQ remains FAQ");
+assert.equal((pagamento.recommended_products || []).length, 0, "cash payment FAQ does not return products");
 const reso = await chat("reso facile");
 assert.equal(reso.type, "faq", "return FAQ remains FAQ");
 assert.equal((reso.recommended_products || []).length, 0, "return FAQ does not return products");
@@ -144,6 +151,9 @@ assert.equal((reso.recommended_products || []).length, 0, "return FAQ does not r
 const maglia = await chat("maglia");
 assert.equal(maglia.type, "product_advice", "maglia returns product_advice");
 assert.equal(maglia.recommended_products[0].vendor, "Devid Label", "generic maglia favors coherent Devid Label");
+assert(!/Vision of Super|Vacanze di Natale/i.test(`${maglia.recommended_products[0].title} ${maglia.recommended_products[0].vendor}`), "generic maglia does not start with Vision of Super or MC2 Natale");
+assert(!maglia.message.includes("Parto dai prodotti Devid Label") || maglia.recommended_products[0].vendor === "Devid Label", "copy promising Devid Label matches carousel order");
+assert(maglia.recommended_products.every((item) => !/sweater|winter|natale|christmas/i.test(`${item.title} ${item.handle}`)), "generic maglia excludes winter/Natale products when coherent Devid Label exists");
 const magliaUomo = await chat("maglia uomo");
 assert(magliaUomo.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "maglia uomo excludes women products");
 const pantaloni = await chat("pantaloni");
