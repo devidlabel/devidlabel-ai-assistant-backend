@@ -75,23 +75,32 @@ try {
 }
 const { handleRequest } = await import(`../${outDir}/index.js?cache=${Date.now()}`);
 
-const productNode = (id, title, vendor, handle, tags = [], quantity = 5, amount = "100.00", compare = null) => ({
+const productNode = (id, title, vendor, handle, productTypeOrTags = [], tagsOrQuantity = 5, quantityOrAmount = "100.00", amountOrCompare = null, maybeCompare = null) => {
+  const hasStructuredType = typeof productTypeOrTags === "string";
+  const productType = hasStructuredType ? productTypeOrTags : productTypeOrTags[0] || "";
+  const tags = hasStructuredType ? tagsOrQuantity : productTypeOrTags;
+  const quantity = hasStructuredType ? quantityOrAmount : tagsOrQuantity;
+  const amount = hasStructuredType ? amountOrCompare : quantityOrAmount;
+  const compare = hasStructuredType ? maybeCompare : amountOrCompare;
+  return ({
   id: `gid://shopify/Product/${id}`,
   title,
   handle,
   vendor,
-  productType: tags[0] || "",
+  productType,
   tags,
   onlineStoreUrl: `https://devidlabel.com/products/${handle}`,
   status: "ACTIVE",
   publishedAt: "2026-01-01T00:00:00Z",
+  createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
+  totalInventory: quantity,
   featuredImage: { url: `https://cdn.example/${handle}.jpg` },
   priceRangeV2: { minVariantPrice: { amount, currencyCode: "EUR" } },
   compareAtPriceRange: { minVariantCompareAtPrice: compare ? { amount: compare, currencyCode: "EUR" } : null },
   collections: { edges: [] },
   variants: { edges: [{ node: { id: `gid://shopify/ProductVariant/${id}`, title: "M", selectedOptions: [{ name: "Taglia", value: "M" }], inventoryQuantity: quantity, availableForSale: quantity > 0 } }] },
-});
+})};
 
 const cargoProducts = [
   productNode(1, "Cargo Courmayeur Devid Label Uomo", "Devid Label", "cargo-courmayeur-devid-label", ["cargo", "uomo"], 6, "129.00", "159.00"),
@@ -121,13 +130,19 @@ const jackets = [
   productNode(400, "Giacca Uomo Devid Label", "Devid Label", "giacca-uomo-devid-label", ["giacca", "outerwear", "uomo"], 5, "189.00"),
   productNode(401, "Giacca Donna Brand", "Brand B", "giacca-donna-brand", ["giacca", "outerwear", "donna"], 5, "179.00"),
 ];
+const polos = [
+  productNode(500, "Devid Label Alassio – Polo in Maglia di Cotone Premium", "Devid Label", "devid-label-alassio-polo-maglia-cotone", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "99.00"),
+  productNode(501, "Devid Label Mima - Polo In Cotone Spugna Premium Soft Touch", "Devid Label", "devid-label-mima-polo-cotone-spugna", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "89.00"),
+  productNode(502, "Polo Ralph Lauren Holiday Bear Sock", "Polo Ralph Lauren", "polo-ralph-lauren-holiday-bear-sock", "Calze", ["COL:Intimo_Calze", "COL:Uomo"], 5, "29.00"),
+  productNode(503, "Polo Ralph Lauren T-shirt Uomo", "Polo Ralph Lauren", "polo-ralph-lauren-t-shirt-uomo", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "79.00"),
+];
 
 let lastQuery = "";
 globalThis.fetch = async (_url, init) => {
   const body = JSON.parse(init?.body || "{}");
   if (body.query.includes("orders")) return new Response(JSON.stringify({ data: { orders: { edges: [] } } }), { status: 200 });
   lastQuery = body.variables?.query || body.variables?.handle || "";
-  const source = body.variables?.handle ? [...saintProducts, ...tshirts, ...maglie, ...pants, ...jackets, ...cargoProducts] : /MC2 Saint Barth/i.test(lastQuery) ? saintProducts : /cargo/i.test(lastQuery) ? cargoProducts : /maglia|maglieria/i.test(lastQuery) ? maglie : /pantaloni|pantalone|chino|pants/i.test(lastQuery) ? pants : /giacca|giacche|outerwear|jacket/i.test(lastQuery) ? jackets : tshirts;
+  const source = body.variables?.handle ? [...saintProducts, ...tshirts, ...maglie, ...pants, ...jackets, ...cargoProducts, ...polos] : /MC2 Saint Barth/i.test(lastQuery) ? saintProducts : /\bpolo\b/i.test(lastQuery) ? polos : /cargo/i.test(lastQuery) ? cargoProducts : /maglia|maglieria|knitwear/i.test(lastQuery) ? maglie : /pantaloni|pantalone|chino|pants/i.test(lastQuery) ? pants : /giacca|giacche|outerwear|jacket/i.test(lastQuery) ? jackets : tshirts;
   return new Response(JSON.stringify({ data: { products: { edges: source.map((node) => ({ node })) }, collectionByHandle: { products: { edges: source.map((node) => ({ node })) } } } }), { status: 200 });
 };
 
@@ -147,6 +162,13 @@ assert.equal((pagamento.recommended_products || []).length, 0, "cash payment FAQ
 const reso = await chat("reso facile");
 assert.equal(reso.type, "faq", "return FAQ remains FAQ");
 assert.equal((reso.recommended_products || []).length, 0, "return FAQ does not return products");
+
+const polo = await chat("polo");
+assert.equal(polo.type, "product_advice", "polo returns product_advice");
+assert.equal(polo.recommended_products[0].vendor, "Devid Label", "generic polo favors coherent Devid Label");
+assert.match(polo.recommended_products[0].title, /polo/i, "first polo result is a real polo product");
+assert(polo.recommended_products.every((item) => !/sock|calz|intimo/i.test(`${item.title} ${item.handle} ${item.vendor}`)), "polo excludes Polo Ralph Lauren socks/intimo false vendor match");
+assert(!polo.message.includes("Parto dai prodotti Devid Label") || polo.recommended_products[0].vendor === "Devid Label", "polo copy promising Devid Label matches carousel order");
 
 const maglia = await chat("maglia");
 assert.equal(maglia.type, "product_advice", "maglia returns product_advice");
@@ -175,6 +197,10 @@ assert.equal(cargo.recommended_products[0].badge, "Devid Label", "Devid Label ba
 assert(cargo.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "men request does not show women products first/results after hard filter");
 assert(cargo.recommended_products[0].price && cargo.recommended_products[0].availability, "structured product fields include price and availability");
 assert(cargo.recommended_products.length <= 10, "maximum 10 products");
+const cargoPlain = await chat("cargo");
+assert(cargoPlain.recommended_products.length > 0, "plain cargo does not return zero products");
+assert.equal(cargoPlain.recommended_products[0].vendor, "Devid Label", "plain cargo favors Devid Label cargo");
+assert(cargoPlain.recommended_products.every((item) => /cargo|courma|courmayeur|portorico|rovic|culebra/i.test(`${item.title} ${item.handle}`)), "cargo results require cargo model signal");
 
 const saint = await chat("t-shirt saint barth uomo");
 assert.equal(saint.type, "product_advice", "brand shopping intent returns product_advice");
@@ -188,6 +214,8 @@ assert.equal(many.recommended_products[0].vendor, "Devid Label", "coherent Devid
 
 const enPants = await chat("men pants", "en");
 assert(enPants.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "EN men pants excludes women products");
+const enPolo = await chat("men polo", "en");
+assert.equal(enPolo.recommended_products[0].vendor, "Devid Label", "EN men polo favors coherent Devid Label");
 const enCargo = await chat("men cargo pants", "en");
 assert.equal(enCargo.recommended_products[0].vendor, "Devid Label", "EN men cargo pants favors Devid Label");
 const enJackets = await chat("men jackets", "en");
