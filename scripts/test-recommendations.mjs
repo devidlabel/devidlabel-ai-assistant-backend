@@ -102,39 +102,27 @@ const productNode = (id, title, vendor, handle, productTypeOrTags = [], tagsOrQu
   variants: { edges: [{ node: { id: `gid://shopify/ProductVariant/${id}`, title: "M", selectedOptions: [{ name: "Taglia", value: "M" }], inventoryQuantity: quantity, availableForSale: quantity > 0 } }] },
 })};
 
-const cargoProducts = [
-  productNode(1, "Cargo Courmayeur Devid Label Uomo", "Devid Label", "cargo-courmayeur-devid-label", ["cargo", "uomo"], 6, "129.00", "159.00"),
-  productNode(2, "Cargo Uomo Brand A", "Brand A", "cargo-uomo-brand-a", ["cargo", "uomo"], 4, "119.00"),
-  productNode(3, "Cargo Donna Brand B", "Brand B", "cargo-donna-brand-b", ["cargo", "donna"], 5, "109.00"),
-];
-const saintProducts = [
-  productNode(10, "T-shirt MC2 Saint Barth Uomo", "MC2 Saint Barth", "t-shirt-mc2-saint-barth-uomo", ["t-shirt", "uomo"], 5, "89.00"),
-  productNode(11, "T-shirt Mosca Devid Label Uomo", "Devid Label", "t-shirt-mosca-devid-label", ["t-shirt", "uomo"], 5, "49.00"),
-];
-const tshirts = Array.from({ length: 12 }, (_, index) => productNode(100 + index, `${index === 0 ? "T-shirt Mosca Devid Label Uomo" : `T-shirt Uomo Brand ${index}`}`, index === 0 ? "Devid Label" : `Brand ${index}`, `t-shirt-uomo-${index}`, ["t-shirt", "uomo"], 5, `${49 + index}.00`));
-const maglie = [
-  productNode(200, "Maglia Cotone Devid Label Uomo SS26", "Devid Label", "maglia-cotone-devid-label-uomo-ss26", ["topwear", "maglieria", "uomo", "cotone", "SS26", "PE2026"], 5, "99.00"),
-  productNode(201, "Vision of Super Black Sweater With Star Hole Nero", "Vision of Super", "vision-of-super-black-sweater-star-hole-nero", ["sweater", "winter"], 5, "149.00"),
-  productNode(202, "Vision of Super Offwhite Sweater With Embroired", "Vision of Super", "vision-of-super-offwhite-sweater-embroired", ["sweater", "winter"], 5, "149.00"),
-  productNode(203, "MC2 Saint Barth Maglia New queen Vacanze di Natale", "MC2 Saint Barth", "mc2-saint-barth-maglia-new-queen-vacanze-di-natale", ["maglia", "Natale", "winter"], 5, "129.00"),
-  productNode(204, "MC2 Saint Barth Maglia Heron light", "MC2 Saint Barth", "mc2-saint-barth-maglia-heron-light", ["maglia", "light"], 5, "119.00"),
-  productNode(205, "Maglia Donna Brand", "Brand B", "maglia-donna-brand", ["maglieria", "donna"], 5, "109.00"),
-];
-const pants = [
-  productNode(300, "Pantalone Chino Devid Label Uomo", "Devid Label", "pantalone-chino-devid-label-uomo", ["pantaloni", "uomo", "chino"], 5, "119.00"),
-  productNode(301, "Pantaloni da sci K-Way Uomo", "K-Way", "pantaloni-sci-k-way-uomo", ["pantaloni", "uomo", "sci", "winter"], 5, "199.00"),
-  productNode(302, "Jeans Replay Uomo", "Replay", "jeans-replay-uomo", ["jeans", "uomo"], 5, "139.00"),
-  productNode(303, "Pantalone Donna Brand", "Brand B", "pantalone-donna-brand", ["pantaloni", "donna"], 5, "109.00"),
-];
-const jackets = [
-  productNode(400, "Giacca Uomo Devid Label", "Devid Label", "giacca-uomo-devid-label", ["giacca", "outerwear", "uomo"], 5, "189.00"),
-  productNode(401, "Giacca Donna Brand", "Brand B", "giacca-donna-brand", ["giacca", "outerwear", "donna"], 5, "179.00"),
-];
-const polos = [
-  productNode(500, "Devid Label Alassio – Polo in Maglia di Cotone Premium", "Devid Label", "devid-label-alassio-polo-maglia-cotone", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "99.00"),
+const catalogProducts = [
+  productNode(100, "T-Shirt Pocket Fiamma Nero", "Devid Label", "t-shirt-pocket-fiamma-nero", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 8, "59.00"),
+  productNode(101, "Granada - T-Shirt In Puro Lino Premium", "Devid Label", "granada-t-shirt-puro-lino-premium", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 7, "89.00"),
+  productNode(102, "MC2 Saint Barth Polo Evonne Donna", "MC2 Saint Barth", "mc2-saint-barth-polo-evonne-donna", "T-shirt e top", ["COL:Donna", "COL:Tshirt_Polo"], 6, "99.00"),
+  productNode(103, "T-shirt MC2 Saint Barth Uomo", "MC2 Saint Barth", "t-shirt-mc2-saint-barth-uomo", "T-shirt e top", ["COL:Uomo", "COL:Tshirt_Polo"], 5, "89.00"),
+  productNode(500, "Devid Label Alassio Polo", "Devid Label", "devid-label-alassio-polo", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "99.00"),
   productNode(501, "Devid Label Mima - Polo In Cotone Spugna Premium Soft Touch", "Devid Label", "devid-label-mima-polo-cotone-spugna", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "89.00"),
-  productNode(502, "Polo Ralph Lauren Holiday Bear Sock", "Polo Ralph Lauren", "polo-ralph-lauren-holiday-bear-sock", "Calze", ["COL:Intimo_Calze", "COL:Uomo"], 5, "29.00"),
-  productNode(503, "Polo Ralph Lauren T-shirt Uomo", "Polo Ralph Lauren", "polo-ralph-lauren-t-shirt-uomo", "T-shirt e polo", ["COL:Tshirt_Polo", "COL:Uomo"], 5, "79.00"),
+  productNode(502, "Polo Ralph Lauren Holiday Bear Sock", "Polo Ralph Lauren", "polo-ralph-lauren-holiday-bear-sock", "Intimo", ["COL:Intimo_Calze", "COL:Uomo"], 5, "29.00"),
+  productNode(200, "Maglia Cotone Devid Label Uomo SS26", "Devid Label", "maglia-cotone-devid-label-uomo-ss26", "Maglieria", ["COL:Maglieria_Felpe", "COL:Uomo", "cotone", "SS26", "PE2026"], 5, "99.00"),
+  productNode(201, "Vision of Super Black Sweater With Star Hole Nero", "Vision of Super", "vision-of-super-black-sweater-star-hole-nero", "Maglieria", ["winter"], 5, "149.00"),
+  productNode(203, "MC2 Saint Barth Maglia New queen Vacanze di Natale", "MC2 Saint Barth", "mc2-saint-barth-maglia-new-queen-vacanze-di-natale", "Maglieria", ["Natale", "winter"], 5, "129.00"),
+  productNode(205, "Maglia Donna Brand", "Brand B", "maglia-donna-brand", "Maglieria", ["COL:Donna"], 5, "109.00"),
+  productNode(300, "Pantalone Chino Devid Label Uomo", "Devid Label", "pantalone-chino-devid-label-uomo", "Pantaloni", ["COL:Pantaloni", "COL:Uomo", "chino"], 5, "119.00"),
+  productNode(301, "K-Way Pantaloni da sci", "K-Way", "pantaloni-sci-k-way-uomo", "Pantaloni", ["sci", "ski", "winter", "COL:Uomo"], 5, "199.00"),
+  productNode(303, "Pantalone Donna Brand", "Brand B", "pantalone-donna-brand", "Pantaloni", ["COL:Pantaloni", "COL:Donna"], 5, "109.00"),
+  productNode(400, "Overshirt In Gabardina Sabbia", "Devid Label", "overshirt-in-gabardina-sabbia", "Giacche e cappotti", ["COL:Uomo"], 5, "189.00"),
+  productNode(401, "Giacca In Jersey Sky", "Devid Label", "giacca-in-jersey-sky", "Giacche e cappotti", ["COL:Uomo"], 5, "179.00"),
+  productNode(402, "Giacca In Jersey Verde Militare", "Devid Label", "giacca-in-jersey-verde-militare", "Giacche e cappotti", ["COL:Uomo"], 5, "179.00"),
+  productNode(403, "Giacca Donna Brand", "Brand B", "giacca-donna-brand", "Giacche e cappotti", ["COL:Donna"], 5, "179.00"),
+  productNode(1, "Devid Label Cargo Courmayeur Dark Navy", "Devid Label", "devid-label-cargo-courmayeur-dark-navy", "Pantaloni", ["COL:Pantaloni", "COL:Uomo"], 6, "129.00", "159.00"),
+  productNode(2, "Cargo Donna Brand B", "Brand B", "cargo-donna-brand-b", "Pantaloni", ["COL:Pantaloni", "COL:Donna"], 5, "109.00"),
 ];
 
 let lastQuery = "";
@@ -142,7 +130,7 @@ globalThis.fetch = async (_url, init) => {
   const body = JSON.parse(init?.body || "{}");
   if (body.query.includes("orders")) return new Response(JSON.stringify({ data: { orders: { edges: [] } } }), { status: 200 });
   lastQuery = body.variables?.query || body.variables?.handle || "";
-  const source = body.variables?.handle ? [...saintProducts, ...tshirts, ...maglie, ...pants, ...jackets, ...cargoProducts, ...polos] : /MC2 Saint Barth/i.test(lastQuery) ? saintProducts : /\bpolo\b/i.test(lastQuery) ? polos : /cargo/i.test(lastQuery) ? cargoProducts : /maglia|maglieria|knitwear/i.test(lastQuery) ? maglie : /pantaloni|pantalone|chino|pants/i.test(lastQuery) ? pants : /giacca|giacche|outerwear|jacket/i.test(lastQuery) ? jackets : tshirts;
+  const source = catalogProducts;
   return new Response(JSON.stringify({ data: { products: { edges: source.map((node) => ({ node })) }, collectionByHandle: { products: { edges: source.map((node) => ({ node })) } } } }), { status: 200 });
 };
 
@@ -163,6 +151,14 @@ const reso = await chat("reso facile");
 assert.equal(reso.type, "faq", "return FAQ remains FAQ");
 assert.equal((reso.recommended_products || []).length, 0, "return FAQ does not return products");
 
+const tshirt = await chat("t-shirt");
+assert.equal(tshirt.type, "product_advice", "t-shirt returns product_advice");
+assert.equal(tshirt.recommended_products[0].vendor, "Devid Label", "generic t-shirt starts with Devid Label");
+assert.match(tshirt.recommended_products[0].title, /t-shirt/i, "first t-shirt result is a Devid Label t-shirt");
+assert(!/Non ho trovato una proposta Devid Label|couldn.t find a perfectly coherent Devid Label/i.test(tshirt.message), "t-shirt must not claim no coherent Devid Label exists");
+assert(tshirt.recommended_products.slice(0, 3).some((item) => item.vendor === "Devid Label"), "Devid Label appears in first 3 t-shirt recommendations");
+assert.notEqual(tshirt.recommended_products[0].vendor, "MC2 Saint Barth", "MC2 women t-shirt must not outrank Devid Label for generic t-shirt");
+
 const polo = await chat("polo");
 assert.equal(polo.type, "product_advice", "polo returns product_advice");
 assert.equal(polo.recommended_products[0].vendor, "Devid Label", "generic polo favors coherent Devid Label");
@@ -180,11 +176,14 @@ const magliaUomo = await chat("maglia uomo");
 assert(magliaUomo.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "maglia uomo excludes women products");
 const pantaloni = await chat("pantaloni");
 assert.equal(pantaloni.recommended_products[0].vendor, "Devid Label", "generic pants favors Devid Label");
+assert.equal(pantaloni.recommended_products[0].product_type ?? pantaloni.recommended_products[0].productType ?? "Pantaloni", "Pantaloni", "first pants result is Devid Label Pantaloni");
 assert(pantaloni.recommended_products.every((item) => !/sci|ski|winter|inverno/i.test(`${item.title} ${item.handle}`)), "generic pants excludes ski/winter pants");
 const pantaloniUomo = await chat("pantaloni uomo");
 assert.equal(pantaloniUomo.recommended_products[0].vendor, "Devid Label", "men pants favors Devid Label");
 assert(pantaloniUomo.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "men pants excludes women products");
 const giaccheUomo = await chat("giacche uomo");
+assert(giaccheUomo.recommended_products.length > 1, "men jackets returns multiple Devid Label jackets");
+assert(giaccheUomo.recommended_products.filter((item) => item.vendor === "Devid Label").length > 1, "men jackets includes Devid Label jackets without COL:Giacche_Cappotti tag");
 assert(giaccheUomo.recommended_products.every((item) => !/donna/i.test(`${item.title} ${item.handle}`)), "men jackets excludes women products");
 const giaccaSci = await chat("giacca da sci");
 assert.equal(giaccaSci.type, "product_advice", "ski jacket is allowed as shopping intent");
