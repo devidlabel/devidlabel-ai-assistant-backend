@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import assert from "node:assert/strict";
@@ -23,7 +23,13 @@ try {
   if (!String(error?.stdout || "").includes("error TS")) throw error;
 }
 
-const moduleUrl = new URL(`../${outDir}/worker.js?cache=${Date.now()}`, import.meta.url);
+// TypeScript preserves the extensionless Worker import for bundlers. Node's direct ESM loader
+// needs the emitted .js extension in this isolated test directory.
+const compiledWorkerPath = `${outDir}/worker.js`;
+const compiledWorker = await readFile(compiledWorkerPath, "utf8");
+await writeFile(compiledWorkerPath, compiledWorker.replace('from "./index"', 'from "./index.js"'), "utf8");
+
+const moduleUrl = new URL(`../${compiledWorkerPath}?cache=${Date.now()}`, import.meta.url);
 const { default: worker, prepareConversationPayload, isOrderFlowContinuation } = await import(moduleUrl);
 
 const waitingEmail = { flow: "order_lookup", order_number: "92665", next_step: "email" };
