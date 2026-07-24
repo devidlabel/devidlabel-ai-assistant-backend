@@ -132,36 +132,49 @@ const order = await chat("dov'è il mio ordine");
 assert(isValidAssistantResponse(order), 'Order-help response contract is invalid');
 assert(order.body.type === 'order_help', `Order query routed as ${order.body.type}`);
 assert(order.body.requires_backend_order_lookup === true, 'Order query did not request secure lookup');
+assert(order.body.needs_input === true, 'Order entry does not expose needs_input');
+assert(order.body.order_lookup?.status === 'ask_order_number', `Unexpected order entry status: ${order.body.order_lookup?.status || 'missing'}`);
+assert(order.body.conversation_state?.flow === 'order_lookup', 'Order entry does not expose conversation_state');
+assert(order.body.conversation_state?.next_step === 'order_number', 'Order entry has an invalid next step');
+assert(Array.isArray(order.body.suggested_replies), 'Order entry does not expose suggested replies');
 report.checks.orderEntry = {
   ok: true,
   type: order.body.type,
   durationMs: order.durationMs,
-  requiresLookup: order.body.requires_backend_order_lookup === true,
-  orderStatus: order.body.order_lookup?.status || '',
-  needsInput: order.body.needs_input === true,
+  requiresLookup: true,
+  orderStatus: order.body.order_lookup.status,
+  needsInput: order.body.needs_input,
+  nextStep: order.body.conversation_state.next_step,
+  suggestedReplyCount: order.body.suggested_replies.length,
 };
 
 const english = await chat('cash on delivery', 'en-US');
 assert(isValidAssistantResponse(english), 'English FAQ response contract is invalid');
 assert(english.body.type === 'faq', `English FAQ routed as ${english.body.type}`);
+assert(!containsItalianLeak(english.body.message), 'English response contains an Italian copy leak');
 report.checks.english = {
-  ok: !containsItalianLeak(english.body.message),
+  ok: true,
   type: english.body.type,
   durationMs: english.durationMs,
-  italianLeakDetected: containsItalianLeak(english.body.message),
+  italianLeakDetected: false,
 };
 
 const commerce = await chat('sprayground');
 assert(isValidAssistantResponse(commerce), 'Commerce response contract is invalid');
 assert(commerce.body.type === 'product_advice', `Commerce query routed as ${commerce.body.type}`);
+assert(Array.isArray(commerce.body.recommended_products), 'Commerce response does not expose recommended_products');
+assert(commerce.body.commerce_intent && typeof commerce.body.commerce_intent === 'object', 'Commerce response does not expose structured commerce_intent');
+assert(typeof commerce.body.ranking_strategy === 'string' && commerce.body.ranking_strategy.length > 0, 'Commerce response does not expose ranking_strategy');
 report.checks.commerce = {
   ok: true,
   type: commerce.body.type,
   durationMs: commerce.durationMs,
-  recommendedCount: Array.isArray(commerce.body.recommended_products) ? commerce.body.recommended_products.length : 0,
+  recommendedCount: commerce.body.recommended_products.length,
   alternativeCount: commerce.body.devid_label_alternatives.length,
   crossSellCount: commerce.body.cross_sell.length,
-  rankingStrategy: commerce.body.ranking_strategy || '',
+  rankingStrategy: commerce.body.ranking_strategy,
+  vendor: commerce.body.commerce_intent.vendor || '',
+  category: commerce.body.commerce_intent.category || '',
   intent: commerce.body.intent || commerce.body.normalized_query?.intent || '',
   recommendationGuardrails: Array.isArray(commerce.body.recommendation_guardrails)
     ? commerce.body.recommendation_guardrails
@@ -169,12 +182,12 @@ report.checks.commerce = {
 };
 
 report.capabilities = {
-  conversationalState: Boolean(order.body.conversation_state || order.body.order_lookup),
-  secureOrderEntry: order.body.requires_backend_order_lookup === true,
-  bilingualRouting: report.checks.english.ok,
-  dynamicRecommendations: Array.isArray(commerce.body.recommended_products),
-  structuredCommerceIntent: Boolean(commerce.body.commerce_intent || commerce.body.ranking_strategy),
-  suggestedReplies: Array.isArray(order.body.suggested_replies),
+  conversationalState: true,
+  secureOrderEntry: true,
+  bilingualRouting: true,
+  dynamicRecommendations: true,
+  structuredCommerceIntent: true,
+  suggestedReplies: true,
 };
 
 console.log(JSON.stringify(report, null, 2));
