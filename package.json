@@ -16,7 +16,8 @@
     "test:recommendation-engine-v2": "node scripts/test-recommendation-engine-v2.mjs",
     "test:order-lookup": "node scripts/test-order-lookup.mjs",
     "test:shopify-oauth": "node scripts/test-shopify-oauth.mjs",
-    "test:bilingual": "node scripts/test-bilingual-assistant.mjs"
+    "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
+    "test:conversation-router": "node scripts/test-conversation-router.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
