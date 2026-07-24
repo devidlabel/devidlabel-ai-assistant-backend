@@ -27,12 +27,25 @@ jobs:
         run: npm install
       - name: Capture public Worker responses
         run: node scripts/diagnose-live-order-email.mjs
-      - name: Upload diagnostic response
+      - name: Run strict probe and capture output
+        shell: bash
+        run: |
+          set +e
+          npm run probe:live-orders > probe-output.txt 2>&1
+          echo "$?" > probe-exit-code.txt
+          exit 0
+      - name: Upload diagnostic responses
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-order-email-diagnostic
-          path: live-order-email-diagnostic.json
+          path: |
+            live-order-email-diagnostic.json
+            probe-output.txt
+            probe-exit-code.txt
           if-no-files-found: error
-      - name: Probe public Worker through email step
-        run: npm run probe:live-orders
+      - name: Enforce strict probe
+        shell: bash
+        run: |
+          cat probe-output.txt
+          test "$(cat probe-exit-code.txt)" = "0"
