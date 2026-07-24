@@ -53,6 +53,9 @@ jobs:
       - name: Test conversation task router
         run: npm run test:conversation-router
 
+      - name: Test immediate marketplace routing
+        run: npm run test:marketplace-routing
+
       - name: Validate API contract
         run: npm run validate:contract
 
