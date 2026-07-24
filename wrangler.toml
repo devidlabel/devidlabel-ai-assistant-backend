@@ -1,10 +1,10 @@
 name = "devidlabel-ai-assistant-backend"
-main = "src/index.ts"
+main = "src/worker.ts"
 compatibility_date = "2026-06-25"
 
 [vars]
 ASSISTANT_MODEL = "gpt-4o-mini"
-# Comma-separated list. Override in Cloudflare dashboard or with environment-specific config.
+# Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
 SHOPIFY_API_VERSION = "2025-10"
 SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS = "3600"
