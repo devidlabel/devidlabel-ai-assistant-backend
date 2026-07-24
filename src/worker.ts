@@ -201,7 +201,7 @@ function orderTitle(status: string, language: "it" | "en"): string {
   return copy[status as keyof typeof copy] || (language === "en" ? "Order status" : "Stato ordine");
 }
 
-function assistantOrderResponse(lookup: OrderLookupPayload, payload: AssistantPayload, orderNumber: string, email: string): Response {
+function assistantOrderResponse(lookup: OrderLookupPayload, payload: AssistantPayload, orderNumber: string, email: string, lookupResponse: Response): Response {
   const language = responseLanguage(payload);
   const status = typeof lookup.status === "string" ? lookup.status : "temporarily_unavailable";
   const lookupNextStep = typeof lookup.next_step === "string" ? lookup.next_step : "order_number";
@@ -242,9 +242,14 @@ function assistantOrderResponse(lookup: OrderLookupPayload, payload: AssistantPa
     guardrails: Array.isArray(lookup.guardrails) ? lookup.guardrails : [],
   };
 
+  // Preserve the CORS decision already produced by the canonical /order/lookup handler.
+  // This covers both the public storefront origins and Shopify preview origins.
+  const headers = new Headers(lookupResponse.headers);
+  headers.set("Content-Type", "application/json; charset=utf-8");
+
   return new Response(JSON.stringify(body), {
     status: 200,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers,
   });
 }
 
@@ -288,11 +293,11 @@ async function maybeHandleOrderNumberEarly(request: Request, env: WorkerEnv): Pr
   const lookupResponse = await handleRequest(lookupRequest, env);
   let lookup: OrderLookupPayload;
   try {
-    lookup = (await lookupResponse.json()) as OrderLookupPayload;
+    lookup = (await lookupResponse.clone().json()) as OrderLookupPayload;
   } catch {
     lookup = { status: "temporarily_unavailable", next_step: "order_number", message: "" };
   }
-  return assistantOrderResponse(lookup, payload, orderNumber, email);
+  return assistantOrderResponse(lookup, payload, orderNumber, email, lookupResponse);
 }
 
 async function prepareAssistantRequest(request: Request): Promise<Request> {
