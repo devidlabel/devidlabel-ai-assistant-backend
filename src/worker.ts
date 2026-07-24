@@ -10,6 +10,18 @@ type AssistantPayload = Record<string, unknown> & {
   message?: unknown;
   messages?: unknown;
   conversation_state?: unknown;
+  locale?: unknown;
+  language?: unknown;
+  path?: unknown;
+  page_context?: unknown;
+};
+type OrderLookupPayload = {
+  ok?: boolean;
+  status?: string;
+  next_step?: string;
+  message?: string;
+  order_lookup?: unknown;
+  guardrails?: string[];
 };
 
 function normalizeShopifyOrigin(env: WorkerEnv): string {
@@ -56,8 +68,20 @@ function normalizeConversationText(value: unknown): string {
     : "";
 }
 
+function normalizeOrderNumber(value: unknown): string {
+  const text = typeof value === "string" ? value : "";
+  const match = text.replace(/[０-９]/g, (char) => String(char.charCodeAt(0) - 0xff10)).match(/#?\s*(\d{3,12})\b/);
+  return match ? match[1] : "";
+}
+
+function normalizeEmail(value: unknown): string {
+  const text = typeof value === "string" ? value.trim().toLowerCase() : "";
+  const match = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+  return match ? match[0] : "";
+}
+
 function hasOrderNumber(value: string): boolean {
-  return /(?:^|\s)#?\d{3,12}(?:\s|$)/.test(value);
+  return Boolean(normalizeOrderNumber(value));
 }
 
 function hasEmail(value: string): boolean {
@@ -98,8 +122,9 @@ function isOrderFlowContinuation(query: string, state: ConversationState): boole
   const strongTask = classifyAssistantTask(query);
   if (strongTask && strongTask !== "order") return false;
 
-  if (hasOrderNumber(query) && hasEmail(query)) return true;
-  if (state.next_step === "order_number") return hasOrderNumber(query);
+  // A fresh number always replaces the previous number while the customer is inside the order flow.
+  // This prevents a mistyped order from falling through to product advice when the assistant was asking for email.
+  if (hasOrderNumber(query)) return true;
   if (state.next_step === "email") return hasEmail(query);
   if (state.next_step === "lookup") return /\b(riprova|riprovare|retry|prova ancora|try again)\b/.test(normalizeConversationText(query));
   return false;
@@ -148,6 +173,128 @@ function prepareConversationPayload(input: AssistantPayload): AssistantPayload {
   return payload;
 }
 
+function responseLanguage(payload: AssistantPayload): "it" | "en" {
+  const values = [payload.language, payload.locale]
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.toLowerCase());
+  return values.some((value) => value === "en" || value.startsWith("en-") || value.startsWith("en_")) ? "en" : "it";
+}
+
+function orderTitle(status: string, language: "it" | "en"): string {
+  const copy = language === "en"
+    ? {
+        marketplace_unsupported: "Marketplace order",
+        ask_email: "Order number received",
+        found: "Order status",
+        not_found: "Order not found",
+        temporarily_unavailable: "Order check unavailable",
+        invalid_input: "Check order number",
+      }
+    : {
+        marketplace_unsupported: "Ordine marketplace",
+        ask_email: "Numero ordine ricevuto",
+        found: "Stato ordine",
+        not_found: "Ordine non trovato",
+        temporarily_unavailable: "Verifica ordine non disponibile",
+        invalid_input: "Controlla il numero ordine",
+      };
+  return copy[status as keyof typeof copy] || (language === "en" ? "Order status" : "Stato ordine");
+}
+
+function assistantOrderResponse(lookup: OrderLookupPayload, payload: AssistantPayload, orderNumber: string, email: string): Response {
+  const language = responseLanguage(payload);
+  const status = typeof lookup.status === "string" ? lookup.status : "temporarily_unavailable";
+  const lookupNextStep = typeof lookup.next_step === "string" ? lookup.next_step : "order_number";
+  const nextStep = status === "ask_email" ? "email" : status === "found" || status === "marketplace_unsupported" ? "none" : "order_number";
+  const needsInput = nextStep !== "none";
+  const missingFields = nextStep === "email" ? ["email"] : nextStep === "order_number" ? ["order_number"] : [];
+  const conversationState = {
+    flow: "order_lookup",
+    ...(orderNumber ? { order_number: orderNumber } : {}),
+    ...(email ? { email } : {}),
+    next_step: nextStep,
+  };
+
+  const body = {
+    ok: true,
+    source: "ai_backend",
+    type: "order_help",
+    title: orderTitle(status, language),
+    message: typeof lookup.message === "string" && lookup.message.trim()
+      ? lookup.message
+      : language === "en"
+        ? "I could not complete the order check right now. Please try again shortly."
+        : "Non riesco a completare ora la verifica dell’ordine. Riprova tra poco.",
+    primary_cta: null,
+    devid_label_alternatives: [],
+    recommended_products: [],
+    cross_sell: [],
+    requires_backend_order_lookup: true,
+    needs_input: needsInput,
+    missing_fields: missingFields,
+    order_lookup: {
+      status,
+      next_step: lookupNextStep,
+      ...(status === "found" && lookup.order_lookup ? { details: lookup.order_lookup } : {}),
+    },
+    conversation_state: conversationState,
+    suggested_replies: [],
+    guardrails: Array.isArray(lookup.guardrails) ? lookup.guardrails : [],
+  };
+
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
+async function maybeHandleOrderNumberEarly(request: Request, env: WorkerEnv): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== "/chat" || request.method !== "POST") return null;
+  if (!(request.headers.get("Content-Type") || "").toLowerCase().includes("application/json")) return null;
+
+  let payload: AssistantPayload;
+  try {
+    payload = (await request.clone().json()) as AssistantPayload;
+  } catch {
+    return null;
+  }
+
+  const query = typeof payload.query === "string" ? payload.query.trim() : typeof payload.message === "string" ? payload.message.trim() : "";
+  const state = normalizeConversationState(payload.conversation_state);
+  const orderNumber = normalizeOrderNumber(query);
+  const belongsToOrderFlow = Boolean(orderNumber && (state?.flow === "order_lookup" || classifyAssistantTask(query) === "order"));
+  if (!belongsToOrderFlow) return null;
+
+  const email = normalizeEmail(query) || normalizeEmail(state?.email);
+  const internalUrl = new URL("/order/lookup", request.url);
+  const lookupRequest = new Request(internalUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(request.headers.get("Origin") ? { Origin: request.headers.get("Origin") as string } : {}),
+    },
+    body: JSON.stringify({
+      order_number: orderNumber,
+      query: orderNumber,
+      ...(email ? { email } : {}),
+      ...(typeof payload.locale === "string" ? { locale: payload.locale } : {}),
+      ...(typeof payload.language === "string" ? { language: payload.language } : {}),
+      ...(typeof payload.path === "string" ? { path: payload.path } : {}),
+      ...(payload.page_context && typeof payload.page_context === "object" ? { page_context: payload.page_context } : {}),
+    }),
+  });
+
+  const lookupResponse = await handleRequest(lookupRequest, env);
+  let lookup: OrderLookupPayload;
+  try {
+    lookup = (await lookupResponse.json()) as OrderLookupPayload;
+  } catch {
+    lookup = { status: "temporarily_unavailable", next_step: "order_number", message: "" };
+  }
+  return assistantOrderResponse(lookup, payload, orderNumber, email);
+}
+
 async function prepareAssistantRequest(request: Request): Promise<Request> {
   const url = new URL(request.url);
   if (url.pathname !== "/chat" || request.method !== "POST") return request;
@@ -172,6 +319,9 @@ async function prepareAssistantRequest(request: Request): Promise<Request> {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const earlyOrderResponse = await maybeHandleOrderNumberEarly(request, env);
+    if (earlyOrderResponse) return addShopifyPreviewCors(earlyOrderResponse, request, env);
+
     const preparedRequest = await prepareAssistantRequest(request);
     const response = await handleRequest(preparedRequest, env, context);
     return addShopifyPreviewCors(response, request, env);
@@ -182,6 +332,7 @@ export {
   addShopifyPreviewCors,
   classifyAssistantTask,
   isOrderFlowContinuation,
+  maybeHandleOrderNumberEarly,
   normalizeShopifyOrigin,
   prepareConversationPayload,
 };
