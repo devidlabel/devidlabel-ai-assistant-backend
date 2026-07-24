@@ -50,6 +50,13 @@ const validNumberContinuation = prepareConversationPayload({
 });
 assert.deepEqual(validNumberContinuation.conversation_state, waitingNumber, "order number continues a flow that is waiting for the number");
 
+const replacementNumberContinuation = prepareConversationPayload({
+  query: "92664",
+  conversation_state: waitingEmail,
+  messages: [{ role: "assistant", content: "Inserisci l'email" }, { role: "user", content: "92664" }],
+});
+assert.deepEqual(replacementNumberContinuation.conversation_state, waitingEmail, "a new order number replaces the previous number instead of leaving the order task");
+
 const switchedToReturns = prepareConversationPayload({
   query: "Come funziona il reso?",
   conversation_state: waitingEmail,
@@ -88,16 +95,17 @@ const broadOrderRestart = prepareConversationPayload({
 assert.equal(broadOrderRestart.conversation_state, null, "root order action starts a new lookup instead of replaying the old result");
 
 assert.equal(isOrderFlowContinuation("test@example.com", waitingEmail), true);
+assert.equal(isOrderFlowContinuation("92664", waitingEmail), true, "a replacement number remains inside the order flow");
 assert.equal(isOrderFlowContinuation("Consigliami un look", waitingEmail), false);
 assert.equal(isOrderFlowContinuation("Dov'è il mio ordine?", terminalOrder), false);
 
-async function chat(payload) {
+async function chat(payload, env = {}) {
   const request = new Request("https://assistant.test/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const response = await worker.fetch(request, {}, { waitUntil() {}, passThroughOnException() {} });
+  const response = await worker.fetch(request, env, { waitUntil() {}, passThroughOnException() {} });
   assert.equal(response.status, 200);
   return response.json();
 }
@@ -131,4 +139,77 @@ const restartedOrder = await chat({
 assert.equal(restartedOrder.type, "order_help");
 assert.equal(restartedOrder.order_lookup?.status, "ask_order_number", "reopening order help asks for a fresh order number");
 
-console.log("Validated conversation task switching, order continuations and clean order-flow restarts.");
+const orderEnv = { SHOPIFY_SHOP_DOMAIN: "devid-label.myshopify.com", SHOPIFY_ADMIN_ACCESS_TOKEN: "shpat_test" };
+const nativeFetch = globalThis.fetch;
+globalThis.fetch = async (_url, init) => {
+  const body = JSON.parse(init?.body || "{}");
+  const searchQuery = body.variables?.query || "";
+  let node = null;
+
+  if (/92665/.test(searchQuery)) {
+    node = {
+      name: "#92665",
+      number: 92665,
+      email: "marketplace@example.com",
+      displayFulfillmentStatus: "UNFULFILLED",
+      cancelledAt: null,
+      sourceName: "Spartoo",
+      sourceIdentifier: "spartoo",
+      tags: ["marketplace-spartoo"],
+      customAttributes: [],
+      paymentGatewayNames: [],
+      shippingLines: { edges: [] },
+      fulfillments: [],
+    };
+  } else if (/92664/.test(searchQuery)) {
+    node = {
+      name: "#92664",
+      number: 92664,
+      email: "direct@example.com",
+      displayFulfillmentStatus: "UNFULFILLED",
+      cancelledAt: null,
+      sourceName: "web",
+      sourceIdentifier: null,
+      tags: [],
+      customAttributes: [],
+      paymentGatewayNames: [],
+      shippingLines: { edges: [] },
+      fulfillments: [],
+    };
+  }
+
+  return new Response(JSON.stringify({ data: { orders: { edges: node ? [{ node }] : [] } } }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+};
+
+try {
+  const marketplaceResponse = await chat({
+    query: "92665",
+    locale: "it",
+    language: "it",
+    conversation_state: waitingEmail,
+    messages: [{ role: "assistant", content: "Inserisci l'email" }, { role: "user", content: "92665" }],
+  }, orderEnv);
+  assert.equal(marketplaceResponse.type, "order_help");
+  assert.equal(marketplaceResponse.order_lookup?.status, "marketplace_unsupported", "marketplace is identified immediately from the order number");
+  assert.equal(marketplaceResponse.needs_input, false, "marketplace orders must not request email");
+  assert.match(`${marketplaceResponse.title} ${marketplaceResponse.message}`, /marketplace|Spartoo/i);
+  assert.doesNotMatch(marketplaceResponse.message, /e-?mail|email/i, "marketplace response must not waste time asking for email");
+
+  const replacementDirectResponse = await chat({
+    query: "92664",
+    locale: "it",
+    language: "it",
+    conversation_state: waitingEmail,
+    messages: [{ role: "assistant", content: "Inserisci l'email" }, { role: "user", content: "92664" }],
+  }, orderEnv);
+  assert.equal(replacementDirectResponse.order_lookup?.status, "ask_email", "a replacement direct-store order is looked up before asking for email");
+  assert.equal(replacementDirectResponse.conversation_state?.order_number, "92664", "the replacement number becomes the active order");
+  assert.match(replacementDirectResponse.message, /e-?mail|email/i);
+} finally {
+  globalThis.fetch = nativeFetch;
+}
+
+console.log("Validated task switching, replacement order numbers, immediate marketplace routing and clean order-flow restarts.");
