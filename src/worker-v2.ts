@@ -10,12 +10,22 @@ type AssistantPayload = Record<string, unknown> & {
   conversation_state?: unknown;
   locale?: unknown;
   language?: unknown;
+  path?: unknown;
+  page_context?: unknown;
 };
 type OrderConversationState = {
   flow?: unknown;
   next_step?: unknown;
   order_number?: unknown;
   email?: unknown;
+};
+type OrderLookupPayload = {
+  ok?: boolean;
+  status?: string;
+  next_step?: string;
+  message?: string;
+  order_lookup?: unknown;
+  guardrails?: string[];
 };
 
 function normalizeEmail(value: unknown): string {
@@ -83,10 +93,89 @@ export function buildSafeOrderEmailContinuationPayload(input: AssistantPayload):
   };
 }
 
+function orderTitle(status: string, language: "it" | "en"): string {
+  const copy = language === "en"
+    ? {
+        marketplace_unsupported: "Marketplace order",
+        ask_email: "Order number received",
+        found: "Order status",
+        email_mismatch: "Check the order email",
+        not_found: "Order not found",
+        temporarily_unavailable: "Order check unavailable",
+        invalid_input: "Check order number",
+      }
+    : {
+        marketplace_unsupported: "Ordine marketplace",
+        ask_email: "Numero ordine ricevuto",
+        found: "Stato ordine",
+        email_mismatch: "Controlla l’e-mail dell’ordine",
+        not_found: "Ordine non trovato",
+        temporarily_unavailable: "Verifica ordine non disponibile",
+        invalid_input: "Controlla il numero ordine",
+      };
+  return copy[status as keyof typeof copy] || (language === "en" ? "Order status" : "Stato ordine");
+}
+
+function orderChatResponse(
+  lookup: OrderLookupPayload,
+  payload: AssistantPayload,
+  orderNumber: string,
+  email: string,
+  lookupResponse: Response,
+): Response {
+  const language = responseLanguage(payload);
+  const status = typeof lookup.status === "string" ? lookup.status : "temporarily_unavailable";
+  const lookupNextStep = typeof lookup.next_step === "string" ? lookup.next_step : "order_number";
+  const nextStep = status === "ask_email" || status === "email_mismatch"
+    ? "email"
+    : status === "found" || status === "marketplace_unsupported"
+      ? "none"
+      : "order_number";
+  const needsInput = nextStep !== "none";
+  const missingFields = nextStep === "email" ? ["email"] : nextStep === "order_number" ? ["order_number"] : [];
+  const conversationState = {
+    flow: "order_lookup",
+    ...(orderNumber ? { order_number: orderNumber } : {}),
+    ...(email ? { email } : {}),
+    next_step: nextStep,
+  };
+
+  const body = {
+    ok: true,
+    source: "ai_backend",
+    type: "order_help",
+    title: orderTitle(status, language),
+    message: typeof lookup.message === "string" && lookup.message.trim()
+      ? lookup.message
+      : language === "en"
+        ? "I could not complete the order check right now. Please try again shortly."
+        : "Non riesco a completare ora la verifica dell’ordine. Riprova tra poco.",
+    primary_cta: null,
+    recommended_products: [],
+    devid_label_alternatives: [],
+    cross_sell: [],
+    requires_backend_order_lookup: true,
+    needs_input: needsInput,
+    missing_fields: missingFields,
+    order_lookup: {
+      status,
+      next_step: lookupNextStep,
+      ...(status === "found" && lookup.order_lookup ? { details: lookup.order_lookup } : {}),
+    },
+    conversation_state: conversationState,
+    suggested_replies: [],
+    guardrails: Array.isArray(lookup.guardrails) ? lookup.guardrails : [],
+  };
+
+  const headers = new Headers(lookupResponse.headers);
+  headers.set("Content-Type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(body), { status: 200, headers });
+}
+
 async function maybeHandleOrderEmailContinuation(
   request: Request,
   env: WorkerEnv,
-  context: WorkerExecutionContext,
+  _context: WorkerExecutionContext,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== "/chat" || request.method !== "POST") return null;
@@ -102,13 +191,42 @@ async function maybeHandleOrderEmailContinuation(
   const safePayload = buildSafeOrderEmailContinuationPayload(payload);
   if (!safePayload) return null;
 
-  const safeRequest = new Request(request.url, {
-    method: request.method,
-    headers: request.headers,
-    body: JSON.stringify(safePayload),
+  const state = normalizeConversationState(safePayload.conversation_state);
+  const orderNumber = normalizeStoredOrderNumber(state?.order_number);
+  const email = normalizeEmail(state?.email);
+  if (!orderNumber || !email) return null;
+
+  const lookupUrl = new URL("/order/lookup", request.url);
+  const lookupRequest = new Request(lookupUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(request.headers.get("Origin") ? { Origin: request.headers.get("Origin") as string } : {}),
+    },
+    body: JSON.stringify({
+      order_number: orderNumber,
+      query: orderNumber,
+      email,
+      ...(typeof payload.locale === "string" ? { locale: payload.locale } : {}),
+      ...(typeof payload.language === "string" ? { language: payload.language } : {}),
+      ...(typeof payload.path === "string" ? { path: payload.path } : {}),
+      ...(payload.page_context && typeof payload.page_context === "object" ? { page_context: payload.page_context } : {}),
+    }),
   });
-  const response = await handleRequest(safeRequest, env, context);
-  return addShopifyPreviewCors(response, request, env);
+
+  const lookupResponse = await handleRequest(lookupRequest, env);
+  let lookup: OrderLookupPayload;
+  try {
+    lookup = (await lookupResponse.clone().json()) as OrderLookupPayload;
+  } catch {
+    lookup = { status: "temporarily_unavailable", next_step: "order_number", message: "" };
+  }
+
+  return addShopifyPreviewCors(
+    orderChatResponse(lookup, payload, orderNumber, email, lookupResponse),
+    request,
+    env,
+  );
 }
 
 export default {
