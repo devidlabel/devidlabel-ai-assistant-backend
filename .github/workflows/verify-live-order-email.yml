@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/verify-live-order-email.yml'
+      - 'scripts/diagnose-live-order-email.mjs'
 
 permissions:
   contents: read
@@ -24,5 +25,14 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Capture public Worker responses
+        run: node scripts/diagnose-live-order-email.mjs
+      - name: Upload diagnostic response
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-order-email-diagnostic
+          path: live-order-email-diagnostic.json
+          if-no-files-found: error
       - name: Probe public Worker through email step
         run: npm run probe:live-orders
