@@ -1,5 +1,5 @@
 name = "devidlabel-ai-assistant-backend"
-main = "src/worker.ts"
+main = "src/worker-v2.ts"
 compatibility_date = "2026-06-25"
 
 [vars]
