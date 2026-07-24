@@ -18,7 +18,8 @@
     "test:shopify-oauth": "node scripts/test-shopify-oauth.mjs",
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
-    "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs"
+    "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
+    "probe:live-orders": "node scripts/probe-live-order-chat.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
