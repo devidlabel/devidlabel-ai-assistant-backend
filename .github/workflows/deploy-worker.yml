@@ -50,6 +50,9 @@ jobs:
       - name: Test bilingual assistant
         run: npm run test:bilingual
 
+      - name: Test conversation task router
+        run: npm run test:conversation-router
+
       - name: Validate API contract
         run: npm run validate:contract
 
