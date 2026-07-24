@@ -65,6 +65,9 @@ jobs:
       - name: Test order lookup
         run: npm run test:order-lookup
 
+      - name: Test customer-facing tracking response
+        run: npm run test:order-chat-response
+
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
         continue-on-error: true

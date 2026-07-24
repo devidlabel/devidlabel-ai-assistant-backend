@@ -19,6 +19,16 @@ type OrderConversationState = {
   order_number?: unknown;
   email?: unknown;
 };
+type OrderTrackingItem = {
+  company?: unknown;
+  number?: unknown;
+  url?: unknown;
+};
+type OrderLookupDetails = {
+  fulfillment_state?: unknown;
+  tracking_items?: unknown;
+  cash_on_delivery_note?: unknown;
+};
 type OrderLookupPayload = {
   ok?: boolean;
   status?: string;
@@ -34,6 +44,10 @@ function normalizeEmail(value: unknown): string {
   return match ? match[0] : "";
 }
 
+function normalizeText(value: unknown, max = 500): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
 function normalizeStoredOrderNumber(value: unknown): string {
   if (typeof value !== "string") return "";
   const normalized = value
@@ -46,6 +60,34 @@ function normalizeStoredOrderNumber(value: unknown): string {
 function normalizeConversationState(value: unknown): OrderConversationState | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as OrderConversationState;
+}
+
+function normalizeOrderDetails(value: unknown): OrderLookupDetails | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as OrderLookupDetails;
+}
+
+function normalizeTrackingItems(value: unknown): Array<{ company: string; number: string; url: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const item = entry as OrderTrackingItem;
+    const company = normalizeText(item.company, 80);
+    const number = normalizeText(item.number, 120);
+    const url = safeTrackingUrl(item.url);
+    return company || number || url ? [{ company, number, url }] : [];
+  });
+}
+
+function safeTrackingUrl(value: unknown): string {
+  const raw = normalizeText(value, 1000);
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function responseLanguage(payload: AssistantPayload): "it" | "en" {
@@ -116,7 +158,56 @@ function orderTitle(status: string, language: "it" | "en"): string {
   return copy[status as keyof typeof copy] || (language === "en" ? "Order status" : "Stato ordine");
 }
 
-function orderChatResponse(
+function trackingSummary(
+  lookup: OrderLookupPayload,
+  language: "it" | "en",
+): { message: string; primaryCta: { label: string; url: string } | null } {
+  const details = normalizeOrderDetails(lookup.order_lookup);
+  const items = normalizeTrackingItems(details?.tracking_items);
+  if (!items.length) {
+    return {
+      message: normalizeText(lookup.message) || (language === "en"
+        ? "I could not complete the order check right now. Please try again shortly."
+        : "Non riesco a completare ora la verifica dell’ordine. Riprova tra poco."),
+      primaryCta: null,
+    };
+  }
+
+  const first = items[0];
+  const carrier = first.company || (language === "en" ? "the courier" : "il corriere");
+  const numberPart = first.number
+    ? language === "en"
+      ? ` Your tracking number is ${first.number}.`
+      : ` Il codice di tracking è ${first.number}.`
+    : "";
+  const multiplePart = items.length > 1
+    ? language === "en"
+      ? ` This order has ${items.length} separate shipments.`
+      : ` Per questo ordine sono previste ${items.length} spedizioni separate.`
+    : "";
+  const delivered = normalizeText(details?.fulfillment_state, 40).toLowerCase() === "delivered";
+  const message = language === "en"
+    ? delivered
+      ? `Your order appears to have been delivered by ${carrier}.${numberPart}${multiplePart}`
+      : `Your order has been shipped and is now with ${carrier}.${numberPart}${multiplePart}`
+    : delivered
+      ? `Il tuo ordine risulta consegnato da ${carrier}.${numberPart}${multiplePart}`
+      : `Il tuo ordine è stato spedito ed è ora affidato a ${carrier}.${numberPart}${multiplePart}`;
+
+  return {
+    message,
+    primaryCta: first.url
+      ? {
+          label: language === "en"
+            ? items.length > 1 ? "Track the first shipment" : "Track shipment"
+            : items.length > 1 ? "Segui la prima spedizione" : "Segui la spedizione",
+          url: first.url,
+        }
+      : null,
+  };
+}
+
+export function orderChatResponse(
   lookup: OrderLookupPayload,
   payload: AssistantPayload,
   orderNumber: string,
@@ -139,18 +230,22 @@ function orderChatResponse(
     ...(email ? { email } : {}),
     next_step: nextStep,
   };
+  const tracking = status === "found"
+    ? trackingSummary(lookup, language)
+    : {
+        message: normalizeText(lookup.message) || (language === "en"
+          ? "I could not complete the order check right now. Please try again shortly."
+          : "Non riesco a completare ora la verifica dell’ordine. Riprova tra poco."),
+        primaryCta: null,
+      };
 
   const body = {
     ok: true,
     source: "ai_backend",
     type: "order_help",
     title: orderTitle(status, language),
-    message: typeof lookup.message === "string" && lookup.message.trim()
-      ? lookup.message
-      : language === "en"
-        ? "I could not complete the order check right now. Please try again shortly."
-        : "Non riesco a completare ora la verifica dell’ordine. Riprova tra poco.",
-    primary_cta: null,
+    message: tracking.message,
+    primary_cta: tracking.primaryCta,
     recommended_products: [],
     devid_label_alternatives: [],
     cross_sell: [],
