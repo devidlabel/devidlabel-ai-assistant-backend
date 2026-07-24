@@ -1,10 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const out = mkdtempSync(join(tmpdir(), 'order-chat-response-'));
 execFileSync('npx', ['tsc', '--outDir', out, '--noEmit', 'false', '--module', 'ESNext', '--target', 'ES2022', '--moduleResolution', 'Bundler'], { stdio: 'inherit' });
+
+for (const file of ['worker-v2.js', 'worker.js']) {
+  const path = join(out, file);
+  const compiled = readFileSync(path, 'utf8').replace(/from "(\.\/[^".]+)";/g, 'from "$1.js";');
+  writeFileSync(path, compiled);
+}
+
 const { orderChatResponse } = await import(`file://${out}/worker-v2.js`);
 
 const assert = (condition, message) => {
