@@ -1,0 +1,36 @@
+name: Production Smoke Audit
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/smoke-production.mjs'
+      - '.github/workflows/smoke-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-production:
+    name: Check published Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate smoke script syntax
+        run: node --check scripts/smoke-production.mjs
+
+      - name: Audit published Worker
+        env:
+          ASSISTANT_PRODUCTION_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+        run: node scripts/smoke-production.mjs
