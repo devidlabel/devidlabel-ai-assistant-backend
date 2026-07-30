@@ -1,0 +1,36 @@
+name: Shopify Reauth Live Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/shopify-reauth-live-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify historical order access after reauth
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 2 \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/shopify/history-probe \
+            -o /tmp/shopify-history-probe.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/shopify-history-probe.json', 'utf8'));
+          console.log(JSON.stringify({
+            ok: data.ok,
+            historical_orders_over_60_days_accessible: data.historical_orders_over_60_days_accessible,
+            oldest_accessible_order_created_at: data.oldest_accessible_order_created_at || null,
+            scope_count: Array.isArray(data.access_scopes) ? data.access_scopes.length : null,
+            has_read_all_orders: Array.isArray(data.access_scopes) ? data.access_scopes.includes('read_all_orders') : null
+          }));
+          if (data.ok !== true) process.exit(1);
+          NODE
