@@ -1,5 +1,6 @@
 import assistantWorker from "./worker-v2";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
+import { handleShopifyHistoryProbe } from "./shopify-history-probe";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
 
 type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
@@ -13,6 +14,9 @@ type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const historyProbeResponse = await handleShopifyHistoryProbe(request, env);
+    if (historyProbeResponse) return historyProbeResponse;
+
     const shopifyResponse = await handleShopifyReportingRequest(request, {
       ...env,
       // Dedicated Shopify token is preferred; reuse the already-deployed internal
