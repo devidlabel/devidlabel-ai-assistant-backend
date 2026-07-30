@@ -68,6 +68,9 @@ jobs:
       - name: Test customer-facing tracking response
         run: npm run test:order-chat-response
 
+      - name: Test Shopify ADV reporting
+        run: npm run test:shopify-reporting
+
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
         continue-on-error: true
