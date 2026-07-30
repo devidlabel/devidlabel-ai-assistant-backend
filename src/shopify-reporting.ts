@@ -249,7 +249,7 @@ async function orderKey(orderId: string): Promise<string> {
 }
 
 async function grantedScopes(env: ShopifyReportingEnv): Promise<string[]> {
-  const data = await shopifyGraphQL<ScopeData>(env, `
+  const data: ScopeData = await shopifyGraphQL<ScopeData>(env, `
     query ShopifyReportingAccessScopes {
       currentAppInstallation { accessScopes { handle } }
     }
@@ -268,7 +268,7 @@ async function fetchOrders(env: ShopifyReportingEnv, window: Window): Promise<{ 
   let pages = 0;
 
   do {
-    const data = await shopifyGraphQL<OrdersData>(env, `
+    const data: OrdersData = await shopifyGraphQL<OrdersData>(env, `
       query ShopifyAdvOrders($first: Int!, $after: String, $query: String!) {
         orders(first: $first, after: $after, query: $query, sortKey: PROCESSED_AT) {
           pageInfo { hasNextPage endCursor }
@@ -320,7 +320,7 @@ async function fetchCosts(env: ShopifyReportingEnv, variantIds: string[]): Promi
 
   try {
     for (const ids of chunks(uniqueIds, COST_BATCH_SIZE)) {
-      const data = await shopifyGraphQL<CostData>(env, `
+      const data: CostData = await shopifyGraphQL<CostData>(env, `
         query ShopifyAdvVariantCosts($ids: [ID!]!) {
           nodes(ids: $ids) {
             ... on ProductVariant {
@@ -595,7 +595,7 @@ function bulkCatalogQuery(): string {
 
 async function startBulk(env: ShopifyReportingEnv, dataset: "orders" | "catalog", window?: Window): Promise<Response> {
   const query = dataset === "orders" ? bulkOrdersQuery(window!) : bulkCatalogQuery();
-  const data = await shopifyGraphQL<BulkStartData>(env, `
+  const data: BulkStartData = await shopifyGraphQL<BulkStartData>(env, `
     mutation ShopifyAdvBulkExport($query: String!) {
       bulkOperationRunQuery(query: $query) {
         bulkOperation { id status createdAt }
@@ -618,7 +618,7 @@ async function startBulk(env: ShopifyReportingEnv, dataset: "orders" | "catalog"
 }
 
 async function bulkStatus(env: ShopifyReportingEnv, id: string): Promise<Response> {
-  const data = await shopifyGraphQL<BulkStatusData>(env, `
+  const data: BulkStatusData = await shopifyGraphQL<BulkStatusData>(env, `
     query ShopifyAdvBulkStatus($id: ID!) {
       bulkOperation(id: $id) {
         id status errorCode objectCount rootObjectCount fileSize url partialDataUrl createdAt completedAt
