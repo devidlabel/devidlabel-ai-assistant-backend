@@ -87,3 +87,19 @@ jobs:
       - name: Verify deployed live order flow
         if: github.event_name != 'pull_request'
         run: npm run probe:live-orders
+
+      - name: Verify Shopify historical order visibility
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            --retry 4 --retry-delay 3 \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/shopify/history-probe \
+            -o /tmp/shopify-history-probe.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/shopify-history-probe.json', 'utf8'));
+          console.log(JSON.stringify(data));
+          if (data.ok !== true) process.exit(1);
+          if (data.historical_orders_over_60_days_accessible !== true) process.exit(2);
+          NODE
