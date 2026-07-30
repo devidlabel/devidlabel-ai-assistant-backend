@@ -12,8 +12,82 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
+const SHOPIFY_OAUTH_SCOPES = [
+  "read_all_orders",
+  "read_customers",
+  "read_discounts",
+  "read_inventory",
+  "read_locales",
+  "read_locations",
+  "read_markets",
+  "read_online_store_pages",
+  "read_orders",
+  "read_products",
+  "read_returns",
+  "read_shopify_payments_payouts",
+  "read_content",
+  "read_translations",
+].join(",");
+const SHOPIFY_OAUTH_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback";
+const SHOPIFY_OAUTH_STATE_TTL_SECONDS = 600;
+
+function normalizeShopifyDomainCandidate(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+}
+
+function isValidShopifyShopDomain(shop: string): boolean {
+  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop);
+}
+
+function oauthError(message: string, status = 500): Response {
+  return new Response(JSON.stringify({ ok: false, source: "shopify_oauth", message }), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+async function handleExpandedShopifyInstall(request: Request, env: WorkerEnv): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== "/install") return null;
+  if (request.method !== "GET") return oauthError("Metodo non supportato.", 405);
+
+  const configuredShop = normalizeShopifyDomainCandidate(env.SHOPIFY_SHOP_DOMAIN || "");
+  if (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET) return oauthError("Configurazione Shopify OAuth incompleta.");
+  if (!env.SHOPIFY_TOKENS_KV) return oauthError("Storage Shopify OAuth non configurato.");
+  if (!isValidShopifyShopDomain(configuredShop)) return oauthError("Shop Shopify configurato non valido.");
+
+  const shop = normalizeShopifyDomainCandidate(url.searchParams.get("shop") || configuredShop);
+  if (!isValidShopifyShopDomain(shop)) return oauthError("Shop Shopify non valido.", 400);
+  if (shop !== configuredShop) return oauthError("Shop Shopify non autorizzato.", 403);
+
+  const state = crypto.randomUUID().replace(/-/g, "");
+  await env.SHOPIFY_TOKENS_KV.put(
+    `shopify:oauth_state:${state}`,
+    JSON.stringify({ shop, created_at: new Date().toISOString() }),
+    { expirationTtl: SHOPIFY_OAUTH_STATE_TTL_SECONDS },
+  );
+
+  const authorizeUrl = new URL(`https://${shop}/admin/oauth/authorize`);
+  authorizeUrl.searchParams.set("client_id", env.SHOPIFY_CLIENT_ID);
+  authorizeUrl.searchParams.set("scope", SHOPIFY_OAUTH_SCOPES);
+  authorizeUrl.searchParams.set("redirect_uri", SHOPIFY_OAUTH_REDIRECT_URI);
+  authorizeUrl.searchParams.set("state", state);
+
+  return new Response(null, {
+    status: 302,
+    headers: { Location: authorizeUrl.toString(), "Cache-Control": "no-store" },
+  });
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const installResponse = await handleExpandedShopifyInstall(request, env);
+    if (installResponse) return installResponse;
+
     const historyProbeResponse = await handleShopifyHistoryProbe(request, env);
     if (historyProbeResponse) return historyProbeResponse;
 
