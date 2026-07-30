@@ -14,6 +14,30 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      - name: Verify deployed install scope set
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --max-time 30 \
+            -D /tmp/install-headers.txt -o /dev/null \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/install
+          python3 - <<'PY'
+          from urllib.parse import urlparse, parse_qs
+          headers = open('/tmp/install-headers.txt', encoding='utf-8').read().splitlines()
+          location = next((line.split(':', 1)[1].strip() for line in headers if line.lower().startswith('location:')), '')
+          params = parse_qs(urlparse(location).query)
+          scopes = (params.get('scope') or [''])[0].split(',') if location else []
+          print({
+              'install_redirect_present': bool(location),
+              'scope_count': len([s for s in scopes if s]),
+              'has_read_all_orders': 'read_all_orders' in scopes,
+              'has_read_customers': 'read_customers' in scopes,
+              'has_read_returns': 'read_returns' in scopes,
+          })
+          if not location:
+              raise SystemExit(2)
+          PY
+
       - name: Verify historical order access after reauth
         shell: bash
         run: |
@@ -28,9 +52,7 @@ jobs:
           console.log(JSON.stringify({
             ok: data.ok,
             historical_orders_over_60_days_accessible: data.historical_orders_over_60_days_accessible,
-            oldest_accessible_order_created_at: data.oldest_accessible_order_created_at || null,
-            scope_count: Array.isArray(data.access_scopes) ? data.access_scopes.length : null,
-            has_read_all_orders: Array.isArray(data.access_scopes) ? data.access_scopes.includes('read_all_orders') : null
+            oldest_accessible_order_created_at: data.oldest_accessible_order_created_at || null
           }));
           if (data.ok !== true) process.exit(1);
           NODE
