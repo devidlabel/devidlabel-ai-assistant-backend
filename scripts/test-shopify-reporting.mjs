@@ -1,11 +1,22 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const out = mkdtempSync(join(tmpdir(), 'shopify-reporting-'));
 execFileSync('npx', ['tsc', '--outDir', out, '--noEmit', 'false', '--module', 'ESNext', '--target', 'ES2022', '--moduleResolution', 'Bundler'], { stdio: 'inherit' });
-const { handleShopifyReportingRequest } = await import(`file://${out}/shopify-reporting.js`);
+
+// Source imports follow the Worker/bundler convention (`./index`). Node ESM does not
+// resolve extensionless specifiers in the temporary emitted test files, so make only
+// the temporary compiled copy explicit without changing production source imports.
+const compiledReporter = join(out, 'shopify-reporting.js');
+writeFileSync(
+  compiledReporter,
+  readFileSync(compiledReporter, 'utf8').replace('from "./index";', 'from "./index.js";'),
+  'utf8',
+);
+
+const { handleShopifyReportingRequest } = await import(`file://${compiledReporter}`);
 
 const assert = (condition, message) => {
   if (!condition) {
