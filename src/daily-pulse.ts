@@ -16,6 +16,7 @@ type DailyPulseEnv = {
   META_WRITE_ACCESS_TOKEN?: string;
   META_PIXEL_ID?: string;
   GOOGLE_ADS_REPORT_ACCESS_TOKEN?: string;
+  GOOGLE_ADS_SERVICE_ACCOUNT_JSON?: string;
   GOOGLE_ADS_CLIENT_ID?: string;
   GOOGLE_ADS_CLIENT_SECRET?: string;
   GOOGLE_ADS_REFRESH_TOKEN?: string;
@@ -305,6 +306,10 @@ export async function handleDailyPulseRequest(request: Request, env: DailyPulseE
 
   if (url.pathname === "/internal/daily-pulse/health") {
     if (request.method !== "GET") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
+    const googleServiceAccount = Boolean(normalize(env.GOOGLE_ADS_SERVICE_ACCOUNT_JSON));
+    const googleUserOauth = Boolean(normalize(env.GOOGLE_ADS_REFRESH_TOKEN)
+      && normalize(env.GOOGLE_ADS_CLIENT_ID)
+      && normalize(env.GOOGLE_ADS_CLIENT_SECRET));
     return jsonResponse({
       ok: true,
       service: "daily_pulse",
@@ -312,7 +317,7 @@ export async function handleDailyPulseRequest(request: Request, env: DailyPulseE
         access_token: Boolean(pulseToken(env)),
         shopify: Boolean(normalize(env.SHOPIFY_REPORT_ACCESS_TOKEN) || normalize(env.KLAVIYO_REPORT_ACCESS_TOKEN)),
         meta: Boolean(normalize(env.META_ADS_ACCESS_TOKEN)),
-        google: Boolean(normalize(env.GOOGLE_ADS_REFRESH_TOKEN) && normalize(env.GOOGLE_ADS_DEVELOPER_TOKEN)),
+        google: Boolean((googleServiceAccount || googleUserOauth) && normalize(env.GOOGLE_ADS_DEVELOPER_TOKEN)),
         klaviyo: Boolean(normalize(env.KLAVIYO_PRIVATE_API_KEY)),
       },
     });

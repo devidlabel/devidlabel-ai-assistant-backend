@@ -1,8 +1,10 @@
 const GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_ADS_BASE = "https://googleads.googleapis.com";
-const DEFAULT_GOOGLE_ADS_API_VERSION = "v24";
+const GOOGLE_ADS_SCOPE = "https://www.googleapis.com/auth/adwords";
+const DEFAULT_GOOGLE_ADS_API_VERSION = "v25";
 
 type GoogleAdsReportingEnv = {
+  GOOGLE_ADS_SERVICE_ACCOUNT_JSON?: string;
   GOOGLE_ADS_CLIENT_ID?: string;
   GOOGLE_ADS_CLIENT_SECRET?: string;
   GOOGLE_ADS_REFRESH_TOKEN?: string;
@@ -15,8 +17,13 @@ type GoogleAdsReportingEnv = {
 };
 
 type JsonObject = Record<string, unknown>;
-
 type TimeRange = { since: string; until: string };
+type ServiceAccountCredentials = {
+  client_email: string;
+  private_key: string;
+  private_key_id?: string;
+  token_uri?: string;
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -102,7 +109,96 @@ function micros(value: unknown): number {
   return numberValue(value) / 1_000_000;
 }
 
-async function oauthAccessToken(env: GoogleAdsReportingEnv): Promise<string> {
+function base64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlJson(value: JsonObject): string {
+  return base64Url(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+function pemPkcs8Buffer(pem: string): ArrayBuffer {
+  const base64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+  if (!base64) throw new Error("Google Ads service account private key is empty");
+  const binary = atob(base64);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return buffer;
+}
+
+function serviceAccountCredentials(env: GoogleAdsReportingEnv): ServiceAccountCredentials | null {
+  const raw = normalize(env.GOOGLE_ADS_SERVICE_ACCOUNT_JSON);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as JsonObject;
+    const clientEmail = normalize(parsed.client_email);
+    const privateKey = normalize(parsed.private_key);
+    const privateKeyId = normalize(parsed.private_key_id);
+    const tokenUri = normalize(parsed.token_uri);
+    if (!clientEmail || !privateKey) return null;
+    return {
+      client_email: clientEmail,
+      private_key: privateKey,
+      ...(privateKeyId ? { private_key_id: privateKeyId } : {}),
+      ...(tokenUri ? { token_uri: tokenUri } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function serviceAccountAccessToken(credentials: ServiceAccountCredentials): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header: JsonObject = {
+    alg: "RS256",
+    typ: "JWT",
+    ...(credentials.private_key_id ? { kid: credentials.private_key_id } : {}),
+  };
+  const claims: JsonObject = {
+    iss: credentials.client_email,
+    scope: GOOGLE_ADS_SCOPE,
+    aud: credentials.token_uri || GOOGLE_OAUTH_TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  };
+  const unsigned = `${base64UrlJson(header)}.${base64UrlJson(claims)}`;
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemPkcs8Buffer(credentials.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(unsigned),
+  );
+  const assertion = `${unsigned}.${base64Url(new Uint8Array(signature))}`;
+  const response = await fetch(credentials.token_uri || GOOGLE_OAUTH_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  const payload = await response.json() as JsonObject;
+  if (!response.ok || typeof payload.access_token !== "string") {
+    const error = new Error(`Google service-account OAuth failed (${response.status})`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
+  }
+  return payload.access_token;
+}
+
+async function userOauthAccessToken(env: GoogleAdsReportingEnv): Promise<string> {
   const body = new URLSearchParams({
     client_id: normalize(env.GOOGLE_ADS_CLIENT_ID),
     client_secret: normalize(env.GOOGLE_ADS_CLIENT_SECRET),
@@ -121,6 +217,20 @@ async function oauthAccessToken(env: GoogleAdsReportingEnv): Promise<string> {
     throw error;
   }
   return payload.access_token;
+}
+
+function authMode(env: GoogleAdsReportingEnv): "service_account" | "user_oauth" | "unconfigured" {
+  if (serviceAccountCredentials(env)) return "service_account";
+  if (normalize(env.GOOGLE_ADS_CLIENT_ID) && normalize(env.GOOGLE_ADS_CLIENT_SECRET) && normalize(env.GOOGLE_ADS_REFRESH_TOKEN)) {
+    return "user_oauth";
+  }
+  return "unconfigured";
+}
+
+async function oauthAccessToken(env: GoogleAdsReportingEnv): Promise<string> {
+  const credentials = serviceAccountCredentials(env);
+  if (credentials) return serviceAccountAccessToken(credentials);
+  return userOauthAccessToken(env);
 }
 
 async function googleAdsSearchStream(env: GoogleAdsReportingEnv, query: string): Promise<JsonObject[]> {
@@ -233,11 +343,12 @@ export async function handleGoogleAdsReportingRequest(request: Request, env: Goo
       service: "google_ads_reporting",
       api_version: apiVersion(env),
       configured: {
-        client_id: Boolean(normalize(env.GOOGLE_ADS_CLIENT_ID)),
-        client_secret: Boolean(normalize(env.GOOGLE_ADS_CLIENT_SECRET)),
-        refresh_token: Boolean(normalize(env.GOOGLE_ADS_REFRESH_TOKEN)),
+        auth_mode: authMode(env),
+        service_account: Boolean(serviceAccountCredentials(env)),
+        user_oauth_fallback: Boolean(normalize(env.GOOGLE_ADS_CLIENT_ID) && normalize(env.GOOGLE_ADS_CLIENT_SECRET) && normalize(env.GOOGLE_ADS_REFRESH_TOKEN)),
         developer_token: Boolean(normalize(env.GOOGLE_ADS_DEVELOPER_TOKEN)),
         customer_id: /^\d{5,20}$/.test(digits(env.GOOGLE_ADS_CUSTOMER_ID)),
+        login_customer_id: /^\d{5,20}$/.test(digits(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID)),
         report_access_token: Boolean(reportToken(env)),
       },
     });
@@ -248,8 +359,7 @@ export async function handleGoogleAdsReportingRequest(request: Request, env: Goo
   if (url.pathname !== "/internal/google-ads/report") return jsonResponse({ ok: false, error: "not_found" }, 404);
 
   const customerId = digits(env.GOOGLE_ADS_CUSTOMER_ID);
-  if (!customerId || !normalize(env.GOOGLE_ADS_CLIENT_ID) || !normalize(env.GOOGLE_ADS_CLIENT_SECRET)
-      || !normalize(env.GOOGLE_ADS_REFRESH_TOKEN) || !normalize(env.GOOGLE_ADS_DEVELOPER_TOKEN)) {
+  if (!customerId || authMode(env) === "unconfigured" || !normalize(env.GOOGLE_ADS_DEVELOPER_TOKEN)) {
     return jsonResponse({ ok: false, error: "google_ads_not_configured" }, 503);
   }
   const range = parseTimeRange(url);
@@ -285,6 +395,8 @@ export async function handleGoogleAdsReportingRequest(request: Request, env: Goo
       api_version: apiVersion(env),
       generated_at: new Date().toISOString(),
       customer_id: customerId,
+      login_customer_id: digits(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) || null,
+      auth_mode: authMode(env),
       time_range: range,
       totals: aggregate(rows),
       rows,
