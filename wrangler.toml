@@ -13,9 +13,10 @@ COMMERCE_TENANT_ID = "devid_multibrand"
 META_AD_ACCOUNT_ID = "843613162004896"
 META_GRAPH_API_VERSION = "v26.0"
 META_PIXEL_ID = "154718499430701"
-# Google Ads identifiers are non-secret. OAuth credentials/developer token remain Cloudflare secrets only.
-GOOGLE_ADS_CUSTOMER_ID = "2117126418"
-GOOGLE_ADS_API_VERSION = "v24"
+# Google Ads identifiers are non-secret. Service-account JSON and developer token remain Cloudflare secrets only.
+GOOGLE_ADS_CUSTOMER_ID = "9429975153"
+GOOGLE_ADS_LOGIN_CUSTOMER_ID = "3414479537"
+GOOGLE_ADS_API_VERSION = "v25"
 
 [[kv_namespaces]]
 binding = "SHOPIFY_TOKENS_KV"
