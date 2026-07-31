@@ -221,7 +221,14 @@ function klaviyoStatistics(results: unknown[]): JsonObject {
 }
 
 function klaviyoSummary(source: SourceResult): JsonObject {
-  if (!source.ok) return { ok: false, status: source.status, error: source.body.error || "unavailable" };
+  if (!source.ok) {
+    return {
+      ok: false,
+      status: source.status,
+      error: source.body.error || "unavailable",
+      detail: source.body.detail || null,
+    };
+  }
   const campaigns = Array.isArray(source.body.campaigns) ? source.body.campaigns as unknown[] : [];
   const flows = Array.isArray(source.body.flows) ? source.body.flows as unknown[] : [];
   return {
@@ -327,10 +334,12 @@ export async function handleDailyPulseRequest(request: Request, env: DailyPulseE
   if (!isAuthorized(request, env)) return jsonResponse({ ok: false, error: "unauthorized" }, 401);
   if (url.pathname !== "/internal/daily-pulse/report") return jsonResponse({ ok: false, error: "not_found" }, 404);
 
-  const [yesterday, last7Days] = await Promise.all([
-    buildWindow("yesterday", env),
-    buildWindow("last_7_days", env),
-  ]);
+  // Build the two report windows sequentially. Klaviyo values reports are
+  // comparatively expensive and can be throttled when both windows fan out
+  // at the same time; serializing them keeps the morning snapshot reliable.
+  const yesterday = await buildWindow("yesterday", env);
+  const last7Days = await buildWindow("last_7_days", env);
+
   return jsonResponse({
     ok: true,
     service: "daily_pulse",
