@@ -74,6 +74,9 @@ jobs:
       - name: Test Meta Marketing bridge
         run: npm run test:meta-reporting
 
+      - name: Test Google Ads reporting bridge
+        run: npm run test:google-ads-reporting
+
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
         continue-on-error: true
