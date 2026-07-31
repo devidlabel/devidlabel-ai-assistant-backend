@@ -1,5 +1,6 @@
 import assistantWorker from "./worker-v2";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
+import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
 import { handleShopifyHistoryProbe } from "./shopify-history-probe";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
 
@@ -91,12 +92,17 @@ export default {
     const historyProbeResponse = await handleShopifyHistoryProbe(request, env);
     if (historyProbeResponse) return historyProbeResponse;
 
-    const shopifyResponse = await handleShopifyReportingRequest(request, {
+    const reportingEnv = {
       ...env,
       // Dedicated Shopify token is preferred; reuse the already-deployed internal
       // reporting bearer during rollout so no customer-facing route is blocked.
       SHOPIFY_REPORT_ACCESS_TOKEN: env.SHOPIFY_REPORT_ACCESS_TOKEN || env.KLAVIYO_REPORT_ACCESS_TOKEN,
-    });
+    };
+
+    const bulkStatusCompatResponse = await handleShopifyBulkStatusCompat(request, reportingEnv);
+    if (bulkStatusCompatResponse) return bulkStatusCompatResponse;
+
+    const shopifyResponse = await handleShopifyReportingRequest(request, reportingEnv);
     if (shopifyResponse) return shopifyResponse;
 
     const klaviyoResponse = await handleKlaviyoReportingRequest(request, env);
