@@ -1,0 +1,102 @@
+name: Daily Pulse Snapshot
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run at :35 in the two UTC hours that can correspond to 08:35 Europe/Rome.
+    # The first step keeps only the execution whose local Rome hour is 08,
+    # so DST changes do not shift the business report.
+    - cron: '35 6 * * *'
+    - cron: '35 7 * * *'
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check Europe/Rome report window
+        id: window
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          HOUR="$(TZ=Europe/Rome date +%H)"
+          if [ "$HOUR" = "08" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.window.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fetch protected Daily Pulse
+        if: steps.window.outputs.run == 'true'
+        shell: bash
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/daily-pulse/report" \
+            -o daily-pulse.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('daily-pulse.json', 'utf8'));
+          if (data.ok !== true) {
+            console.error(JSON.stringify(data));
+            process.exit(1);
+          }
+          console.log(JSON.stringify({
+            generated_at: data.generated_at,
+            yesterday_status: data.yesterday?.source_status,
+            last_7_days_status: data.last_7_days?.source_status,
+          }));
+          NODE
+
+      - name: Upload private report artifact
+        if: steps.window.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-pulse-${{ github.run_id }}
+          path: daily-pulse.json
+          retention-days: 45
+          if-no-files-found: error
+
+      - name: Publish non-sensitive latest pointer
+        if: steps.window.outputs.run == 'true'
+        shell: bash
+        run: |
+          mkdir -p ops/daily-pulse
+          GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('daily-pulse.json','utf8')).generated_at")"
+          cat > ops/daily-pulse/latest.json <<EOF
+          {
+            "run_id": ${{ github.run_id }},
+            "artifact_name": "daily-pulse-${{ github.run_id }}",
+            "generated_at": "$GENERATED_AT",
+            "timezone": "Europe/Rome"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/daily-pulse/latest.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Update Daily Pulse pointer"
+          git pull --rebase origin main
+          git push origin HEAD:main
