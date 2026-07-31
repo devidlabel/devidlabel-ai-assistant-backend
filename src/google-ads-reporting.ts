@@ -4,10 +4,7 @@ const GOOGLE_ADS_SCOPE = "https://www.googleapis.com/auth/adwords";
 const DEFAULT_GOOGLE_ADS_API_VERSION = "v25";
 
 type GoogleAdsReportingEnv = {
-  // Preferred production auth: the already-authorized Google Ads service account.
-  // Store the JSON key as a Cloudflare secret; never commit it.
   GOOGLE_ADS_SERVICE_ACCOUNT_JSON?: string;
-  // Optional fallback for single-user OAuth installations.
   GOOGLE_ADS_CLIENT_ID?: string;
   GOOGLE_ADS_CLIENT_SECRET?: string;
   GOOGLE_ADS_REFRESH_TOKEN?: string;
@@ -122,16 +119,17 @@ function base64UrlJson(value: JsonObject): string {
   return base64Url(new TextEncoder().encode(JSON.stringify(value)));
 }
 
-function pemPkcs8Bytes(pem: string): Uint8Array {
+function pemPkcs8Buffer(pem: string): ArrayBuffer {
   const base64 = pem
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
     .replace(/\s+/g, "");
   if (!base64) throw new Error("Google Ads service account private key is empty");
   const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
+  return buffer;
 }
 
 function serviceAccountCredentials(env: GoogleAdsReportingEnv): ServiceAccountCredentials | null {
@@ -172,7 +170,7 @@ async function serviceAccountAccessToken(credentials: ServiceAccountCredentials)
   const unsigned = `${base64UrlJson(header)}.${base64UrlJson(claims)}`;
   const key = await crypto.subtle.importKey(
     "pkcs8",
-    pemPkcs8Bytes(credentials.private_key),
+    pemPkcs8Buffer(credentials.private_key),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
