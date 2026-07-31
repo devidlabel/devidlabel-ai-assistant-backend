@@ -1,4 +1,6 @@
 import assistantWorker from "./worker-v2";
+import { handleDailyPulseRequest } from "./daily-pulse";
+import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
 import { handleMetaReportingRequest } from "./meta-reporting";
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
@@ -17,6 +19,15 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   META_REPORT_ACCESS_TOKEN?: string;
   META_WRITE_ACCESS_TOKEN?: string;
   META_PIXEL_ID?: string;
+  GOOGLE_ADS_CLIENT_ID?: string;
+  GOOGLE_ADS_CLIENT_SECRET?: string;
+  GOOGLE_ADS_REFRESH_TOKEN?: string;
+  GOOGLE_ADS_DEVELOPER_TOKEN?: string;
+  GOOGLE_ADS_CUSTOMER_ID?: string;
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string;
+  GOOGLE_ADS_API_VERSION?: string;
+  GOOGLE_ADS_REPORT_ACCESS_TOKEN?: string;
+  DAILY_PULSE_ACCESS_TOKEN?: string;
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
@@ -117,6 +128,12 @@ export default {
 
     const metaResponse = await handleMetaReportingRequest(request, env);
     if (metaResponse) return metaResponse;
+
+    const googleAdsResponse = await handleGoogleAdsReportingRequest(request, env);
+    if (googleAdsResponse) return googleAdsResponse;
+
+    const dailyPulseResponse = await handleDailyPulseRequest(request, reportingEnv);
+    if (dailyPulseResponse) return dailyPulseResponse;
 
     return assistantWorker.fetch(request, env, context);
   },
