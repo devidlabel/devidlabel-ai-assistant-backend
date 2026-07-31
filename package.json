@@ -18,6 +18,7 @@
     "test:order-chat-response": "node scripts/test-order-chat-response.mjs",
     "test:shopify-oauth": "node scripts/test-shopify-oauth.mjs",
     "test:shopify-reporting": "node scripts/test-shopify-reporting.mjs",
+    "test:meta-reporting": "node scripts/test-meta-reporting.mjs",
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
     "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
