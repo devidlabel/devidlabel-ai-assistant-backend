@@ -19,6 +19,7 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   META_REPORT_ACCESS_TOKEN?: string;
   META_WRITE_ACCESS_TOKEN?: string;
   META_PIXEL_ID?: string;
+  GOOGLE_ADS_SERVICE_ACCOUNT_JSON?: string;
   GOOGLE_ADS_CLIENT_ID?: string;
   GOOGLE_ADS_CLIENT_SECRET?: string;
   GOOGLE_ADS_REFRESH_TOKEN?: string;
