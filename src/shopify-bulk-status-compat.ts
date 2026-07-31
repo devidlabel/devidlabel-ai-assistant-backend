@@ -4,7 +4,11 @@ type CompatEnv = {
   SHOPIFY_SHOP_DOMAIN?: string;
   SHOPIFY_ADMIN_ACCESS_TOKEN?: string;
   SHOPIFY_API_VERSION?: string;
-  SHOPIFY_TOKENS_KV?: { get(key: string): Promise<string | null> };
+  SHOPIFY_TOKENS_KV?: {
+    get(key: string): Promise<string | null>;
+    put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+    delete(key: string): Promise<void>;
+  };
   SHOPIFY_TOKEN_ENCRYPTION_KEY?: string;
   SHOPIFY_REPORT_ACCESS_TOKEN?: string;
 };
