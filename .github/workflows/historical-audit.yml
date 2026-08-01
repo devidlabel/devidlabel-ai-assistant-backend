@@ -1,0 +1,99 @@
+name: Historical Commerce Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ops/historical-audit/request.json
+
+permissions:
+  contents: read
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fetch historical audit windows
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          test -f ops/historical-audit/request.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const request = JSON.parse(fs.readFileSync('ops/historical-audit/request.json', 'utf8'));
+          const worker = process.env.WORKER_URL;
+          const token = process.env.DAILY_PULSE_ACCESS_TOKEN;
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+          async function fetchWindow(period) {
+            const params = new URLSearchParams({
+              start: period.start,
+              end: period.end,
+              label: period.label,
+            });
+            const url = `${worker}/internal/historical-audit/report?${params.toString()}`;
+            let lastError = null;
+            for (let attempt = 1; attempt <= 4; attempt += 1) {
+              const response = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const text = await response.text();
+              let body;
+              try { body = JSON.parse(text); } catch { body = { ok: false, error: 'invalid_json', text: text.slice(0, 500) }; }
+              if (response.ok && body.ok === true) return body;
+              lastError = { label: period.label, status: response.status, body };
+              if (![429, 500, 502, 503, 504].includes(response.status)) break;
+              await sleep(attempt * 5000);
+            }
+            throw new Error(JSON.stringify(lastError));
+          }
+
+          (async () => {
+            const windows = [];
+            for (const period of request.periods) {
+              console.log(`Fetching ${period.label}: ${period.start} -> ${period.end}`);
+              windows.push(await fetchWindow(period));
+              await sleep(2000);
+            }
+            const output = {
+              ok: true,
+              service: 'historical_commerce_audit_bundle',
+              generated_at: new Date().toISOString(),
+              request,
+              windows,
+            };
+            fs.writeFileSync('historical-commerce-audit.json', JSON.stringify(output, null, 2));
+            console.log(JSON.stringify({
+              generated_at: output.generated_at,
+              periods: windows.map(window => ({
+                label: window.label,
+                source_status: window.source_status,
+                ecommerce_direct_mer: window.combined?.ecommerce_direct_mer_meta_google,
+              })),
+            }, null, 2));
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload private audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-commerce-audit-${{ github.run_id }}
+          path: historical-commerce-audit.json
+          retention-days: 45
+          if-no-files-found: error
