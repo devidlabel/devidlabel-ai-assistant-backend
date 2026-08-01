@@ -1,6 +1,7 @@
 import assistantWorker from "./worker-v2";
 import { handleDailyPulseRequest } from "./daily-pulse";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
+import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
 import { handleMetaReportingRequest } from "./meta-reporting";
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
@@ -120,6 +121,9 @@ export default {
 
     const bulkStatusCompatResponse = await handleShopifyBulkStatusCompat(request, reportingEnv);
     if (bulkStatusCompatResponse) return bulkStatusCompatResponse;
+
+    const historicalAuditResponse = await handleHistoricalAuditRequest(request, reportingEnv);
+    if (historicalAuditResponse) return historicalAuditResponse;
 
     const shopifyResponse = await handleShopifyReportingRequest(request, reportingEnv);
     if (shopifyResponse) return shopifyResponse;
