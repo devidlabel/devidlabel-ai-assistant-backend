@@ -38,6 +38,11 @@ jobs:
           const token = process.env.DAILY_PULSE_ACCESS_TOKEN;
           const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+          function allSourcesOk(body) {
+            const status = body?.source_status || {};
+            return ['shopify', 'meta', 'google', 'klaviyo'].every(key => status[key]?.ok === true);
+          }
+
           async function fetchWindow(period) {
             const params = new URLSearchParams({
               start: period.start,
@@ -46,17 +51,23 @@ jobs:
             });
             const url = `${worker}/internal/historical-audit/report?${params.toString()}`;
             let lastError = null;
-            for (let attempt = 1; attempt <= 4; attempt += 1) {
+            let lastBody = null;
+            for (let attempt = 1; attempt <= 5; attempt += 1) {
               const response = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
               });
               const text = await response.text();
               let body;
               try { body = JSON.parse(text); } catch { body = { ok: false, error: 'invalid_json', text: text.slice(0, 500) }; }
-              if (response.ok && body.ok === true) return body;
-              lastError = { label: period.label, status: response.status, body };
-              if (![429, 500, 502, 503, 504].includes(response.status)) break;
-              await sleep(attempt * 5000);
+              lastBody = body;
+              if (response.ok && body.ok === true && allSourcesOk(body)) return body;
+              lastError = { label: period.label, status: response.status, source_status: body?.source_status, body_error: body?.error };
+              if (!response.ok && ![429, 500, 502, 503, 504].includes(response.status)) break;
+              await sleep(12000 * attempt);
+            }
+            if (lastBody?.ok === true) {
+              console.warn(`Returning partial window after retries: ${JSON.stringify(lastError)}`);
+              return lastBody;
             }
             throw new Error(JSON.stringify(lastError));
           }
@@ -66,7 +77,7 @@ jobs:
             for (const period of request.periods) {
               console.log(`Fetching ${period.label}: ${period.start} -> ${period.end}`);
               windows.push(await fetchWindow(period));
-              await sleep(2000);
+              await sleep(5000);
             }
             const output = {
               ok: true,
