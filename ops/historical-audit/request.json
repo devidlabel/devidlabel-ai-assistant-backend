@@ -1,14 +1,12 @@
 {
-  "requested_at": "2026-08-01T12:11:00+02:00",
-  "title": "Chiusura luglio 2026 e confronto storico",
+  "requested_at": "2026-08-02T12:32:00+02:00",
+  "title": "Daily Commerce Report - 1 agosto 2026",
   "periods": [
-    { "label": "29-31 luglio 2026", "start": "2026-07-29", "end": "2026-07-31" },
-    { "label": "25-31 luglio 2026", "start": "2026-07-25", "end": "2026-07-31" },
-    { "label": "18-31 luglio 2026", "start": "2026-07-18", "end": "2026-07-31" },
-    { "label": "Luglio 2026", "start": "2026-07-01", "end": "2026-07-31" },
-    { "label": "Giugno 2026", "start": "2026-06-01", "end": "2026-06-30" },
-    { "label": "Maggio 2026", "start": "2026-05-01", "end": "2026-05-31" },
-    { "label": "Aprile 2026", "start": "2026-04-01", "end": "2026-04-30" },
-    { "label": "17-31 marzo 2026", "start": "2026-03-17", "end": "2026-03-31" }
+    { "label": "1 agosto 2026", "start": "2026-08-01", "end": "2026-08-01" },
+    { "label": "30 luglio-1 agosto 2026", "start": "2026-07-30", "end": "2026-08-01" },
+    { "label": "26 luglio-1 agosto 2026", "start": "2026-07-26", "end": "2026-08-01" },
+    { "label": "19 luglio-1 agosto 2026", "start": "2026-07-19", "end": "2026-08-01" },
+    { "label": "3 luglio-1 agosto 2026", "start": "2026-07-03", "end": "2026-08-01" },
+    { "label": "Luglio 2026", "start": "2026-07-01", "end": "2026-07-31" }
   ]
 }
