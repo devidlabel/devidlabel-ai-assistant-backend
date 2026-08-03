@@ -1,12 +1,11 @@
 {
-  "requested_at": "2026-08-02T12:32:00+02:00",
-  "title": "Daily Commerce Report - 1 agosto 2026",
+  "requested_at": "2026-08-03T09:05:33+02:00",
+  "title": "Daily Commerce Report - 2 agosto 2026",
   "periods": [
-    { "label": "1 agosto 2026", "start": "2026-08-01", "end": "2026-08-01" },
-    { "label": "30 luglio-1 agosto 2026", "start": "2026-07-30", "end": "2026-08-01" },
-    { "label": "26 luglio-1 agosto 2026", "start": "2026-07-26", "end": "2026-08-01" },
-    { "label": "19 luglio-1 agosto 2026", "start": "2026-07-19", "end": "2026-08-01" },
-    { "label": "3 luglio-1 agosto 2026", "start": "2026-07-03", "end": "2026-08-01" },
-    { "label": "Luglio 2026", "start": "2026-07-01", "end": "2026-07-31" }
+    { "label": "2 agosto 2026", "start": "2026-08-02", "end": "2026-08-02" },
+    { "label": "31 luglio-2 agosto 2026", "start": "2026-07-31", "end": "2026-08-02" },
+    { "label": "27 luglio-2 agosto 2026", "start": "2026-07-27", "end": "2026-08-02" },
+    { "label": "20 luglio-2 agosto 2026", "start": "2026-07-20", "end": "2026-08-02" },
+    { "label": "4 luglio-2 agosto 2026", "start": "2026-07-04", "end": "2026-08-02" }
   ]
 }
