@@ -106,6 +106,18 @@ async function handleExpandedShopifyInstall(request: Request, env: WorkerEnv): P
   });
 }
 
+function suppliedBearer(request: Request): string {
+  const authorization = request.headers.get("Authorization") || "";
+  return authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+}
+
+function selectShopifyReportAccessToken(request: Request, env: WorkerEnv): string | undefined {
+  const supplied = suppliedBearer(request);
+  const dailyPulseToken = env.DAILY_PULSE_ACCESS_TOKEN?.trim();
+  if (dailyPulseToken && supplied === dailyPulseToken) return dailyPulseToken;
+  return env.SHOPIFY_REPORT_ACCESS_TOKEN || env.KLAVIYO_REPORT_ACCESS_TOKEN || dailyPulseToken;
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
     const installResponse = await handleExpandedShopifyInstall(request, env);
@@ -116,12 +128,9 @@ export default {
 
     const reportingEnv = {
       ...env,
-      // Dedicated Shopify token is preferred. Existing internal report tokens remain
-      // valid fallbacks so scheduled snapshots can call Shopify routes directly.
-      SHOPIFY_REPORT_ACCESS_TOKEN:
-        env.SHOPIFY_REPORT_ACCESS_TOKEN
-        || env.KLAVIYO_REPORT_ACCESS_TOKEN
-        || env.DAILY_PULSE_ACCESS_TOKEN,
+      // Keep the dedicated report token as the default, but allow the Daily Pulse
+      // bearer for scheduled internal snapshots when that is the supplied credential.
+      SHOPIFY_REPORT_ACCESS_TOKEN: selectShopifyReportAccessToken(request, env),
     };
 
     const bulkStatusCompatResponse = await handleShopifyBulkStatusCompat(request, reportingEnv);
