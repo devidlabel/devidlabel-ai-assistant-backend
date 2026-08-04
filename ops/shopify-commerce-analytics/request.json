@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-08-04T10:36:00+02:00",
-  "reason": "Validate production snapshot after multi-token authentication fix"
+  "requested_at": "2026-08-04T10:42:00+02:00",
+  "reason": "Validate read_reports authorization and refresh Shopify human/bot analytics before 14:30 marketing report"
 }
