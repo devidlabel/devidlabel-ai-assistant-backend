@@ -130,7 +130,7 @@ export default {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
 
-    const mcpResponse = await handleMareMcpRequest(request, env);
+    const mcpResponse = await handleMareMcpRequest(request, env as any);
     if (mcpResponse) return mcpResponse;
 
     const historyProbeResponse = await handleShopifyHistoryProbe(request, env);
