@@ -39,5 +39,15 @@ for (const [search, replacement] of replacements) {
   source = source.replace(search, replacement);
 }
 
+const workflowPatchStart = source.indexOf('workflow = replaceOnce(\n  workflow,\n  `      - name: Test Shopify ADV reporting');
+const workflowPatchEnd = source.indexOf('writeFileSync(workflowPath, workflow);', workflowPatchStart);
+if (workflowPatchStart < 0 || workflowPatchEnd < 0) throw new Error('Missing workflow patch block');
+const workflowPatch = source.slice(workflowPatchStart, workflowPatchEnd);
+source = source.slice(0, workflowPatchStart)
+  + 'if (!workflow.includes("Test Klaviyo reporting resilience")) {\n'
+  + workflowPatch.split('\n').map((line) => `  ${line}`).join('\n')
+  + '}\n'
+  + source.slice(workflowPatchEnd);
+
 writeFileSync(path, source);
-console.log("Repaired temporary migration script literals.");
+console.log("Repaired temporary migration script literals and idempotency.");
