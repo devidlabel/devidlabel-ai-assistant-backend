@@ -4,6 +4,7 @@ import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
 import { handleMetaReportingRequest } from "./meta-reporting";
+import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-reporting";
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
 import { handleShopifyHistoryProbe } from "./shopify-history-probe";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
@@ -44,6 +45,7 @@ const SHOPIFY_OAUTH_SCOPES = [
   "read_online_store_pages",
   "read_orders",
   "read_products",
+  "read_reports",
   "read_returns",
   "read_shopify_payments_payouts",
   "read_content",
@@ -124,6 +126,9 @@ export default {
 
     const historicalAuditResponse = await handleHistoricalAuditRequest(request, reportingEnv);
     if (historicalAuditResponse) return historicalAuditResponse;
+
+    const shopifyAnalyticsResponse = await handleShopifyAnalyticsReportingRequest(request, reportingEnv);
+    if (shopifyAnalyticsResponse) return shopifyAnalyticsResponse;
 
     const shopifyResponse = await handleShopifyReportingRequest(request, reportingEnv);
     if (shopifyResponse) return shopifyResponse;
