@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-08-04T10:18:00+02:00",
-  "reason": "Run initial production validation after trigger and Worker deployment"
+  "requested_at": "2026-08-04T10:21:00+02:00",
+  "reason": "Direct production recovery trigger for Shopify analytics validation"
 }
