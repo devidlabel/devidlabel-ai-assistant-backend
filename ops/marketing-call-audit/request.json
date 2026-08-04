@@ -1,5 +1,5 @@
 {
-  "requested_at": "2026-08-04T11:00:00+02:00",
+  "requested_at": "2026-08-04T11:03:00+02:00",
   "requested_for": "2026-08-04T14:30:00+02:00",
-  "reason": "Run exact-period Shopify Meta Google Klaviyo audit after workflow registration"
+  "reason": "Run exact-period marketing audit after Node workflow fix"
 }
