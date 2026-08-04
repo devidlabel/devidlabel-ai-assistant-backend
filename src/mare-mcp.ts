@@ -53,14 +53,14 @@ const TOOLS = [
   {
     name: "mare_daily_pulse",
     title: "MARE Daily Pulse",
-    description: "Returns the executive commerce pulse for yesterday and the last 7 complete days, combining Shopify, paid media, GA4, Search Console and Klaviyo. Shopify remains the source of truth for revenue.",
+    description: "Returns the executive commerce pulse for yesterday and the last 7 complete days. Ecommerce revenue and MER use only Shopify Online Store and Shop; Draft Orders, marketplaces and other Shopify sources are reported separately.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "mare_shopify_commerce",
     title: "Shopify commerce report",
-    description: "Returns PII-free Shopify commerce metrics, COGS proxy, contribution proxy and source/vendor breakdowns for a selected completed period.",
+    description: "Returns PII-free Shopify reporting segmented into ecommerce (Online Store + Shop only), Draft Orders as an approximate physical-store proxy, marketplaces by source, other channels and all-Shopify context totals. Ecommerce KPIs exclude every non-ecommerce segment.",
     inputSchema: {
       type: "object",
       properties: {
