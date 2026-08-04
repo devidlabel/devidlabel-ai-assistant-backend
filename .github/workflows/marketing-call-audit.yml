@@ -32,7 +32,7 @@ jobs:
         run: |
           test -n "$DAILY_PULSE_ACCESS_TOKEN"
           node - <<'NODE'
-          const fs = require('node:fs');
+          const fs = await import('node:fs');
 
           const worker = process.env.WORKER_URL;
           const token = process.env.DAILY_PULSE_ACCESS_TOKEN;
