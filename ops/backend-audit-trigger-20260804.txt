@@ -1,0 +1,1 @@
+Trigger backend structure audit for Shopify discount capability.
