@@ -6,6 +6,9 @@ const MAX_SYNC_DAYS = 31;
 type JsonObject = Record<string, unknown>;
 
 type ShopifyAnalyticsEnv = {
+  SHOPIFY_SHOP_DOMAIN?: string;
+  SHOPIFY_ADMIN_ACCESS_TOKEN?: string;
+  SHOPIFY_API_VERSION?: string;
   SHOPIFY_REPORT_ACCESS_TOKEN?: string;
   COMMERCE_TENANT_ID?: string;
 };
