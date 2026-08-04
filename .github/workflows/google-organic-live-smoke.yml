@@ -1,0 +1,39 @@
+name: Google Organic Live Smoke
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Deploy Cloudflare Worker
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Wait for Worker propagation
+        if: github.event_name == 'workflow_run'
+        run: sleep 15
+
+      - name: Probe live Search Console, GA4 and Daily Pulse
+        env:
+          WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: node scripts/probe-live-google-organic.mjs
