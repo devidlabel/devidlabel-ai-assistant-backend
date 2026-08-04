@@ -44,6 +44,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Repair temporary migration script
+        if: github.event_name == 'pull_request'
+        run: node scripts/fix-apply-shopify-channel-policy.mjs
+
       - name: Apply Shopify channel migration
         if: github.event_name == 'pull_request'
         run: node scripts/apply-shopify-channel-policy.mjs
@@ -110,6 +114,7 @@ jobs:
           workflow = workflow.replace(target, replacement);
           fs.writeFileSync('.github/workflows/deploy-worker.yml', workflow);
           fs.rmSync('scripts/apply-shopify-channel-policy.mjs', { force: true });
+          fs.rmSync('scripts/fix-apply-shopify-channel-policy.mjs', { force: true });
           fs.rmSync('.github/workflows/apply-shopify-channel-policy.yml', { force: true });
           NODE
           git config user.name "github-actions[bot]"
