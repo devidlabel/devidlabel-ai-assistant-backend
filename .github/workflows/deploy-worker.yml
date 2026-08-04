@@ -44,13 +44,18 @@ jobs:
         with:
           node-version: 22
 
-      - name: Repair temporary migration script
+      - name: Repair and apply temporary Shopify channel migration
         if: github.event_name == 'pull_request'
-        run: node scripts/fix-apply-shopify-channel-policy.mjs
-
-      - name: Apply Shopify channel migration
-        if: github.event_name == 'pull_request'
-        run: node scripts/apply-shopify-channel-policy.mjs
+        shell: bash
+        run: |
+          if grep -q 'const SCHEMA_VERSION = 1;' src/shopify-reporting.ts; then
+            node scripts/fix-apply-shopify-channel-policy.mjs
+            node scripts/apply-shopify-channel-policy.mjs
+            echo "CHANNEL_MIGRATION_APPLIED=true" >> "$GITHUB_ENV"
+          else
+            echo "Channel migration already applied."
+            echo "CHANNEL_MIGRATION_APPLIED=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Install dependencies
         run: npm install
@@ -100,26 +105,26 @@ jobs:
       - name: Test MARE Commerce OS MCP bridge
         run: npm run test:mare-mcp
 
-      - name: Commit migrated source and restore final workflow
-        if: github.event_name == 'pull_request'
+      - name: Commit generated source changes only
+        if: github.event_name == 'pull_request' && env.CHANNEL_MIGRATION_APPLIED == 'true'
         shell: bash
         run: |
-          node - <<'NODE'
-          const { execFileSync } = require('node:child_process');
-          const fs = require('node:fs');
-          let workflow = execFileSync('git', ['show', 'origin/main:.github/workflows/deploy-worker.yml'], { encoding: 'utf8' });
-          const target = `      - name: Test Shopify ADV reporting\n        run: npm run test:shopify-reporting\n\n      - name: Test Meta Marketing bridge`;
-          const replacement = `      - name: Test Shopify ADV reporting\n        run: npm run test:shopify-reporting\n\n      - name: Test Klaviyo reporting resilience\n        run: npm run test:klaviyo-reporting\n\n      - name: Test Meta Marketing bridge`;
-          if (!workflow.includes(target)) throw new Error('Unable to restore final deploy workflow');
-          workflow = workflow.replace(target, replacement);
-          fs.writeFileSync('.github/workflows/deploy-worker.yml', workflow);
-          fs.rmSync('scripts/apply-shopify-channel-policy.mjs', { force: true });
-          fs.rmSync('scripts/fix-apply-shopify-channel-policy.mjs', { force: true });
-          fs.rmSync('.github/workflows/apply-shopify-channel-policy.yml', { force: true });
-          NODE
+          rm -rf .tmp
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            git checkout -- package-lock.json
+          else
+            rm -f package-lock.json
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add \
+            src/shopify-reporting.ts \
+            src/daily-pulse.ts \
+            src/mare-mcp.ts \
+            src/klaviyo-reporting.ts \
+            scripts/test-shopify-reporting.mjs \
+            scripts/test-klaviyo-reporting.mjs \
+            package.json
           git commit -m "Fix Shopify ecommerce channel segmentation and reporting"
           git push origin HEAD:${{ github.head_ref }}
 
