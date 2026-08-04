@@ -83,6 +83,9 @@ jobs:
       - name: Test GA4 Data API reporting bridge
         run: npm run test:ga4-reporting
 
+      - name: Test MARE Commerce OS MCP bridge
+        run: npm run test:mare-mcp
+
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
         continue-on-error: true
