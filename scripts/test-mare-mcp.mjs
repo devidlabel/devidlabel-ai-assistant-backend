@@ -24,7 +24,7 @@ for (const fragment of requiredFragments) {
 
 const workerSource = await readFile(new URL("../src/worker-v3.ts", import.meta.url), "utf8");
 assert.ok(workerSource.includes('import { handleMareMcpRequest } from "./mare-mcp";'));
-assert.ok(workerSource.includes("await handleMareMcpRequest(request, env)"));
+assert.ok(workerSource.includes("await handleMareMcpRequest(request, env"));
 
 console.log(JSON.stringify({
   ok: true,
