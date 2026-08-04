@@ -1,9 +1,11 @@
 import assistantWorker from "./worker-v2";
 import { handleDailyPulseRequest } from "./daily-pulse";
+import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
 import { handleMetaReportingRequest } from "./meta-reporting";
+import { handleSearchConsoleReportingRequest } from "./search-console-reporting";
 import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-reporting";
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
 import { handleShopifyHistoryProbe } from "./shopify-history-probe";
@@ -30,6 +32,9 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string;
   GOOGLE_ADS_API_VERSION?: string;
   GOOGLE_ADS_REPORT_ACCESS_TOKEN?: string;
+  GOOGLE_ORGANIC_REPORT_ACCESS_TOKEN?: string;
+  SEARCH_CONSOLE_SITE_URL?: string;
+  GA4_PROPERTY_ID?: string;
   DAILY_PULSE_ACCESS_TOKEN?: string;
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
@@ -153,6 +158,12 @@ export default {
 
     const googleAdsResponse = await handleGoogleAdsReportingRequest(request, env);
     if (googleAdsResponse) return googleAdsResponse;
+
+    const searchConsoleResponse = await handleSearchConsoleReportingRequest(request, env);
+    if (searchConsoleResponse) return searchConsoleResponse;
+
+    const ga4Response = await handleGa4ReportingRequest(request, env);
+    if (ga4Response) return ga4Response;
 
     const dailyPulseResponse = await handleDailyPulseRequest(request, reportingEnv);
     if (dailyPulseResponse) return dailyPulseResponse;
