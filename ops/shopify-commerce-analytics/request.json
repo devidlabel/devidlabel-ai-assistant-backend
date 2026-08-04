@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-08-04T10:42:00+02:00",
-  "reason": "Validate read_reports authorization and refresh Shopify human/bot analytics before 14:30 marketing report"
+  "requested_at": "2026-08-04T10:51:00+02:00",
+  "reason": "Validate deployed ShopifyQL parseErrors fix and refresh human/bot analytics before 14:30 marketing report"
 }
