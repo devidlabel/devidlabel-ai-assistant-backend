@@ -16,6 +16,7 @@ const requiredFragments = [
   'readOnlyHint: true',
   'url.pathname !== "/mcp"',
   'X-MARE-MCP-Key',
+  'const MCP_MAX_NESTING_DEPTH = 10;',
 ];
 
 for (const fragment of requiredFragments) {

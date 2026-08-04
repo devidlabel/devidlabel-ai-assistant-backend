@@ -243,8 +243,10 @@ function pickEnum(value: unknown, allowed: readonly string[], fallback: string):
   return allowed.includes(candidate) ? candidate : fallback;
 }
 
+const MCP_MAX_NESTING_DEPTH = 10;
+
 function trimValue(value: unknown, depth = 0, maxArray = 30): unknown {
-  if (depth > 7) return "[truncated]";
+  if (depth > MCP_MAX_NESTING_DEPTH) return "[truncated]";
   if (typeof value === "string") return value.length > 4000 ? `${value.slice(0, 4000)}…` : value;
   if (Array.isArray(value)) return value.slice(0, maxArray).map((item) => trimValue(item, depth + 1, maxArray));
   if (value && typeof value === "object") {
