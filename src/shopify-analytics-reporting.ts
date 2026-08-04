@@ -28,9 +28,13 @@ type ShopifyQlTableData = {
   rows: JsonObject[];
 };
 
+type ShopifyQlParseError = {
+  message: string;
+};
+
 type ShopifyQlData = {
   shopifyqlQuery: {
-    parseErrors: string[];
+    parseErrors: ShopifyQlParseError[];
     tableData: ShopifyQlTableData | null;
   };
 };
@@ -159,14 +163,14 @@ async function runShopifyQl(env: ShopifyAnalyticsEnv, label: string, query: stri
           columns { name dataType displayName }
           rows
         }
-        parseErrors
+        parseErrors { message }
       }
     }
   `, { query });
 
   const result = data.shopifyqlQuery;
   if (result.parseErrors.length) {
-    throw new Error(`shopifyql_parse_error:${label}:${result.parseErrors.join(" | ")}`);
+    throw new Error(`shopifyql_parse_error:${label}:${result.parseErrors.map((error) => error.message).join(" | ")}`);
   }
   if (!result.tableData) throw new Error(`shopifyql_empty_table:${label}`);
   return result.tableData;
