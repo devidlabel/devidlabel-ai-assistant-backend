@@ -20,6 +20,8 @@
     "test:shopify-reporting": "node scripts/test-shopify-reporting.mjs",
     "test:meta-reporting": "node scripts/test-meta-reporting.mjs",
     "test:google-ads-reporting": "node scripts/test-google-ads-reporting.mjs",
+    "test:search-console-reporting": "node scripts/test-search-console-reporting.mjs",
+    "test:ga4-reporting": "node scripts/test-ga4-reporting.mjs",
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
     "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
