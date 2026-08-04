@@ -1,5 +1,9 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 const workerUrl = (process.env.WORKER_URL || "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev").replace(/\/$/, "");
 const token = process.env.DAILY_PULSE_ACCESS_TOKEN || process.env.GOOGLE_ORGANIC_REPORT_ACCESS_TOKEN || "";
+const outputPath = process.env.OUTPUT_PATH || "";
 
 if (!token) {
   console.error("Missing DAILY_PULSE_ACCESS_TOKEN or GOOGLE_ORGANIC_REPORT_ACCESS_TOKEN");
@@ -54,6 +58,8 @@ if (pulse.search_console?.last_7_days?.ok !== true) throw new Error("Search Cons
 
 const ga4Overview = firstMetric(ga4.overview);
 const summary = {
+  ok: true,
+  generated_at: new Date().toISOString(),
   search_console: {
     permission_level: configuredSite.permission_level,
     timeframe: search.timeframe,
@@ -81,3 +87,7 @@ const summary = {
 };
 
 console.log(JSON.stringify(summary, null, 2));
+if (outputPath) {
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+}
