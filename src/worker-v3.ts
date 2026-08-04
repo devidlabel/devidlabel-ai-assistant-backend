@@ -1,5 +1,5 @@
 import assistantWorker from "./worker-v2";
-import { handleDailyPulseRequest } from "./daily-pulse";
+import { handleDailyPulseRequest } from "./daily-pulse-organic";
 import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
