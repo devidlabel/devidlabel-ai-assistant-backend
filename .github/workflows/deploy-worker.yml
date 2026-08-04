@@ -24,7 +24,7 @@ on:
       - '.github/workflows/deploy-worker.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   deploy:
@@ -35,27 +35,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Repair and apply temporary Shopify channel migration
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          if grep -q 'const SCHEMA_VERSION = 1;' src/shopify-reporting.ts; then
-            node scripts/fix-apply-shopify-channel-policy.mjs
-            node scripts/apply-shopify-channel-policy.mjs
-            echo "CHANNEL_MIGRATION_APPLIED=true" >> "$GITHUB_ENV"
-          else
-            echo "Channel migration already applied."
-            echo "CHANNEL_MIGRATION_APPLIED=false" >> "$GITHUB_ENV"
-          fi
 
       - name: Install dependencies
         run: npm install
@@ -104,29 +88,6 @@ jobs:
 
       - name: Test MARE Commerce OS MCP bridge
         run: npm run test:mare-mcp
-
-      - name: Commit generated source changes only
-        if: github.event_name == 'pull_request' && env.CHANNEL_MIGRATION_APPLIED == 'true'
-        shell: bash
-        run: |
-          rm -rf .tmp
-          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
-            git checkout -- package-lock.json
-          else
-            rm -f package-lock.json
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            src/shopify-reporting.ts \
-            src/daily-pulse.ts \
-            src/mare-mcp.ts \
-            src/klaviyo-reporting.ts \
-            scripts/test-shopify-reporting.mjs \
-            scripts/test-klaviyo-reporting.mjs \
-            package.json
-          git commit -m "Fix Shopify ecommerce channel segmentation and reporting"
-          git push origin HEAD:${{ github.head_ref }}
 
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
