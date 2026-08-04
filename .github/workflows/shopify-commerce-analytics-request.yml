@@ -1,0 +1,23 @@
+name: Trigger Shopify Commerce Analytics
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/shopify-commerce-analytics/request.json'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch Shopify analytics snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: gh workflow run shopify-commerce-analytics.yml --ref main
