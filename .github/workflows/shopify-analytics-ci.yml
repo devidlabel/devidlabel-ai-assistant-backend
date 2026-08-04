@@ -5,7 +5,9 @@ on:
     paths:
       - 'src/shopify-analytics-reporting.ts'
       - 'src/worker-v3.ts'
+      - 'scripts/build-shopify-commerce-analytics.mjs'
       - 'scripts/test-shopify-analytics-reporting.mjs'
+      - 'scripts/test-shopify-commerce-analytics.mjs'
       - '.github/workflows/shopify-commerce-analytics.yml'
       - '.github/workflows/shopify-analytics-ci.yml'
   push:
@@ -13,7 +15,9 @@ on:
     paths:
       - 'src/shopify-analytics-reporting.ts'
       - 'src/worker-v3.ts'
+      - 'scripts/build-shopify-commerce-analytics.mjs'
       - 'scripts/test-shopify-analytics-reporting.mjs'
+      - 'scripts/test-shopify-commerce-analytics.mjs'
       - '.github/workflows/shopify-commerce-analytics.yml'
       - '.github/workflows/shopify-analytics-ci.yml'
 
@@ -29,3 +33,4 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: node scripts/test-shopify-analytics-reporting.mjs
+      - run: node scripts/test-shopify-commerce-analytics.mjs
