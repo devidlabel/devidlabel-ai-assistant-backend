@@ -1,0 +1,54 @@
+name: Apply MCP nesting depth fix
+
+on:
+  push:
+    branches:
+      - fix/mcp-nested-marketplace-metrics
+    paths:
+      - 'scripts/apply-mcp-depth-fix.mjs'
+      - '.github/workflows/apply-mcp-depth-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/mcp-nested-marketplace-metrics
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply MCP depth fix
+        run: node scripts/apply-mcp-depth-fix.mjs
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test MCP contract
+        run: npm run test:mare-mcp
+
+      - name: Test Shopify reporting
+        run: npm run test:shopify-reporting
+
+      - name: Commit final changes
+        shell: bash
+        run: |
+          rm -f scripts/apply-mcp-depth-fix.mjs .github/workflows/apply-mcp-depth-fix.yml
+          git checkout -- package-lock.json || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Preserve nested marketplace metrics in MCP responses"
+          git push origin HEAD:fix/mcp-nested-marketplace-metrics
