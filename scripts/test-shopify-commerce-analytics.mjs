@@ -8,7 +8,7 @@ const assert = (condition, message) => {
 };
 
 const reporterSource = readFileSync('src/shopify-analytics-reporting.ts', 'utf8');
-assert(/parseErrors\s*\{\s*message\s*\}/m.test(reporterSource), 'ShopifyQL parseErrors must select message');
+assert(/parseErrors\s*(?!\{)/m.test(reporterSource), 'ShopifyQL parseErrors must be selected as a scalar string list');
 
 process.env.WORKER_URL = 'https://worker.test';
 process.env.DAILY_PULSE_ACCESS_TOKEN = 'daily-secret';
