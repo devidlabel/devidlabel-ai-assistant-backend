@@ -116,9 +116,12 @@ export default {
 
     const reportingEnv = {
       ...env,
-      // Dedicated Shopify token is preferred; reuse the already-deployed internal
-      // reporting bearer during rollout so no customer-facing route is blocked.
-      SHOPIFY_REPORT_ACCESS_TOKEN: env.SHOPIFY_REPORT_ACCESS_TOKEN || env.KLAVIYO_REPORT_ACCESS_TOKEN,
+      // Dedicated Shopify token is preferred. Existing internal report tokens remain
+      // valid fallbacks so scheduled snapshots can call Shopify routes directly.
+      SHOPIFY_REPORT_ACCESS_TOKEN:
+        env.SHOPIFY_REPORT_ACCESS_TOKEN
+        || env.KLAVIYO_REPORT_ACCESS_TOKEN
+        || env.DAILY_PULSE_ACCESS_TOKEN,
     };
 
     const bulkStatusCompatResponse = await handleShopifyBulkStatusCompat(request, reportingEnv);
