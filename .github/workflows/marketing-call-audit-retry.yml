@@ -1,0 +1,150 @@
+name: Marketing Call Audit Retry
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/marketing-call-audit/retry.json'
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Build exact-period audit with retries
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node - <<'NODE'
+          const fs = await import('node:fs');
+          const worker = process.env.WORKER_URL;
+          const token = process.env.DAILY_PULSE_ACCESS_TOKEN;
+          const periods = [
+            { key: 'day_2026_07_31', label: '31 luglio 2026', start: '2026-07-31', end: '2026-07-31' },
+            { key: 'day_2026_08_01', label: '1 agosto 2026', start: '2026-08-01', end: '2026-08-01' },
+            { key: 'day_2026_08_02', label: '2 agosto 2026', start: '2026-08-02', end: '2026-08-02' },
+            { key: 'period_2026_07_31_2026_08_02', label: '31 luglio - 2 agosto 2026', start: '2026-07-31', end: '2026-08-02' },
+            { key: 'week_2026_07_23_2026_07_30', label: '23 - 30 luglio 2026', start: '2026-07-23', end: '2026-07-30' },
+            { key: 'week_2026_07_16_2026_07_23', label: '16 - 23 luglio 2026', start: '2026-07-16', end: '2026-07-23' },
+          ];
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+          async function once(path) {
+            try {
+              const response = await fetch(`${worker}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+              const text = await response.text();
+              let body;
+              try { body = JSON.parse(text); }
+              catch { body = { ok: false, error: 'invalid_json', sample: text.slice(0, 300) }; }
+              return { ok: response.ok && body.ok !== false, status: response.status, body };
+            } catch (error) {
+              return { ok: false, status: 0, body: { ok: false, error: error instanceof Error ? error.message : 'fetch_failed' } };
+            }
+          }
+
+          async function fetchWithRetry(path, attempts = 5) {
+            let result;
+            for (let attempt = 1; attempt <= attempts; attempt += 1) {
+              result = await once(path);
+              const retryable = result.status === 429
+                || (result.status === 503 && result.body?.detail === 'rate_limited')
+                || result.status === 0;
+              if (result.ok || !retryable || attempt === attempts) return result;
+              await sleep(8000 * attempt);
+            }
+            return result;
+          }
+
+          const results = [];
+          for (const period of periods) {
+            const label = encodeURIComponent(period.label);
+            const historical = await fetchWithRetry(`/internal/historical-audit/report?start=${period.start}&end=${period.end}&label=${label}`, 3);
+            await sleep(3000);
+            const analytics = await fetchWithRetry(`/internal/shopify-analytics/report?timeframe=custom&start=${period.start}&end=${period.end}`, 5);
+            await sleep(5000);
+            results.push({
+              ...period,
+              source_status: {
+                historical: {
+                  ok: historical.ok,
+                  status: historical.status,
+                  error: historical.ok ? null : historical.body?.error || 'unavailable',
+                  detail: historical.body?.detail || null,
+                },
+                shopify_analytics: {
+                  ok: analytics.ok,
+                  status: analytics.status,
+                  error: analytics.ok ? null : analytics.body?.error || 'unavailable',
+                  detail: analytics.body?.detail || null,
+                  message: analytics.body?.message || null,
+                },
+              },
+              historical: historical.body,
+              shopify_analytics: analytics.body,
+            });
+            console.log(JSON.stringify({ period: period.key, status: results.at(-1).source_status }));
+          }
+
+          const output = {
+            ok: results.every(row => row.source_status.historical.ok && row.source_status.shopify_analytics.ok),
+            service: 'marketing_call_audit',
+            generated_at: new Date().toISOString(),
+            timezone: 'Europe/Rome',
+            requested_for: '2026-08-04T14:30:00+02:00',
+            periods: results,
+            methodology: {
+              historical: 'Shopify orders, Meta Ads, Google Ads and Klaviyo from Historical Commerce Audit.',
+              shopify_analytics: 'ShopifyQL native human/bot classification; human sessions drive business KPIs.',
+              site_perimeter: 'Only Online Store + Shop belong to devidlabel.com.',
+              retry_policy: 'Rate-limited calls retried with progressive backoff.',
+            },
+          };
+          fs.writeFileSync('marketing-call-audit.json', JSON.stringify(output, null, 2));
+          console.log(JSON.stringify({ ok: output.ok, generated_at: output.generated_at }));
+          NODE
+
+      - name: Upload private artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketing-call-audit-${{ github.run_id }}
+          path: marketing-call-audit.json
+          retention-days: 45
+          if-no-files-found: error
+
+      - name: Publish latest pointer
+        shell: bash
+        run: |
+          mkdir -p ops/marketing-call-audit
+          GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('marketing-call-audit.json','utf8')).generated_at")"
+          OK="$(node -p "JSON.parse(require('fs').readFileSync('marketing-call-audit.json','utf8')).ok")"
+          cat > ops/marketing-call-audit/latest.json <<EOF
+          {
+            "run_id": ${{ github.run_id }},
+            "artifact_name": "marketing-call-audit-${{ github.run_id }}",
+            "generated_at": "$GENERATED_AT",
+            "ok": $OK,
+            "timezone": "Europe/Rome"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/marketing-call-audit/latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update marketing call audit pointer"
+          git pull --rebase origin main
+          git push origin HEAD:main
