@@ -1,0 +1,1 @@
+read_reports authorization confirmed by merchant on 2026-08-04; ShopifyQL parser compatibility fix in progress.
