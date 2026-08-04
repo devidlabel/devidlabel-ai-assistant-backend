@@ -141,7 +141,9 @@ function shopifySummary(source: SourceResult): JsonObject {
   return {
     ok: true,
     timeframe: source.body.timeframe || null,
+    channel_policy: source.body.channel_policy || {},
     metrics: source.body.metrics || {},
+    segments: source.body.segments || {},
     breakdowns: source.body.breakdowns || {},
     warnings: source.body.warnings || [],
   };
@@ -241,24 +243,32 @@ function klaviyoSummary(source: SourceResult): JsonObject {
   };
 }
 
+
 function combinedKpis(sources: { shopify: JsonObject; meta: JsonObject; google: JsonObject }): JsonObject {
   const shopifyMetrics = sources.shopify.metrics && typeof sources.shopify.metrics === "object" ? sources.shopify.metrics as JsonObject : {};
   const metaTotals = sources.meta.totals && typeof sources.meta.totals === "object" ? sources.meta.totals as JsonObject : {};
   const googleTotals = sources.google.totals && typeof sources.google.totals === "object" ? sources.google.totals as JsonObject : {};
 
-  const revenue = numberValue(shopifyMetrics.net_merchandise_revenue);
-  const contributionBeforeAds = numberValue(shopifyMetrics.contribution_margin_proxy_before_adv_and_fulfillment);
+  const ecommerceRevenue = numberValue(shopifyMetrics.net_merchandise_revenue);
+  const grossMarginBeforeAds = numberValue(shopifyMetrics.gross_margin_proxy_before_adv_fulfillment_and_fees)
+    || numberValue(shopifyMetrics.contribution_margin_proxy_before_adv_and_fulfillment);
   const metaSpend = numberValue(metaTotals.spend);
   const googleSpend = numberValue(googleTotals.spend);
   const paidSpend = metaSpend + googleSpend;
+  const mer = paidSpend > 0 ? round(ecommerceRevenue / paidSpend, 4) : 0;
   return {
-    shopify_net_merchandise_revenue: round(revenue),
+    shopify_ecommerce_net_merchandise_revenue: round(ecommerceRevenue),
+    shopify_net_merchandise_revenue: round(ecommerceRevenue),
+    ecommerce_revenue_scope: "online_store_and_shop_only",
     meta_spend: round(metaSpend),
     google_spend: round(googleSpend),
     paid_media_spend_meta_google: round(paidSpend),
-    mer_meta_google: paidSpend > 0 ? round(revenue / paidSpend, 4) : 0,
-    contribution_proxy_before_adv_and_fulfillment: round(contributionBeforeAds),
-    contribution_proxy_after_meta_google_before_fulfillment: round(contributionBeforeAds - paidSpend),
+    ecommerce_mer_meta_google: mer,
+    mer_meta_google: mer,
+    gross_margin_proxy_before_adv_fulfillment_and_fees: round(grossMarginBeforeAds),
+    gross_margin_proxy_after_meta_google_before_fulfillment_and_fees: round(grossMarginBeforeAds - paidSpend),
+    contribution_proxy_before_adv_and_fulfillment: round(grossMarginBeforeAds),
+    contribution_proxy_after_meta_google_before_fulfillment: round(grossMarginBeforeAds - paidSpend),
   };
 }
 
@@ -348,7 +358,11 @@ export async function handleDailyPulseRequest(request: Request, env: DailyPulseE
     yesterday,
     last_7_days: last7Days,
     notes: [
+      "Ecommerce KPIs and MER use only Shopify Online Store and Shop orders; Draft Orders, marketplaces and other sources are reported separately.",
+      "Draft Orders are an approximate proxy of physical-store sales and are not ecommerce.",
+      "Shopify all-channel totals are context only and must never be used as the ecommerce MER numerator.",
       "Shopify COGS uses current InventoryItem.unitCost as a proxy, not historical unit cost at sale time.",
+      "The pre-ADV profitability value is a gross-margin proxy until fulfillment, payment fees, packaging and variable return costs are included.",
       "Combined paid-media MER currently includes Meta + Google only.",
       "Klaviyo attribution remains platform-reported and should not be added to Shopify revenue as incremental revenue.",
     ],

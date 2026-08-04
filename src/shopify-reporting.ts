@@ -1,6 +1,6 @@
 import { shopifyGraphQL } from "./index";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const MAX_SYNC_DAYS = 31;
 const ORDER_PAGE_SIZE = 100;
 const LINE_ITEM_PAGE_SIZE = 100;
@@ -351,6 +351,134 @@ function bump(map: Map<string, number>, key: string): void {
   map.set(key, (map.get(key) || 0) + 1);
 }
 
+type ChannelGroup = "ecommerce" | "draft_store_proxy" | "marketplace" | "other";
+
+type ChannelClassification = {
+  group: ChannelGroup;
+  label: string;
+};
+
+type MetricsAccumulator = {
+  validOrders: number;
+  currentTotal: number;
+  currentShipping: number;
+  currentTax: number;
+  currentDiscounts: number;
+  totalRefunded: number;
+  netMerchandiseRevenue: number;
+  cogs: number;
+  currentUnits: number;
+  costedUnits: number;
+};
+
+type SourceMetricsAccumulator = MetricsAccumulator & {
+  source: string;
+  group: ChannelGroup;
+  label: string;
+};
+
+const ECOMMERCE_SOURCE_NAMES = ["web", "online_store", "shop", "3890849"] as const;
+
+function sourceKey(source: string): string {
+  return source.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function classifySource(source: string): ChannelClassification {
+  const key = sourceKey(source);
+  if (key === "web" || key === "online_store") return { group: "ecommerce", label: "Online Store" };
+  if (key === "shop" || key === "3890849") return { group: "ecommerce", label: "Shop" };
+  if (key.includes("draft")) return { group: "draft_store_proxy", label: "Draft Orders / store proxy" };
+  if (/(amazon|spartoo|miinto|tiktok|ebay|farfetch|marketplace|channable)/.test(key)) {
+    return { group: "marketplace", label: source };
+  }
+  if (key === "prestashop") return { group: "other", label: "Prestashop legacy/import" };
+  return { group: "other", label: source || "Unknown" };
+}
+
+function createMetricsAccumulator(): MetricsAccumulator {
+  return {
+    validOrders: 0,
+    currentTotal: 0,
+    currentShipping: 0,
+    currentTax: 0,
+    currentDiscounts: 0,
+    totalRefunded: 0,
+    netMerchandiseRevenue: 0,
+    cogs: 0,
+    currentUnits: 0,
+    costedUnits: 0,
+  };
+}
+
+function addOrderMetrics(
+  accumulator: MetricsAccumulator,
+  values: {
+    currentTotal: number;
+    currentShipping: number;
+    currentTax: number;
+    currentDiscounts: number;
+    totalRefunded: number;
+    netMerchandiseRevenue: number;
+    cogs: number;
+    currentUnits: number;
+    costedUnits: number;
+  },
+): void {
+  accumulator.validOrders += 1;
+  accumulator.currentTotal += values.currentTotal;
+  accumulator.currentShipping += values.currentShipping;
+  accumulator.currentTax += values.currentTax;
+  accumulator.currentDiscounts += values.currentDiscounts;
+  accumulator.totalRefunded += values.totalRefunded;
+  accumulator.netMerchandiseRevenue += values.netMerchandiseRevenue;
+  accumulator.cogs += values.cogs;
+  accumulator.currentUnits += values.currentUnits;
+  accumulator.costedUnits += values.costedUnits;
+}
+
+function metricsOutput(accumulator: MetricsAccumulator): JsonObject {
+  const costCoverage = accumulator.currentUnits ? accumulator.costedUnits / accumulator.currentUnits : 0;
+  const grossMarginProxy = accumulator.netMerchandiseRevenue - accumulator.cogs;
+  return {
+    valid_orders: accumulator.validOrders,
+    current_total: roundMoney(accumulator.currentTotal),
+    current_shipping: roundMoney(accumulator.currentShipping),
+    current_tax: roundMoney(accumulator.currentTax),
+    current_discounts: roundMoney(accumulator.currentDiscounts),
+    total_refunded: roundMoney(accumulator.totalRefunded),
+    net_merchandise_revenue: roundMoney(accumulator.netMerchandiseRevenue),
+    cogs_current_unit_cost: roundMoney(accumulator.cogs),
+    gross_margin_proxy_before_adv_fulfillment_and_fees: roundMoney(grossMarginProxy),
+    contribution_margin_proxy_before_adv_and_fulfillment: roundMoney(grossMarginProxy),
+    current_units: accumulator.currentUnits,
+    costed_units: accumulator.costedUnits,
+    cost_coverage: Math.round(costCoverage * 10_000) / 10_000,
+    average_order_value_gross: accumulator.validOrders ? roundMoney(accumulator.currentTotal / accumulator.validOrders) : 0,
+    net_merchandise_revenue_per_order: accumulator.validOrders ? roundMoney(accumulator.netMerchandiseRevenue / accumulator.validOrders) : 0,
+    units_per_order: accumulator.validOrders ? Math.round((accumulator.currentUnits / accumulator.validOrders) * 100) / 100 : 0,
+  };
+}
+
+function sourceRows(
+  sourceMetrics: Map<string, SourceMetricsAccumulator>,
+  group?: ChannelGroup,
+): JsonObject[] {
+  return [...sourceMetrics.values()]
+    .filter((row) => !group || row.group === group)
+    .map((row) => ({
+      source: row.source,
+      label: row.label,
+      channel_group: row.group,
+      metrics: metricsOutput(row),
+    }))
+    .sort((left, right) => {
+      const leftMetrics = left.metrics as JsonObject;
+      const rightMetrics = right.metrics as JsonObject;
+      return Number(rightMetrics.net_merchandise_revenue || 0) - Number(leftMetrics.net_merchandise_revenue || 0);
+    });
+}
+
+
 async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: string[]): Promise<JsonObject> {
   const { orders, warnings } = await fetchOrders(env, window);
   const variantIds = orders.flatMap((order) => order.lineItems.nodes.map((item) => item.variant?.id || "")).filter(Boolean);
@@ -358,22 +486,19 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
   if (costResult.warning) warnings.push(costResult.warning);
 
   const sources = new Map<string, number>();
+  const validSources = new Map<string, number>();
   const financialStatuses = new Map<string, number>();
   const fulfillmentStatuses = new Map<string, number>();
   const vendors = new Map<string, VendorAccumulator>();
+  const sourceMetrics = new Map<string, SourceMetricsAccumulator>();
+  const ecommerce = createMetricsAccumulator();
+  const draftStoreProxy = createMetricsAccumulator();
+  const marketplaces = createMetricsAccumulator();
+  const otherChannels = createMetricsAccumulator();
+  const allShopify = createMetricsAccumulator();
 
-  let validOrders = 0;
   let cancelledOrders = 0;
   let testOrders = 0;
-  let total = 0;
-  let shipping = 0;
-  let tax = 0;
-  let discounts = 0;
-  let refunded = 0;
-  let merchandiseRevenue = 0;
-  let cogs = 0;
-  let currentUnits = 0;
-  let costedUnits = 0;
   const normalizedOrders: JsonObject[] = [];
 
   for (const order of orders) {
@@ -381,9 +506,9 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
     const isCancelled = Boolean(order.cancelledAt);
     if (isTest) testOrders += 1;
     if (isCancelled) cancelledOrders += 1;
-    if (!isTest && !isCancelled) validOrders += 1;
 
     const source = (order.sourceName || "unknown").trim() || "unknown";
+    const channel = classifySource(source);
     const financial = order.displayFinancialStatus || "UNKNOWN";
     const fulfillment = order.displayFulfillmentStatus || "UNKNOWN";
     bump(sources, source);
@@ -396,15 +521,6 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
     const orderDiscount = amount(order.currentTotalDiscountsSet);
     const orderRefunded = amount(order.totalRefundedSet);
     const orderMerchandise = Math.max(0, orderTotal - orderShipping - orderTax);
-
-    if (!isTest && !isCancelled) {
-      total += orderTotal;
-      shipping += orderShipping;
-      tax += orderTax;
-      discounts += orderDiscount;
-      refunded += orderRefunded;
-      merchandiseRevenue += orderMerchandise;
-    }
 
     let orderCogs = 0;
     let orderUnits = 0;
@@ -427,7 +543,7 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
         orderCostedUnits += currentQuantity;
       }
 
-      if (!isTest && !isCancelled) {
+      if (!isTest && !isCancelled && channel.group === "ecommerce") {
         const vendorRow = vendors.get(vendor) || { vendor, currentUnits: 0, costedUnits: 0, revenueProxy: 0, cogs: 0 };
         vendorRow.currentUnits += currentQuantity;
         vendorRow.revenueProxy += revenueProxy;
@@ -458,9 +574,32 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
     }
 
     if (!isTest && !isCancelled) {
-      cogs += orderCogs;
-      currentUnits += orderUnits;
-      costedUnits += orderCostedUnits;
+      bump(validSources, source);
+      const values = {
+        currentTotal: orderTotal,
+        currentShipping: orderShipping,
+        currentTax: orderTax,
+        currentDiscounts: orderDiscount,
+        totalRefunded: orderRefunded,
+        netMerchandiseRevenue: orderMerchandise,
+        cogs: orderCogs,
+        currentUnits: orderUnits,
+        costedUnits: orderCostedUnits,
+      };
+      addOrderMetrics(allShopify, values);
+      if (channel.group === "ecommerce") addOrderMetrics(ecommerce, values);
+      else if (channel.group === "draft_store_proxy") addOrderMetrics(draftStoreProxy, values);
+      else if (channel.group === "marketplace") addOrderMetrics(marketplaces, values);
+      else addOrderMetrics(otherChannels, values);
+
+      const sourceRow = sourceMetrics.get(source) || {
+        ...createMetricsAccumulator(),
+        source,
+        group: channel.group,
+        label: channel.label,
+      };
+      addOrderMetrics(sourceRow, values);
+      sourceMetrics.set(source, sourceRow);
     }
 
     normalizedOrders.push({
@@ -468,6 +607,9 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
       processed_at: order.processedAt,
       updated_at: order.updatedAt || null,
       source,
+      channel_group: channel.group,
+      channel_label: channel.label,
+      included_in_ecommerce_kpis: channel.group === "ecommerce",
       financial_status: financial,
       fulfillment_status: fulfillment,
       is_test: isTest,
@@ -487,13 +629,13 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
     });
   }
 
-  const costCoverage = currentUnits ? costedUnits / currentUnits : 0;
   const vendorBreakdown = [...vendors.values()].map((row) => ({
     vendor: row.vendor,
     current_units: row.currentUnits,
     costed_units: row.costedUnits,
     revenue_proxy: roundMoney(row.revenueProxy),
     cogs_current_unit_cost: roundMoney(row.cogs),
+    gross_margin_proxy: roundMoney(row.revenueProxy - row.cogs),
     contribution_proxy: roundMoney(row.revenueProxy - row.cogs),
     cost_coverage: row.currentUnits ? Math.round((row.costedUnits / row.currentUnits) * 10_000) / 10_000 : 0,
   })).sort((left, right) => right.revenue_proxy - left.revenue_proxy);
@@ -520,31 +662,82 @@ async function buildReport(env: ShopifyReportingEnv, window: Window, scopes: str
       read_products: scopes.includes("read_products"),
       read_inventory: scopes.includes("read_inventory"),
     },
+    channel_policy: {
+      ecommerce: {
+        definition: "Only Online Store and Shop orders are included in ecommerce KPIs and ecommerce MER.",
+        included_source_names: [...ECOMMERCE_SOURCE_NAMES],
+        labels: ["Online Store", "Shop"],
+      },
+      draft_orders_store_proxy: {
+        definition: "Draft Orders are reported separately as an approximate proxy of physical-store sales, not as ecommerce.",
+        precision: "approximate_not_official_pos",
+      },
+      marketplaces: {
+        definition: "Marketplace orders are excluded from ecommerce KPIs and reported separately by source and in aggregate.",
+      },
+      other_channels: {
+        definition: "Legacy imports and uncategorized Shopify sources are excluded from ecommerce KPIs and reported separately.",
+      },
+    },
     methodology: {
       order_date_basis: "processedAt",
+      primary_kpi_scope: "ecommerce_only_online_store_and_shop",
       net_merchandise_revenue_formula: "current_total - current_shipping - current_tax",
       line_revenue_basis: "discountedUnitPriceAfterAllDiscountsSet * currentQuantity (proxy)",
       cogs_basis: "current InventoryItem.unitCost * currentQuantity; not historical cost at sale time",
-      excluded_from_kpis: "test orders and cancelled orders",
+      excluded_from_all_valid_order_metrics: "test orders and cancelled orders",
+      excluded_from_ecommerce_kpis: "draft orders/store proxy, marketplaces, Prestashop legacy/import and all other sources",
+      deprecated_metric_alias: "contribution_margin_proxy_before_adv_and_fulfillment equals gross margin proxy and is retained temporarily for compatibility",
     },
     metrics: {
       orders_returned: orders.length,
-      valid_orders: validOrders,
-      cancelled_orders: cancelledOrders,
-      test_orders: testOrders,
-      current_total: roundMoney(total),
-      current_shipping: roundMoney(shipping),
-      current_tax: roundMoney(tax),
-      current_discounts: roundMoney(discounts),
-      total_refunded: roundMoney(refunded),
-      net_merchandise_revenue: roundMoney(merchandiseRevenue),
-      cogs_current_unit_cost: roundMoney(cogs),
-      contribution_margin_proxy_before_adv_and_fulfillment: roundMoney(merchandiseRevenue - cogs),
-      current_units: currentUnits,
-      costed_units: costedUnits,
-      cost_coverage: Math.round(costCoverage * 10_000) / 10_000,
+      cancelled_orders_all_channels: cancelledOrders,
+      test_orders_all_channels: testOrders,
+      ...metricsOutput(ecommerce),
+    },
+    segments: {
+      ecommerce: {
+        label: "E-commerce Devid Label",
+        included_channels: ["Online Store", "Shop"],
+        metrics: metricsOutput(ecommerce),
+        vendor: vendorBreakdown,
+        by_source: sourceRows(sourceMetrics, "ecommerce"),
+      },
+      draft_orders_store_proxy: {
+        label: "Draft Orders / proxy negozio fisico",
+        caveat: "Approximate snapshot only; it is not a precise official physical-store sales ledger.",
+        metrics: metricsOutput(draftStoreProxy),
+        by_source: sourceRows(sourceMetrics, "draft_store_proxy"),
+      },
+      marketplaces: {
+        label: "Marketplace",
+        metrics: metricsOutput(marketplaces),
+        by_source: sourceRows(sourceMetrics, "marketplace"),
+      },
+      other_channels: {
+        label: "Altri canali Shopify",
+        metrics: metricsOutput(otherChannels),
+        by_source: sourceRows(sourceMetrics, "other"),
+      },
+      all_shopify: {
+        label: "Totale Shopify, solo contesto commerciale",
+        caveat: "Never use this total as the ecommerce numerator for MER or ecommerce KPIs.",
+        metrics: metricsOutput(allShopify),
+        by_source: sourceRows(sourceMetrics),
+      },
     },
     breakdowns: {
+      source_all_returned_orders: Object.fromEntries([...sources.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      source_valid_orders: Object.fromEntries([...validSources.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      channel_group_valid_orders: {
+        ecommerce: ecommerce.validOrders,
+        draft_store_proxy: draftStoreProxy.validOrders,
+        marketplace: marketplaces.validOrders,
+        other: otherChannels.validOrders,
+      },
+      financial_status_all_returned_orders: Object.fromEntries([...financialStatuses.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      fulfillment_status_all_returned_orders: Object.fromEntries([...fulfillmentStatuses.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      vendor_ecommerce_only: vendorBreakdown,
       source: Object.fromEntries([...sources.entries()].sort(([a], [b]) => a.localeCompare(b))),
       financial_status: Object.fromEntries([...financialStatuses.entries()].sort(([a], [b]) => a.localeCompare(b))),
       fulfillment_status: Object.fromEntries([...fulfillmentStatuses.entries()].sort(([a], [b]) => a.localeCompare(b))),
@@ -729,6 +922,9 @@ export async function handleShopifyReportingRequest(request: Request, env: Shopi
       capabilities: {
         pii_free_order_reporting: true,
         current_inventory_cost_join: true,
+        ecommerce_channel_segmentation: true,
+        draft_order_store_proxy: true,
+        marketplace_source_segmentation: true,
         bulk_order_backfill: true,
         bulk_catalog_export: true,
       },

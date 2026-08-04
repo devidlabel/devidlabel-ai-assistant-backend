@@ -182,7 +182,11 @@ payload = await response.json();
 assert(response.status === 200 && payload.ok === true, 'normalized report should succeed');
 assert(payload.tenant === 'devid_multibrand', 'report should keep tenant identifier separate from domain');
 assert(payload.data_policy === 'commerce_reporting_no_customer_pii', 'report should declare no-PII policy');
-assert(payload.metrics.valid_orders === 1, 'report should count valid order');
+assert(payload.metrics.valid_orders === 1, 'ecommerce metrics should count Online Store order');
+assert(payload.channel_policy.ecommerce.included_source_names.includes('web'), 'channel policy should include Online Store source');
+assert(payload.channel_policy.ecommerce.included_source_names.includes('3890849'), 'channel policy should include Shop source');
+assert(payload.segments.ecommerce.metrics.valid_orders === 1, 'ecommerce segment should contain Online Store order');
+assert(payload.segments.all_shopify.metrics.valid_orders === 1, 'all-Shopify context should include valid order');
 assert(payload.metrics.current_total === 121, 'report should aggregate current total');
 assert(payload.metrics.net_merchandise_revenue === 95, 'net merchandise revenue formula should exclude shipping and tax');
 assert(payload.metrics.cogs_current_unit_cost === 40, 'report should join current unit cost');
@@ -219,5 +223,77 @@ response = await handleShopifyReportingRequest(authorized('https://worker.test/i
 payload = await response.json();
 assert(response.status === 200 && payload.bulk_operation.status === 'COMPLETED', 'bulk status should return completed operation');
 assert(payload.bulk_operation.url.endsWith('result.jsonl'), 'bulk status should expose Shopify temporary JSONL URL to authorized caller');
+
+
+function installChannelSegmentationFetchMock() {
+  globalThis.fetch = async (_url, init = {}) => {
+    const body = JSON.parse(init.body || '{}');
+    const query = body.query || '';
+    if (query.includes('ShopifyReportingAccessScopes')) {
+      return new Response(JSON.stringify({ data: { currentAppInstallation: { accessScopes: [
+        { handle: 'read_orders' }, { handle: 'read_all_orders' }, { handle: 'read_products' }, { handle: 'read_inventory' },
+      ] } } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (query.includes('ShopifyAdvOrders')) {
+      const makeOrder = (id, sourceName) => ({
+        id: 'gid://shopify/Order/' + id,
+        processedAt: '2026-07-29T10:00:00+02:00',
+        updatedAt: '2026-07-29T10:30:00+02:00',
+        cancelledAt: null,
+        test: false,
+        sourceName,
+        displayFinancialStatus: 'PAID',
+        displayFulfillmentStatus: 'FULFILLED',
+        currencyCode: 'EUR',
+        currentSubtotalPriceSet: moneyBag(95),
+        currentShippingPriceSet: moneyBag(5),
+        currentTotalDiscountsSet: moneyBag(0),
+        currentTotalTaxSet: moneyBag(21),
+        currentTotalPriceSet: moneyBag(121),
+        totalRefundedSet: moneyBag(0),
+        lineItems: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [{
+            id: 'gid://shopify/LineItem/' + id,
+            title: 'Test product', vendor: 'Devid Label', sku: 'TEST', quantity: 1, currentQuantity: 1,
+            discountedUnitPriceAfterAllDiscountsSet: moneyBag(95),
+            product: { id: 'gid://shopify/Product/1', title: 'Test product', handle: 'test-product', vendor: 'Devid Label', productType: 'Test' },
+            variant: { id: 'gid://shopify/ProductVariant/1', title: 'Default', sku: 'TEST' },
+          }],
+        },
+      });
+      return new Response(JSON.stringify({ data: { orders: {
+        pageInfo: { hasNextPage: false, endCursor: null },
+        nodes: [
+          makeOrder('1', 'web'),
+          makeOrder('2', '3890849'),
+          makeOrder('3', 'shopify_draft_order'),
+          makeOrder('4', 'amazon'),
+          makeOrder('5', 'prestashop'),
+        ],
+      } } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (query.includes('ShopifyAdvVariantCosts')) {
+      return new Response(JSON.stringify({ data: { nodes: [{
+        id: 'gid://shopify/ProductVariant/1', inventoryQuantity: 20,
+        inventoryItem: { id: 'gid://shopify/InventoryItem/1', unitCost: { amount: '40.00', currencyCode: 'EUR' } },
+      }] } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+}
+
+installChannelSegmentationFetchMock();
+response = await handleShopifyReportingRequest(authorized('https://worker.test/internal/shopify/report?timeframe=yesterday'), baseEnv());
+payload = await response.json();
+assert(response.status === 200, 'channel-segmented report should succeed');
+assert(payload.metrics.valid_orders === 2, 'ecommerce KPIs must include only Online Store and Shop');
+assert(payload.metrics.net_merchandise_revenue === 190, 'ecommerce revenue must exclude draft, marketplace and other channels');
+assert(payload.segments.draft_orders_store_proxy.metrics.valid_orders === 1, 'Draft Orders must be separate physical-store proxy');
+assert(payload.segments.marketplaces.metrics.valid_orders === 1, 'marketplace orders must be separate');
+assert(payload.segments.other_channels.metrics.valid_orders === 1, 'legacy/other orders must be separate');
+assert(payload.segments.all_shopify.metrics.valid_orders === 5, 'all Shopify valid orders must remain available as context');
+assert(payload.segments.marketplaces.by_source[0].source === 'amazon', 'marketplace source must be cited individually');
+assert(payload.orders.find((order) => order.source === 'shopify_draft_order').included_in_ecommerce_kpis === false, 'draft order must never enter ecommerce KPIs');
 
 console.log('Shopify ADV reporting tests passed');

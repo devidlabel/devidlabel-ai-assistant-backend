@@ -1,5 +1,10 @@
 const KLAVIYO_API_BASE = "https://a.klaviyo.com";
 const KLAVIYO_REVISION = "2026-07-15";
+const KLAVIYO_MAX_RETRIES = 3;
+const KLAVIYO_REPORT_CACHE_TTL_MS = 10 * 60 * 1000;
+
+let cachedConversionMetricId: string | null = null;
+const reportCache = new Map<string, { expiresAt: number; body: JsonObject }>();
 
 const REPORT_STATISTICS = [
   "recipients",
@@ -130,36 +135,55 @@ function parseTimeframe(url: URL): Timeframe | null {
   return { start: dateBoundary(start), end: dateBoundary(end, true) };
 }
 
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function klaviyoFetch(
   path: string,
   apiKey: string,
   init: RequestInit = {},
 ): Promise<JsonObject> {
-  const response = await fetch(`${KLAVIYO_API_BASE}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/vnd.api+json",
-      Authorization: `Klaviyo-API-Key ${apiKey}`,
-      revision: KLAVIYO_REVISION,
-      ...(init.body ? { "Content-Type": "application/vnd.api+json" } : {}),
-      ...(init.headers || {}),
-    },
-  });
+  let lastStatus = 0;
+  let lastBody: JsonObject = {};
 
-  let body: JsonObject = {};
-  try {
-    body = await response.json() as JsonObject;
-  } catch {
-    body = {};
+  for (let attempt = 0; attempt <= KLAVIYO_MAX_RETRIES; attempt += 1) {
+    const response = await fetch(KLAVIYO_API_BASE + path, {
+      ...init,
+      headers: {
+        Accept: "application/vnd.api+json",
+        Authorization: "Klaviyo-API-Key " + apiKey,
+        revision: KLAVIYO_REVISION,
+        ...(init.body ? { "Content-Type": "application/vnd.api+json" } : {}),
+        ...(init.headers || {}),
+      },
+    });
+
+    let body: JsonObject = {};
+    try {
+      body = await response.json() as JsonObject;
+    } catch {
+      body = {};
+    }
+
+    if (response.ok) return body;
+    lastStatus = response.status;
+    lastBody = body;
+
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!retryable || attempt >= KLAVIYO_MAX_RETRIES) break;
+    const retryAfterSeconds = Number(response.headers.get("Retry-After") || "0");
+    const backoff = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? retryAfterSeconds * 1000
+      : 300 * (2 ** attempt);
+    await sleep(Math.min(backoff, 5000));
   }
 
-  if (!response.ok) {
-    const error = new Error(`Klaviyo API request failed (${response.status})`);
-    (error as Error & { status?: number; payload?: JsonObject }).status = response.status;
-    (error as Error & { status?: number; payload?: JsonObject }).payload = body;
-    throw error;
-  }
-  return body;
+  const error = new Error("Klaviyo API request failed (" + (lastStatus || "unknown") + ")");
+  (error as Error & { status?: number; payload?: JsonObject }).status = lastStatus || undefined;
+  (error as Error & { status?: number; payload?: JsonObject }).payload = lastBody;
+  throw error;
 }
 
 function metricScore(metric: KlaviyoMetric): number {
@@ -171,9 +195,11 @@ function metricScore(metric: KlaviyoMetric): number {
   return 50;
 }
 
+
 async function resolveConversionMetricId(apiKey: string, env: KlaviyoReportingEnv): Promise<string> {
   const configured = normalizeSecret(env.KLAVIYO_CONVERSION_METRIC_ID);
   if (configured) return configured;
+  if (cachedConversionMetricId) return cachedConversionMetricId;
 
   let path = "/api/metrics?fields[metric]=name,integration";
   let best: { id: string; score: number } | null = null;
@@ -187,17 +213,21 @@ async function resolveConversionMetricId(apiKey: string, env: KlaviyoReportingEn
       const score = metricScore(metric);
       if (id && score >= 0 && (!best || score > best.score)) best = { id, score };
     }
-    if (best?.score === 100) return best.id;
+    if (best?.score === 100) {
+      cachedConversionMetricId = best.id;
+      return best.id;
+    }
 
     const links = payload.links && typeof payload.links === "object" ? payload.links as JsonObject : {};
     const next = typeof links.next === "string" ? links.next : "";
     if (!next) break;
     const nextUrl = new URL(next);
-    path = `${nextUrl.pathname}${nextUrl.search}`;
+    path = nextUrl.pathname + nextUrl.search;
     pageCount += 1;
   }
 
   if (!best) throw new Error("Placed Order metric not found. Configure KLAVIYO_CONVERSION_METRIC_ID explicitly.");
+  cachedConversionMetricId = best.id;
   return best.id;
 }
 
@@ -273,6 +303,12 @@ export async function handleKlaviyoReportingRequest(
         access_token: Boolean(normalizeSecret(env.KLAVIYO_REPORT_ACCESS_TOKEN)),
         conversion_metric_id: Boolean(normalizeSecret(env.KLAVIYO_CONVERSION_METRIC_ID)),
       },
+      resilience: {
+        retry_429_and_5xx: true,
+        maximum_retries: KLAVIYO_MAX_RETRIES,
+        report_cache_ttl_seconds: KLAVIYO_REPORT_CACHE_TTL_MS / 1000,
+        conversion_metric_memory_cache: true,
+      },
     });
   }
 
@@ -300,12 +336,16 @@ export async function handleKlaviyoReportingRequest(
 
   try {
     const conversionMetricId = await resolveConversionMetricId(apiKey, env);
-    const [campaignPayload, flowPayload] = await Promise.all([
-      queryValuesReport(apiKey, "campaign", timeframe, conversionMetricId),
-      queryValuesReport(apiKey, "flow", timeframe, conversionMetricId),
-    ]);
+    const cacheKey = JSON.stringify({ timeframe, conversionMetricId });
+    const cached = reportCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return jsonResponse({ ...cached.body, cache: { hit: true, ttl_seconds: KLAVIYO_REPORT_CACHE_TTL_MS / 1000 } });
+    }
 
-    return jsonResponse({
+    const campaignPayload = await queryValuesReport(apiKey, "campaign", timeframe, conversionMetricId);
+    await sleep(250);
+    const flowPayload = await queryValuesReport(apiKey, "flow", timeframe, conversionMetricId);
+    const responseBody: JsonObject = {
       ok: true,
       service: "klaviyo_reporting",
       revision: KLAVIYO_REVISION,
@@ -318,12 +358,16 @@ export async function handleKlaviyoReportingRequest(
       statistics: [...REPORT_STATISTICS],
       campaigns: reportResults(campaignPayload),
       flows: reportResults(flowPayload),
-    });
+      cache: { hit: false, ttl_seconds: KLAVIYO_REPORT_CACHE_TTL_MS / 1000 },
+    };
+    reportCache.set(cacheKey, { expiresAt: Date.now() + KLAVIYO_REPORT_CACHE_TTL_MS, body: responseBody });
+    return jsonResponse(responseBody);
   } catch (error) {
+    const detail = safeError(error);
     return jsonResponse({
       ok: false,
       error: "klaviyo_reporting_failed",
-      detail: safeError(error),
-    }, 502);
+      detail,
+    }, detail.status === 429 ? 429 : 502);
   }
 }
