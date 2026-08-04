@@ -1,10 +1,7 @@
 import { strict as assert } from "node:assert";
+import { readFile } from "node:fs/promises";
 
-const moduleUrl = new URL("../src/mare-mcp.ts", import.meta.url);
-const source = await (await fetch(moduleUrl)).text().catch(() => "");
-if (!source) {
-  console.log("Skipping direct TypeScript import in Node; static contract checks only.");
-}
+const source = await readFile(new URL("../src/mare-mcp.ts", import.meta.url), "utf8");
 
 const requiredFragments = [
   'rpc.method === "initialize"',
@@ -25,7 +22,7 @@ for (const fragment of requiredFragments) {
   assert.ok(source.includes(fragment), `Missing MCP contract fragment: ${fragment}`);
 }
 
-const workerSource = await (await fetch(new URL("../src/worker-v3.ts", import.meta.url))).text();
+const workerSource = await readFile(new URL("../src/worker-v3.ts", import.meta.url), "utf8");
 assert.ok(workerSource.includes('import { handleMareMcpRequest } from "./mare-mcp";'));
 assert.ok(workerSource.includes("await handleMareMcpRequest(request, env)"));
 
