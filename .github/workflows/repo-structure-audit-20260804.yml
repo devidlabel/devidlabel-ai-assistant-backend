@@ -1,0 +1,24 @@
+name: Backend Structure Audit 2026-08-04
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/repo-structure-audit-20260804.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print relevant structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== FILES ==='
+          find . -maxdepth 4 -type f | sort
+          echo '=== SHOPIFY ROUTES / TOKENS / GRAPHQL ==='
+          grep -RInE 'internal/shopify|shopify|GraphQL|graphql|discount' --exclude-dir=.git . | head -500 || true
