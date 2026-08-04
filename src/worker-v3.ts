@@ -4,6 +4,7 @@ import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
+import { handleMareMcpRequest } from "./mare-mcp";
 import { handleMetaReportingRequest } from "./meta-reporting";
 import { handleSearchConsoleReportingRequest } from "./search-console-reporting";
 import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-reporting";
@@ -36,6 +37,7 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   SEARCH_CONSOLE_SITE_URL?: string;
   GA4_PROPERTY_ID?: string;
   DAILY_PULSE_ACCESS_TOKEN?: string;
+  MARE_MCP_ACCESS_TOKEN?: string;
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
@@ -127,6 +129,9 @@ export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
+
+    const mcpResponse = await handleMareMcpRequest(request, env);
+    if (mcpResponse) return mcpResponse;
 
     const historyProbeResponse = await handleShopifyHistoryProbe(request, env);
     if (historyProbeResponse) return historyProbeResponse;
