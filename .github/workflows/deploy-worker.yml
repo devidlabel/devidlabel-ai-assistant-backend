@@ -77,6 +77,12 @@ jobs:
       - name: Test Google Ads reporting bridge
         run: npm run test:google-ads-reporting
 
+      - name: Test Search Console reporting bridge
+        run: npm run test:search-console-reporting
+
+      - name: Test GA4 Data API reporting bridge
+        run: npm run test:ga4-reporting
+
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
         continue-on-error: true
