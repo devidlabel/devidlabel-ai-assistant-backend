@@ -9,6 +9,11 @@ const requiredFragments = [
   'url.pathname !== "/mcp-operations"',
   'url.pathname !== "/mcp-operations/health"',
   'MARE_OPS_ACCESS_TOKEN',
+  'PUBLIC_DISCOVERY_METHODS',
+  '"initialize"',
+  '"ping"',
+  '"tools/list"',
+  'unauthorized_non_discovery_method',
   'name: "mare_operations_health"',
   'name: "mare_operations_preview"',
   'dry_run_must_be_true',
@@ -44,13 +49,24 @@ function rpc(method, params = {}, id = 1) {
   return JSON.stringify({ jsonrpc: "2.0", id, method, params });
 }
 
-function request(body, options = {}) {
+function anonymousRequest(body, headers = {}) {
+  return new Request(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    body,
+  });
+}
+
+function authorizedRequest(body, headers = {}) {
   return new Request(endpoint, {
     method: "POST",
     headers: {
       Authorization: "Bearer ops-secret",
       "Content-Type": "application/json",
-      ...(options.headers || {}),
+      ...headers,
     },
     body,
   });
@@ -63,6 +79,8 @@ const health = await handleMareOperationsMcpRequest(
 assert.equal(health?.status, 200, "health should be public and available");
 const healthBody = await health.json();
 assert.equal(healthBody.configured, true, "health should confirm the isolated token is configured");
+assert.equal(healthBody.public_discovery_enabled, true, "health should expose public discovery status");
+assert.equal(healthBody.tool_calls_require_authentication, true, "health should confirm tool calls remain protected");
 assert.equal(healthBody.external_writes_enabled, false, "foundation health must disable external writes");
 assert.equal(healthBody.tools, 2, "foundation should expose exactly two tools");
 assert.equal(JSON.stringify(healthBody).includes("ops-secret"), false, "health must not leak the token");
@@ -73,28 +91,35 @@ const isolatedHealth = await handleMareOperationsMcpRequest(
 );
 assert.equal((await isolatedHealth.json()).configured, false, "Commerce/report tokens must not configure Operations OS");
 
-const denied = await handleMareOperationsMcpRequest(
-  new Request(endpoint, { method: "POST", body: rpc("ping") }),
-  env,
-);
-assert.equal(denied?.status, 401, "MCP calls must require the Operations token");
-
 const wrongOrigin = await handleMareOperationsMcpRequest(
-  request(rpc("ping"), { headers: { Origin: "https://example.com" } }),
+  anonymousRequest(rpc("ping"), { Origin: "https://example.com" }),
   env,
 );
-assert.equal(wrongOrigin?.status, 403, "non-ChatGPT origins must be rejected");
+assert.equal(wrongOrigin?.status, 403, "non-ChatGPT origins must be rejected even for discovery");
 
 const initialized = await handleMareOperationsMcpRequest(
-  request(rpc("initialize", { protocolVersion: "2025-06-18" })),
+  anonymousRequest(rpc("initialize", { protocolVersion: "2025-06-18" })),
   env,
 );
-assert.equal(initialized?.status, 200, "initialize should succeed");
+assert.equal(initialized?.status, 200, "anonymous initialize should succeed for app discovery");
 const initializedBody = await initialized.json();
 assert.equal(initializedBody.result.serverInfo.name, "MARE Operations OS");
+assert.equal(JSON.stringify(initializedBody).includes("ops-secret"), false, "initialize must not leak the token");
+
+const initializedNotification = await handleMareOperationsMcpRequest(
+  anonymousRequest(rpc("notifications/initialized")),
+  env,
+);
+assert.equal(initializedNotification?.status, 202, "anonymous initialization notification should be accepted");
+
+const pinged = await handleMareOperationsMcpRequest(
+  anonymousRequest(rpc("ping")),
+  env,
+);
+assert.equal(pinged?.status, 200, "anonymous ping should succeed for app discovery");
 
 const listed = await handleMareOperationsMcpRequest(
-  request(rpc("tools/list")),
+  anonymousRequest(rpc("tools/list")),
   env,
 );
 const listedBody = await listed.json();
@@ -104,6 +129,7 @@ assert.deepEqual(
   "only the foundation allowlist should be exposed",
 );
 assert.ok(listedBody.result.tools.every((tool) => tool.annotations.readOnlyHint === true), "foundation tools must be preview-only");
+assert.equal(JSON.stringify(listedBody).includes("ops-secret"), false, "public tool discovery must not leak the token");
 
 const previewArguments = {
   operation: "github_pull_request",
@@ -113,20 +139,53 @@ const previewArguments = {
   changes: ["Update one section", "Add regression tests"],
   rollback_plan: "Close the draft pull request without merging",
 };
+
+const deniedToolCall = await handleMareOperationsMcpRequest(
+  anonymousRequest(rpc("tools/call", { name: "mare_operations_preview", arguments: previewArguments })),
+  env,
+);
+assert.equal(deniedToolCall?.status, 401, "anonymous tools/call must be rejected");
+assert.equal((await deniedToolCall.json()).error, "unauthorized");
+
+const wrongTokenToolCall = await handleMareOperationsMcpRequest(
+  anonymousRequest(
+    rpc("tools/call", { name: "mare_operations_preview", arguments: previewArguments }),
+    { Authorization: "Bearer wrong-secret" },
+  ),
+  env,
+);
+assert.equal(wrongTokenToolCall?.status, 401, "tools/call with the wrong token must be rejected");
+
+const deniedUnknownMethod = await handleMareOperationsMcpRequest(
+  anonymousRequest(rpc("resources/list")),
+  env,
+);
+assert.equal(deniedUnknownMethod?.status, 401, "non-discovery methods must require authentication");
+
 const preview = await handleMareOperationsMcpRequest(
-  request(rpc("tools/call", { name: "mare_operations_preview", arguments: previewArguments })),
+  authorizedRequest(rpc("tools/call", { name: "mare_operations_preview", arguments: previewArguments })),
   env,
 );
 const previewBody = await preview.json();
 const previewResult = previewBody.result.structuredContent;
+assert.equal(preview?.status, 200, "authenticated tools/call should succeed");
 assert.equal(previewBody.result.isError, false, "valid preview should succeed");
 assert.equal(previewResult.status, "preview_only");
 assert.equal(previewResult.safety.external_write_performed, false);
 assert.equal(previewResult.safety.execution_available, false);
 assert.equal(previewResult.safety.approval_required_before_future_execution, true);
 
+const authenticatedHealthTool = await handleMareOperationsMcpRequest(
+  authorizedRequest(rpc("tools/call", { name: "mare_operations_health", arguments: {} })),
+  env,
+);
+const authenticatedHealthBody = await authenticatedHealthTool.json();
+assert.equal(authenticatedHealthBody.result.isError, false, "authenticated health tool call should succeed");
+assert.equal(authenticatedHealthBody.result.structuredContent.authentication.tool_calls_require_authentication, true);
+assert.equal(JSON.stringify(authenticatedHealthBody).includes("ops-secret"), false, "tool results must not leak the token");
+
 const nonDryRun = await handleMareOperationsMcpRequest(
-  request(rpc("tools/call", {
+  authorizedRequest(rpc("tools/call", {
     name: "mare_operations_preview",
     arguments: { ...previewArguments, dry_run: false },
   })),
@@ -137,7 +196,7 @@ assert.equal(nonDryRunBody.result.isError, true, "non-dry-run requests must be r
 assert.match(nonDryRunBody.result.content[0].text, /dry_run_must_be_true/);
 
 const sensitive = await handleMareOperationsMcpRequest(
-  request(rpc("tools/call", {
+  authorizedRequest(rpc("tools/call", {
     name: "mare_operations_preview",
     arguments: {
       ...previewArguments,
@@ -151,16 +210,18 @@ assert.equal(sensitiveBody.result.isError, true, "customer PII must be rejected 
 assert.match(sensitiveBody.result.content[0].text, /sensitive_content_not_allowed/);
 
 const oversized = await handleMareOperationsMcpRequest(
-  request(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping", padding: "x".repeat(70_000) })),
+  anonymousRequest(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping", padding: "x".repeat(70_000) })),
   env,
 );
-assert.equal(oversized?.status, 413, "oversized payloads must be rejected");
+assert.equal(oversized?.status, 413, "oversized anonymous discovery payloads must be rejected");
 
 console.log(JSON.stringify({
   ok: true,
   contract: "mare_operations_os_foundation",
   transport: "streamable_http",
+  public_discovery_methods: ["initialize", "ping", "tools/list"],
   preview_only_tools: 2,
+  tool_calls_require_authentication: true,
   isolated_token: true,
   external_writes_enabled: false,
 }));
