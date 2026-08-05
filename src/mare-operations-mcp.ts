@@ -20,7 +20,7 @@ type PreviewOperation =
   | "github_branch"
   | "github_pull_request";
 
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.1.1";
 const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_TEXT_LENGTH = 2000;
@@ -30,6 +30,18 @@ const ALLOWED_ORIGINS = new Set([
   "https://chatgpt.com",
   "https://www.chatgpt.com",
   "https://chat.openai.com",
+]);
+
+// Public discovery lets ChatGPT inspect the MCP manifest before a user connection
+// exists. It never exposes tool results and never permits tools/call.
+const PUBLIC_DISCOVERY_METHODS = new Set([
+  "initialize",
+  "ping",
+  "tools/list",
+]);
+const PUBLIC_DISCOVERY_NOTIFICATIONS = new Set([
+  "notifications/initialized",
+  "notifications/cancelled",
 ]);
 
 const PREVIEW_OPERATIONS: readonly PreviewOperation[] = [
@@ -275,6 +287,8 @@ function operationsHealth(env: MareOperationsEnv): JsonObject {
     authentication: {
       isolated_secret: "MARE_OPS_ACCESS_TOKEN",
       commerce_token_fallback: false,
+      public_discovery_only: true,
+      tool_calls_require_authentication: true,
     },
     mode: "foundation_preview_only",
     external_writes_enabled: false,
@@ -411,6 +425,8 @@ export async function handleMareOperationsMcpRequest(
       transport: "streamable_http",
       configured: Boolean(configuredToken(env)),
       mode: "foundation_preview_only",
+      public_discovery_enabled: true,
+      tool_calls_require_authentication: true,
       external_writes_enabled: false,
       irreversible_actions_enabled: false,
       tools: TOOLS.length,
@@ -427,11 +443,6 @@ export async function handleMareOperationsMcpRequest(
         "Access-Control-Max-Age": "600",
       },
     });
-  }
-
-  if (!isAuthorized(request, env)) {
-    audit("request_denied", { requestId, success: false, reason: "unauthorized" });
-    return authError();
   }
 
   if (request.method !== "POST") {
@@ -455,30 +466,56 @@ export async function handleMareOperationsMcpRequest(
   }
 
   const version = protocolVersion(request, rpc);
-  if (rpc.jsonrpc !== "2.0" || !normalize(rpc.method)) {
+  const method = normalize(rpc.method);
+  if (rpc.jsonrpc !== "2.0" || !method) {
     return rpcError(rpc.id, -32600, "Invalid Request", 400, undefined, version);
   }
 
-  if (rpc.method === "notifications/initialized" || rpc.method === "notifications/cancelled") {
+  if (PUBLIC_DISCOVERY_NOTIFICATIONS.has(method)) {
+    audit("discovery_notification", {
+      requestId,
+      success: true,
+      inputBytes,
+      reason: method,
+    });
     return new Response(null, {
       status: 202,
       headers: { "Cache-Control": "no-store", "MCP-Protocol-Version": version },
     });
   }
 
-  if (rpc.method === "initialize") {
-    return rpcResult(rpc.id, {
-      protocolVersion: version,
-      capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "MARE Operations OS", version: SERVER_VERSION },
-      instructions: "Preview-only operational planning for M.A.R.E. S.R.L. No external write action is enabled in this foundation release. Every request must remain dry-run and contain no credentials or customer PII.",
-    }, version);
+  if (PUBLIC_DISCOVERY_METHODS.has(method)) {
+    audit("discovery_request", {
+      requestId,
+      success: true,
+      inputBytes,
+      reason: method,
+    });
+
+    if (method === "initialize") {
+      return rpcResult(rpc.id, {
+        protocolVersion: version,
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: { name: "MARE Operations OS", version: SERVER_VERSION },
+        instructions: "Preview-only operational planning for M.A.R.E. S.R.L. Public access is limited to MCP discovery. Every tools/call request requires the isolated Operations token. No external write action is enabled.",
+      }, version);
+    }
+
+    if (method === "ping") return rpcResult(rpc.id, {}, version);
+    return rpcResult(rpc.id, { tools: TOOLS }, version);
   }
 
-  if (rpc.method === "ping") return rpcResult(rpc.id, {}, version);
-  if (rpc.method === "tools/list") return rpcResult(rpc.id, { tools: TOOLS }, version);
+  if (!isAuthorized(request, env)) {
+    audit("request_denied", {
+      requestId,
+      success: false,
+      inputBytes,
+      reason: "unauthorized_non_discovery_method",
+    });
+    return authError();
+  }
 
-  if (rpc.method === "tools/call") {
+  if (method === "tools/call") {
     const params = asObject(rpc.params);
     const name = normalize(params.name);
     const args = asObject(params.arguments);
@@ -511,5 +548,5 @@ export async function handleMareOperationsMcpRequest(
     }
   }
 
-  return rpcError(rpc.id, -32601, "Method not found", 200, { method: rpc.method }, version);
+  return rpcError(rpc.id, -32601, "Method not found", 200, { method }, version);
 }
