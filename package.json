@@ -26,6 +26,7 @@
     "test:mare-mcp": "node scripts/test-mare-mcp.mjs",
     "test:mare-operations-mcp": "node scripts/test-mare-operations-mcp.mjs",
     "test:mare-product-media-mcp": "node scripts/test-mare-product-media-mcp.mjs",
+    "test:mare-business-mcp": "node scripts/test-mare-business-mcp.mjs",
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
     "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
