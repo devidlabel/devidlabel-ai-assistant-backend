@@ -33,6 +33,12 @@ function normalize(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunk = 0x8000;
@@ -94,7 +100,7 @@ async function editWithOpenAI(
   form.append("quality", "high");
   form.append("output_format", "png");
   form.append("background", "opaque");
-  form.append("image", new Blob([sourceBytes], { type: sourceMimeType }), "source-product-image");
+  form.append("image", new Blob([toArrayBuffer(sourceBytes)], { type: sourceMimeType }), "source-product-image");
   const response = await fetch(OPENAI_IMAGE_EDIT_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -119,7 +125,7 @@ async function editWithOpenAI(
 
 async function normalizeCanvas(generatedPng: Uint8Array, env: ProductImageEnv): Promise<Uint8Array> {
   if (!env.IMAGES) throw new Error("cloudflare_images_binding_not_configured");
-  const source = new Blob([generatedPng], { type: "image/png" }).stream();
+  const source = new Blob([toArrayBuffer(generatedPng)], { type: "image/png" }).stream();
   const pipeline = env.IMAGES
     .input(source)
     .transform({
