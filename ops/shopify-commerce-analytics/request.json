@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-08-04T10:51:00+02:00",
-  "reason": "Validate deployed ShopifyQL parseErrors fix and refresh human/bot analytics before 14:30 marketing report"
+  "requested_at": "2026-08-06T09:00:00+02:00",
+  "reason": "Daily Commerce Report recovery for 2026-08-05 after stale Shopify analytics pointer"
 }
