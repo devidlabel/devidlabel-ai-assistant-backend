@@ -149,6 +149,12 @@ function escapeShopifySearch(value: string): string {
   return value.replace(/[\\']/g, (character) => `\\${character}`);
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function mapProduct(node: ShopifyProductNode): ShopifyProductMedia | null {
   const id = normalize(node.id);
   const title = normalize(node.title);
@@ -337,7 +343,7 @@ async function stagedUploadProductImage(
     if (name) form.append(name, normalize(parameter.value));
   }
   const bytes = bytesFromBase64(preview.image_base64);
-  form.append("file", new Blob([bytes], { type: preview.mime_type }), filename);
+  form.append("file", new Blob([toArrayBuffer(bytes)], { type: preview.mime_type }), filename);
   const upload = await fetch(uploadUrl, { method: "POST", body: form });
   if (!upload.ok) throw new Error(`shopify_staged_binary_upload_failed_${upload.status}`);
   return resourceUrl;
