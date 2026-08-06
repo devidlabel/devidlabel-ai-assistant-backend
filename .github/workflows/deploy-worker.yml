@@ -92,6 +92,9 @@ jobs:
       - name: Test MARE Operations OS MCP foundation
         run: npm run test:mare-operations-mcp
 
+      - name: Test MARE Product Media OS MCP foundation
+        run: npm run test:mare-product-media-mcp
+
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
         continue-on-error: true
