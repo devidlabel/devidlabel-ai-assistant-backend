@@ -4,6 +4,8 @@ import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
+import { handleMareBusinessMcpRequest } from "./mare-business-mcp";
+import { handleTikTokOAuthRequest } from "./mare-business-tiktok";
 import { handleMareMcpRequest } from "./mare-mcp";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp";
 import { handleMareProductMediaMcpRequest } from "./mare-product-media-mcp";
@@ -18,6 +20,7 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   KLAVIYO_PRIVATE_API_KEY?: string;
   KLAVIYO_REPORT_ACCESS_TOKEN?: string;
   KLAVIYO_CONVERSION_METRIC_ID?: string;
+  KLAVIYO_OPERATIONS_API_KEY?: string;
   SHOPIFY_REPORT_ACCESS_TOKEN?: string;
   COMMERCE_TENANT_ID?: string;
   META_ADS_ACCESS_TOKEN?: string;
@@ -36,14 +39,33 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   GOOGLE_ADS_API_VERSION?: string;
   GOOGLE_ADS_REPORT_ACCESS_TOKEN?: string;
   GOOGLE_ORGANIC_REPORT_ACCESS_TOKEN?: string;
+  GOOGLE_MERCHANT_ACCOUNT_ID?: string;
+  GOOGLE_MERCHANT_SERVICE_ACCOUNT_JSON?: string;
+  GOOGLE_MERCHANT_REFRESH_TOKEN?: string;
   SEARCH_CONSOLE_SITE_URL?: string;
   GA4_PROPERTY_ID?: string;
   DAILY_PULSE_ACCESS_TOKEN?: string;
   MARE_MCP_ACCESS_TOKEN?: string;
   MARE_OPS_ACCESS_TOKEN?: string;
   MARE_PRODUCT_MEDIA_ACCESS_TOKEN?: string;
+  MARE_BUSINESS_ACCESS_TOKEN?: string;
   PRODUCT_IMAGE_MODEL?: string;
   IMAGES?: unknown;
+  GITHUB_OPERATIONS_TOKEN?: string;
+  GITHUB_OPERATIONS_REPOSITORIES?: string;
+  TIKTOK_APP_ID?: string;
+  TIKTOK_APP_SECRET?: string;
+  TIKTOK_REDIRECT_URI?: string;
+  TIKTOK_AUTHORIZATION_URL?: string;
+  TIKTOK_ACCESS_TOKEN?: string;
+  TIKTOK_ADVERTISER_ID?: string;
+  AMAZON_SP_API_REFRESH_TOKEN?: string;
+  AMAZON_SP_API_CLIENT_ID?: string;
+  AMAZON_SP_API_CLIENT_SECRET?: string;
+  SPARTOO_API_KEY?: string;
+  MIINTO_API_TOKEN?: string;
+  ANTHROPIC_API_KEY?: string;
+  GEMINI_API_KEY?: string;
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
@@ -51,10 +73,16 @@ const SHOPIFY_OAUTH_SCOPES = [
   "read_all_orders",
   "read_customers",
   "read_discounts",
+  "write_discounts",
+  "read_files",
+  "write_files",
   "read_inventory",
+  "write_inventory",
   "read_locales",
   "read_locations",
   "read_markets",
+  "read_online_store_navigation",
+  "write_online_store_navigation",
   "read_online_store_pages",
   "read_orders",
   "read_products",
@@ -63,7 +91,14 @@ const SHOPIFY_OAUTH_SCOPES = [
   "read_returns",
   "read_shopify_payments_payouts",
   "read_content",
+  "write_content",
+  "read_metaobject_definitions",
+  "write_metaobject_definitions",
+  "read_metaobjects",
+  "write_metaobjects",
   "read_translations",
+  "write_translations",
+  "write_publications",
 ].join(",");
 const SHOPIFY_OAUTH_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback";
 const SHOPIFY_OAUTH_STATE_TTL_SECONDS = 600;
@@ -136,6 +171,12 @@ export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
+
+    const tiktokOAuthResponse = await handleTikTokOAuthRequest(request, env as any);
+    if (tiktokOAuthResponse) return tiktokOAuthResponse;
+
+    const businessMcpResponse = await handleMareBusinessMcpRequest(request, env as any);
+    if (businessMcpResponse) return businessMcpResponse;
 
     const productMediaMcpResponse = await handleMareProductMediaMcpRequest(request, env as any);
     if (productMediaMcpResponse) return productMediaMcpResponse;
