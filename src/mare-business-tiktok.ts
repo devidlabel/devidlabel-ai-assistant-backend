@@ -10,9 +10,8 @@ export type MareBusinessTikTokEnv = {
   TIKTOK_APP_ID?: string;
   TIKTOK_APP_SECRET?: string;
   TIKTOK_REDIRECT_URI?: string;
-  TIKTOK_AUTH_SCOPE?: string;
+  TIKTOK_AUTHORIZATION_URL?: string;
   TIKTOK_ACCESS_TOKEN?: string;
-  TIKTOK_REFRESH_TOKEN?: string;
   TIKTOK_ADVERTISER_ID?: string;
   SHOPIFY_TOKENS_KV?: KVNamespaceLike;
   [key: string]: unknown;
@@ -20,12 +19,9 @@ export type MareBusinessTikTokEnv = {
 
 type StoredTikTokAuthorization = {
   access_token: string;
-  refresh_token?: string;
   advertiser_id?: string;
   advertiser_ids?: string[];
   scope?: string[];
-  token_expires_at?: string;
-  refresh_token_expires_at?: string;
   updated_at: string;
 };
 
@@ -50,15 +46,6 @@ function integer(value: unknown, fallback: number, min: number, max: number): nu
   return Math.max(min, Math.min(max, Math.trunc(parsed)));
 }
 
-function secondsFrom(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function futureIso(seconds: number | null): string | undefined {
-  return seconds ? new Date(Date.now() + seconds * 1000).toISOString() : undefined;
-}
-
 async function loadStored(env: MareBusinessTikTokEnv): Promise<StoredTikTokAuthorization | null> {
   if (!env.SHOPIFY_TOKENS_KV) return null;
   const raw = await env.SHOPIFY_TOKENS_KV.get(TOKEN_KEY);
@@ -76,63 +63,37 @@ async function storeAuthorization(env: MareBusinessTikTokEnv, authorization: Sto
   await env.SHOPIFY_TOKENS_KV.put(TOKEN_KEY, JSON.stringify(authorization));
 }
 
-async function tokenRequest(path: string, payload: JsonObject): Promise<JsonObject> {
-  const response = await fetch(`${API_BASE}${path}`, {
+async function exchangeLongTermAccessToken(env: MareBusinessTikTokEnv, authCode: string): Promise<JsonObject> {
+  const appId = normalize(env.TIKTOK_APP_ID);
+  const secret = normalize(env.TIKTOK_APP_SECRET);
+  if (!appId || !secret) throw new Error("tiktok_app_credentials_missing");
+  const response = await fetch(`${API_BASE}/oauth2/access_token/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ app_id: appId, secret, auth_code: authCode }),
   });
   const body = await response.json() as JsonObject;
   if (!response.ok || Number(body.code) !== 0) throw new Error(`tiktok_token_error:${normalize(body.message) || response.status}`);
   return object(body.data);
 }
 
-async function refreshStoredToken(env: MareBusinessTikTokEnv, stored: StoredTikTokAuthorization): Promise<StoredTikTokAuthorization> {
-  const appId = normalize(env.TIKTOK_APP_ID);
-  const appSecret = normalize(env.TIKTOK_APP_SECRET);
-  const refreshToken = normalize(stored.refresh_token) || normalize(env.TIKTOK_REFRESH_TOKEN);
-  if (!appId || !appSecret || !refreshToken) throw new Error("tiktok_refresh_configuration_missing");
-  const data = await tokenRequest("/tt_user/oauth2/refresh_token/", {
-    client_id: appId,
-    client_secret: appSecret,
-    grant_type: "refresh_token",
-    refresh_token: refreshToken,
-  });
-  const accessToken = normalize(data.access_token);
-  if (!accessToken) throw new Error("tiktok_refresh_token_response_invalid");
-  const next: StoredTikTokAuthorization = {
-    ...stored,
-    access_token: accessToken,
-    refresh_token: normalize(data.refresh_token) || refreshToken,
-    token_expires_at: futureIso(secondsFrom(data.expires_in)),
-    refresh_token_expires_at: futureIso(secondsFrom(data.refresh_token_expires_in)) || stored.refresh_token_expires_at,
-    updated_at: new Date().toISOString(),
-  };
-  await storeAuthorization(env, next);
-  return next;
-}
-
 async function resolveAuthorization(env: MareBusinessTikTokEnv): Promise<StoredTikTokAuthorization> {
   const stored = await loadStored(env);
-  let auth: StoredTikTokAuthorization | null = stored;
-  if (!auth && normalize(env.TIKTOK_ACCESS_TOKEN)) {
-    auth = {
-      access_token: normalize(env.TIKTOK_ACCESS_TOKEN),
-      refresh_token: normalize(env.TIKTOK_REFRESH_TOKEN) || undefined,
-      advertiser_id: normalize(env.TIKTOK_ADVERTISER_ID) || undefined,
-      updated_at: new Date().toISOString(),
-    };
-  }
-  if (!auth) throw new Error("tiktok_not_authorized");
-  const expiresAt = auth.token_expires_at ? Date.parse(auth.token_expires_at) : Number.NaN;
-  if (Number.isFinite(expiresAt) && expiresAt - Date.now() < 10 * 60 * 1000 && (auth.refresh_token || env.TIKTOK_REFRESH_TOKEN)) {
-    auth = await refreshStoredToken(env, auth);
-  }
-  return auth;
+  if (stored) return stored;
+  const envToken = normalize(env.TIKTOK_ACCESS_TOKEN);
+  if (!envToken) throw new Error("tiktok_not_authorized");
+  return {
+    access_token: envToken,
+    advertiser_id: normalize(env.TIKTOK_ADVERTISER_ID) || undefined,
+    updated_at: new Date().toISOString(),
+  };
 }
 
 function advertiserId(args: JsonObject, auth: StoredTikTokAuthorization, env: MareBusinessTikTokEnv): string {
-  const id = normalize(args.advertiser_id) || normalize(auth.advertiser_id) || normalize(env.TIKTOK_ADVERTISER_ID) || normalize(auth.advertiser_ids?.[0]);
+  const id = normalize(args.advertiser_id)
+    || normalize(auth.advertiser_id)
+    || normalize(env.TIKTOK_ADVERTISER_ID)
+    || normalize(auth.advertiser_ids?.[0]);
   if (!/^\d{5,40}$/.test(id)) throw new Error("tiktok_advertiser_id_missing");
   return id;
 }
@@ -144,7 +105,10 @@ async function apiRequest(
   queryOrBody: JsonObject,
 ): Promise<JsonObject> {
   const url = new URL(`${API_BASE}${path}`);
-  const init: RequestInit = { method, headers: { "Access-Token": auth.access_token, "Content-Type": "application/json" } };
+  const init: RequestInit = {
+    method,
+    headers: { "Access-Token": auth.access_token, "Content-Type": "application/json" },
+  };
   if (method === "GET") {
     for (const [key, value] of Object.entries(queryOrBody)) {
       if (value === undefined || value === null || value === "") continue;
@@ -164,14 +128,14 @@ export async function tiktokAuthorizationStatus(env: MareBusinessTikTokEnv): Pro
   return {
     ok: true,
     app_configured: Boolean(normalize(env.TIKTOK_APP_ID) && normalize(env.TIKTOK_APP_SECRET)),
+    authorization_url_configured: Boolean(normalize(env.TIKTOK_AUTHORIZATION_URL)),
     redirect_uri: normalize(env.TIKTOK_REDIRECT_URI) || DEFAULT_REDIRECT_URI,
     kv_store_configured: Boolean(env.SHOPIFY_TOKENS_KV),
     access_token_present: Boolean(stored?.access_token || normalize(env.TIKTOK_ACCESS_TOKEN)),
-    refresh_token_present: Boolean(stored?.refresh_token || normalize(env.TIKTOK_REFRESH_TOKEN)),
     advertiser_id_present: Boolean(stored?.advertiser_id || stored?.advertiser_ids?.length || normalize(env.TIKTOK_ADVERTISER_ID)),
-    token_expires_at: stored?.token_expires_at || null,
-    refresh_token_expires_at: stored?.refresh_token_expires_at || null,
+    advertiser_ids_count: stored?.advertiser_ids?.length || 0,
     scope_count: stored?.scope?.length || 0,
+    token_type: "marketing_api_long_term_access_token",
     raw_secret_values_exposed: false,
   };
 }
@@ -179,48 +143,64 @@ export async function tiktokAuthorizationStatus(env: MareBusinessTikTokEnv): Pro
 export async function handleTikTokOAuthRequest(request: Request, env: MareBusinessTikTokEnv): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== "/auth/tiktok/start" && url.pathname !== "/auth/tiktok/callback") return null;
-  if (request.method !== "GET") return new Response(JSON.stringify({ ok: false, error: "method_not_allowed" }), { status: 405, headers: { "Content-Type": "application/json" } });
+  if (request.method !== "GET") {
+    return new Response(JSON.stringify({ ok: false, error: "method_not_allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   const appId = normalize(env.TIKTOK_APP_ID);
   const appSecret = normalize(env.TIKTOK_APP_SECRET);
   const redirectUri = normalize(env.TIKTOK_REDIRECT_URI) || DEFAULT_REDIRECT_URI;
   if (!appId || !appSecret || !env.SHOPIFY_TOKENS_KV) {
-    return new Response(JSON.stringify({ ok: false, error: "tiktok_oauth_configuration_missing" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: false, error: "tiktok_oauth_configuration_missing" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
+
   if (url.pathname === "/auth/tiktok/start") {
     const state = crypto.randomUUID().replace(/-/g, "");
-    await env.SHOPIFY_TOKENS_KV.put(`${STATE_PREFIX}${state}`, JSON.stringify({ created_at: new Date().toISOString() }), { expirationTtl: STATE_TTL_SECONDS });
-    const authorize = new URL(AUTH_BASE);
-    authorize.searchParams.set("app_id", appId);
+    await env.SHOPIFY_TOKENS_KV.put(
+      `${STATE_PREFIX}${state}`,
+      JSON.stringify({ created_at: new Date().toISOString() }),
+      { expirationTtl: STATE_TTL_SECONDS },
+    );
+    const configuredAuthorizationUrl = normalize(env.TIKTOK_AUTHORIZATION_URL);
+    const authorize = new URL(configuredAuthorizationUrl || AUTH_BASE);
+    if (!authorize.searchParams.get("app_id")) authorize.searchParams.set("app_id", appId);
     authorize.searchParams.set("state", state);
-    authorize.searchParams.set("redirect_uri", redirectUri);
-    const scope = normalize(env.TIKTOK_AUTH_SCOPE);
-    if (scope) authorize.searchParams.set("scope", scope);
+    if (!authorize.searchParams.get("redirect_uri")) authorize.searchParams.set("redirect_uri", redirectUri);
     return new Response(null, { status: 302, headers: { Location: authorize.toString(), "Cache-Control": "no-store" } });
   }
+
   const state = normalize(url.searchParams.get("state"));
   const authCode = normalize(url.searchParams.get("auth_code"));
   const stateRecord = state ? await env.SHOPIFY_TOKENS_KV.get(`${STATE_PREFIX}${state}`) : null;
-  if (!state || !authCode || !stateRecord) return new Response(JSON.stringify({ ok: false, error: "tiktok_oauth_state_or_code_invalid" }), { status: 400, headers: { "Content-Type": "application/json" } });
+  if (!state || !authCode || !stateRecord) {
+    return new Response(JSON.stringify({ ok: false, error: "tiktok_oauth_state_or_code_invalid" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (env.SHOPIFY_TOKENS_KV.delete) await env.SHOPIFY_TOKENS_KV.delete(`${STATE_PREFIX}${state}`);
-  const data = await tokenRequest("/tt_user/oauth2/token/", {
-    client_id: appId,
-    client_secret: appSecret,
-    grant_type: "authorization_code",
-    auth_code: authCode,
-    redirect_uri: redirectUri,
-  });
+  const data = await exchangeLongTermAccessToken(env, authCode);
   const accessToken = normalize(data.access_token);
-  if (!accessToken) return new Response(JSON.stringify({ ok: false, error: "tiktok_oauth_token_missing" }), { status: 502, headers: { "Content-Type": "application/json" } });
+  if (!accessToken) {
+    return new Response(JSON.stringify({ ok: false, error: "tiktok_oauth_token_missing" }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   const advertiserIds = Array.isArray(data.advertiser_ids) ? data.advertiser_ids.map(normalize).filter(Boolean) : [];
-  const scope = Array.isArray(data.scope) ? data.scope.map(normalize).filter(Boolean) : normalize(data.scope).split(",").map((item) => item.trim()).filter(Boolean);
+  const scope = Array.isArray(data.scope)
+    ? data.scope.map((item) => String(item)).filter(Boolean)
+    : normalize(data.scope).split(",").map((item) => item.trim()).filter(Boolean);
   const stored: StoredTikTokAuthorization = {
     access_token: accessToken,
-    refresh_token: normalize(data.refresh_token) || undefined,
     advertiser_id: normalize(env.TIKTOK_ADVERTISER_ID) || advertiserIds[0] || undefined,
     advertiser_ids: advertiserIds,
     scope,
-    token_expires_at: futureIso(secondsFrom(data.expires_in)),
-    refresh_token_expires_at: futureIso(secondsFrom(data.refresh_token_expires_in)),
     updated_at: new Date().toISOString(),
   };
   await storeAuthorization(env, stored);
@@ -248,7 +228,9 @@ export async function readTikTokCampaigns(args: JsonObject, env: MareBusinessTik
 }
 
 export async function createTikTokCampaign(args: JsonObject, env: MareBusinessTikTokEnv): Promise<JsonObject> {
-  if (normalize(args.approval_confirmation) !== "CREATE TIKTOK CAMPAIGN PAUSED") throw new Error("tiktok_create_confirmation_required");
+  if (normalize(args.approval_confirmation) !== "CREATE TIKTOK CAMPAIGN PAUSED") {
+    throw new Error("tiktok_create_confirmation_required");
+  }
   const auth = await resolveAuthorization(env);
   const id = advertiserId(args, auth, env);
   const payload = { ...object(args.payload), advertiser_id: id };
@@ -262,12 +244,29 @@ export async function createTikTokCampaign(args: JsonObject, env: MareBusinessTi
 
 export async function updateTikTokCampaign(args: JsonObject, env: MareBusinessTikTokEnv): Promise<JsonObject> {
   const confirmation = normalize(args.approval_confirmation);
-  if (!["UPDATE TIKTOK CAMPAIGN", "ENABLE TIKTOK CAMPAIGN"].includes(confirmation)) throw new Error("tiktok_update_confirmation_required");
+  if (!["UPDATE TIKTOK CAMPAIGN", "ENABLE TIKTOK CAMPAIGN", "PAUSE TIKTOK CAMPAIGN"].includes(confirmation)) {
+    throw new Error("tiktok_update_confirmation_required");
+  }
   const auth = await resolveAuthorization(env);
   const id = advertiserId(args, auth, env);
   const payload = { ...object(args.payload), advertiser_id: id };
-  if (!/^\d{5,40}$/.test(normalize(payload.campaign_id))) throw new Error("tiktok_campaign_id_required");
-  if (normalize(payload.operation_status) === "ENABLE" && confirmation !== "ENABLE TIKTOK CAMPAIGN") throw new Error("tiktok_enable_confirmation_required");
+  const campaignId = normalize(payload.campaign_id);
+  if (!/^\d{5,40}$/.test(campaignId)) throw new Error("tiktok_campaign_id_required");
+  const operationStatus = normalize(payload.operation_status).toUpperCase();
+
+  if (operationStatus) {
+    if (!new Set(["ENABLE", "DISABLE"]).has(operationStatus)) throw new Error("tiktok_operation_status_not_allowed");
+    if (operationStatus === "ENABLE" && confirmation !== "ENABLE TIKTOK CAMPAIGN") throw new Error("tiktok_enable_confirmation_required");
+    if (operationStatus === "DISABLE" && confirmation !== "PAUSE TIKTOK CAMPAIGN") throw new Error("tiktok_pause_confirmation_required");
+    const response = await apiRequest("POST", "/campaign/status/update/", auth, {
+      advertiser_id: id,
+      campaign_ids: [campaignId],
+      operation_status: operationStatus,
+    });
+    return { ...response, safety: { status_change_only: true, operation_status: operationStatus } };
+  }
+
+  if (confirmation !== "UPDATE TIKTOK CAMPAIGN") throw new Error("tiktok_field_update_confirmation_required");
   const response = await apiRequest("POST", "/campaign/update/", auth, payload);
-  return { ...response, safety: { activation_approved: confirmation === "ENABLE TIKTOK CAMPAIGN" } };
+  return { ...response, safety: { activation_performed: false, status_change_performed: false } };
 }
