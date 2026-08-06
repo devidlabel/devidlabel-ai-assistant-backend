@@ -1,6 +1,13 @@
+import {
+  createKlaviyoCampaignDraft,
+  klaviyoCampaignDraftConfiguration,
+  klaviyoCampaignDraftConfigured,
+  type KlaviyoOperationsEnv,
+} from "./mare-operations-klaviyo.js";
+
 type JsonObject = Record<string, unknown>;
 
-type MareOperationsEnv = {
+type MareOperationsEnv = KlaviyoOperationsEnv & {
   MARE_OPS_ACCESS_TOKEN?: string;
   [key: string]: unknown;
 };
@@ -20,7 +27,7 @@ type PreviewOperation =
   | "github_branch"
   | "github_pull_request";
 
-const SERVER_VERSION = "0.1.1";
+const SERVER_VERSION = "0.2.0";
 const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_TEXT_LENGTH = 2000;
@@ -32,8 +39,6 @@ const ALLOWED_ORIGINS = new Set([
   "https://chat.openai.com",
 ]);
 
-// Public discovery lets ChatGPT inspect the MCP manifest before a user connection
-// exists. It never exposes tool results and never permits tools/call.
 const PUBLIC_DISCOVERY_METHODS = new Set([
   "initialize",
   "ping",
@@ -53,71 +58,140 @@ const PREVIEW_OPERATIONS: readonly PreviewOperation[] = [
   "github_pull_request",
 ];
 
-const PREVIEW_ONLY_ANNOTATIONS = {
+const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: false,
 };
 
+const CONTROLLED_WRITE_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+};
+
 const TOOLS = [
   {
     name: "mare_operations_health",
     title: "MARE Operations OS health",
-    description: "Checks the isolated Operations OS foundation. It reports configuration and planned capabilities without exposing secrets or performing writes.",
+    description: "Checks Operations OS configuration and safety controls without exposing secrets or performing writes.",
     inputSchema: {
       type: "object",
       properties: {},
       additionalProperties: false,
     },
-    annotations: PREVIEW_ONLY_ANNOTATIONS,
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "mare_operations_preview",
     title: "Preview an operational change",
-    description: "Builds a dry-run-only execution plan for a future Klaviyo draft or GitHub branch/PR operation. It never writes to an external system.",
+    description: "Builds a dry-run-only execution plan. It never writes to an external system.",
     inputSchema: {
       type: "object",
       properties: {
         operation: {
           type: "string",
           enum: PREVIEW_OPERATIONS,
-          description: "Future operation family to preview. No write action is enabled in this foundation version.",
+          description: "Operation family to preview.",
         },
         dry_run: {
           type: "boolean",
           const: true,
-          description: "Must be true. The foundation rejects every non-dry-run request.",
+          description: "Must be true.",
         },
         objective: {
           type: "string",
           minLength: 3,
           maxLength: MAX_TEXT_LENGTH,
-          description: "Business objective of the proposed operation. Do not include credentials or customer PII.",
+          description: "Business objective. Do not include credentials or customer PII.",
         },
         target: {
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Non-sensitive target, such as a campaign draft name or repository/branch label.",
+          description: "Non-sensitive target label.",
         },
         changes: {
           type: "array",
           minItems: 1,
           maxItems: MAX_CHANGE_ITEMS,
           items: { type: "string", minLength: 1, maxLength: 500 },
-          description: "Proposed changes, expressed without secrets or customer PII.",
         },
         rollback_plan: {
           type: "string",
           maxLength: 1000,
-          description: "Proposed rollback or abandonment plan for the future executable operation.",
         },
       },
       required: ["operation", "dry_run", "objective", "target", "changes"],
       additionalProperties: false,
     },
-    annotations: PREVIEW_ONLY_ANNOTATIONS,
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "mare_klaviyo_create_campaign_draft",
+    title: "Create a Klaviyo email campaign draft",
+    description: "Creates one Klaviyo email campaign in Draft status only. It cannot send or schedule. Requires explicit confirmation, an idempotency key, an existing audience ID, and optionally an existing template ID. Sender identities come only from server-side configuration.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        approval_confirmation: {
+          type: "string",
+          const: "CREATE KLAVIYO DRAFT",
+          description: "Explicit acknowledgement required before the external write.",
+        },
+        idempotency_key: {
+          type: "string",
+          minLength: 8,
+          maxLength: 128,
+          pattern: "^[A-Za-z0-9._:-]+$",
+          description: "Stable unique key for this intended draft. Reusing it returns the existing campaign instead of creating a duplicate.",
+        },
+        campaign_name: {
+          type: "string",
+          minLength: 3,
+          maxLength: 180,
+        },
+        audience_id: {
+          type: "string",
+          minLength: 3,
+          maxLength: 100,
+          pattern: "^[A-Za-z0-9_-]+$",
+          description: "Existing Klaviyo list or segment ID.",
+        },
+        subject: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+        },
+        preview_text: {
+          type: "string",
+          maxLength: 300,
+        },
+        template_id: {
+          type: "string",
+          minLength: 3,
+          maxLength: 100,
+          pattern: "^[A-Za-z0-9_-]+$",
+          description: "Optional existing reusable Klaviyo template ID to clone and assign to the campaign message.",
+        },
+        use_smart_sending: {
+          type: "boolean",
+          default: true,
+        },
+      },
+      required: [
+        "approval_confirmation",
+        "idempotency_key",
+        "campaign_name",
+        "audience_id",
+        "subject",
+        "preview_text"
+      ],
+      additionalProperties: false,
+    },
+    annotations: CONTROLLED_WRITE_ANNOTATIONS,
   },
 ] as const;
 
@@ -135,7 +209,6 @@ function timingSafeEqualText(left: string, right: string): boolean {
 }
 
 function configuredToken(env: MareOperationsEnv): string {
-  // Deliberately no fallback to MARE Commerce OS or other report tokens.
   return normalize(env.MARE_OPS_ACCESS_TOKEN);
 }
 
@@ -245,7 +318,6 @@ function audit(
     reason?: string;
   },
 ): void {
-  // Structured Cloudflare log. Never include raw arguments, credentials or customer PII.
   console.info(JSON.stringify({
     audit_schema: "mare_operations_v1",
     generated_at: new Date().toISOString(),
@@ -257,6 +329,7 @@ function audit(
     success: details.success,
     input_bytes: details.inputBytes ?? null,
     reason: details.reason || null,
+    raw_arguments_logged: false,
     pii_logged: false,
   }));
 }
@@ -287,28 +360,21 @@ function operationsHealth(env: MareOperationsEnv): JsonObject {
     authentication: {
       isolated_secret: "MARE_OPS_ACCESS_TOKEN",
       commerce_token_fallback: false,
+      reporting_key_fallback: false,
       public_discovery_only: true,
       tool_calls_require_authentication: true,
     },
-    mode: "foundation_preview_only",
-    external_writes_enabled: false,
+    mode: "controlled_draft_writes",
+    external_writes_enabled: true,
     irreversible_actions_enabled: false,
     tools: TOOLS.map((tool) => tool.name),
-    future_operation_families: {
-      klaviyo_drafts: [
-        "campaign draft",
-        "template draft",
-        "segment draft",
-        "flow draft",
-      ],
-      github_controlled_changes: [
-        "branch creation",
-        "pull request creation",
-      ],
+    write_capabilities: {
+      klaviyo_campaign_draft: klaviyoCampaignDraftConfiguration(env),
     },
     blocked_actions: [
       "send or schedule Klaviyo campaign",
       "activate Klaviyo flow",
+      "modify consent or profiles",
       "merge pull request",
       "push to main",
       "deploy or publish live theme",
@@ -341,10 +407,9 @@ function previewOperation(args: JsonObject): JsonObject {
     throw new Error("sensitive_content_not_allowed");
   }
 
-  const planId = `ops-preview-${crypto.randomUUID()}`;
   return {
     ok: true,
-    plan_id: planId,
+    plan_id: `ops-preview-${crypto.randomUUID()}`,
     generated_at: new Date().toISOString(),
     status: "preview_only",
     operation,
@@ -361,25 +426,19 @@ function previewOperation(args: JsonObject): JsonObject {
       credentials_or_customer_pii_accepted: false,
     },
     blockers: [
-      "No write-capable tool is enabled in the foundation version.",
-      "A separate reviewed release must add the exact allowlisted write action.",
-      "The future executable action must require explicit approval and an idempotency strategy.",
+      "Only the exact allowlisted Klaviyo campaign-draft action can write.",
+      "Every executable draft request requires explicit confirmation and idempotency.",
+      "Send, scheduling, live activation, consent and profile changes remain unavailable.",
     ],
-    next_review: {
-      required: true,
-      checks: [
-        "verify target and proposed changes",
-        "verify least-privilege upstream credentials",
-        "verify rollback or abandonment plan",
-        "verify no send, merge, main push or deploy capability is enabled",
-      ],
-    },
   };
 }
 
 async function callTool(name: string, args: JsonObject, env: MareOperationsEnv): Promise<JsonObject> {
   if (name === "mare_operations_health") return toolResult(operationsHealth(env));
   if (name === "mare_operations_preview") return toolResult(previewOperation(args));
+  if (name === "mare_klaviyo_create_campaign_draft") {
+    return toolResult(await createKlaviyoCampaignDraft(args, env));
+  }
   return toolFailure(`Unknown tool: ${name}`);
 }
 
@@ -424,11 +483,12 @@ export async function handleMareOperationsMcpRequest(
       version: SERVER_VERSION,
       transport: "streamable_http",
       configured: Boolean(configuredToken(env)),
-      mode: "foundation_preview_only",
+      mode: "controlled_draft_writes",
       public_discovery_enabled: true,
       tool_calls_require_authentication: true,
-      external_writes_enabled: false,
+      external_writes_enabled: true,
       irreversible_actions_enabled: false,
+      klaviyo_campaign_draft_configured: klaviyoCampaignDraftConfigured(env),
       tools: TOOLS.length,
     }), { status: 200, headers: responseHeaders() });
   }
@@ -472,12 +532,7 @@ export async function handleMareOperationsMcpRequest(
   }
 
   if (PUBLIC_DISCOVERY_NOTIFICATIONS.has(method)) {
-    audit("discovery_notification", {
-      requestId,
-      success: true,
-      inputBytes,
-      reason: method,
-    });
+    audit("discovery_notification", { requestId, success: true, inputBytes, reason: method });
     return new Response(null, {
       status: 202,
       headers: { "Cache-Control": "no-store", "MCP-Protocol-Version": version },
@@ -485,19 +540,14 @@ export async function handleMareOperationsMcpRequest(
   }
 
   if (PUBLIC_DISCOVERY_METHODS.has(method)) {
-    audit("discovery_request", {
-      requestId,
-      success: true,
-      inputBytes,
-      reason: method,
-    });
+    audit("discovery_request", { requestId, success: true, inputBytes, reason: method });
 
     if (method === "initialize") {
       return rpcResult(rpc.id, {
         protocolVersion: version,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "MARE Operations OS", version: SERVER_VERSION },
-        instructions: "Preview-only operational planning for M.A.R.E. S.R.L. Public access is limited to MCP discovery. Every tools/call request requires the isolated Operations token. No external write action is enabled.",
+        instructions: "Controlled operations for M.A.R.E. S.R.L. Discovery is public, every tools/call requires the isolated Operations token, and the only enabled external write creates a Klaviyo email campaign draft. Sending and scheduling are unavailable.",
       }, version);
     }
 
@@ -521,7 +571,7 @@ export async function handleMareOperationsMcpRequest(
     const args = asObject(params.arguments);
     if (!name) return rpcError(rpc.id, -32602, "Missing tool name", 200, undefined, version);
 
-    const operation = normalize(args.operation);
+    const operation = normalize(args.operation) || name;
     try {
       const result = await callTool(name, args, env);
       audit("tool_call", {
