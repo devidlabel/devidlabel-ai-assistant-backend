@@ -4,8 +4,8 @@ import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
-import { handleMareBusinessMcpRequest } from "./mare-business-mcp";
-import { handleTikTokOAuthRequest } from "./mare-business-tiktok";
+import { handleMareBusinessMcpSafeRequest } from "./mare-business-mcp-safe";
+import { handleTikTokOAuthCallbackRequest } from "./mare-business-tiktok-safe";
 import { handleMareMcpRequest } from "./mare-mcp";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp";
 import { handleMareProductMediaMcpRequest } from "./mare-product-media-mcp";
@@ -172,10 +172,10 @@ export default {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
 
-    const tiktokOAuthResponse = await handleTikTokOAuthRequest(request, env as any);
+    const tiktokOAuthResponse = await handleTikTokOAuthCallbackRequest(request, env as any);
     if (tiktokOAuthResponse) return tiktokOAuthResponse;
 
-    const businessMcpResponse = await handleMareBusinessMcpRequest(request, env as any);
+    const businessMcpResponse = await handleMareBusinessMcpSafeRequest(request, env as any);
     if (businessMcpResponse) return businessMcpResponse;
 
     const productMediaMcpResponse = await handleMareProductMediaMcpRequest(request, env as any);
@@ -192,8 +192,6 @@ export default {
 
     const reportingEnv = {
       ...env,
-      // Keep the dedicated report token as the default, but allow the Daily Pulse
-      // bearer for scheduled internal snapshots when that is the supplied credential.
       SHOPIFY_REPORT_ACCESS_TOKEN: selectShopifyReportAccessToken(request, env),
     };
 
