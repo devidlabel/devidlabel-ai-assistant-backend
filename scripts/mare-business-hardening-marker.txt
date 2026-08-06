@@ -1,0 +1,1 @@
+MARE Business OS hardening review trigger: OAuth security, runtime capability resolution, complete Shopify variant pagination, failed live-plan replay blocking, TikTok pause semantics, and regular/sale price feed mapping.
