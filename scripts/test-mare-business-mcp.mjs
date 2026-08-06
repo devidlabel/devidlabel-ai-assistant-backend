@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 
+// This source-contract test intentionally keeps the Workspace-facing tool set frozen.
 const mcpSource = readFileSync("src/mare-business-mcp.ts", "utf8");
 const capabilitiesSource = readFileSync("src/mare-business-capabilities.ts", "utf8");
 const shopifySource = readFileSync("src/mare-business-shopify.ts", "utf8");
