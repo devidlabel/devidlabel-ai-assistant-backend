@@ -6,6 +6,7 @@ import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
 import { handleMareMcpRequest } from "./mare-mcp";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp";
+import { handleMareProductMediaMcpRequest } from "./mare-product-media-mcp";
 import { handleMetaReportingRequest } from "./meta-reporting";
 import { handleSearchConsoleReportingRequest } from "./search-console-reporting";
 import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-reporting";
@@ -40,6 +41,9 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   DAILY_PULSE_ACCESS_TOKEN?: string;
   MARE_MCP_ACCESS_TOKEN?: string;
   MARE_OPS_ACCESS_TOKEN?: string;
+  MARE_PRODUCT_MEDIA_ACCESS_TOKEN?: string;
+  PRODUCT_IMAGE_MODEL?: string;
+  IMAGES?: unknown;
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
@@ -54,6 +58,7 @@ const SHOPIFY_OAUTH_SCOPES = [
   "read_online_store_pages",
   "read_orders",
   "read_products",
+  "write_products",
   "read_reports",
   "read_returns",
   "read_shopify_payments_payouts",
@@ -131,6 +136,9 @@ export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
+
+    const productMediaMcpResponse = await handleMareProductMediaMcpRequest(request, env as any);
+    if (productMediaMcpResponse) return productMediaMcpResponse;
 
     const operationsMcpResponse = await handleMareOperationsMcpRequest(request, env as any);
     if (operationsMcpResponse) return operationsMcpResponse;
