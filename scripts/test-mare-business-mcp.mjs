@@ -3,10 +3,14 @@ import { readFileSync } from "node:fs";
 
 // This source-contract test intentionally keeps the Workspace-facing tool set frozen.
 const mcpSource = readFileSync("src/mare-business-mcp.ts", "utf8");
+const safeMcpSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
 const capabilitiesSource = readFileSync("src/mare-business-capabilities.ts", "utf8");
 const shopifySource = readFileSync("src/mare-business-shopify.ts", "utf8");
+const completeShopifySource = readFileSync("src/mare-business-shopify-complete.ts", "utf8");
 const marketplaceSource = readFileSync("src/mare-business-marketplace.ts", "utf8");
+const completeMarketplaceSource = readFileSync("src/mare-business-marketplace-complete.ts", "utf8");
 const tiktokSource = readFileSync("src/mare-business-tiktok.ts", "utf8");
+const safeTikTokSource = readFileSync("src/mare-business-tiktok-safe.ts", "utf8");
 const workerSource = readFileSync("src/worker-v3.ts", "utf8");
 
 const stableTools = [
@@ -73,6 +77,16 @@ for (const fragment of [
 ]) assert.ok(shopifySource.includes(fragment), `Missing canonical Shopify catalog field or artifact: ${fragment}`);
 
 for (const fragment of [
+  "pageInfo { hasNextPage endCursor }",
+  "VARIANT_PAGE_QUERY",
+  "loadAllVariants",
+  "complete_variant_pagination: true",
+  "inventoryLevels(first: 250)",
+  "collections(first: 250)",
+  "media(first: 250)",
+]) assert.ok(completeShopifySource.includes(fragment), `Missing complete catalog pagination guard: ${fragment}`);
+
+for (const fragment of [
   '"google_merchant"',
   '"meta_catalog"',
   '"tiktok_catalog"',
@@ -84,8 +98,17 @@ for (const fragment of [
 ]) assert.ok(marketplaceSource.includes(fragment), `Missing marketplace/feed foundation: ${fragment}`);
 
 for (const fragment of [
+  "regularPrice = discounted ? compareAtPrice : currentPrice",
+  'sale_price: discounted ? `${currentPrice.toFixed(2)} ${currency}` : ""',
+  "readShopifyCatalogComplete",
+  "complete_variant_pagination: true",
+  "regular_and_sale_price_mapping: true",
+  "matrixify_catalog_complete_csv",
+]) assert.ok(completeMarketplaceSource.includes(fragment), `Missing hardened feed or Matrixify behavior: ${fragment}`);
+
+for (const fragment of [
   '/oauth2/access_token/',
-  'app_id: appId, secret, auth_code: authCode',
+  'app_id: appId, secret: appSecret, auth_code: authCode',
   '/campaign/get/',
   '/campaign/create/',
   '/campaign/update/',
@@ -93,11 +116,31 @@ for (const fragment of [
   'operation_status = "DISABLE"',
   'ENABLE TIKTOK CAMPAIGN',
   'raw_secret_values_exposed: false',
-]) assert.ok(tiktokSource.includes(fragment), `Missing TikTok Marketing API contract: ${fragment}`);
+]) assert.ok(tiktokSource.includes(fragment) || safeTikTokSource.includes(fragment), `Missing TikTok Marketing API contract: ${fragment}`);
 
 for (const fragment of [
-  'handleMareBusinessMcpRequest',
-  'handleTikTokOAuthRequest',
+  'tiktok_oauth_start_requires_authenticated_mare_prepare',
+  'createTikTokAuthorizationUrl',
+  'tiktok_authorized_advertiser_mismatch',
+  'MARE-${cleaned.slice(-16)}',
+  'existing_campaign',
+  'PAUSE TIKTOK CAMPAIGN',
+]) assert.ok(safeTikTokSource.includes(fragment), `Missing TikTok hardening: ${fragment}`);
+
+for (const fragment of [
+  'resolvedCapabilities',
+  'tiktok.authorization.start',
+  'reconciliation_required',
+  'plan_reconciliation_required',
+  'complete_variant_pagination: true',
+  'correct_regular_and_sale_price_mapping: true',
+  'operationStatus === "DISABLE"',
+  '"PAUSE TIKTOK CAMPAIGN"',
+]) assert.ok(safeMcpSource.includes(fragment), `Missing Business runtime hardening: ${fragment}`);
+
+for (const fragment of [
+  'handleMareBusinessMcpSafeRequest',
+  'handleTikTokOAuthCallbackRequest',
   '"write_inventory"',
   '"write_files"',
   '"write_discounts"',
@@ -105,18 +148,22 @@ for (const fragment of [
   '"write_metaobjects"',
   '"write_translations"',
   '"write_publications"',
-]) assert.ok(workerSource.includes(fragment), `Missing Worker route or Shopify scope: ${fragment}`);
+]) assert.ok(workerSource.includes(fragment), `Missing hardened Worker route or Shopify scope: ${fragment}`);
 
+assert.equal(workerSource.includes('handleTikTokOAuthRequest(request'), false, "Insecure public TikTok OAuth start handler must not be routed");
 assert.equal(workerSource.includes('"write_themes"'), false, "Theme writes must remain GitHub/PR-based, not direct Shopify writes");
 
 console.log(JSON.stringify({
   ok: true,
-  contract: "mare_business_os_unified_foundation",
+  contract: "mare_business_os_unified_hardened",
   stable_tools: stableTools.length,
   dynamic_capabilities: true,
   immutable_plan_before_write: true,
-  marketplace_feed_foundation: true,
-  tiktok_marketing_api_foundation: true,
+  failed_live_plan_replay_blocked: true,
+  secure_tiktok_oauth_start: true,
+  tiktok_oauth_kv_capabilities_resolved: true,
+  complete_variant_pagination: true,
+  regular_and_sale_price_mapping: true,
   direct_delete_exposed: false,
   dedicated_access_token: true,
 }));
