@@ -3,7 +3,7 @@ import {
   klaviyoCampaignDraftConfiguration,
   klaviyoCampaignDraftConfigured,
   type KlaviyoOperationsEnv,
-} from "./mare-operations-klaviyo";
+} from "./mare-operations-klaviyo.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -420,7 +420,7 @@ function previewOperation(args: JsonObject): JsonObject {
     rollback_plan: rollbackPlan || "Abandon the preview; no external state has been changed.",
     safety: {
       external_write_performed: false,
-      execution_available: operation === "klaviyo_campaign_draft" && klaviyoCampaignDraftConfigured({}),
+      execution_available: false,
       approval_required_before_future_execution: true,
       irreversible_action_available: false,
       credentials_or_customer_pii_accepted: false,
