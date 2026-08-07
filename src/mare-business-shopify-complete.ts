@@ -22,6 +22,9 @@ type ProductNode = JsonObject & {
   media?: Connection<JsonObject> | null;
 };
 
+type VariantPageData = { product?: { variants?: Connection<VariantNode> | null } | null };
+type ProductPageData = { products?: Connection<ProductNode> };
+
 const MAX_PRODUCTS = 2500;
 const PRODUCT_PAGE_SIZE = 25;
 const VARIANT_PAGE_SIZE = 100;
@@ -232,12 +235,12 @@ async function loadAllVariants(product: ProductNode, env: MareBusinessShopifyEnv
   const productId = normalize(product.id);
   if (!productId) return result;
   while (hasNextPage && after) {
-    const data = await shopifyGraphQL<{ product?: { variants?: Connection<VariantNode> | null } | null }>(
+    const data: VariantPageData = await shopifyGraphQL<VariantPageData>(
       env,
       VARIANT_PAGE_QUERY,
       { id: productId, first: VARIANT_PAGE_SIZE, after },
     );
-    const connection = data.product?.variants;
+    const connection: Connection<VariantNode> | null | undefined = data.product?.variants;
     result.push(...(connection?.nodes || []));
     hasNextPage = Boolean(connection?.pageInfo?.hasNextPage);
     after = normalize(connection?.pageInfo?.endCursor) || null;
@@ -281,12 +284,12 @@ export async function readShopifyCatalogComplete(args: JsonObject, env: MareBusi
 
   while (hasNextPage && products.length < maxProducts) {
     const first = Math.min(PRODUCT_PAGE_SIZE, maxProducts - products.length);
-    const data = await shopifyGraphQL<{ products?: Connection<ProductNode> }>(env, PRODUCT_QUERY, {
+    const data: ProductPageData = await shopifyGraphQL<ProductPageData>(env, PRODUCT_QUERY, {
       first,
       after,
       query: query || null,
     });
-    const connection = data.products || {};
+    const connection: Connection<ProductNode> = data.products || {};
     for (const product of connection.nodes || []) {
       const completeVariants = await loadAllVariants(product, env);
       if (product.variants?.pageInfo?.hasNextPage) paginatedVariantProducts += 1;
