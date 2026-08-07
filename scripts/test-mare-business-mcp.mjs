@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 // This source-contract test intentionally keeps the Workspace-facing tool set frozen.
 const mcpSource = readFileSync("src/mare-business-mcp.ts", "utf8");
 const safeMcpSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
+const finalMcpSource = readFileSync("src/mare-business-mcp-final.ts", "utf8");
 const capabilitiesSource = readFileSync("src/mare-business-capabilities.ts", "utf8");
 const shopifySource = readFileSync("src/mare-business-shopify.ts", "utf8");
 const completeShopifySource = readFileSync("src/mare-business-shopify-complete.ts", "utf8");
@@ -11,7 +12,10 @@ const marketplaceSource = readFileSync("src/mare-business-marketplace.ts", "utf8
 const completeMarketplaceSource = readFileSync("src/mare-business-marketplace-complete.ts", "utf8");
 const tiktokSource = readFileSync("src/mare-business-tiktok.ts", "utf8");
 const safeTikTokSource = readFileSync("src/mare-business-tiktok-safe.ts", "utf8");
+const finalTikTokSource = readFileSync("src/mare-business-tiktok-final.ts", "utf8");
+const coordinatorSource = readFileSync("src/mare-plan-coordinator.ts", "utf8");
 const workerSource = readFileSync("src/worker-v3.ts", "utf8");
+const wranglerSource = readFileSync("wrangler.toml", "utf8");
 
 const stableTools = [
   "mare_system_status",
@@ -139,8 +143,35 @@ for (const fragment of [
 ]) assert.ok(safeMcpSource.includes(fragment), `Missing Business runtime hardening: ${fragment}`);
 
 for (const fragment of [
-  'handleMareBusinessMcpSafeRequest',
-  'handleTikTokOAuthCallbackRequest',
+  'assertRequestSafe(payload)',
+  'credentials_or_customer_contact_data_not_accepted',
+  'FULL_CATALOG_PRODUCT_LIMIT = 2500',
+  'catalog_truncated_full_artifact_blocked',
+  'MARE_PLAN_COORDINATOR',
+  'coordinatorAction',
+  'TIKTOK_NAME_MARKER_RESERVE = 24',
+  'requestedName.slice(0, maximumRequestedLength)',
+]) assert.ok(finalMcpSource.includes(fragment), `Missing final Business OS guard: ${fragment}`);
+
+for (const fragment of [
+  'tiktok_authorized_advertiser_not_proven',
+  'advertiserIds.includes(expectedAdvertiser)',
+  'SHOPIFY_TOKENS_KV.delete(TOKEN_KEY)',
+  'authorization_persisted: false',
+]) assert.ok(finalTikTokSource.includes(fragment), `Missing final TikTok OAuth proof guard: ${fragment}`);
+
+for (const fragment of [
+  'storage.transaction',
+  'plan_already_executing',
+  'plan_already_completed',
+  'reconciliation_required',
+  'execution_claim_mismatch',
+]) assert.ok(coordinatorSource.includes(fragment), `Missing atomic plan coordinator behavior: ${fragment}`);
+
+for (const fragment of [
+  'handleMareBusinessMcpFinalRequest',
+  'handleTikTokOAuthFinalCallbackRequest',
+  'export { MarePlanCoordinator }',
   '"write_inventory"',
   '"write_files"',
   '"write_discounts"',
@@ -148,19 +179,29 @@ for (const fragment of [
   '"write_metaobjects"',
   '"write_translations"',
   '"write_publications"',
-]) assert.ok(workerSource.includes(fragment), `Missing hardened Worker route or Shopify scope: ${fragment}`);
+]) assert.ok(workerSource.includes(fragment), `Missing final Worker route or Shopify scope: ${fragment}`);
+
+for (const fragment of [
+  'name = "MARE_PLAN_COORDINATOR"',
+  'class_name = "MarePlanCoordinator"',
+  'new_sqlite_classes = ["MarePlanCoordinator"]',
+]) assert.ok(wranglerSource.includes(fragment), `Missing Durable Object binding or migration: ${fragment}`);
 
 assert.equal(workerSource.includes('handleTikTokOAuthRequest(request'), false, "Insecure public TikTok OAuth start handler must not be routed");
 assert.equal(workerSource.includes('"write_themes"'), false, "Theme writes must remain GitHub/PR-based, not direct Shopify writes");
 
 console.log(JSON.stringify({
   ok: true,
-  contract: "mare_business_os_unified_hardened",
+  contract: "mare_business_os_unified_final",
   stable_tools: stableTools.length,
   dynamic_capabilities: true,
   immutable_plan_before_write: true,
   failed_live_plan_replay_blocked: true,
+  atomic_live_plan_claim: true,
   secure_tiktok_oauth_start: true,
+  tiktok_advertiser_positive_proof: true,
+  request_safety_preserved: true,
+  full_feed_truncation_blocked: true,
   tiktok_oauth_kv_capabilities_resolved: true,
   complete_variant_pagination: true,
   regular_and_sale_price_mapping: true,
