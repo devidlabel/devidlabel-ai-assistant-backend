@@ -233,7 +233,7 @@ export async function createTikTokCampaign(args: JsonObject, env: MareBusinessTi
   }
   const auth = await resolveAuthorization(env);
   const id = advertiserId(args, auth, env);
-  const payload = { ...object(args.payload), advertiser_id: id };
+  const payload: JsonObject = { ...object(args.payload), advertiser_id: id };
   delete payload.campaign_id;
   if (!normalize(payload.campaign_name)) throw new Error("tiktok_campaign_name_required");
   if (!normalize(payload.objective_type)) throw new Error("tiktok_objective_type_required");
@@ -249,7 +249,7 @@ export async function updateTikTokCampaign(args: JsonObject, env: MareBusinessTi
   }
   const auth = await resolveAuthorization(env);
   const id = advertiserId(args, auth, env);
-  const payload = { ...object(args.payload), advertiser_id: id };
+  const payload: JsonObject = { ...object(args.payload), advertiser_id: id };
   const campaignId = normalize(payload.campaign_id);
   if (!/^\d{5,40}$/.test(campaignId)) throw new Error("tiktok_campaign_id_required");
   const operationStatus = normalize(payload.operation_status).toUpperCase();
