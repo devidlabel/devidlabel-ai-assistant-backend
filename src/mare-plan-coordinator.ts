@@ -21,8 +21,11 @@ type Ledger = {
   status: LedgerStatus;
   created_at: string;
   updated_at: string;
+  lease_expires_at?: string;
   detail?: string;
 };
+
+const EXECUTION_CLAIM_LEASE_MS = 5 * 60 * 1000;
 
 function normalize(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -37,6 +40,25 @@ function json(body: unknown, status = 200): Response {
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+
+function leaseExpired(ledger: Ledger): boolean {
+  if (ledger.status !== "executing") return false;
+  const expiry = Date.parse(normalize(ledger.lease_expires_at));
+  return !Number.isFinite(expiry) || expiry <= Date.now();
+}
+
+function reconciledExpiredLedger(current: Ledger): Ledger {
+  return {
+    ...current,
+    status: "reconciliation_required",
+    updated_at: new Date().toISOString(),
+    detail: "execution_claim_lease_expired_provider_state_unknown",
+  };
+}
+
+function reconciliationInstruction(): string {
+  return "Read the provider state first. If the planned mutation is already present, record it as reconciled operationally; otherwise prepare a new plan with a new plan_id. Never replay the expired plan blindly.";
 }
 
 export class MarePlanCoordinator extends DurableObject<Record<string, unknown>> {
@@ -63,6 +85,16 @@ export class MarePlanCoordinator extends DurableObject<Record<string, unknown>> 
       const result = await this.ctx.storage.transaction(async (txn) => {
         const current = await txn.get<Ledger>("ledger");
         if (current) {
+          if (leaseExpired(current)) {
+            const reconciled = reconciledExpiredLedger(current);
+            await txn.put("ledger", reconciled);
+            return {
+              ok: false,
+              error: "plan_execution_lease_expired_reconciliation_required",
+              ledger: reconciled,
+              recovery_instruction: reconciliationInstruction(),
+            };
+          }
           return {
             ok: false,
             error: current.status === "completed"
@@ -71,15 +103,17 @@ export class MarePlanCoordinator extends DurableObject<Record<string, unknown>> 
                 ? "plan_reconciliation_required"
                 : "plan_already_executing",
             ledger: current,
+            ...(current.status === "reconciliation_required" ? { recovery_instruction: reconciliationInstruction() } : {}),
           };
         }
-        const now = new Date().toISOString();
+        const now = new Date();
         const ledger: Ledger = {
           plan_id: planId,
           claim_id: crypto.randomUUID(),
           status: "executing",
-          created_at: now,
-          updated_at: now,
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
+          lease_expires_at: new Date(now.getTime() + EXECUTION_CLAIM_LEASE_MS).toISOString(),
         };
         await txn.put("ledger", ledger);
         return { ok: true, ledger };
@@ -88,8 +122,21 @@ export class MarePlanCoordinator extends DurableObject<Record<string, unknown>> 
     }
 
     if (action === "status") {
-      const current = await this.ctx.storage.get<Ledger>("ledger");
-      return json({ ok: true, ledger: current || null });
+      const result = await this.ctx.storage.transaction(async (txn) => {
+        const current = await txn.get<Ledger>("ledger");
+        if (!current) return { ok: true, ledger: null };
+        if (leaseExpired(current)) {
+          const reconciled = reconciledExpiredLedger(current);
+          await txn.put("ledger", reconciled);
+          return { ok: true, ledger: reconciled, recovery_instruction: reconciliationInstruction() };
+        }
+        return {
+          ok: true,
+          ledger: current,
+          ...(current.status === "reconciliation_required" ? { recovery_instruction: reconciliationInstruction() } : {}),
+        };
+      });
+      return json(result);
     }
 
     if (action === "complete" || action === "reconciliation_required") {
@@ -107,7 +154,11 @@ export class MarePlanCoordinator extends DurableObject<Record<string, unknown>> 
           ...(normalize(body.detail) ? { detail: normalize(body.detail).slice(0, 1000) } : {}),
         };
         await txn.put("ledger", next);
-        return { ok: true, ledger: next };
+        return {
+          ok: true,
+          ledger: next,
+          ...(next.status === "reconciliation_required" ? { recovery_instruction: reconciliationInstruction() } : {}),
+        };
       });
       return json(result, result.ok ? 200 : 409);
     }
