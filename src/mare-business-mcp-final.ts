@@ -32,11 +32,22 @@ type RpcRequest = {
   params?: JsonObject;
 };
 
-const SENSITIVE_KEY_PATTERN = /(password|secret|access.?token|refresh.?token|api.?key|private.?key|credit.?card|customer.?email|customer.?phone)/i;
+type PlanRecord = {
+  plan_id: string;
+  capability_id: string;
+  request: JsonObject;
+  risk: "read_only" | "artifact_only" | "reversible_write" | "live_write" | "irreversible";
+  status: "prepared" | "executing" | "completed" | "failed" | "reconciliation_required" | "cancelled";
+  expires_at: string;
+};
+
+const SENSITIVE_KEY_PATTERN = /(password|secret|credential|token|api.?key|private.?key|credit.?card|customer|contact|recipient|profile|e-?mail|email|phone|telephone|address|first.?name|last.?name)/i;
 const MAX_CAPABILITY_REQUEST_BYTES = 400 * 1024;
+const MAX_MCP_REQUEST_BYTES = 512 * 1024;
 const FULL_CATALOG_PRODUCT_LIMIT = 2500;
 const TIKTOK_NAME_MARKER_RESERVE = 24;
 const TIKTOK_MAX_CAMPAIGN_NAME = 512;
+const MATRIXIFY_ALLOWED_OPERATIONS = new Set(["MERGE", "UPDATE"]);
 
 function normalize(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -95,6 +106,13 @@ function responseHeaders(request: Request): HeadersInit {
   };
 }
 
+function requestTooLarge(request: Request): Response {
+  return new Response(JSON.stringify({ error: "request_too_large", max_bytes: MAX_MCP_REQUEST_BYTES }), {
+    status: 413,
+    headers: responseHeaders(request),
+  });
+}
+
 function toolFailure(message: string, detail?: unknown): JsonObject {
   return {
     content: [{ type: "text", text: detail === undefined ? message : `${message}: ${JSON.stringify(detail)}` }],
@@ -122,15 +140,24 @@ function planKey(planId: string): string {
   return `mare-business:plan:${planId}`;
 }
 
-async function planCapability(planId: string, env: FinalBusinessEnv): Promise<string> {
-  if (!env.SHOPIFY_TOKENS_KV || !/^mbp_[A-Za-z0-9-]{20,80}$/.test(planId)) return "";
+async function loadPlanRecord(planId: string, env: FinalBusinessEnv): Promise<PlanRecord | null> {
+  if (!env.SHOPIFY_TOKENS_KV || !/^mbp_[A-Za-z0-9-]{20,80}$/.test(planId)) return null;
   const raw = await env.SHOPIFY_TOKENS_KV.get(planKey(planId));
-  if (!raw) return "";
+  if (!raw) return null;
   try {
-    return normalize((JSON.parse(raw) as JsonObject).capability_id);
+    const plan = JSON.parse(raw) as PlanRecord;
+    return plan.plan_id === planId ? plan : null;
   } catch {
-    return "";
+    return null;
   }
+}
+
+function isCoordinatedWrite(plan: PlanRecord): boolean {
+  return plan.risk === "live_write" || plan.risk === "reversible_write";
+}
+
+function expectedConfirmation(plan: PlanRecord): "EXECUTE MARE PLAN" | "EXECUTE MARE LIVE PLAN" {
+  return plan.risk === "live_write" ? "EXECUTE MARE LIVE PLAN" : "EXECUTE MARE PLAN";
 }
 
 async function coordinatorAction(
@@ -163,6 +190,23 @@ function delegatedToolFailed(responseBody: JsonObject): { failed: boolean; messa
   return { failed: false, message: "" };
 }
 
+async function validatePlanBeforeClaim(request: Request, planId: string, env: FinalBusinessEnv): Promise<{ valid: boolean; detail: JsonObject }> {
+  const validationRpc: RpcRequest = {
+    jsonrpc: "2.0",
+    id: `validate-${planId}`,
+    method: "tools/call",
+    params: { name: "mare_validate", arguments: { plan_id: planId } },
+  };
+  const response = await handleMareBusinessMcpSafeRequest(rebuildRequest(request, validationRpc), env as any);
+  if (!response) return { valid: false, detail: { error: "validation_handler_not_found" } };
+  let body: JsonObject = {};
+  try { body = await response.json() as JsonObject; } catch { return { valid: false, detail: { error: "validation_response_invalid" } }; }
+  const result = object(body.result);
+  if (result.isError === true) return { valid: false, detail: object(result.structuredContent) };
+  const structured = object(result.structuredContent);
+  return { valid: structured.valid === true, detail: structured };
+}
+
 async function strictCatalogPreflight(payload: JsonObject, env: FinalBusinessEnv): Promise<number> {
   const requestedLimit = payload.max_products === undefined
     ? FULL_CATALOG_PRODUCT_LIMIT
@@ -173,9 +217,7 @@ async function strictCatalogPreflight(payload: JsonObject, env: FinalBusinessEnv
     inline_limit: 0,
     include_csv: false,
   }, env);
-  if (catalog.truncated === true) {
-    throw new Error(`catalog_truncated_artifact_blocked:requested_limit_${requestedLimit}`);
-  }
+  if (catalog.truncated === true) throw new Error(`catalog_truncated_artifact_blocked:requested_limit_${requestedLimit}`);
   return requestedLimit;
 }
 
@@ -191,6 +233,12 @@ function normalizeTikTokCreatePayload(payload: JsonObject): JsonObject {
   return next;
 }
 
+function normalizeMatrixifyPayload(payload: JsonObject): JsonObject {
+  const operation = (normalize(payload.operation) || "MERGE").toUpperCase();
+  if (!MATRIXIFY_ALLOWED_OPERATIONS.has(operation)) throw new Error("matrixify_operation_not_allowed");
+  return { ...payload, operation };
+}
+
 export async function handleMareBusinessMcpFinalRequest(
   request: Request,
   env: FinalBusinessEnv,
@@ -200,9 +248,20 @@ export async function handleMareBusinessMcpFinalRequest(
     return handleMareBusinessMcpSafeRequest(request, env as any);
   }
 
+  const declaredLength = Number(request.headers.get("Content-Length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_MCP_REQUEST_BYTES) return requestTooLarge(request);
+
+  let rawRequest: string;
+  try {
+    rawRequest = await request.clone().text();
+  } catch {
+    return handleMareBusinessMcpSafeRequest(request, env as any);
+  }
+  if (new TextEncoder().encode(rawRequest).byteLength > MAX_MCP_REQUEST_BYTES) return requestTooLarge(request);
+
   let rpc: RpcRequest;
   try {
-    rpc = await request.clone().json() as RpcRequest;
+    rpc = JSON.parse(rawRequest) as RpcRequest;
   } catch {
     return handleMareBusinessMcpSafeRequest(request, env as any);
   }
@@ -224,52 +283,81 @@ export async function handleMareBusinessMcpFinalRequest(
       const capabilityId = normalize(args.capability_id);
       let payload = object(args.request);
 
+      if (capabilityId === "matrixify.catalog.generate") payload = normalizeMatrixifyPayload(payload);
+
       if (capabilityId === "marketplace.feed.generate" || capabilityId === "matrixify.catalog.generate") {
         const safeLimit = await strictCatalogPreflight(payload, env);
         payload = { ...payload, max_products: safeLimit };
       }
 
-      if (capabilityId === "tiktok.campaign.create") {
-        payload = normalizeTikTokCreatePayload(payload);
-      }
+      if (capabilityId === "tiktok.campaign.create") payload = normalizeTikTokCreatePayload(payload);
 
-      if (payload !== args.request) {
-        const forwardedArgs = { ...args, request: payload };
-        const forwardedRpc: RpcRequest = { ...rpc, params: { ...params, arguments: forwardedArgs } };
-        return handleMareBusinessMcpSafeRequest(rebuildRequest(request, forwardedRpc), env as any);
-      }
+      const forwardedArgs = { ...args, request: payload };
+      const forwardedRpc: RpcRequest = { ...rpc, params: { ...params, arguments: forwardedArgs } };
+      return handleMareBusinessMcpSafeRequest(rebuildRequest(request, forwardedRpc), env as any);
     }
 
     if (toolName === "mare_execute") {
       const planId = normalize(args.plan_id);
-      const capabilityId = await planCapability(planId, env);
-      if (capabilityId === "tiktok.campaign.create" || capabilityId === "tiktok.campaign.update") {
-        if (normalize(args.approval_confirmation) !== "EXECUTE MARE LIVE PLAN") {
-          return rpcToolFailure(request, rpc.id, "approval_confirmation_required:EXECUTE MARE LIVE PLAN");
-        }
-        const claim = await coordinatorAction(env, planId, "claim");
-        if (!claim.ok) return rpcToolFailure(request, rpc.id, normalize(claim.body.error) || "plan_execution_claim_rejected", claim.body.ledger || null);
-        const ledger = object(claim.body.ledger);
-        const claimId = normalize(ledger.claim_id);
-        if (!claimId) return rpcToolFailure(request, rpc.id, "plan_execution_claim_invalid");
+      const plan = await loadPlanRecord(planId, env);
+      if (!plan || !isCoordinatedWrite(plan)) return handleMareBusinessMcpSafeRequest(request, env as any);
 
-        let delegated: Response;
-        try {
-          delegated = await handleMareBusinessMcpSafeRequest(request, env as any) as Response;
-        } catch (error) {
-          await coordinatorAction(env, planId, "reconciliation_required", claimId, error instanceof Error ? error.message : "delegate_failed");
-          throw error;
-        }
+      if (plan.status === "completed") return handleMareBusinessMcpSafeRequest(request, env as any);
 
-        let responseBody: JsonObject = {};
-        try { responseBody = await delegated.clone().json() as JsonObject; } catch { responseBody = {}; }
-        const failure = delegatedToolFailed(responseBody);
-        if (failure.failed || !delegated.ok) {
-          await coordinatorAction(env, planId, "reconciliation_required", claimId, failure.message || `http_${delegated.status}`);
-        } else {
-          await coordinatorAction(env, planId, "complete", claimId);
+      const requiredConfirmation = expectedConfirmation(plan);
+      if (normalize(args.approval_confirmation) !== requiredConfirmation) {
+        return rpcToolFailure(request, rpc.id, `approval_confirmation_required:${requiredConfirmation}`);
+      }
+
+      const currentCoordination = await coordinatorAction(env, planId, "status");
+      const currentLedger = object(currentCoordination.body.ledger);
+      const currentStatus = normalize(currentLedger.status);
+      if (currentStatus === "completed") return handleMareBusinessMcpSafeRequest(request, env as any);
+      if (currentStatus === "executing") {
+        return rpcToolFailure(request, rpc.id, "plan_already_executing", currentCoordination.body);
+      }
+      if (currentStatus === "reconciliation_required") {
+        return rpcToolFailure(request, rpc.id, "plan_reconciliation_required", currentCoordination.body);
+      }
+
+      const validation = await validatePlanBeforeClaim(request, planId, env);
+      if (!validation.valid) return rpcToolFailure(request, rpc.id, "plan_validation_failed", validation.detail);
+
+      const claim = await coordinatorAction(env, planId, "claim");
+      if (!claim.ok) {
+        return rpcToolFailure(request, rpc.id, normalize(claim.body.error) || "plan_execution_claim_rejected", claim.body);
+      }
+      const ledger = object(claim.body.ledger);
+      const claimId = normalize(ledger.claim_id);
+      if (!claimId) return rpcToolFailure(request, rpc.id, "plan_execution_claim_invalid");
+
+      let delegated: Response;
+      try {
+        delegated = await handleMareBusinessMcpSafeRequest(request, env as any) as Response;
+      } catch (error) {
+        await coordinatorAction(env, planId, "reconciliation_required", claimId, error instanceof Error ? error.message : "delegate_failed");
+        throw error;
+      }
+
+      let responseBody: JsonObject = {};
+      try { responseBody = await delegated.clone().json() as JsonObject; } catch { responseBody = {}; }
+      const failure = delegatedToolFailed(responseBody);
+      if (failure.failed || !delegated.ok) {
+        await coordinatorAction(env, planId, "reconciliation_required", claimId, failure.message || `http_${delegated.status}`);
+      } else {
+        await coordinatorAction(env, planId, "complete", claimId);
+      }
+      return delegated;
+    }
+
+    if (toolName === "mare_job_status") {
+      const jobId = normalize(args.job_id);
+      const plan = await loadPlanRecord(jobId, env);
+      if (plan && isCoordinatedWrite(plan)) {
+        const coordination = await coordinatorAction(env, jobId, "status");
+        if (object(coordination.body.ledger).status === "reconciliation_required") {
+          return rpcToolFailure(request, rpc.id, "plan_reconciliation_required", coordination.body);
         }
-        return delegated;
       }
     }
   } catch (error) {
