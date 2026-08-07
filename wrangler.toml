@@ -27,3 +27,11 @@ binding = "IMAGES"
 [[kv_namespaces]]
 binding = "SHOPIFY_TOKENS_KV"
 id = "1677a2da44da455fa3b15977ff0099e4"
+
+[[durable_objects.bindings]]
+name = "MARE_PLAN_COORDINATOR"
+class_name = "MarePlanCoordinator"
+
+[[migrations]]
+tag = "v1_mare_plan_coordinator"
+new_sqlite_classes = ["MarePlanCoordinator"]
