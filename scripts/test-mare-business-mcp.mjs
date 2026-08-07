@@ -1,7 +1,6 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 
-// This source-contract test intentionally keeps the Workspace-facing tool set frozen.
 const mcpSource = readFileSync("src/mare-business-mcp.ts", "utf8");
 const safeMcpSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
 const finalMcpSource = readFileSync("src/mare-business-mcp-final.ts", "utf8");
@@ -75,8 +74,8 @@ for (const fragment of [
 ]) assert.ok(tiktokSource.includes(fragment) || safeTikTokSource.includes(fragment), `Missing TikTok Marketing API contract: ${fragment}`);
 
 for (const fragment of [
-  'tiktok_oauth_start_requires_authenticated_mare_prepare', 'createTikTokAuthorizationUrl', 'tiktok_authorized_advertiser_mismatch',
-  'MARE-${cleaned.slice(-16)}', 'existing_campaign', 'PAUSE TIKTOK CAMPAIGN',
+  'tiktok_oauth_start_requires_authenticated_mare_prepare', 'createTikTokAuthorizationUrl', 'MARE-${cleaned.slice(-16)}',
+  'existing_campaign', 'PAUSE TIKTOK CAMPAIGN',
 ]) assert.ok(safeTikTokSource.includes(fragment), `Missing TikTok hardening: ${fragment}`);
 
 for (const fragment of [
@@ -85,19 +84,26 @@ for (const fragment of [
 ]) assert.ok(safeMcpSource.includes(fragment), `Missing Business runtime hardening: ${fragment}`);
 
 for (const fragment of [
-  'assertRequestSafe(payload)', 'credentials_or_customer_contact_data_not_accepted', 'FULL_CATALOG_PRODUCT_LIMIT = 2500',
-  'catalog_truncated_artifact_blocked', 'strictCatalogPreflight(payload, env)', 'MARE_PLAN_COORDINATOR', 'coordinatorAction',
-  'approval_confirmation_required:EXECUTE MARE LIVE PLAN', 'TIKTOK_NAME_MARKER_RESERVE = 24', 'requestedName.slice(0, maximumRequestedLength)',
+  'SENSITIVE_KEY_PATTERN', 'credential', 'customer', 'email', 'token', 'assertRequestSafe(payload)',
+  'credentials_or_customer_contact_data_not_accepted', 'MAX_MCP_REQUEST_BYTES = 512 * 1024', 'await request.clone().text()',
+  'JSON.parse(rawRequest)', 'FULL_CATALOG_PRODUCT_LIMIT = 2500', 'catalog_truncated_artifact_blocked',
+  'strictCatalogPreflight(payload, env)', 'plan.risk === "live_write" || plan.risk === "reversible_write"',
+  'validatePlanBeforeClaim', 'coordinatorAction(env, planId, "claim")', 'MATRIXIFY_ALLOWED_OPERATIONS',
+  'matrixify_operation_not_allowed', 'TIKTOK_NAME_MARKER_RESERVE = 24', 'requestedName.slice(0, maximumRequestedLength)',
 ]) assert.ok(finalMcpSource.includes(fragment), `Missing final Business OS guard: ${fragment}`);
 
-for (const fragment of [
-  'tiktok_authorized_advertiser_not_proven', 'advertiserIds.includes(expectedAdvertiser)', 'SHOPIFY_TOKENS_KV.delete(TOKEN_KEY)',
-  'authorization_persisted: false',
-]) assert.ok(finalTikTokSource.includes(fragment), `Missing final TikTok OAuth proof guard: ${fragment}`);
+assert.ok(finalMcpSource.indexOf('validatePlanBeforeClaim(request, planId, env)') < finalMcpSource.indexOf('coordinatorAction(env, planId, "claim")'), "Plan validation must occur before execution claim");
 
 for (const fragment of [
-  'extends DurableObject', 'this.ctx.storage.transaction', 'plan_already_executing', 'plan_already_completed', 'reconciliation_required',
-  'execution_claim_mismatch',
+  'tiktok_authorized_advertiser_not_proven', '!advertiserIds.includes(expectedAdvertiser)', 'authorization_persisted: false',
+  'SHOPIFY_TOKENS_KV.put(TOKEN_KEY', 'selectedAdvertiser',
+]) assert.ok(finalTikTokSource.includes(fragment), `Missing final TikTok OAuth proof guard: ${fragment}`);
+assert.ok(finalTikTokSource.indexOf('!advertiserIds.includes(expectedAdvertiser)') < finalTikTokSource.indexOf('SHOPIFY_TOKENS_KV.put(TOKEN_KEY'), "Advertiser proof must happen before token persistence");
+
+for (const fragment of [
+  'extends DurableObject', 'this.ctx.storage.transaction', 'EXECUTION_CLAIM_LEASE_MS', 'lease_expires_at',
+  'plan_execution_lease_expired_reconciliation_required', 'recovery_instruction', 'plan_already_executing',
+  'plan_already_completed', 'reconciliation_required', 'execution_claim_mismatch',
 ]) assert.ok(coordinatorSource.includes(fragment), `Missing atomic plan coordinator behavior: ${fragment}`);
 
 for (const fragment of [
@@ -111,6 +117,7 @@ for (const fragment of [
 
 assert.equal(workerSource.includes('handleTikTokOAuthRequest(request'), false, "Insecure public TikTok OAuth start handler must not be routed");
 assert.equal(workerSource.includes('"write_themes"'), false, "Theme writes must remain GitHub/PR-based, not direct Shopify writes");
+assert.equal(finalMcpSource.includes('MATRIXIFY_ALLOWED_OPERATIONS = new Set(["MERGE", "UPDATE"])'), true, "Matrixify must not emit destructive DELETE commands");
 
 console.log(JSON.stringify({
   ok: true,
@@ -118,13 +125,16 @@ console.log(JSON.stringify({
   stable_tools: stableTools.length,
   dynamic_capabilities: true,
   immutable_plan_before_write: true,
+  all_write_plans_atomic: true,
+  preclaim_validation: true,
   failed_live_plan_replay_blocked: true,
-  atomic_live_plan_claim: true,
+  execution_claim_lease_recovery: true,
   secure_tiktok_oauth_start: true,
-  tiktok_advertiser_positive_proof: true,
-  request_safety_preserved: true,
+  tiktok_advertiser_positive_proof_before_persist: true,
+  nested_request_safety_preserved: true,
+  global_request_size_guard: true,
   full_feed_truncation_blocked: true,
-  tiktok_oauth_kv_capabilities_resolved: true,
+  matrixify_delete_blocked: true,
   complete_variant_pagination: true,
   regular_and_sale_price_mapping: true,
   direct_delete_exposed: false,
