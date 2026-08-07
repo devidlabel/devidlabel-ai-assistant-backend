@@ -46,6 +46,12 @@ function object(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
 }
 
+function integer(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
+}
+
 function timingSafeEqualText(left: string, right: string): boolean {
   if (!left || !right || left.length !== right.length) return false;
   let difference = 0;
@@ -157,17 +163,20 @@ function delegatedToolFailed(responseBody: JsonObject): { failed: boolean; messa
   return { failed: false, message: "" };
 }
 
-async function strictFullCatalogPreflight(payload: JsonObject, env: FinalBusinessEnv): Promise<JsonObject> {
+async function strictCatalogPreflight(payload: JsonObject, env: FinalBusinessEnv): Promise<number> {
+  const requestedLimit = payload.max_products === undefined
+    ? FULL_CATALOG_PRODUCT_LIMIT
+    : integer(payload.max_products, FULL_CATALOG_PRODUCT_LIMIT, 1, FULL_CATALOG_PRODUCT_LIMIT);
   const catalog = await readShopifyCatalogComplete({
     ...payload,
-    max_products: FULL_CATALOG_PRODUCT_LIMIT,
+    max_products: requestedLimit,
     inline_limit: 0,
     include_csv: false,
   }, env);
   if (catalog.truncated === true) {
-    throw new Error(`catalog_truncated_full_artifact_blocked:limit_${FULL_CATALOG_PRODUCT_LIMIT}`);
+    throw new Error(`catalog_truncated_artifact_blocked:requested_limit_${requestedLimit}`);
   }
-  return catalog;
+  return requestedLimit;
 }
 
 function normalizeTikTokCreatePayload(payload: JsonObject): JsonObject {
@@ -215,9 +224,9 @@ export async function handleMareBusinessMcpFinalRequest(
       const capabilityId = normalize(args.capability_id);
       let payload = object(args.request);
 
-      if ((capabilityId === "marketplace.feed.generate" || capabilityId === "matrixify.catalog.generate") && args.request !== undefined && payload.max_products === undefined) {
-        await strictFullCatalogPreflight(payload, env);
-        payload = { ...payload, max_products: FULL_CATALOG_PRODUCT_LIMIT };
+      if (capabilityId === "marketplace.feed.generate" || capabilityId === "matrixify.catalog.generate") {
+        const safeLimit = await strictCatalogPreflight(payload, env);
+        payload = { ...payload, max_products: safeLimit };
       }
 
       if (capabilityId === "tiktok.campaign.create") {
@@ -235,6 +244,9 @@ export async function handleMareBusinessMcpFinalRequest(
       const planId = normalize(args.plan_id);
       const capabilityId = await planCapability(planId, env);
       if (capabilityId === "tiktok.campaign.create" || capabilityId === "tiktok.campaign.update") {
+        if (normalize(args.approval_confirmation) !== "EXECUTE MARE LIVE PLAN") {
+          return rpcToolFailure(request, rpc.id, "approval_confirmation_required:EXECUTE MARE LIVE PLAN");
+        }
         const claim = await coordinatorAction(env, planId, "claim");
         if (!claim.ok) return rpcToolFailure(request, rpc.id, normalize(claim.body.error) || "plan_execution_claim_rejected", claim.body.ledger || null);
         const ledger = object(claim.body.ledger);
