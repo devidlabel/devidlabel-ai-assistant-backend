@@ -1,6 +1,11 @@
 import { shopifyGraphQL, type Env as ShopifyBaseEnv } from "./index.js";
 
 type JsonObject = Record<string, unknown>;
+type CatalogConnection = {
+  pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+  nodes?: JsonObject[];
+};
+type CatalogPageData = { products?: CatalogConnection };
 
 type KVNamespaceLike = {
   get(key: string): Promise<string | null>;
@@ -255,12 +260,12 @@ export async function readShopifyCatalog(args: JsonObject, env: MareBusinessShop
   const products: JsonObject[] = [];
   while (hasNextPage && products.length < maxProducts) {
     const first = Math.min(PAGE_SIZE, maxProducts - products.length);
-    const data = await shopifyGraphQL<{ products?: { pageInfo?: { hasNextPage?: boolean; endCursor?: string | null }; nodes?: JsonObject[] } }>(
+    const data: CatalogPageData = await shopifyGraphQL<CatalogPageData>(
       env,
       CATALOG_QUERY,
       { first, after, query: query || null },
     );
-    const connection = data.products || {};
+    const connection: CatalogConnection = data.products || {};
     products.push(...(connection.nodes || []).map(mapProduct));
     hasNextPage = Boolean(connection.pageInfo?.hasNextPage);
     after = normalize(connection.pageInfo?.endCursor) || null;
