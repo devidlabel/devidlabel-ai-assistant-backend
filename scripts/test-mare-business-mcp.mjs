@@ -75,7 +75,7 @@ for (const fragment of [
 
 for (const fragment of [
   'tiktok_oauth_start_requires_authenticated_mare_prepare', 'createTikTokAuthorizationUrl', 'MARE-${cleaned.slice(-16)}',
-  'existing_campaign', 'PAUSE TIKTOK CAMPAIGN',
+  'workers.dev/oauth/tiktok/callback', 'existing_campaign', 'PAUSE TIKTOK CAMPAIGN',
 ]) assert.ok(safeTikTokSource.includes(fragment), `Missing TikTok hardening: ${fragment}`);
 
 for (const fragment of [
@@ -95,9 +95,12 @@ for (const fragment of [
 assert.ok(finalMcpSource.indexOf('validatePlanBeforeClaim(request, planId, env)') < finalMcpSource.indexOf('coordinatorAction(env, planId, "claim")'), "Plan validation must occur before execution claim");
 
 for (const fragment of [
+  'CALLBACK_PATH = "/oauth/tiktok/callback"', 'LEGACY_CALLBACK_PATH = "/auth/tiktok/callback"',
+  '/oauth2/advertiser/get/', '"Access-Token": accessToken', 'tiktok_advertiser_authorization_lookup_failed',
   'tiktok_authorized_advertiser_not_proven', '!advertiserIds.includes(expectedAdvertiser)', 'authorization_persisted: false',
   'SHOPIFY_TOKENS_KV.put(TOKEN_KEY', 'selectedAdvertiser',
 ]) assert.ok(finalTikTokSource.includes(fragment), `Missing final TikTok OAuth proof guard: ${fragment}`);
+assert.ok(finalTikTokSource.indexOf('/oauth2/advertiser/get/') < finalTikTokSource.indexOf('SHOPIFY_TOKENS_KV.put(TOKEN_KEY'), "Authorized advertiser retrieval must happen before token persistence");
 assert.ok(finalTikTokSource.indexOf('!advertiserIds.includes(expectedAdvertiser)') < finalTikTokSource.indexOf('SHOPIFY_TOKENS_KV.put(TOKEN_KEY'), "Advertiser proof must happen before token persistence");
 
 for (const fragment of [
@@ -130,6 +133,8 @@ console.log(JSON.stringify({
   failed_live_plan_replay_blocked: true,
   execution_claim_lease_recovery: true,
   secure_tiktok_oauth_start: true,
+  tiktok_live_callback_alias: true,
+  tiktok_authorized_advertiser_lookup_before_persist: true,
   tiktok_advertiser_positive_proof_before_persist: true,
   nested_request_safety_preserved: true,
   global_request_size_guard: true,
