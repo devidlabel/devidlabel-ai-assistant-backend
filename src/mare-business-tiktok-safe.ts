@@ -30,7 +30,7 @@ const API_BASE = "https://business-api.tiktok.com/open_api/v1.3";
 const AUTH_BASE = "https://ads.tiktok.com/marketing_api/auth";
 const TOKEN_KEY = "mare-business:tiktok:authorization";
 const STATE_PREFIX = "mare-business:tiktok:oauth-state:";
-const DEFAULT_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/tiktok/callback";
+const DEFAULT_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/oauth/tiktok/callback";
 const STATE_TTL_SECONDS = 10 * 60;
 
 function normalize(value: unknown): string {
