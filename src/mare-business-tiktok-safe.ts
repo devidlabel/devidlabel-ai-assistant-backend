@@ -304,7 +304,7 @@ export async function createTikTokCampaignSafe(args: JsonObject, env: MareBusine
       safety: { forced_operation_status: "DISABLE", activation_performed: false, marker },
     };
   }
-  const payload = { ...object(args.payload), advertiser_id: advertiserId };
+  const payload: JsonObject = { ...object(args.payload), advertiser_id: advertiserId };
   delete payload.campaign_id;
   const requestedName = normalize(payload.campaign_name);
   if (!requestedName) throw new Error("tiktok_campaign_name_required");
@@ -322,7 +322,7 @@ export async function updateTikTokCampaignSafe(args: JsonObject, env: MareBusine
   }
   const auth = await resolveAuthorization(env);
   const advertiserId = resolveAdvertiserId(args, auth, env);
-  const payload = { ...object(args.payload), advertiser_id: advertiserId };
+  const payload: JsonObject = { ...object(args.payload), advertiser_id: advertiserId };
   const campaignId = normalize(payload.campaign_id);
   if (!/^\d{5,40}$/.test(campaignId)) throw new Error("tiktok_campaign_id_required");
   const operationStatus = normalize(payload.operation_status).toUpperCase();
