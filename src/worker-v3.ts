@@ -4,8 +4,9 @@ import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
-import { handleMareBusinessMcpRequest } from "./mare-business-mcp";
-import { handleTikTokOAuthRequest } from "./mare-business-tiktok";
+import { handleMareBusinessMcpFinalRequest } from "./mare-business-mcp-final";
+import { handleTikTokOAuthFinalCallbackRequest } from "./mare-business-tiktok-final";
+import { MarePlanCoordinator } from "./mare-plan-coordinator";
 import { handleMareMcpRequest } from "./mare-mcp";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp";
 import { handleMareProductMediaMcpRequest } from "./mare-product-media-mcp";
@@ -15,6 +16,8 @@ import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-repo
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
 import { handleShopifyHistoryProbe } from "./shopify-history-probe";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
+
+export { MarePlanCoordinator };
 
 type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   KLAVIYO_PRIVATE_API_KEY?: string;
@@ -49,6 +52,7 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   MARE_OPS_ACCESS_TOKEN?: string;
   MARE_PRODUCT_MEDIA_ACCESS_TOKEN?: string;
   MARE_BUSINESS_ACCESS_TOKEN?: string;
+  MARE_PLAN_COORDINATOR?: unknown;
   PRODUCT_IMAGE_MODEL?: string;
   IMAGES?: unknown;
   GITHUB_OPERATIONS_TOKEN?: string;
@@ -172,10 +176,10 @@ export default {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
 
-    const tiktokOAuthResponse = await handleTikTokOAuthRequest(request, env as any);
+    const tiktokOAuthResponse = await handleTikTokOAuthFinalCallbackRequest(request, env as any);
     if (tiktokOAuthResponse) return tiktokOAuthResponse;
 
-    const businessMcpResponse = await handleMareBusinessMcpRequest(request, env as any);
+    const businessMcpResponse = await handleMareBusinessMcpFinalRequest(request, env as any);
     if (businessMcpResponse) return businessMcpResponse;
 
     const productMediaMcpResponse = await handleMareProductMediaMcpRequest(request, env as any);
@@ -192,8 +196,6 @@ export default {
 
     const reportingEnv = {
       ...env,
-      // Keep the dedicated report token as the default, but allow the Daily Pulse
-      // bearer for scheduled internal snapshots when that is the supplied credential.
       SHOPIFY_REPORT_ACCESS_TOKEN: selectShopifyReportAccessToken(request, env),
     };
 
