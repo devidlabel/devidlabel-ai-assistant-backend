@@ -1,0 +1,59 @@
+name: Execute TORNA40 OIDC 2026-08-08
+
+on:
+  push:
+    branches:
+      - ops/execute-torna40-2026-08-08
+    paths:
+      - '.github/workflows/execute-torna40-oidc-2026-08-08.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Obtain signed GitHub Actions OIDC token and create TORNA40
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-2026-08-08'
+          AUD='devidlabel-torna40-2026-08-08'
+
+          # Read-only route proves Shopify capability before requesting a write identity.
+          curl --fail -sS "$URL" -o /tmp/pre.json
+          node - <<'NODE'
+          const d=require('/tmp/pre.json');
+          console.log(JSON.stringify({preflight:true,operation:d.operation,write_discounts:d.write_discounts,code:d.code,code_exists:d.code_exists}));
+          if(d.ok!==true||d.operation!=='torna40'||d.write_discounts!==true||d.code!=='TORNA40')process.exit(2);
+          NODE
+
+          OIDC=$(curl --fail --silent --show-error \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUD}" | jq -r '.value')
+          test -n "$OIDC" && test "$OIDC" != "null"
+
+          status=$(curl -sS -X POST -H "Authorization: Bearer $OIDC" -o /tmp/post.json -w '%{http_code}' "$URL")
+          echo "POST_STATUS=$status"
+          cat /tmp/post.json
+          if [ "$status" != "200" ]; then exit 20; fi
+
+          node - <<'NODE'
+          const d=require('/tmp/post.json');
+          if(d.ok!==true||d.code!=='TORNA40'||d.code_exists!==true)process.exit(2);
+          if(d.created_now===true){
+            const s=d.settings||{};
+            if(s.fixed_amount_eur!==40||s.minimum_subtotal_eur!==149||s.applies_once_per_customer!==true||s.usage_limit!==65||s.combines_with_other_discounts!==false)process.exit(3);
+          }
+          console.log(JSON.stringify({ok:d.ok,phase:d.phase,code:d.code,created_now:d.created_now,discount_node_id:d.discount_node_id,settings:d.settings||null}));
+          NODE
+
+          curl --fail -sS "$URL" -o /tmp/postcheck.json
+          node - <<'NODE'
+          const d=require('/tmp/postcheck.json');
+          console.log(JSON.stringify({postcheck:true,write_discounts:d.write_discounts,code:d.code,code_exists:d.code_exists}));
+          if(d.ok!==true||d.write_discounts!==true||d.code!=='TORNA40'||d.code_exists!==true)process.exit(4);
+          NODE
