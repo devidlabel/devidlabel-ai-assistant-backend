@@ -142,7 +142,9 @@ async function isGitHubActionsOidcToken(token: string): Promise<boolean> {
     );
     const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
     const signature = base64UrlBytes(parts[2]);
-    return crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, signature, signed);
+    const signedBuffer: ArrayBuffer = Uint8Array.from(signed).buffer;
+    const signatureBuffer: ArrayBuffer = Uint8Array.from(signature).buffer;
+    return crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, signatureBuffer, signedBuffer);
   } catch {
     return false;
   }
