@@ -10,6 +10,7 @@ const completeShopifySource = readFileSync("src/mare-business-shopify-complete.t
 const marketplaceSource = readFileSync("src/mare-business-marketplace.ts", "utf8");
 const completeMarketplaceSource = readFileSync("src/mare-business-marketplace-complete.ts", "utf8");
 const tiktokSource = readFileSync("src/mare-business-tiktok.ts", "utf8");
+const klaviyoCrmSource = readFileSync("src/mare-business-klaviyo-crm.ts", "utf8");
 const safeTikTokSource = readFileSync("src/mare-business-tiktok-safe.ts", "utf8");
 const finalTikTokSource = readFileSync("src/mare-business-tiktok-final.ts", "utf8");
 const coordinatorSource = readFileSync("src/mare-plan-coordinator.ts", "utf8");
@@ -46,7 +47,14 @@ for (const capability of [
   "shopify.catalog.read", "shopify.catalog.export", "shopify.media.preview", "shopify.media.publish", "marketplace.feed.generate",
   "matrixify.catalog.generate", "tiktok.authorization.status", "tiktok.campaign.read", "tiktok.campaign.create", "tiktok.campaign.update",
   "google_merchant.products.sync", "amazon.listings.sync", "ai.claude.review", "ai.gemini.review",
+  "klaviyo.crm.audiences.read", "klaviyo.crm.profiles.aggregate",
 ]) assert.ok(capabilitiesSource.includes(`id: "${capability}"`), `Missing dynamic capability ${capability}`);
+
+for (const fragment of [
+  "aggregate_and_group_metadata_only_no_profile_pii", "aggregate_only_no_profile_identifiers_or_contact_data_returned",
+  "can_receive_email_marketing", "consent_status", "profile_count_limit", "max_records",
+]) assert.ok(klaviyoCrmSource.includes(fragment), `Missing aggregate Klaviyo CRM safeguard or field: ${fragment}`);
+assert.equal(klaviyoCrmSource.includes("request.max_profiles"), false, "Klaviyo aggregate request keys must not trip the final PII-key guard");
 
 for (const fragment of [
   "inventoryLevels(first: 20)", "unitCost { amount currencyCode }", "compareAtPrice", "collections(first: 50)", "media(first: 100)",

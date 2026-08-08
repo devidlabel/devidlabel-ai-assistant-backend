@@ -145,7 +145,7 @@ export async function readKlaviyoAudienceOverview(request: JsonObject, env: Klav
 }
 
 export async function readKlaviyoProfileAggregate(request: JsonObject, env: KlaviyoCrmEnv): Promise<JsonObject> {
-  const maxProfiles = asInt(request.max_profiles, 50000, 100, 100000);
+  const maxProfiles = asInt(request.max_records, 50000, 100, 100000);
   const fields = encodeURIComponent("id,subscriptions.email.marketing.can_receive_email_marketing,subscriptions.email.marketing.consent");
   let next: string | null = `/profiles?page[size]=100&additional-fields[profile]=subscriptions&fields[profile]=${fields}`;
   let scanned = 0;
@@ -185,7 +185,7 @@ export async function readKlaviyoProfileAggregate(request: JsonObject, env: Klav
       scanned,
       complete,
       truncated: !complete,
-      max_profiles: maxProfiles,
+      max_records: maxProfiles,
       pages,
       total_profiles: complete ? scanned : null,
     },
@@ -196,6 +196,6 @@ export async function readKlaviyoProfileAggregate(request: JsonObject, env: Klav
       eligible_rate: scanned > 0 ? canReceive / scanned : 0,
       consent_status: consentStatus,
     },
-    ...(complete ? {} : { warning: "Profile aggregate reached max_profiles before the Klaviyo collection ended; increase max_profiles for an exact account total." }),
+    ...(complete ? {} : { warning: "Profile aggregate reached max_records before the Klaviyo collection ended; increase max_records for an exact account total." }),
   };
 }
