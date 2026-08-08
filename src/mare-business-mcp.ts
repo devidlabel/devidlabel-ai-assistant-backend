@@ -13,6 +13,7 @@ import {
   type MareBusinessShopifyEnv,
 } from "./mare-business-shopify.js";
 import { generateMarketplaceFeed, generateMatrixifyCatalog } from "./mare-business-marketplace.js";
+import { readKlaviyoAudienceOverview, readKlaviyoProfileAggregate } from "./mare-business-klaviyo-crm.js";
 import {
   createTikTokCampaign,
   readTikTokCampaigns,
@@ -407,6 +408,8 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "artifact.get") return textToolResult(await getBusinessArtifact(request, env));
   if (capabilityId === "tiktok.authorization.status") return textToolResult(await tiktokAuthorizationStatus(env));
   if (capabilityId === "tiktok.campaign.read") return textToolResult(await readTikTokCampaigns(request, env));
+  if (capabilityId === "klaviyo.crm.audiences.read") return textToolResult(await readKlaviyoAudienceOverview(request, env));
+  if (capabilityId === "klaviyo.crm.profiles.aggregate") return textToolResult(await readKlaviyoProfileAggregate(request, env));
 
   const commerceMap: Record<string, string> = {
     "commerce.daily_pulse": "mare_daily_pulse",
