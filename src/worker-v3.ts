@@ -18,6 +18,7 @@ import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-repo
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
 import { handleShopifyHistoryProbe } from "./shopify-history-probe";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
+import { handleTorna40Once } from "./shopify-torna40-once";
 
 export { MarePlanCoordinator };
 
@@ -180,6 +181,9 @@ export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
+
+    const torna40Response = await handleTorna40Once(request, env as any);
+    if (torna40Response) return torna40Response;
 
     const tiktokOAuthResponse = await handleTikTokOAuthFinalCallbackRequest(request, env as any);
     if (tiktokOAuthResponse) return tiktokOAuthResponse;
