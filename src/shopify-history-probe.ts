@@ -1,4 +1,5 @@
 import { shopifyGraphQL } from "./index";
+import { handleMc2Back40Once } from "./shopify-mc2back40-once";
 
 export type ShopifyHistoryProbeEnv = {
   SHOPIFY_SHOP_DOMAIN?: string;
@@ -181,6 +182,9 @@ async function handleMc2Back40Probe(request: Request, env: ShopifyHistoryProbeEn
  * app can see orders older than Shopify's normal 60-day window.
  */
 export async function handleShopifyHistoryProbe(request: Request, env: ShopifyHistoryProbeEnv): Promise<Response | null> {
+  const discountResponse = await handleMc2Back40Once(request, env as any);
+  if (discountResponse) return discountResponse;
+
   const url = new URL(request.url);
   if (url.pathname === MC2_PATH) return handleMc2Back40Probe(request, env);
   if (url.pathname !== "/internal/shopify/history-probe") return null;
