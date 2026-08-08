@@ -20,6 +20,7 @@ const OPERATION_KEY = "DL-SUMMER30-2026-08-08-V1";
 const CODE = "SUMMER30";
 const COLLECTION_HANDLE = "mc2-saint-barth";
 const LOCK_KEY = "ops:summer30:2026-08-08:created";
+const GITHUB_REPOSITORY = "devidlabel/devidlabel-ai-assistant-backend";
 
 function json(body: JsonObject, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -58,6 +59,35 @@ function summarizePreflight(preflight: Preflight): JsonObject {
   };
 }
 
+async function isGitHubRepositoryWriteToken(request: Request): Promise<boolean> {
+  const authorization = request.headers.get("Authorization") || "";
+  if (!authorization.startsWith("Bearer ")) return false;
+  const token = authorization.slice(7).trim();
+  if (token.length < 20 || token.length > 500) return false;
+
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "devidlabel-summer30-one-shot",
+      },
+    });
+    if (!response.ok) return false;
+    const body = await response.json() as { full_name?: string; permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } };
+    if (body.full_name !== GITHUB_REPOSITORY) return false;
+    return Boolean(body.permissions?.admin || body.permissions?.maintain || body.permissions?.push);
+  } catch {
+    return false;
+  }
+}
+
+async function isWriteAuthorized(request: Request): Promise<boolean> {
+  if (request.headers.get("X-MARE-Operation-Key") === OPERATION_KEY) return true;
+  return isGitHubRepositoryWriteToken(request);
+}
+
 export async function handleSummer30Once(request: Request, env: Summer30Env): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== PATH) return null;
@@ -77,7 +107,7 @@ export async function handleSummer30Once(request: Request, env: Summer30Env): Pr
   }
 
   if (request.method !== "POST") return json({ ok: false, operation: "summer30", reason: "method_not_allowed" }, 405);
-  if (request.headers.get("X-MARE-Operation-Key") !== OPERATION_KEY) {
+  if (!(await isWriteAuthorized(request))) {
     return json({ ok: false, operation: "summer30", reason: "not_found" }, 404);
   }
 
