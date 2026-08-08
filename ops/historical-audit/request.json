@@ -1,11 +1,11 @@
 {
-  "requested_at": "2026-08-07T08:59:30+02:00",
-  "title": "Daily Commerce Report - 6 agosto 2026",
+  "requested_at": "2026-08-08T09:00:10+02:00",
+  "title": "Daily Commerce Report 2026-08-07",
   "periods": [
-    { "label": "6 agosto 2026", "start": "2026-08-06", "end": "2026-08-06" },
-    { "label": "4-6 agosto 2026", "start": "2026-08-04", "end": "2026-08-06" },
-    { "label": "31 luglio-6 agosto 2026", "start": "2026-07-31", "end": "2026-08-06" },
-    { "label": "24 luglio-6 agosto 2026", "start": "2026-07-24", "end": "2026-08-06" },
-    { "label": "8 luglio-6 agosto 2026", "start": "2026-07-08", "end": "2026-08-06" }
+    {"label":"day","start":"2026-08-07","end":"2026-08-07"},
+    {"label":"3d","start":"2026-08-05","end":"2026-08-07"},
+    {"label":"7d","start":"2026-08-01","end":"2026-08-07"},
+    {"label":"14d","start":"2026-07-25","end":"2026-08-07"},
+    {"label":"30d","start":"2026-07-09","end":"2026-08-07"}
   ]
 }
