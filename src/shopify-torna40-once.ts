@@ -13,16 +13,48 @@ type Preflight = {
   codeDiscountNodeByCode: { id: string } | null;
 };
 
+type GithubOidcClaims = {
+  iss?: string;
+  aud?: string | string[];
+  sub?: string;
+  repository?: string;
+  repository_owner?: string;
+  ref?: string;
+  event_name?: string;
+  actor?: string;
+  exp?: number;
+  iat?: number;
+  nbf?: number;
+};
+
 const PATH = "/internal/ops/torna40-2026-08-08";
 const CODE = "TORNA40";
 const LOCK_KEY = "ops:torna40:2026-08-08:created";
 const GITHUB_REPOSITORY = "devidlabel/devidlabel-ai-assistant-backend";
+const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
+const GITHUB_OIDC_AUDIENCE = "devidlabel-torna40-2026-08-08";
+const EXECUTION_REF = "refs/heads/ops/execute-torna40-2026-08-08";
+const EXECUTION_SUBJECT = `repo:${GITHUB_REPOSITORY}:ref:${EXECUTION_REF}`;
 
 function json(body: JsonObject, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+function base64UrlBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function base64UrlJson<T>(value: string): T {
+  const bytes = base64UrlBytes(value);
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
 }
 
 async function loadPreflight(env: Torna40Env): Promise<Preflight> {
@@ -34,27 +66,65 @@ async function loadPreflight(env: Torna40Env): Promise<Preflight> {
   `, { code: CODE });
 }
 
-async function isAuthorizedGitHubWriteToken(request: Request): Promise<boolean> {
-  const authorization = request.headers.get("Authorization") || "";
-  if (!authorization.startsWith("Bearer ")) return false;
-  const token = authorization.slice(7).trim();
-  if (token.length < 20 || token.length > 500) return false;
+async function isGitHubActionsOidcToken(token: string): Promise<boolean> {
+  const parts = token.split(".");
+  if (parts.length !== 3 || token.length < 100 || token.length > 12000) return false;
   try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "devidlabel-torna40-one-shot",
-      },
-    });
-    if (!response.ok) return false;
-    const body = await response.json() as { full_name?: string; permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } };
-    if (body.full_name !== GITHUB_REPOSITORY) return false;
-    return Boolean(body.permissions?.admin || body.permissions?.maintain || body.permissions?.push);
+    const header = base64UrlJson<{ alg?: string; kid?: string }>(parts[0]);
+    const claims = base64UrlJson<GithubOidcClaims>(parts[1]);
+    if (header.alg !== "RS256" || !header.kid) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const audienceOk = Array.isArray(claims.aud) ? claims.aud.includes(GITHUB_OIDC_AUDIENCE) : claims.aud === GITHUB_OIDC_AUDIENCE;
+    if (
+      claims.iss !== GITHUB_OIDC_ISSUER || !audienceOk ||
+      claims.repository !== GITHUB_REPOSITORY || claims.repository_owner !== "devidlabel" ||
+      claims.ref !== EXECUTION_REF || claims.sub !== EXECUTION_SUBJECT ||
+      claims.event_name !== "push" || claims.actor !== "devidlabel" ||
+      typeof claims.exp !== "number" || claims.exp < now - 30 || claims.exp > now + 15 * 60 ||
+      typeof claims.iat !== "number" || claims.iat > now + 30 || claims.iat < now - 15 * 60 ||
+      (typeof claims.nbf === "number" && claims.nbf > now + 30)
+    ) return false;
+
+    const configResponse = await fetch(`${GITHUB_OIDC_ISSUER}/.well-known/openid-configuration`, { headers: { Accept: "application/json" } });
+    if (!configResponse.ok) return false;
+    const config = await configResponse.json() as { issuer?: string; jwks_uri?: string };
+    if (config.issuer !== GITHUB_OIDC_ISSUER || !config.jwks_uri) return false;
+    const jwksUrl = new URL(config.jwks_uri);
+    if (jwksUrl.protocol !== "https:" || jwksUrl.hostname !== "token.actions.githubusercontent.com") return false;
+    const jwksResponse = await fetch(jwksUrl.toString(), { headers: { Accept: "application/json" } });
+    if (!jwksResponse.ok) return false;
+    const jwks = await jwksResponse.json() as { keys?: Array<JsonWebKey & { kid?: string; alg?: string; use?: string }> };
+    const jwk = (jwks.keys || []).find((key) => key.kid === header.kid && (!key.alg || key.alg === "RS256") && (!key.use || key.use === "sig"));
+    if (!jwk) return false;
+    const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+    const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const signature = base64UrlBytes(parts[2]);
+    return crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, Uint8Array.from(signature).buffer, Uint8Array.from(signed).buffer);
   } catch {
     return false;
   }
+}
+
+async function isGitHubRepositoryWriteToken(token: string): Promise<boolean> {
+  if (token.length < 20 || token.length > 500) return false;
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "devidlabel-torna40-one-shot" },
+    });
+    if (!response.ok) return false;
+    const body = await response.json() as { full_name?: string; permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } };
+    return body.full_name === GITHUB_REPOSITORY && Boolean(body.permissions?.admin || body.permissions?.maintain || body.permissions?.push);
+  } catch {
+    return false;
+  }
+}
+
+async function isWriteAuthorized(request: Request): Promise<boolean> {
+  const authorization = request.headers.get("Authorization") || "";
+  if (!authorization.startsWith("Bearer ")) return false;
+  const token = authorization.slice(7).trim();
+  if (await isGitHubActionsOidcToken(token)) return true;
+  return isGitHubRepositoryWriteToken(token);
 }
 
 export async function handleTorna40Once(request: Request, env: Torna40Env): Promise<Response | null> {
@@ -64,35 +134,20 @@ export async function handleTorna40Once(request: Request, env: Torna40Env): Prom
   const preflight = async () => {
     const p = await loadPreflight(env);
     const scopes = p.currentAppInstallation.accessScopes.map((s) => s.handle);
-    return {
-      ok: true,
-      operation: "torna40",
-      write_discounts: scopes.includes("write_discounts"),
-      read_discounts: scopes.includes("read_discounts"),
-      code: CODE,
-      code_exists: Boolean(p.codeDiscountNodeByCode),
-      mutation_performed: false,
-    };
+    return { ok: true, operation: "torna40", write_discounts: scopes.includes("write_discounts"), read_discounts: scopes.includes("read_discounts"), code: CODE, code_exists: Boolean(p.codeDiscountNodeByCode), mutation_performed: false };
   };
 
   if (request.method === "GET") {
     try { return json(await preflight()); }
-    catch (error) {
-      return json({ ok: false, operation: "torna40", mutation_performed: false, reason: error instanceof Error ? error.message.slice(0, 300) : "preflight_failed" }, 502);
-    }
+    catch (error) { return json({ ok: false, operation: "torna40", mutation_performed: false, reason: error instanceof Error ? error.message.slice(0, 300) : "preflight_failed" }, 502); }
   }
-
   if (request.method !== "POST") return json({ ok: false, operation: "torna40", reason: "method_not_allowed" }, 405);
-  if (!(await isAuthorizedGitHubWriteToken(request))) return json({ ok: false, operation: "torna40", reason: "not_found" }, 404);
+  if (!(await isWriteAuthorized(request))) return json({ ok: false, operation: "torna40", reason: "not_found" }, 404);
 
   const p = await loadPreflight(env);
   const scopes = p.currentAppInstallation.accessScopes.map((s) => s.handle);
-  if (!scopes.includes("write_discounts")) {
-    return json({ ok: false, operation: "torna40", reason: "write_discounts_not_granted", write_discounts: false }, 412);
-  }
-  if (p.codeDiscountNodeByCode) {
-    return json({ ok: true, operation: "torna40", phase: "existing", code: CODE, code_exists: true, created_now: false, discount_node_id: p.codeDiscountNodeByCode.id });
-  }
+  if (!scopes.includes("write_discounts")) return json({ ok: false, operation: "torna40", reason: "write_discounts_not_granted", write_discounts: false }, 412);
+  if (p.codeDiscountNodeByCode) return json({ ok: true, operation: "torna40", phase: "existing", code: CODE, code_exists: true, created_now: false, discount_node_id: p.codeDiscountNodeByCode.id });
 
   if (env.SHOPIFY_TOKENS_KV) {
     const prior = await env.SHOPIFY_TOKENS_KV.get(LOCK_KEY);
@@ -100,16 +155,10 @@ export async function handleTorna40Once(request: Request, env: Torna40Env): Prom
   }
 
   const created = await shopifyGraphQL<{
-    discountCodeBasicCreate: {
-      codeDiscountNode: { id: string } | null;
-      userErrors: Array<{ field?: string[] | null; code?: string | null; message: string }>;
-    };
+    discountCodeBasicCreate: { codeDiscountNode: { id: string } | null; userErrors: Array<{ field?: string[] | null; code?: string | null; message: string }> };
   }>(env, `
     mutation CreateTorna40($input: DiscountCodeBasicInput!) {
-      discountCodeBasicCreate(basicCodeDiscount: $input) {
-        codeDiscountNode { id }
-        userErrors { field code message }
-      }
+      discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field code message } }
     }
   `, {
     input: {
@@ -118,10 +167,7 @@ export async function handleTorna40Once(request: Request, env: Torna40Env): Prom
       startsAt: "2026-08-19T08:00:00Z",
       endsAt: "2026-08-24T21:59:59Z",
       context: { all: "ALL" },
-      customerGets: {
-        value: { discountAmount: { amount: "40.00", appliesOnEachItem: false } },
-        items: { all: true },
-      },
+      customerGets: { value: { discountAmount: { amount: "40.00", appliesOnEachItem: false } }, items: { all: true } },
       minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: "149.00" } },
       appliesOncePerCustomer: true,
       usageLimit: 65,
@@ -131,37 +177,14 @@ export async function handleTorna40Once(request: Request, env: Torna40Env): Prom
 
   const errors = created.discountCodeBasicCreate.userErrors || [];
   if (errors.length || !created.discountCodeBasicCreate.codeDiscountNode) {
-    return json({
-      ok: false,
-      operation: "torna40",
-      phase: "create",
-      code: CODE,
-      user_errors: errors.map((e) => ({ field: e.field ?? null, code: e.code ?? null, message: e.message })),
-      reason: "shopify_discount_create_failed",
-    }, 422);
+    return json({ ok: false, operation: "torna40", phase: "create", code: CODE, user_errors: errors.map((e) => ({ field: e.field ?? null, code: e.code ?? null, message: e.message })), reason: "shopify_discount_create_failed" }, 422);
   }
 
   const nodeId = created.discountCodeBasicCreate.codeDiscountNode.id;
-  if (env.SHOPIFY_TOKENS_KV) {
-    await env.SHOPIFY_TOKENS_KV.put(LOCK_KEY, JSON.stringify({ node_id: nodeId, created_at: new Date().toISOString() }), { expirationTtl: 60 * 60 * 24 * 30 });
-  }
+  if (env.SHOPIFY_TOKENS_KV) await env.SHOPIFY_TOKENS_KV.put(LOCK_KEY, JSON.stringify({ node_id: nodeId, created_at: new Date().toISOString() }), { expirationTtl: 60 * 60 * 24 * 30 });
 
   return json({
-    ok: true,
-    operation: "torna40",
-    phase: "created",
-    code: CODE,
-    code_exists: true,
-    created_now: true,
-    discount_node_id: nodeId,
-    settings: {
-      fixed_amount_eur: 40,
-      minimum_subtotal_eur: 149,
-      starts_at_rome: "2026-08-19 10:00",
-      ends_at_rome: "2026-08-24 23:59:59",
-      applies_once_per_customer: true,
-      usage_limit: 65,
-      combines_with_other_discounts: false,
-    },
+    ok: true, operation: "torna40", phase: "created", code: CODE, code_exists: true, created_now: true, discount_node_id: nodeId,
+    settings: { fixed_amount_eur: 40, minimum_subtotal_eur: 149, starts_at_rome: "2026-08-19 10:00", ends_at_rome: "2026-08-24 23:59:59", applies_once_per_customer: true, usage_limit: 65, combines_with_other_discounts: false },
   });
 }
