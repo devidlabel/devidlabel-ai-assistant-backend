@@ -1,0 +1,62 @@
+name: Execute MC2 BACK40 Cohort 2026-08-08
+
+on:
+  push:
+    branches:
+      - ops/execute-mc2back40-cohort-2026-08-08
+    paths:
+      - '.github/workflows/execute-mc2back40-cohort-2026-08-08.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wait for live route and fetch PII-free cohort
+        env:
+          GH_WRITE_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/mc2back40-cohort-2026-08-08'
+          ok=0
+          for i in $(seq 1 60); do
+            code=$(curl --max-time 240 -sS -o /tmp/mc2back40-cohort.json -w '%{http_code}' -H "Authorization: Bearer ${GH_WRITE_TOKEN}" "$URL" || true)
+            if [ "$code" = "200" ] && node -e "const d=require('/tmp/mc2back40-cohort.json');process.exit(d.ok===true&&d.operation==='mc2back40_cohort'?0:1)"; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          node - <<'NODE'
+          const d=require('/tmp/mc2back40-cohort.json');
+          console.log(JSON.stringify({
+            ok:d.ok,
+            orders_scanned:d.orders_scanned,
+            pages_scanned:d.pages_scanned,
+            unique_direct_customers_in_window:d.unique_direct_customers_in_window,
+            mc2_customers:d.mc2_customers,
+            mc2_dormant_30d:d.mc2_dormant_30d,
+            line_item_truncation_warnings:d.line_item_truncation_warnings
+          }));
+          if(d.line_item_truncation_warnings!==0) process.exit(2);
+          NODE
+      - name: Persist hash-only cohort report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reporting/ops
+          cp /tmp/mc2back40-cohort.json reporting/ops/2026-08-08-mc2back40-cohort-hashes.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add reporting/ops/2026-08-08-mc2back40-cohort-hashes.json
+          git commit -m "chore(data): MC2 BACK40 hash-only cohort ${GITHUB_RUN_ID}" || true
+          git push origin HEAD:ops/execute-mc2back40-cohort-2026-08-08
