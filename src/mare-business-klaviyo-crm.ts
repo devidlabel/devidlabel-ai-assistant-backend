@@ -22,7 +22,9 @@ function asInt(value: unknown, fallback: number, minimum: number, maximum: numbe
 }
 
 function safeKlaviyoUrl(pathOrUrl: string): string {
-  const candidate = pathOrUrl.startsWith("http") ? new URL(pathOrUrl) : new URL(pathOrUrl, `${KLAVIYO_BASE}/`);
+  const candidate = pathOrUrl.startsWith("http")
+    ? new URL(pathOrUrl)
+    : new URL(`${KLAVIYO_BASE}${pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`}`);
   if (candidate.protocol !== "https:" || candidate.hostname !== "a.klaviyo.com" || !candidate.pathname.startsWith("/api/")) {
     throw new Error("klaviyo_pagination_url_rejected");
   }
@@ -57,17 +59,6 @@ async function klaviyoGet(pathOrUrl: string, env: KlaviyoCrmEnv): Promise<JsonOb
   throw new Error(lastError);
 }
 
-async function collectCollection(path: string, maxPages = 100): Promise<{ rows: JsonObject[]; complete: boolean; next: string | null }> {
-  const rows: JsonObject[] = [];
-  let next: string | null = path;
-  let page = 0;
-  while (next && page < maxPages) {
-    // This helper is rebound with an env inside each exported function.
-    throw new Error("collect_collection_unbound");
-  }
-  return { rows, complete: !next, next };
-}
-
 async function collectWithEnv(path: string, env: KlaviyoCrmEnv, maxPages = 100): Promise<{ rows: JsonObject[]; complete: boolean; next: string | null }> {
   const rows: JsonObject[] = [];
   let next: string | null = path;
@@ -96,8 +87,7 @@ function entitySummary(row: JsonObject): JsonObject {
 
 async function profileCount(kind: "list" | "segment", id: string, env: KlaviyoCrmEnv): Promise<number | null> {
   const plural = kind === "list" ? "lists" : "segments";
-  const encodedKind = encodeURIComponent(kind);
-  const body = await klaviyoGet(`/${plural}/${encodeURIComponent(id)}?additional-fields[${encodedKind}]=profile_count`, env);
+  const body = await klaviyoGet(`/${plural}/${encodeURIComponent(id)}?additional-fields[${kind}]=profile_count`, env);
   const count = asObject(asObject(body.data).attributes).profile_count;
   return typeof count === "number" && Number.isFinite(count) ? count : null;
 }
@@ -105,7 +95,7 @@ async function profileCount(kind: "list" | "segment", id: string, env: KlaviyoCr
 export async function readKlaviyoAudienceOverview(request: JsonObject, env: KlaviyoCrmEnv): Promise<JsonObject> {
   const query = normalize(request.query).toLocaleLowerCase("it-IT");
   const inlineLimit = asInt(request.inline_limit, 50, 1, 100);
-  // Profile counts use a much lower Klaviyo rate limit. Default to 5 per entity type; caller can request up to 10.
+  // Profile counts use a much lower provider rate limit. Default to 5 per entity type; caller can request up to 10.
   const countLimit = asInt(request.profile_count_limit, 5, 0, 10);
 
   const [listsResult, segmentsResult] = await Promise.all([
@@ -156,9 +146,8 @@ export async function readKlaviyoAudienceOverview(request: JsonObject, env: Klav
 
 export async function readKlaviyoProfileAggregate(request: JsonObject, env: KlaviyoCrmEnv): Promise<JsonObject> {
   const maxProfiles = asInt(request.max_profiles, 50000, 100, 100000);
-  const pageSize = 100;
   const fields = encodeURIComponent("id,subscriptions.email.marketing.can_receive_email_marketing,subscriptions.email.marketing.consent");
-  let next: string | null = `/profiles?page[size]=${pageSize}&additional-fields[profile]=subscriptions&fields[profile]=${fields}`;
+  let next: string | null = `/profiles?page[size]=100&additional-fields[profile]=subscriptions&fields[profile]=${fields}`;
   let scanned = 0;
   let pages = 0;
   let canReceive = 0;
