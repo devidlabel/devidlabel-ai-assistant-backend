@@ -1,4 +1,4 @@
-name: TEMP Execute SUMMER30 + Storefront QA
+name: TEMP Verify SUMMER30 Storefront QA
 
 on:
   push:
@@ -7,86 +7,55 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  execute-and-qa:
+  storefront-qa:
     runs-on: ubuntu-latest
     env:
       WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/summer30-2026-08-08
-      SHOP_URL: https://devidlabel.com
-      OIDC_AUDIENCE: devidlabel-summer30-2026-08-08
+      SHOP_URL: https://www.devidlabel.com
+      USER_AGENT: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/138.0 Safari/537.36
     steps:
-      - name: Read-only Shopify permission preflight
+      - name: Confirm SUMMER30 exists with correct Shopify permissions and MC2 target
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "$WORKER_URL" -o /tmp/preflight.json
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            -A "$USER_AGENT" "$WORKER_URL" -o /tmp/preflight.json
           node - <<'NODE'
           const fs=require('node:fs');
           const d=JSON.parse(fs.readFileSync('/tmp/preflight.json','utf8'));
           const safe={ok:d.ok,phase:d.phase,write_discounts:d.write_discounts,read_discounts:d.read_discounts,collection_found:d.collection_found,collection:d.collection,code:d.code,code_exists:d.code_exists,mutation_performed:d.mutation_performed};
           console.log(JSON.stringify(safe));
-          if(d.ok!==true) process.exit(2);
-          if(d.write_discounts!==true) process.exit(3);
-          if(d.collection_found!==true) process.exit(4);
-          if(d.code_exists===true) process.exit(5);
+          if(d.ok!==true || d.write_discounts!==true || d.collection_found!==true || d.code!=='SUMMER30' || d.code_exists!==true) process.exit(2);
           NODE
-
-      - name: Create guarded SUMMER30 discount with GitHub OIDC
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${OIDC_AUDIENCE}" \
-            -o /tmp/oidc.json
-          node - <<'NODE'
-          const fs=require('node:fs');
-          const d=JSON.parse(fs.readFileSync('/tmp/oidc.json','utf8'));
-          if(typeof d.value!=='string' || d.value.split('.').length!==3) process.exit(10);
-          fs.writeFileSync('/tmp/oidc-token.txt',d.value,{mode:0o600});
-          console.log(JSON.stringify({oidc_received:true}));
-          NODE
-          oidc_token=$(cat /tmp/oidc-token.txt)
-          status=$(curl --silent --show-error \
-            -o /tmp/create.json \
-            -w '%{http_code}' \
-            -X POST \
-            -H "Authorization: Bearer ${oidc_token}" \
-            -H 'Content-Type: application/json' \
-            "$WORKER_URL")
-          rm -f /tmp/oidc-token.txt /tmp/oidc.json
-          node - <<'NODE'
-          const fs=require('node:fs');
-          const d=JSON.parse(fs.readFileSync('/tmp/create.json','utf8'));
-          const safe={ok:d.ok,phase:d.phase,write_discounts:d.write_discounts,read_discounts:d.read_discounts,collection_found:d.collection_found,collection:d.collection,code:d.code,code_exists:d.code_exists,created_now:d.created_now,settings:d.settings,reason:d.reason,user_errors:d.user_errors};
-          console.log(JSON.stringify(safe));
-          if(d.ok!==true || d.phase!=='created' || d.created_now!==true) process.exit(6);
-          NODE
-          test "$status" = "200"
 
       - name: Find an available MC2 variant at exactly EUR 69
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "$SHOP_URL/collections/mc2-saint-barth/products.json?limit=250&page=1" -o /tmp/products1.json
-          curl --fail --silent --show-error "$SHOP_URL/collections/mc2-saint-barth/products.json?limit=250&page=2" -o /tmp/products2.json || echo '{"products":[]}' > /tmp/products2.json
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 -A "$USER_AGENT" \
+            "$SHOP_URL/collections/mc2-saint-barth/products.json?limit=250&page=1" -o /tmp/products1.json
+          sleep 3
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 -A "$USER_AGENT" \
+            "$SHOP_URL/collections/mc2-saint-barth/products.json?limit=250&page=2" -o /tmp/products2.json || echo '{"products":[]}' > /tmp/products2.json
           node - <<'NODE'
           const fs=require('node:fs');
-          const pages=['/tmp/products1.json','/tmp/products2.json'];
           let match=null;
-          for(const path of pages){
+          for(const path of ['/tmp/products1.json','/tmp/products2.json']){
             const d=JSON.parse(fs.readFileSync(path,'utf8'));
             for(const p of (d.products||[])){
               for(const v of (p.variants||[])){
-                if(v.available===true && Math.abs(Number(v.price)-69)<0.001){match={id:String(v.id),product_title:p.title,variant_title:v.title,price:Number(v.price)};break;}
+                if(v.available===true && Math.abs(Number(v.price)-69)<0.001){
+                  match={id:String(v.id),product_title:p.title,variant_title:v.title,price:Number(v.price)};
+                  break;
+                }
               }
               if(match) break;
             }
             if(match) break;
           }
-          if(!match){console.error('No available EUR 69 MC2 variant found');process.exit(7);}
+          if(!match) process.exit(3);
           fs.writeFileSync('/tmp/variant-id.txt',match.id);
           console.log(JSON.stringify(match));
           NODE
@@ -97,22 +66,37 @@ jobs:
           set -euo pipefail
           variant_id=$(cat /tmp/variant-id.txt)
           jar=/tmp/cookies.txt
-          curl --fail --silent --show-error -c "$jar" -b "$jar" -X POST "$SHOP_URL/cart/clear.js" -o /tmp/clear.json
-          curl --fail --silent --show-error -c "$jar" -b "$jar" -X POST \
+          curl_flags=(--fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 5 -A "$USER_AGENT" -c "$jar" -b "$jar")
+
+          curl "${curl_flags[@]}" -X POST "$SHOP_URL/cart/clear.js" -o /tmp/clear.json
+          sleep 4
+          curl "${curl_flags[@]}" -X POST \
             -H 'Content-Type: application/x-www-form-urlencoded' \
             --data-urlencode "id=${variant_id}" \
             --data-urlencode 'quantity=1' \
             "$SHOP_URL/cart/add.js" -o /tmp/add.json
-          curl --fail --silent --show-error -L -c "$jar" -b "$jar" \
+          sleep 4
+          curl "${curl_flags[@]}" -L \
             "$SHOP_URL/discount/SUMMER30?redirect=/cart" -o /tmp/discount-cart.html
-          curl --fail --silent --show-error -c "$jar" -b "$jar" "$SHOP_URL/cart.js" -o /tmp/cart.json
+          sleep 5
+          curl "${curl_flags[@]}" "$SHOP_URL/cart.js" -o /tmp/cart.json
+
           node - <<'NODE'
           const fs=require('node:fs');
           const c=JSON.parse(fs.readFileSync('/tmp/cart.json','utf8'));
           const item=(c.items||[])[0]||{};
-          const safe={item_count:c.item_count,original_line_price:item.original_line_price,final_line_price:item.final_line_price,total_price:c.total_price,total_discount:c.total_discount,line_level_discount_allocations:item.line_level_discount_allocations||[],cart_level_discount_applications:c.cart_level_discount_applications||[]};
+          const safe={
+            item_count:c.item_count,
+            item_price:item.price,
+            original_line_price:item.original_line_price,
+            final_line_price:item.final_line_price,
+            total_price:c.total_price,
+            total_discount:c.total_discount,
+            line_level_discount_allocations:item.line_level_discount_allocations||[],
+            cart_level_discount_applications:c.cart_level_discount_applications||[]
+          };
           console.log(JSON.stringify(safe));
           const originalOk=item.original_line_price===6900 || item.price===6900;
           const finalOk=item.final_line_price===4830 || c.total_price===4830;
-          if(!originalOk || !finalOk) process.exit(8);
+          if(!originalOk || !finalOk) process.exit(4);
           NODE
