@@ -1,0 +1,63 @@
+name: Execute TORNA40 Secure 2026-08-08
+
+on:
+  push:
+    branches:
+      - ops/execute-torna40-2026-08-08
+    paths:
+      - '.github/workflows/execute-torna40-secure-2026-08-08.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for hardened route and create TORNA40
+        shell: bash
+        env:
+          GH_TOKEN_FOR_ROUTE: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-2026-08-08'
+          # Wait until GET route is live after main deployment.
+          for i in $(seq 1 90); do
+            code=$(curl -sS -o /tmp/get.json -w '%{http_code}' "$URL" || true)
+            if [ "$code" = "200" ] && node -e "const d=require('/tmp/get.json');process.exit(d.operation==='torna40'&&d.write_discounts===true?0:1)"; then break; fi
+            sleep 5
+          done
+          node - <<'NODE'
+          const d=require('/tmp/get.json');
+          if(d.operation!=='torna40'||d.write_discounts!==true||d.code!=='TORNA40')process.exit(2);
+          console.log(JSON.stringify({preflight:true,code:d.code,code_exists:d.code_exists,write_discounts:d.write_discounts}));
+          NODE
+
+          # Retry POST while the previous route version may still be propagating. A 404 is treated as auth/version-not-ready, not success.
+          success=0
+          for i in $(seq 1 60); do
+            status=$(curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN_FOR_ROUTE" -o /tmp/post.json -w '%{http_code}' "$URL" || true)
+            if [ "$status" = "200" ] && node -e "const d=require('/tmp/post.json');process.exit(d.ok===true&&d.code==='TORNA40'&&d.code_exists===true?0:1)"; then
+              success=1; break
+            fi
+            # 422 means the hardened route is live but Shopify rejected the mutation; fail immediately and preserve diagnostics in logs.
+            if [ "$status" = "422" ]; then cat /tmp/post.json; exit 22; fi
+            sleep 5
+          done
+          test "$success" = "1"
+          node - <<'NODE'
+          const d=require('/tmp/post.json');
+          console.log(JSON.stringify(d));
+          if(d.created_now===true){
+            const s=d.settings||{};
+            if(s.fixed_amount_eur!==40||s.minimum_subtotal_eur!==149||s.applies_once_per_customer!==true||s.usage_limit!==65||s.combines_with_other_discounts!==false)process.exit(3);
+          }
+          NODE
+
+          curl --fail -sS "$URL" -o /tmp/postcheck.json
+          node - <<'NODE'
+          const d=require('/tmp/postcheck.json');
+          console.log(JSON.stringify({postcheck:true,code:d.code,code_exists:d.code_exists,write_discounts:d.write_discounts}));
+          if(d.ok!==true||d.code!=='TORNA40'||d.code_exists!==true||d.write_discounts!==true)process.exit(4);
+          NODE
