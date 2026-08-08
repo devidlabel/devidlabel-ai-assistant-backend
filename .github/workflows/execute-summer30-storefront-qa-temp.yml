@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  metadata: read
 
 jobs:
   execute-and-qa:
@@ -30,6 +31,25 @@ jobs:
           if(d.write_discounts!==true) process.exit(3);
           if(d.collection_found!==true) process.exit(4);
           if(d.code_exists===true) process.exit(5);
+          NODE
+
+      - name: Diagnose repository-scoped token safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error \
+            -o /tmp/github-repo.json \
+            -w '%{http_code}' \
+            -H "Authorization: Bearer ${GH_REPO_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            https://api.github.com/repos/devidlabel/devidlabel-ai-assistant-backend)
+          HTTP_STATUS="$status" node - <<'NODE'
+          const fs=require('node:fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/github-repo.json','utf8'));
+          const safe={http_status:Number(process.env.HTTP_STATUS),full_name:d.full_name||null,permissions:d.permissions||null,message:d.message||null};
+          console.log(JSON.stringify(safe));
+          if(Number(process.env.HTTP_STATUS)!==200 || d.full_name!=='devidlabel/devidlabel-ai-assistant-backend') process.exit(9);
           NODE
 
       - name: Create guarded SUMMER30 discount
@@ -74,7 +94,6 @@ jobs:
           }
           if(!match){console.error('No available EUR 69 MC2 variant found');process.exit(7);}
           fs.writeFileSync('/tmp/variant-id.txt',match.id);
-          fs.writeFileSync('/tmp/variant-safe.json',JSON.stringify(match));
           console.log(JSON.stringify(match));
           NODE
 
