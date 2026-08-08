@@ -1,0 +1,65 @@
+name: Execute MC2BACK40 Discount V2 2026-08-08
+
+on:
+  push:
+    branches:
+      - ops/execute-mc2back40-discount-2026-08-08
+    paths:
+      - '.github/workflows/execute-mc2back40-discount-v2-2026-08-08.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Wait for route
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/mc2back40-2026-08-08'
+          ok=0
+          for i in $(seq 1 60); do
+            code=$(curl -sS --max-time 30 -o /tmp/preflight.json -w '%{http_code}' "$URL" || true)
+            if [ "$code" = "200" ] && node -e "const d=require('/tmp/preflight.json'); process.exit(d.ok===true && d.operation==='mc2back40' && d.write_discounts===true && d.code==='MC2BACK40' ? 0 : 1)"; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          node -e "const d=require('/tmp/preflight.json'); console.log(JSON.stringify({ok:d.ok,operation:d.operation,code:d.code,code_exists:d.code_exists,collection:d.collection}))"
+      - name: Obtain scoped GitHub OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_json=$(curl --fail -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-mc2back40-2026-08-08")
+          token=$(node -e "const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)" "$token_json")
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::$token"
+      - name: Create only if absent
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/mc2back40-2026-08-08'
+          exists=$(node -p "String(require('/tmp/preflight.json').code_exists===true)")
+          if [ "$exists" = "false" ]; then
+            curl --fail-with-body -sS -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "$URL" -o /tmp/create.json
+            node -e "const d=require('/tmp/create.json'); console.log(JSON.stringify(d)); const s=d.settings||{}; if(d.ok!==true||d.code!=='MC2BACK40'||d.code_exists!==true||d.created_now!==true||s.percentage_off!==40||s.minimum_quantity!==1||s.applies_once_per_customer!==true||s.combines_with_other_discounts!==false||s.starts_at_rome!=='2026-08-10 00:00'||s.ends_at_rome!=='2026-08-16 23:59:59') process.exit(3)"
+          else
+            echo 'MC2BACK40 already exists; no create mutation needed.'
+          fi
+      - name: Final readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/mc2back40-2026-08-08'
+          curl --fail -sS --max-time 30 "$URL" -o /tmp/final.json
+          node -e "const d=require('/tmp/final.json'); console.log(JSON.stringify({ok:d.ok,operation:d.operation,code:d.code,code_exists:d.code_exists,collection:d.collection})); if(d.ok!==true||d.operation!=='mc2back40'||d.code!=='MC2BACK40'||d.code_exists!==true||d.collection?.handle!=='mc2-saint-barth') process.exit(4)"
