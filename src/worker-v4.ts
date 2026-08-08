@@ -1,5 +1,6 @@
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
+import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
 
 export { MarePlanCoordinator };
@@ -44,6 +45,9 @@ export default {
         return jsonResponse({ ok: false, provider: "youtube", error: error instanceof Error ? error.message : "youtube_oauth_start_failed" }, 500);
       }
     }
+
+    const tiktokReportingResponse = await handleTikTokReportingRequest(request, env as any);
+    if (tiktokReportingResponse) return tiktokReportingResponse;
 
     const youtubeReportingResponse = await handleYouTubeReportingRequest(request, env as any);
     if (youtubeReportingResponse) return youtubeReportingResponse;
