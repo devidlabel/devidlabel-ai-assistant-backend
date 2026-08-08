@@ -20,6 +20,8 @@ GOOGLE_ADS_LOGIN_CUSTOMER_ID = "3414479537"
 GOOGLE_ADS_API_VERSION = "v25"
 SEARCH_CONSOLE_SITE_URL = "sc-domain:devidlabel.com"
 GA4_PROPERTY_ID = "345407658"
+# YouTube uses server-side OAuth and stores only the authorized refresh/access tokens in the existing KV namespace.
+YOUTUBE_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/youtube/callback"
 
 [images]
 binding = "IMAGES"
