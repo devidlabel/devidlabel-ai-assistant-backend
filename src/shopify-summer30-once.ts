@@ -15,18 +15,50 @@ type Preflight = {
   codeDiscountNodeByCode: { id: string } | null;
 };
 
+type GithubOidcClaims = {
+  iss?: string;
+  aud?: string | string[];
+  sub?: string;
+  repository?: string;
+  repository_owner?: string;
+  ref?: string;
+  event_name?: string;
+  actor?: string;
+  exp?: number;
+  iat?: number;
+  nbf?: number;
+};
+
 const PATH = "/internal/ops/summer30-2026-08-08";
 const OPERATION_KEY = "DL-SUMMER30-2026-08-08-V1";
 const CODE = "SUMMER30";
 const COLLECTION_HANDLE = "mc2-saint-barth";
 const LOCK_KEY = "ops:summer30:2026-08-08:created";
 const GITHUB_REPOSITORY = "devidlabel/devidlabel-ai-assistant-backend";
+const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
+const GITHUB_OIDC_AUDIENCE = "devidlabel-summer30-2026-08-08";
+const EXECUTION_REF = "refs/heads/ops/execute-summer30-and-storefront-qa-2026-08-08";
+const EXECUTION_SUBJECT = `repo:${GITHUB_REPOSITORY}:ref:${EXECUTION_REF}`;
 
 function json(body: JsonObject, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+function base64UrlBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function base64UrlJson<T>(value: string): T {
+  const bytes = base64UrlBytes(value);
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
 }
 
 async function loadPreflight(env: Summer30Env): Promise<Preflight> {
@@ -59,12 +91,65 @@ function summarizePreflight(preflight: Preflight): JsonObject {
   };
 }
 
-async function isGitHubRepositoryWriteToken(request: Request): Promise<boolean> {
-  const authorization = request.headers.get("Authorization") || "";
-  if (!authorization.startsWith("Bearer ")) return false;
-  const token = authorization.slice(7).trim();
-  if (token.length < 20 || token.length > 500) return false;
+async function isGitHubActionsOidcToken(token: string): Promise<boolean> {
+  const parts = token.split(".");
+  if (parts.length !== 3 || token.length < 100 || token.length > 12000) return false;
 
+  try {
+    const header = base64UrlJson<{ alg?: string; kid?: string }>(parts[0]);
+    const claims = base64UrlJson<GithubOidcClaims>(parts[1]);
+    if (header.alg !== "RS256" || !header.kid) return false;
+
+    const now = Math.floor(Date.now() / 1000);
+    const audienceOk = Array.isArray(claims.aud)
+      ? claims.aud.includes(GITHUB_OIDC_AUDIENCE)
+      : claims.aud === GITHUB_OIDC_AUDIENCE;
+    if (
+      claims.iss !== GITHUB_OIDC_ISSUER ||
+      !audienceOk ||
+      claims.repository !== GITHUB_REPOSITORY ||
+      claims.repository_owner !== "devidlabel" ||
+      claims.ref !== EXECUTION_REF ||
+      claims.sub !== EXECUTION_SUBJECT ||
+      claims.event_name !== "push" ||
+      claims.actor !== "devidlabel" ||
+      typeof claims.exp !== "number" || claims.exp < now - 30 || claims.exp > now + 15 * 60 ||
+      typeof claims.iat !== "number" || claims.iat > now + 30 || claims.iat < now - 15 * 60 ||
+      (typeof claims.nbf === "number" && claims.nbf > now + 30)
+    ) return false;
+
+    const configResponse = await fetch(`${GITHUB_OIDC_ISSUER}/.well-known/openid-configuration`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!configResponse.ok) return false;
+    const config = await configResponse.json() as { issuer?: string; jwks_uri?: string };
+    if (config.issuer !== GITHUB_OIDC_ISSUER || !config.jwks_uri) return false;
+    const jwksUrl = new URL(config.jwks_uri);
+    if (jwksUrl.protocol !== "https:" || jwksUrl.hostname !== "token.actions.githubusercontent.com") return false;
+
+    const jwksResponse = await fetch(jwksUrl.toString(), { headers: { Accept: "application/json" } });
+    if (!jwksResponse.ok) return false;
+    const jwks = await jwksResponse.json() as { keys?: Array<JsonWebKey & { kid?: string; alg?: string; use?: string }> };
+    const jwk = (jwks.keys || []).find((key) => key.kid === header.kid && (!key.alg || key.alg === "RS256") && (!key.use || key.use === "sig"));
+    if (!jwk) return false;
+
+    const key = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const signature = base64UrlBytes(parts[2]);
+    return crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, signature, signed);
+  } catch {
+    return false;
+  }
+}
+
+async function isGitHubRepositoryWriteToken(token: string): Promise<boolean> {
+  if (token.length < 20 || token.length > 500) return false;
   try {
     const response = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}`, {
       headers: {
@@ -85,7 +170,11 @@ async function isGitHubRepositoryWriteToken(request: Request): Promise<boolean> 
 
 async function isWriteAuthorized(request: Request): Promise<boolean> {
   if (request.headers.get("X-MARE-Operation-Key") === OPERATION_KEY) return true;
-  return isGitHubRepositoryWriteToken(request);
+  const authorization = request.headers.get("Authorization") || "";
+  if (!authorization.startsWith("Bearer ")) return false;
+  const token = authorization.slice(7).trim();
+  if (await isGitHubActionsOidcToken(token)) return true;
+  return isGitHubRepositoryWriteToken(token);
 }
 
 export async function handleSummer30Once(request: Request, env: Summer30Env): Promise<Response | null> {
