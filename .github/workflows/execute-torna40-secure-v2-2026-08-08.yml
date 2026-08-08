@@ -1,0 +1,36 @@
+name: Execute TORNA40 Secure V2 2026-08-08
+on:
+  push:
+    branches:
+      - ops/execute-torna40-2026-08-08
+    paths:
+      - '.github/workflows/execute-torna40-secure-v2-2026-08-08.yml'
+permissions:
+  contents: write
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Execute once and print safe response
+        shell: bash
+        env:
+          ROUTE_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-2026-08-08'
+          status=$(curl -sS -X POST -H "Authorization: Bearer $ROUTE_TOKEN" -o /tmp/post.json -w '%{http_code}' "$URL" || true)
+          echo "HTTP_STATUS=$status"
+          cat /tmp/post.json
+          if [ "$status" != "200" ]; then exit 20; fi
+          node - <<'NODE'
+          const d=require('/tmp/post.json');
+          if(d.ok!==true||d.code!=='TORNA40'||d.code_exists!==true)process.exit(2);
+          console.log(JSON.stringify({ok:d.ok,phase:d.phase,code:d.code,created_now:d.created_now,discount_node_id:d.discount_node_id,settings:d.settings||null}));
+          NODE
+          curl --fail -sS "$URL" -o /tmp/get.json
+          node - <<'NODE'
+          const d=require('/tmp/get.json');
+          console.log(JSON.stringify({postcheck:true,code:d.code,code_exists:d.code_exists,write_discounts:d.write_discounts}));
+          if(d.code_exists!==true||d.write_discounts!==true)process.exit(3);
+          NODE
