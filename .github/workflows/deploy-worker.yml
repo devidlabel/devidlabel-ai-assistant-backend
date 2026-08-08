@@ -130,3 +130,42 @@ jobs:
           if (data.ok !== true) process.exit(1);
           if (data.historical_orders_over_60_days_accessible !== true) process.exit(2);
           NODE
+
+      - name: Verify YouTube read-only analytics
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          curl --fail --silent --show-error \
+            --retry 5 --retry-delay 4 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/youtube/report?days=28" \
+            -o /tmp/youtube-report.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/youtube-report.json', 'utf8'));
+          const section = (name) => data.sections?.[name];
+          const summary = section('summary')?.data?.summary || {};
+          const videos = section('videos')?.data?.videos || [];
+          const traffic = section('traffic_sources')?.data?.traffic_sources || [];
+          const searchTerms = section('search_terms')?.data?.search_terms || [];
+          const channel = section('channel')?.data?.channel || {};
+          console.log(JSON.stringify({
+            ok: data.ok,
+            authorized: data.status?.authorized,
+            read_only: data.read_only,
+            section_counts: data.section_counts,
+            channel_title: channel.snippet?.title || null,
+            channel_subscribers: channel.statistics?.subscriberCount || null,
+            channel_views_total: channel.statistics?.viewCount || null,
+            last_28_days: summary,
+            top_videos: videos.slice(0, 5).map(v => ({ title: v.title, views: v.views, watch_minutes: v.estimatedMinutesWatched, subscribers_gained: v.subscribersGained })),
+            top_traffic_sources: traffic.slice(0, 8),
+            top_search_terms: searchTerms.slice(0, 15),
+          }, null, 2));
+          if (data.ok !== true) process.exit(1);
+          if (data.status?.authorized !== true) process.exit(2);
+          if ((data.section_counts?.successful || 0) < 3) process.exit(3);
+          NODE

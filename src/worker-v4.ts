@@ -1,5 +1,6 @@
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
+import { handleYouTubeReportingRequest } from "./youtube-reporting";
 
 export { MarePlanCoordinator };
 
@@ -43,6 +44,10 @@ export default {
         return jsonResponse({ ok: false, provider: "youtube", error: error instanceof Error ? error.message : "youtube_oauth_start_failed" }, 500);
       }
     }
+
+    const youtubeReportingResponse = await handleYouTubeReportingRequest(request, env as any);
+    if (youtubeReportingResponse) return youtubeReportingResponse;
+
     return workerV3.fetch(request, env, context);
   },
 };
