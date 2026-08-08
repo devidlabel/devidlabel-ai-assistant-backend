@@ -9,6 +9,12 @@ type Summer30Env = ShopifyEnv & {
   };
 };
 
+type Preflight = {
+  currentAppInstallation: { accessScopes: Array<{ handle: string }> };
+  collectionByHandle: { id: string; title: string; handle: string } | null;
+  codeDiscountNodeByCode: { id: string } | null;
+};
+
 const PATH = "/internal/ops/summer30-2026-08-08";
 const OPERATION_KEY = "DL-SUMMER30-2026-08-08-V1";
 const CODE = "SUMMER30";
@@ -22,26 +28,60 @@ function json(body: JsonObject, status = 200): Response {
   });
 }
 
-export async function handleSummer30Once(request: Request, env: Summer30Env): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (url.pathname !== PATH) return null;
-  if (request.method !== "POST") return json({ ok: false, operation: "summer30", reason: "method_not_allowed" }, 405);
-  if (request.headers.get("X-MARE-Operation-Key") !== OPERATION_KEY) {
-    return json({ ok: false, operation: "summer30", reason: "not_found" }, 404);
-  }
-
-  const preflight = await shopifyGraphQL<{
-    currentAppInstallation: { accessScopes: Array<{ handle: string }> };
-    collectionByHandle: { id: string; title: string; handle: string } | null;
-    codeDiscountNodeByCode: { id: string } | null;
-  }>(env, `
+async function loadPreflight(env: Summer30Env): Promise<Preflight> {
+  return shopifyGraphQL<Preflight>(env, `
     query Summer30Preflight($handle: String!, $code: String!) {
       currentAppInstallation { accessScopes { handle } }
       collectionByHandle(handle: $handle) { id title handle }
       codeDiscountNodeByCode(code: $code) { id }
     }
   `, { handle: COLLECTION_HANDLE, code: CODE });
+}
 
+function summarizePreflight(preflight: Preflight): JsonObject {
+  const scopes = preflight.currentAppInstallation.accessScopes.map((scope) => scope.handle);
+  return {
+    ok: true,
+    operation: "summer30",
+    phase: "read_only_preflight",
+    write_discounts: scopes.includes("write_discounts"),
+    read_discounts: scopes.includes("read_discounts"),
+    collection_found: Boolean(preflight.collectionByHandle),
+    collection: preflight.collectionByHandle ? {
+      id: preflight.collectionByHandle.id,
+      title: preflight.collectionByHandle.title,
+      handle: preflight.collectionByHandle.handle,
+    } : null,
+    code: CODE,
+    code_exists: Boolean(preflight.codeDiscountNodeByCode),
+    mutation_performed: false,
+  };
+}
+
+export async function handleSummer30Once(request: Request, env: Summer30Env): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== PATH) return null;
+
+  if (request.method === "GET") {
+    try {
+      return json(summarizePreflight(await loadPreflight(env)));
+    } catch (error) {
+      return json({
+        ok: false,
+        operation: "summer30",
+        phase: "read_only_preflight",
+        mutation_performed: false,
+        reason: error instanceof Error ? error.message.slice(0, 240) : "preflight_failed",
+      }, 502);
+    }
+  }
+
+  if (request.method !== "POST") return json({ ok: false, operation: "summer30", reason: "method_not_allowed" }, 405);
+  if (request.headers.get("X-MARE-Operation-Key") !== OPERATION_KEY) {
+    return json({ ok: false, operation: "summer30", reason: "not_found" }, 404);
+  }
+
+  const preflight = await loadPreflight(env);
   const scopes = preflight.currentAppInstallation.accessScopes.map((scope) => scope.handle).sort();
   const hasReadDiscounts = scopes.includes("read_discounts");
   const hasWriteDiscounts = scopes.includes("write_discounts");
