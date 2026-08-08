@@ -16,6 +16,7 @@ import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-repo
 import { handleShopifyBulkStatusCompat } from "./shopify-bulk-status-compat";
 import { handleShopifyHistoryProbe } from "./shopify-history-probe";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
+import { handleSummer30Once } from "./shopify-summer30-once";
 
 export { MarePlanCoordinator };
 
@@ -175,6 +176,9 @@ export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
     const installResponse = await handleExpandedShopifyInstall(request, env);
     if (installResponse) return installResponse;
+
+    const summer30Response = await handleSummer30Once(request, env as any);
+    if (summer30Response) return summer30Response;
 
     const tiktokOAuthResponse = await handleTikTokOAuthFinalCallbackRequest(request, env as any);
     if (tiktokOAuthResponse) return tiktokOAuthResponse;
