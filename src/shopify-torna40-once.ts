@@ -1,0 +1,144 @@
+import { shopifyGraphQL, type Env as ShopifyEnv } from "./index.js";
+
+type JsonObject = Record<string, unknown>;
+type Torna40Env = ShopifyEnv & {
+  SHOPIFY_TOKENS_KV?: {
+    get(key: string): Promise<string | null>;
+    put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  };
+};
+
+type Preflight = {
+  currentAppInstallation: { accessScopes: Array<{ handle: string }> };
+  codeDiscountNodeByCode: { id: string } | null;
+};
+
+const PATH = "/internal/ops/torna40-2026-08-08";
+const OPERATION_KEY = "DL-TORNA40-REACTIVATION-2026-08-08-V1";
+const CODE = "TORNA40";
+const LOCK_KEY = "ops:torna40:2026-08-08:created";
+
+function json(body: JsonObject, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+async function loadPreflight(env: Torna40Env): Promise<Preflight> {
+  return shopifyGraphQL<Preflight>(env, `
+    query Torna40Preflight($code: String!) {
+      currentAppInstallation { accessScopes { handle } }
+      codeDiscountNodeByCode(code: $code) { id }
+    }
+  `, { code: CODE });
+}
+
+export async function handleTorna40Once(request: Request, env: Torna40Env): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== PATH) return null;
+
+  const preflight = async () => {
+    const p = await loadPreflight(env);
+    const scopes = p.currentAppInstallation.accessScopes.map((s) => s.handle);
+    return {
+      ok: true,
+      operation: "torna40",
+      write_discounts: scopes.includes("write_discounts"),
+      read_discounts: scopes.includes("read_discounts"),
+      code: CODE,
+      code_exists: Boolean(p.codeDiscountNodeByCode),
+      mutation_performed: false,
+    };
+  };
+
+  if (request.method === "GET") {
+    try { return json(await preflight()); }
+    catch (error) {
+      return json({ ok: false, operation: "torna40", mutation_performed: false, reason: error instanceof Error ? error.message.slice(0, 300) : "preflight_failed" }, 502);
+    }
+  }
+
+  if (request.method !== "POST") return json({ ok: false, operation: "torna40", reason: "method_not_allowed" }, 405);
+  if (request.headers.get("X-MARE-Operation-Key") !== OPERATION_KEY) return json({ ok: false, operation: "torna40", reason: "not_found" }, 404);
+
+  const p = await loadPreflight(env);
+  const scopes = p.currentAppInstallation.accessScopes.map((s) => s.handle);
+  if (!scopes.includes("write_discounts")) {
+    return json({ ok: false, operation: "torna40", reason: "write_discounts_not_granted", write_discounts: false }, 412);
+  }
+  if (p.codeDiscountNodeByCode) {
+    return json({ ok: true, operation: "torna40", phase: "existing", code: CODE, code_exists: true, created_now: false, discount_node_id: p.codeDiscountNodeByCode.id });
+  }
+
+  if (env.SHOPIFY_TOKENS_KV) {
+    const prior = await env.SHOPIFY_TOKENS_KV.get(LOCK_KEY);
+    if (prior) return json({ ok: false, operation: "torna40", reason: "one_shot_lock_present" }, 409);
+  }
+
+  const created = await shopifyGraphQL<{
+    discountCodeBasicCreate: {
+      codeDiscountNode: { id: string } | null;
+      userErrors: Array<{ field?: string[] | null; code?: string | null; message: string }>;
+    };
+  }>(env, `
+    mutation CreateTorna40($input: DiscountCodeBasicInput!) {
+      discountCodeBasicCreate(basicCodeDiscount: $input) {
+        codeDiscountNode { id }
+        userErrors { field code message }
+      }
+    }
+  `, {
+    input: {
+      title: "Customer Reactivation | TORNA40 | Agosto 2026",
+      code: CODE,
+      startsAt: "2026-08-19T08:00:00Z",
+      endsAt: "2026-08-24T21:59:59Z",
+      context: { all: "ALL" },
+      customerGets: {
+        value: { discountAmount: { amount: "40.00", appliesOnEachItem: false } },
+        items: { all: true },
+      },
+      minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: "149.00" } },
+      appliesOncePerCustomer: true,
+      usageLimit: 65,
+      combinesWith: { orderDiscounts: false, productDiscounts: false, shippingDiscounts: false },
+    },
+  });
+
+  const errors = created.discountCodeBasicCreate.userErrors || [];
+  if (errors.length || !created.discountCodeBasicCreate.codeDiscountNode) {
+    return json({
+      ok: false,
+      operation: "torna40",
+      phase: "create",
+      code: CODE,
+      user_errors: errors.map((e) => ({ field: e.field ?? null, code: e.code ?? null, message: e.message })),
+      reason: "shopify_discount_create_failed",
+    }, 422);
+  }
+
+  const nodeId = created.discountCodeBasicCreate.codeDiscountNode.id;
+  if (env.SHOPIFY_TOKENS_KV) {
+    await env.SHOPIFY_TOKENS_KV.put(LOCK_KEY, JSON.stringify({ node_id: nodeId, created_at: new Date().toISOString() }), { expirationTtl: 60 * 60 * 24 * 30 });
+  }
+
+  return json({
+    ok: true,
+    operation: "torna40",
+    phase: "created",
+    code: CODE,
+    code_exists: true,
+    created_now: true,
+    discount_node_id: nodeId,
+    settings: {
+      fixed_amount_eur: 40,
+      minimum_subtotal_eur: 149,
+      starts_at_rome: "2026-08-19 10:00",
+      ends_at_rome: "2026-08-24 23:59:59",
+      applies_once_per_customer: true,
+      usage_limit: 65,
+      combines_with_other_discounts: false,
+    },
+  });
+}
