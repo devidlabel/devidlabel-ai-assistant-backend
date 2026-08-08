@@ -61,13 +61,69 @@ jobs:
             -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
             "$WORKER_URL/internal/daily-pulse/report" \
             -o daily-pulse.json
+
+          # GA4 is intentionally fetched in fresh Worker invocations. The complete
+          # Daily Pulse now includes enough external APIs to reach the Free/Bundled
+          # per-invocation subrequest ceiling if both detailed GA4 reports run inside
+          # the same Worker request. Separate calls preserve the full GA4 detail.
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/ga4/report?timeframe=yesterday" \
+            -o ga4-yesterday.json
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/ga4/report?timeframe=last_7_days" \
+            -o ga4-last-7-days.json
+
           node - <<'NODE'
           const fs = require('node:fs');
           const data = JSON.parse(fs.readFileSync('daily-pulse.json', 'utf8'));
-          if (data.ok !== true) {
-            console.error(JSON.stringify(data));
+          const ga4Yesterday = JSON.parse(fs.readFileSync('ga4-yesterday.json', 'utf8'));
+          const ga4Last7Days = JSON.parse(fs.readFileSync('ga4-last-7-days.json', 'utf8'));
+          if (data.ok !== true || ga4Yesterday.ok !== true || ga4Last7Days.ok !== true) {
+            console.error(JSON.stringify({
+              daily_pulse_ok: data.ok,
+              ga4_yesterday_ok: ga4Yesterday.ok,
+              ga4_last_7_days_ok: ga4Last7Days.ok,
+              ga4_yesterday_message: ga4Yesterday.message || null,
+              ga4_last_7_days_message: ga4Last7Days.message || null,
+            }));
             process.exit(1);
           }
+
+          const compactGa4 = (source) => ({
+            ok: true,
+            property_id: source.property_id || null,
+            timeframe: source.timeframe || null,
+            overview: source.overview || {},
+            daily: source.daily || {},
+            landing_pages: source.landing_pages || {},
+            source_medium: source.source_medium || {},
+            campaigns: source.campaigns || {},
+            devices: source.devices || {},
+            countries: source.countries || {},
+            ecommerce_funnel: source.ecommerce_funnel || {},
+            reconciled_in_workflow: true,
+          });
+
+          data.yesterday = data.yesterday || {};
+          data.yesterday.sources = data.yesterday.sources || {};
+          data.yesterday.source_status = data.yesterday.source_status || {};
+          data.yesterday.sources.ga4 = compactGa4(ga4Yesterday);
+          data.yesterday.source_status.ga4 = { ok: true, status: 200, reconciled_in_workflow: true };
+
+          data.last_7_days = data.last_7_days || {};
+          data.last_7_days.sources = data.last_7_days.sources || {};
+          data.last_7_days.source_status = data.last_7_days.source_status || {};
+          data.last_7_days.sources.ga4 = compactGa4(ga4Last7Days);
+          data.last_7_days.source_status.ga4 = { ok: true, status: 200, reconciled_in_workflow: true };
+
+          data.notes = Array.isArray(data.notes) ? data.notes : [];
+          data.notes.push('Detailed GA4 is reconciled by the Daily Pulse workflow in separate Worker invocations to preserve the Cloudflare subrequest budget.');
+          fs.writeFileSync('daily-pulse.json', JSON.stringify(data, null, 2));
+
           console.log(JSON.stringify({
             generated_at: data.generated_at,
             yesterday_status: data.yesterday?.source_status,
