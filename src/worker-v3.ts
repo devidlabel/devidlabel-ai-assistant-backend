@@ -5,7 +5,9 @@ import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
 import { handleHistoricalAuditRequest } from "./historical-audit";
 import { handleKlaviyoReportingRequest } from "./klaviyo-reporting";
 import { handleMareBusinessMcpFinalRequest } from "./mare-business-mcp-final";
+import { handleMareBusinessYouTubeMcpRequest } from "./mare-business-mcp-youtube";
 import { handleTikTokOAuthFinalCallbackRequest } from "./mare-business-tiktok-final";
+import { handleYouTubeOAuthCallbackRequest } from "./mare-business-youtube";
 import { MarePlanCoordinator } from "./mare-plan-coordinator";
 import { handleMareMcpRequest } from "./mare-mcp";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp";
@@ -47,6 +49,9 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
   GOOGLE_MERCHANT_REFRESH_TOKEN?: string;
   SEARCH_CONSOLE_SITE_URL?: string;
   GA4_PROPERTY_ID?: string;
+  YOUTUBE_CLIENT_ID?: string;
+  YOUTUBE_CLIENT_SECRET?: string;
+  YOUTUBE_REDIRECT_URI?: string;
   DAILY_PULSE_ACCESS_TOKEN?: string;
   MARE_MCP_ACCESS_TOKEN?: string;
   MARE_OPS_ACCESS_TOKEN?: string;
@@ -178,6 +183,12 @@ export default {
 
     const tiktokOAuthResponse = await handleTikTokOAuthFinalCallbackRequest(request, env as any);
     if (tiktokOAuthResponse) return tiktokOAuthResponse;
+
+    const youtubeOAuthResponse = await handleYouTubeOAuthCallbackRequest(request, env as any);
+    if (youtubeOAuthResponse) return youtubeOAuthResponse;
+
+    const youtubeBusinessMcpResponse = await handleMareBusinessYouTubeMcpRequest(request, env as any);
+    if (youtubeBusinessMcpResponse) return youtubeBusinessMcpResponse;
 
     const businessMcpResponse = await handleMareBusinessMcpFinalRequest(request, env as any);
     if (businessMcpResponse) return businessMcpResponse;
