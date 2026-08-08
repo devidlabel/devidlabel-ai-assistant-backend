@@ -1,0 +1,64 @@
+name: Execute TORNA40 Once 2026-08-08
+
+on:
+  push:
+    branches:
+      - ops/execute-torna40-2026-08-08
+    paths:
+      - '.github/workflows/execute-torna40-once-2026-08-08.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Wait for temporary route to be live and verify preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-2026-08-08'
+          ok=0
+          for i in $(seq 1 60); do
+            code=$(curl -sS -o /tmp/preflight.json -w '%{http_code}' "$URL" || true)
+            if [ "$code" = "200" ] && node -e "const d=require('/tmp/preflight.json');process.exit(d.operation==='torna40'&&d.write_discounts===true?0:1)"; then
+              ok=1; break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          node - <<'NODE'
+          const d=require('/tmp/preflight.json');
+          console.log(JSON.stringify({operation:d.operation,write_discounts:d.write_discounts,read_discounts:d.read_discounts,code:d.code,code_exists:d.code_exists}));
+          if(d.operation!=='torna40'||d.write_discounts!==true||d.code!=='TORNA40')process.exit(2);
+          NODE
+
+      - name: Create TORNA40 only if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-2026-08-08'
+          curl --fail-with-body -sS -X POST -H 'X-MARE-Operation-Key: DL-TORNA40-REACTIVATION-2026-08-08-V1' "$URL" -o /tmp/create.json
+          node - <<'NODE'
+          const d=require('/tmp/create.json');
+          console.log(JSON.stringify(d));
+          if(d.ok!==true||d.code!=='TORNA40'||d.code_exists!==true)process.exit(2);
+          if(d.created_now===true){
+            const s=d.settings||{};
+            if(s.fixed_amount_eur!==40||s.minimum_subtotal_eur!==149||s.applies_once_per_customer!==true||s.usage_limit!==65||s.combines_with_other_discounts!==false)process.exit(3);
+          }
+          NODE
+
+      - name: Verify code exists after operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-2026-08-08'
+          curl --fail -sS "$URL" -o /tmp/post.json
+          node - <<'NODE'
+          const d=require('/tmp/post.json');
+          console.log(JSON.stringify({operation:d.operation,write_discounts:d.write_discounts,code:d.code,code_exists:d.code_exists,mutation_performed:d.mutation_performed}));
+          if(d.ok!==true||d.code!=='TORNA40'||d.code_exists!==true||d.write_discounts!==true)process.exit(2);
+          NODE
