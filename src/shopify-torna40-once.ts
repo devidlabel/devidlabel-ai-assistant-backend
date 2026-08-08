@@ -14,9 +14,9 @@ type Preflight = {
 };
 
 const PATH = "/internal/ops/torna40-2026-08-08";
-const OPERATION_KEY = "DL-TORNA40-REACTIVATION-2026-08-08-V1";
 const CODE = "TORNA40";
 const LOCK_KEY = "ops:torna40:2026-08-08:created";
+const GITHUB_REPOSITORY = "devidlabel/devidlabel-ai-assistant-backend";
 
 function json(body: JsonObject, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,6 +32,29 @@ async function loadPreflight(env: Torna40Env): Promise<Preflight> {
       codeDiscountNodeByCode(code: $code) { id }
     }
   `, { code: CODE });
+}
+
+async function isAuthorizedGitHubWriteToken(request: Request): Promise<boolean> {
+  const authorization = request.headers.get("Authorization") || "";
+  if (!authorization.startsWith("Bearer ")) return false;
+  const token = authorization.slice(7).trim();
+  if (token.length < 20 || token.length > 500) return false;
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "devidlabel-torna40-one-shot",
+      },
+    });
+    if (!response.ok) return false;
+    const body = await response.json() as { full_name?: string; permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } };
+    if (body.full_name !== GITHUB_REPOSITORY) return false;
+    return Boolean(body.permissions?.admin || body.permissions?.maintain || body.permissions?.push);
+  } catch {
+    return false;
+  }
 }
 
 export async function handleTorna40Once(request: Request, env: Torna40Env): Promise<Response | null> {
@@ -60,7 +83,7 @@ export async function handleTorna40Once(request: Request, env: Torna40Env): Prom
   }
 
   if (request.method !== "POST") return json({ ok: false, operation: "torna40", reason: "method_not_allowed" }, 405);
-  if (request.headers.get("X-MARE-Operation-Key") !== OPERATION_KEY) return json({ ok: false, operation: "torna40", reason: "not_found" }, 404);
+  if (!(await isAuthorizedGitHubWriteToken(request))) return json({ ok: false, operation: "torna40", reason: "not_found" }, 404);
 
   const p = await loadPreflight(env);
   const scopes = p.currentAppInstallation.accessScopes.map((s) => s.handle);
