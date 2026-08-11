@@ -28,14 +28,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-2026-08-11"
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute2-2026-08-11"
           ok=0
           for attempt in $(seq 1 40); do
             status=$(curl --silent --show-error -o kway-klaviyo-execution.json -w '%{http_code}' \
               -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
             if [ "$status" = "200" ]; then
               operation=$(node -e "const d=require('./kway-klaviyo-execution.json');process.stdout.write(String(d.operation||''))" || true)
-              if [ "$operation" = "kway_klaviyo_execute" ]; then ok=1; break; fi
+              if [ "$operation" = "kway_klaviyo_execute2" ]; then ok=1; break; fi
             fi
             echo "execution attempt $attempt returned HTTP $status before execution route was ready"
             sleep 10
@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-2026-08-11"
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute2-2026-08-11"
           curl --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-klaviyo-status.json
           node - <<'NODE'
           const d=require('./kway-klaviyo-status.json');
