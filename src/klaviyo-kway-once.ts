@@ -1,215 +1,30 @@
 type JsonObject = Record<string, unknown>;
 
-type KwayKlaviyoEnv = {
-  KLAVIYO_PRIVATE_API_KEY?: string;
-  KLAVIYO_OPERATIONS_API_KEY?: string;
-};
+type KwayKlaviyoEnv = { KLAVIYO_PRIVATE_API_KEY?: string; KLAVIYO_OPERATIONS_API_KEY?: string };
+type GithubOidcClaims = { iss?:string; aud?:string|string[]; sub?:string; repository?:string; repository_owner?:string; ref?:string; event_name?:string; actor?:string; exp?:number; iat?:number; nbf?:number };
 
-type GithubOidcClaims = {
-  iss?: string;
-  aud?: string | string[];
-  sub?: string;
-  repository?: string;
-  repository_owner?: string;
-  ref?: string;
-  event_name?: string;
-  actor?: string;
-  exp?: number;
-  iat?: number;
-  nbf?: number;
-};
+const PATH="/internal/ops/kway-klaviyo-2026-08-11";
+const REVISION="2026-07-15";
+const API_BASE="https://a.klaviyo.com";
+const GITHUB_REPOSITORY="devidlabel/devidlabel-ai-assistant-backend";
+const OIDC_ISSUER="https://token.actions.githubusercontent.com";
+const OIDC_AUDIENCE="devidlabel-kway-klaviyo-2026-08-11";
+const EXECUTION_REF="refs/heads/ops/execute-kway-klaviyo-2026-08-11";
+const EXECUTION_SUBJECT=`repo:${GITHUB_REPOSITORY}:ref:${EXECUTION_REF}`;
 
-const PATH = "/internal/ops/kway-klaviyo-2026-08-11";
-const REVISION = "2026-07-15";
-const API_BASE = "https://a.klaviyo.com";
-const GITHUB_REPOSITORY = "devidlabel/devidlabel-ai-assistant-backend";
-const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
-const OIDC_AUDIENCE = "devidlabel-kway-klaviyo-2026-08-11";
-const EXECUTION_REF = "refs/heads/ops/execute-kway-klaviyo-2026-08-11";
-const EXECUTION_SUBJECT = `repo:${GITHUB_REPOSITORY}:ref:${EXECUTION_REF}`;
+function json(body:JsonObject,status=200):Response{return new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer"}})}
+function normalize(v:unknown):string{return typeof v==="string"?v.trim():""}
+function asObject(v:unknown):JsonObject{return v&&typeof v==="object"&&!Array.isArray(v)?v as JsonObject:{}}
+function b64(v:string):Uint8Array{const n=v.replace(/-/g,"+").replace(/_/g,"/");const p=n.padEnd(Math.ceil(n.length/4)*4,"=");const bin=atob(p);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i+=1)bytes[i]=bin.charCodeAt(i);return bytes}
+function b64json<T>(v:string):T{return JSON.parse(new TextDecoder().decode(b64(v))) as T}
+async function isOidc(token:string):Promise<boolean>{const parts=token.split(".");if(parts.length!==3||token.length<100||token.length>12000)return false;try{const h=b64json<{alg?:string;kid?:string}>(parts[0]);const c=b64json<GithubOidcClaims>(parts[1]);if(h.alg!=="RS256"||!h.kid)return false;const now=Math.floor(Date.now()/1000);const aud=Array.isArray(c.aud)?c.aud.includes(OIDC_AUDIENCE):c.aud===OIDC_AUDIENCE;if(c.iss!==OIDC_ISSUER||!aud||c.repository!==GITHUB_REPOSITORY||c.repository_owner!=="devidlabel"||c.ref!==EXECUTION_REF||c.sub!==EXECUTION_SUBJECT||c.event_name!=="push"||typeof c.exp!=="number"||c.exp<now-30||c.exp>now+900||typeof c.iat!=="number"||c.iat>now+30||c.iat<now-900||(typeof c.nbf==="number"&&c.nbf>now+30))return false;const cr=await fetch(`${OIDC_ISSUER}/.well-known/openid-configuration`,{headers:{Accept:"application/json"}});if(!cr.ok)return false;const cfg=await cr.json() as {issuer?:string;jwks_uri?:string};if(cfg.issuer!==OIDC_ISSUER||!cfg.jwks_uri)return false;const u=new URL(cfg.jwks_uri);if(u.protocol!=="https:"||u.hostname!=="token.actions.githubusercontent.com")return false;const jr=await fetch(u.toString(),{headers:{Accept:"application/json"}});if(!jr.ok)return false;const jwks=await jr.json() as {keys?:Array<JsonWebKey&{kid?:string;alg?:string;use?:string}>};const jwk=(jwks.keys||[]).find(k=>k.kid===h.kid&&(!k.alg||k.alg==="RS256")&&(!k.use||k.use==="sig"));if(!jwk)return false;const key=await crypto.subtle.importKey("jwk",jwk,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);const signed=new TextEncoder().encode(`${parts[0]}.${parts[1]}`);return crypto.subtle.verify({name:"RSASSA-PKCS1-v1_5"},key,Uint8Array.from(b64(parts[2])).buffer,Uint8Array.from(signed).buffer)}catch{return false}}
+async function authorized(r:Request):Promise<boolean>{const a=r.headers.get("Authorization")||"";return a.startsWith("Bearer ")&&isOidc(a.slice(7).trim())}
+async function kfetch(key:string,path:string):Promise<{ok:boolean;status:number;body:JsonObject}>{const r=await fetch(`${API_BASE}${path}`,{headers:{Accept:"application/vnd.api+json",Authorization:`Klaviyo-API-Key ${key}`,revision:REVISION}});let b:JsonObject={};try{b=await r.json() as JsonObject}catch{}return{ok:r.ok,status:r.status,body:b}}
+function nextPath(body:JsonObject):string{const next=normalize(asObject(body.links).next);return next?next.replace(API_BASE,""):""}
+async function getAllMetrics(key:string){const out:Array<{id:string;name:string;integration:string}>=[];let path="/api/metrics?fields[metric]=name,integration";for(let p=0;p<10&&path;p+=1){const r=await kfetch(key,path);if(!r.ok)throw new Error(`metrics_${r.status}`);for(const item of Array.isArray(r.body.data)?r.body.data:[]){const row=asObject(item),a=asObject(row.attributes),i=asObject(a.integration);out.push({id:normalize(row.id),name:normalize(a.name),integration:normalize(i.name)})}path=nextPath(r.body)}return out}
+async function getLists(key:string){const out:JsonObject[]=[];let path="/api/lists?page[size]=10&fields[list]=name,created,updated,opt_in_process";for(let p=0;p<20&&path;p+=1){const r=await kfetch(key,path);if(!r.ok)throw new Error(`lists_${r.status}`);for(const item of Array.isArray(r.body.data)?r.body.data:[]){const row=asObject(item),a=asObject(row.attributes);out.push({id:normalize(row.id),name:normalize(a.name),created:a.created??null,updated:a.updated??null,opt_in_process:a.opt_in_process??null})}path=nextPath(r.body)}return out}
+function findSignals(value:unknown,path="$",out:Array<{path:string;value:string}>=[]):Array<{path:string;value:string}>{if(out.length>=12)return out;if(typeof value==="string"){if(/k[\s-]?way|kway|\/k-way-/i.test(value))out.push({path,value:value.slice(0,180)});return out}if(Array.isArray(value)){value.slice(0,30).forEach((v,i)=>findSignals(v,`${path}[${i}]`,out));return out}if(value&&typeof value==="object"){for(const [k,v] of Object.entries(value as JsonObject)){if(out.length>=12)break;findSignals(v,`${path}.${k}`,out)}}return out}
+async function getEventSignals(key:string,metrics:Array<{id:string;name:string}>){const since="2026-07-12T00:00:00Z";const relevant=metrics.filter(m=>/viewed product|added to cart|started checkout|placed order|ordered product|checkout/i.test(m.name));const result:JsonObject[]=[];for(const metric of relevant){let scanned=0,matched=0;const samples:JsonObject[]=[];let path=`/api/events?filter=${encodeURIComponent(`and(equals(metric_id,"${metric.id}"),greater-or-equal(datetime,${since}))`)}&sort=-datetime&fields[event]=datetime,event_properties`;for(let p=0;p<4&&path&&scanned<600;p+=1){const r=await kfetch(key,path);if(!r.ok){result.push({metric_id:metric.id,metric_name:metric.name,error_status:r.status});path="";break}const data=Array.isArray(r.body.data)?r.body.data:[];for(const item of data){scanned+=1;const row=asObject(item),a=asObject(row.attributes),signals=findSignals(a.event_properties);if(signals.length){matched+=1;if(samples.length<12)samples.push({datetime:a.datetime??null,signals})}}path=nextPath(r.body)}if(!result.some(x=>x.metric_id===metric.id))result.push({metric_id:metric.id,metric_name:metric.name,scanned,matched,samples});await new Promise(resolve=>setTimeout(resolve,500))}return result}
+async function getCampaignHistory(key:string){const out:JsonObject[]=[];const filter=encodeURIComponent("equals(messages.channel,'email')");let path=`/api/campaigns?filter=${filter}&page[size]=50&sort=-created_at`;for(let p=0;p<8&&path;p+=1){const r=await kfetch(key,path);if(!r.ok)throw new Error(`campaigns_${r.status}`);for(const item of Array.isArray(r.body.data)?r.body.data:[]){const row=asObject(item),a=asObject(row.attributes),name=normalize(a.name);if(/k[\s-]?way|kway/i.test(name)||/2026-08-(1[0-6]|0[9])/.test(name))out.push({id:normalize(row.id),name,status:normalize(a.status),created_at:a.created_at??null,updated_at:a.updated_at??null,send_strategy:a.send_strategy??null,audiences:a.audiences??null,send_options:a.send_options??null})}path=nextPath(r.body)}return out}
 
-function json(body: JsonObject, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "no-referrer",
-    },
-  });
-}
-
-function normalize(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function asObject(value: unknown): JsonObject {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
-}
-
-function b64(value: string): Uint8Array {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-function b64json<T>(value: string): T {
-  return JSON.parse(new TextDecoder().decode(b64(value))) as T;
-}
-
-async function isOidc(token: string): Promise<boolean> {
-  const parts = token.split(".");
-  if (parts.length !== 3 || token.length < 100 || token.length > 12000) return false;
-  try {
-    const header = b64json<{ alg?: string; kid?: string }>(parts[0]);
-    const claims = b64json<GithubOidcClaims>(parts[1]);
-    if (header.alg !== "RS256" || !header.kid) return false;
-    const now = Math.floor(Date.now() / 1000);
-    const aud = Array.isArray(claims.aud) ? claims.aud.includes(OIDC_AUDIENCE) : claims.aud === OIDC_AUDIENCE;
-    if (
-      claims.iss !== OIDC_ISSUER || !aud || claims.repository !== GITHUB_REPOSITORY ||
-      claims.repository_owner !== "devidlabel" || claims.ref !== EXECUTION_REF ||
-      claims.sub !== EXECUTION_SUBJECT || claims.event_name !== "push" ||
-      typeof claims.exp !== "number" || claims.exp < now - 30 || claims.exp > now + 900 ||
-      typeof claims.iat !== "number" || claims.iat > now + 30 || claims.iat < now - 900 ||
-      (typeof claims.nbf === "number" && claims.nbf > now + 30)
-    ) return false;
-
-    const cfgRes = await fetch(`${OIDC_ISSUER}/.well-known/openid-configuration`, { headers: { Accept: "application/json" } });
-    if (!cfgRes.ok) return false;
-    const cfg = await cfgRes.json() as { issuer?: string; jwks_uri?: string };
-    if (cfg.issuer !== OIDC_ISSUER || !cfg.jwks_uri) return false;
-    const jwksUrl = new URL(cfg.jwks_uri);
-    if (jwksUrl.protocol !== "https:" || jwksUrl.hostname !== "token.actions.githubusercontent.com") return false;
-    const jwksRes = await fetch(jwksUrl.toString(), { headers: { Accept: "application/json" } });
-    if (!jwksRes.ok) return false;
-    const jwks = await jwksRes.json() as { keys?: Array<JsonWebKey & { kid?: string; alg?: string; use?: string }> };
-    const jwk = (jwks.keys || []).find((key) => key.kid === header.kid && (!key.alg || key.alg === "RS256") && (!key.use || key.use === "sig"));
-    if (!jwk) return false;
-    const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-    const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
-    return crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, Uint8Array.from(b64(parts[2])).buffer, Uint8Array.from(signed).buffer);
-  } catch {
-    return false;
-  }
-}
-
-async function authorized(request: Request): Promise<boolean> {
-  const auth = request.headers.get("Authorization") || "";
-  return auth.startsWith("Bearer ") && isOidc(auth.slice(7).trim());
-}
-
-async function kfetch(apiKey: string, path: string): Promise<{ ok: boolean; status: number; body: JsonObject }> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      Accept: "application/vnd.api+json",
-      Authorization: `Klaviyo-API-Key ${apiKey}`,
-      revision: REVISION,
-    },
-  });
-  let body: JsonObject = {};
-  try { body = await response.json() as JsonObject; } catch { body = {}; }
-  return { ok: response.ok, status: response.status, body };
-}
-
-async function getAllMetrics(apiKey: string): Promise<Array<{ id: string; name: string; integration: string }>> {
-  const out: Array<{ id: string; name: string; integration: string }> = [];
-  let path = "/api/metrics?page[size]=100";
-  for (let page = 0; page < 10 && path; page += 1) {
-    const result = await kfetch(apiKey, path);
-    if (!result.ok) throw new Error(`metrics_${result.status}`);
-    const data = Array.isArray(result.body.data) ? result.body.data : [];
-    for (const item of data) {
-      const row = asObject(item);
-      const attrs = asObject(row.attributes);
-      const integration = asObject(attrs.integration);
-      out.push({ id: normalize(row.id), name: normalize(attrs.name), integration: normalize(integration.name) });
-    }
-    const links = asObject(result.body.links);
-    const next = normalize(links.next);
-    path = next ? next.replace(API_BASE, "") : "";
-  }
-  return out;
-}
-
-async function getKwaySegments(apiKey: string): Promise<JsonObject[]> {
-  const result = await kfetch(apiKey, "/api/segments?page[size]=10&fields[segment]=name,definition,is_active,is_processing,created,updated");
-  if (!result.ok) throw new Error(`segments_${result.status}`);
-  const data = Array.isArray(result.body.data) ? result.body.data : [];
-  const matches = data.filter((item) => {
-    const attrs = asObject(asObject(item).attributes);
-    return /k[\s-]?way/i.test(normalize(attrs.name));
-  });
-  const out: JsonObject[] = [];
-  for (const item of matches) {
-    const row = asObject(item);
-    const id = normalize(row.id);
-    const detail = await kfetch(apiKey, `/api/segments/${encodeURIComponent(id)}?additional-fields[segment]=profile_count&fields[segment]=name,definition,is_active,is_processing,profile_count,created,updated`);
-    if (detail.ok) out.push(asObject(detail.body.data));
-    else out.push({ id, error_status: detail.status, attributes: asObject(row.attributes) });
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-  }
-  return out;
-}
-
-async function getCampaigns(apiKey: string): Promise<JsonObject[]> {
-  const filter = encodeURIComponent("equals(messages.channel,'email')");
-  const result = await kfetch(apiKey, `/api/campaigns?filter=${filter}&include=campaign-messages&page[size]=50&sort=-created_at`);
-  if (!result.ok) throw new Error(`campaigns_${result.status}`);
-  const data = Array.isArray(result.body.data) ? result.body.data : [];
-  return data.slice(0, 40).map((item) => {
-    const row = asObject(item);
-    const attrs = asObject(row.attributes);
-    return {
-      id: normalize(row.id),
-      name: normalize(attrs.name),
-      status: normalize(attrs.status),
-      created_at: attrs.created_at ?? null,
-      updated_at: attrs.updated_at ?? null,
-      send_strategy: attrs.send_strategy ?? null,
-      audiences: attrs.audiences ?? null,
-      send_options: attrs.send_options ?? null,
-    };
-  });
-}
-
-export async function handleKwayKlaviyoOnce(request: Request, env: KwayKlaviyoEnv): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (url.pathname !== PATH) return null;
-  if (request.method !== "GET") return json({ ok: false, operation: "kway_klaviyo", reason: "method_not_allowed" }, 405);
-  if (!(await authorized(request))) return json({ ok: false, operation: "kway_klaviyo", reason: "not_found" }, 404);
-
-  const privateKey = normalize(env.KLAVIYO_PRIVATE_API_KEY);
-  const operationsKey = normalize(env.KLAVIYO_OPERATIONS_API_KEY);
-  if (!privateKey && !operationsKey) return json({ ok: false, operation: "kway_klaviyo", reason: "klaviyo_keys_missing" }, 412);
-
-  const readKey = privateKey || operationsKey;
-  const campaignKey = operationsKey || privateKey;
-  const result: JsonObject = {
-    ok: true,
-    operation: "kway_klaviyo",
-    phase: "preflight",
-    mutation_performed: false,
-    generated_at: new Date().toISOString(),
-    configured: { private_key: Boolean(privateKey), operations_key: Boolean(operationsKey) },
-  };
-
-  try {
-    const metrics = await getAllMetrics(readKey);
-    result.metrics = metrics.filter((metric) => /viewed product|added to cart|started checkout|placed order|ordered product|checkout/i.test(metric.name));
-  } catch (error) {
-    result.metrics_error = error instanceof Error ? error.message : "metrics_failed";
-  }
-
-  try { result.kway_segments = await getKwaySegments(readKey); }
-  catch (error) { result.segments_error = error instanceof Error ? error.message : "segments_failed"; }
-
-  try { result.campaigns = await getCampaigns(campaignKey); }
-  catch (error) { result.campaigns_error = error instanceof Error ? error.message : "campaigns_failed"; }
-
-  return json(result);
-}
+export async function handleKwayKlaviyoOnce(request:Request,env:KwayKlaviyoEnv):Promise<Response|null>{const url=new URL(request.url);if(url.pathname!==PATH)return null;if(request.method!=="GET")return json({ok:false,operation:"kway_klaviyo",reason:"method_not_allowed"},405);if(!(await authorized(request)))return json({ok:false,operation:"kway_klaviyo",reason:"not_found"},404);const privateKey=normalize(env.KLAVIYO_PRIVATE_API_KEY),operationsKey=normalize(env.KLAVIYO_OPERATIONS_API_KEY);if(!privateKey&&!operationsKey)return json({ok:false,operation:"kway_klaviyo",reason:"klaviyo_keys_missing"},412);const readKey=privateKey||operationsKey,campaignKey=operationsKey||privateKey;const result:JsonObject={ok:true,operation:"kway_klaviyo",phase:"expanded_preflight",mutation_performed:false,generated_at:new Date().toISOString(),configured:{private_key:Boolean(privateKey),operations_key:Boolean(operationsKey)}};let metrics:Array<{id:string;name:string;integration:string}>=[];try{metrics=await getAllMetrics(readKey);result.metrics=metrics.filter(m=>/viewed product|added to cart|started checkout|placed order|ordered product|checkout/i.test(m.name))}catch(e){result.metrics_error=e instanceof Error?e.message:"metrics_failed"}try{result.lists=await getLists(readKey)}catch(e){result.lists_error=e instanceof Error?e.message:"lists_failed"}if(metrics.length){try{result.kway_event_signals=await getEventSignals(readKey,metrics)}catch(e){result.events_error=e instanceof Error?e.message:"events_failed"}}try{result.campaigns=await getCampaignHistory(campaignKey)}catch(e){result.campaigns_error=e instanceof Error?e.message:"campaigns_failed"}return json(result)}
