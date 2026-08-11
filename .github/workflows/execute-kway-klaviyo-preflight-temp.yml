@@ -1,4 +1,4 @@
-name: TEMP Execute K-Way Klaviyo Campaigns
+name: TEMP Inspect K-Way Klaviyo Campaigns
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions:
   id-token: write
 
 jobs:
-  execute:
+  inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
       - name: Fetch GitHub Actions OIDC token
         shell: bash
@@ -24,50 +24,22 @@ jobs:
           token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
           echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
 
-      - name: Execute campaigns idempotently
-        shell: bash
-        run: |
-          set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute3-2026-08-11"
-          ok=0
-          for attempt in $(seq 1 4); do
-            status=$(curl --max-time 75 --connect-timeout 10 --silent --show-error \
-              -o kway-klaviyo-execution.json -w '%{http_code}' \
-              -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
-            if [ "$status" = "200" ]; then
-              operation=$(node -e "const d=require('./kway-klaviyo-execution.json');process.stdout.write(String(d.operation||''))" || true)
-              if [ "$operation" = "kway_klaviyo_execute3" ]; then ok=1; break; fi
-            fi
-            echo "execution attempt $attempt returned HTTP $status"
-            sleep 5
-          done
-          if [ "$ok" != "1" ]; then cat kway-klaviyo-execution.json || true; exit 3; fi
-          node - <<'NODE'
-          const d=require('./kway-klaviyo-execution.json');
-          console.log(JSON.stringify(d,null,2));
-          if(d.ok!==true) process.exit(4);
-          if(!Array.isArray(d.results)||d.results.length!==2||d.results.some(r=>r.ok!==true)) process.exit(5);
-          NODE
-
-      - name: Verify Klaviyo campaign states
+      - name: Inspect campaign states
         shell: bash
         run: |
           set -euo pipefail
           url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute3-2026-08-11"
           curl --max-time 30 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-klaviyo-status.json
+          cat kway-klaviyo-status.json
           node - <<'NODE'
           const d=require('./kway-klaviyo-status.json');
-          console.log(JSON.stringify(d,null,2));
-          if(d.ok!==true || !Array.isArray(d.campaigns) || d.campaigns.length!==2) process.exit(6);
-          if(d.campaigns.some(c=>!['Scheduled','Sent'].includes(c.status))) process.exit(7);
+          if(d.ok!==true || !Array.isArray(d.campaigns)) process.exit(3);
           NODE
 
-      - name: Upload private execution artifact
+      - name: Upload private status artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kway-klaviyo-execution-${{ github.run_id }}
-          path: |
-            kway-klaviyo-execution.json
-            kway-klaviyo-status.json
+          name: kway-klaviyo-status-${{ github.run_id }}
+          path: kway-klaviyo-status.json
           retention-days: 7
           if-no-files-found: error
