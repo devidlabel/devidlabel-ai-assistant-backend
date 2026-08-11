@@ -3,6 +3,7 @@ import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mar
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
 import { handleKwayKlaviyoOnce } from "./klaviyo-kway-once";
+import { handleKwayKlaviyoExecute2Once } from "./klaviyo-kway-execute2-once";
 
 export { MarePlanCoordinator };
 
@@ -23,6 +24,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const kwayKlaviyoExecute2Response = await handleKwayKlaviyoExecute2Once(request, env as any);
+    if (kwayKlaviyoExecute2Response) return kwayKlaviyoExecute2Response;
+
     const kwayKlaviyoResponse = await handleKwayKlaviyoOnce(request, env as any);
     if (kwayKlaviyoResponse) return kwayKlaviyoResponse;
 
