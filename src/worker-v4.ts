@@ -5,6 +5,7 @@ import { handleYouTubeReportingRequest } from "./youtube-reporting";
 import { handleKwayKlaviyoOnce } from "./klaviyo-kway-once";
 import { handleKwayKlaviyoExecute2Once } from "./klaviyo-kway-execute2-once";
 import { handleKwayKlaviyoExecute3Once } from "./klaviyo-kway-execute3-once";
+import { handleKwayAug13Once } from "./klaviyo-kway-aug13-once";
 
 export { MarePlanCoordinator };
 
@@ -25,6 +26,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const kwayAug13Response = await handleKwayAug13Once(request, env as any);
+    if (kwayAug13Response) return kwayAug13Response;
+
     const kwayKlaviyoExecute3Response = await handleKwayKlaviyoExecute3Once(request, env as any);
     if (kwayKlaviyoExecute3Response) return kwayKlaviyoExecute3Response;
 
