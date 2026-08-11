@@ -1,0 +1,67 @@
+name: TEMP K-Way Klaviyo Preflight
+
+on:
+  push:
+    branches:
+      - ops/execute-kway-klaviyo-2026-08-11
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch GitHub Actions OIDC token
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail --silent --show-error \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-kway-klaviyo-2026-08-11")
+          token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
+          echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Call protected Klaviyo preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-2026-08-11"
+          ok=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error -o kway-klaviyo-preflight.json -w '%{http_code}' \
+              -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
+            if [ "$status" = "200" ]; then ok=1; break; fi
+            echo "preflight attempt $attempt returned HTTP $status"
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            cat kway-klaviyo-preflight.json || true
+            exit 3
+          fi
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const d=JSON.parse(fs.readFileSync('kway-klaviyo-preflight.json','utf8'));
+          console.log(JSON.stringify({
+            ok:d.ok,
+            phase:d.phase,
+            configured:d.configured,
+            metrics:d.metrics,
+            metric_error:d.metrics_error||null,
+            kway_segments:d.kway_segments,
+            segments_error:d.segments_error||null,
+            campaigns:d.campaigns,
+            campaigns_error:d.campaigns_error||null
+          }, null, 2));
+          if(d.ok!==true) process.exit(4);
+          NODE
+
+      - name: Upload private preflight artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kway-klaviyo-preflight-${{ github.run_id }}
+          path: kway-klaviyo-preflight.json
+          retention-days: 7
+          if-no-files-found: error
