@@ -12,7 +12,7 @@ permissions:
 jobs:
   execute:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
       - name: Fetch GitHub Actions OIDC token
         shell: bash
@@ -24,21 +24,22 @@ jobs:
           token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
           echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
 
-      - name: Execute campaigns after live deploy
+      - name: Execute campaigns idempotently
         shell: bash
         run: |
           set -euo pipefail
           url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute2-2026-08-11"
           ok=0
-          for attempt in $(seq 1 40); do
-            status=$(curl --silent --show-error -o kway-klaviyo-execution.json -w '%{http_code}' \
+          for attempt in $(seq 1 4); do
+            status=$(curl --max-time 75 --connect-timeout 10 --silent --show-error \
+              -o kway-klaviyo-execution.json -w '%{http_code}' \
               -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
             if [ "$status" = "200" ]; then
               operation=$(node -e "const d=require('./kway-klaviyo-execution.json');process.stdout.write(String(d.operation||''))" || true)
               if [ "$operation" = "kway_klaviyo_execute2" ]; then ok=1; break; fi
             fi
-            echo "execution attempt $attempt returned HTTP $status before execution route was ready"
-            sleep 10
+            echo "execution attempt $attempt returned HTTP $status"
+            sleep 5
           done
           if [ "$ok" != "1" ]; then cat kway-klaviyo-execution.json || true; exit 3; fi
           node - <<'NODE'
@@ -53,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute2-2026-08-11"
-          curl --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-klaviyo-status.json
+          curl --max-time 30 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-klaviyo-status.json
           node - <<'NODE'
           const d=require('./kway-klaviyo-status.json');
           console.log(JSON.stringify(d,null,2));
