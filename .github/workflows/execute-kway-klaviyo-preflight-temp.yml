@@ -1,4 +1,4 @@
-name: TEMP K-Way Klaviyo Preflight
+name: TEMP Execute K-Way Klaviyo Campaigns
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions:
   id-token: write
 
 jobs:
-  preflight:
+  execute:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Fetch GitHub Actions OIDC token
         shell: bash
@@ -24,44 +24,49 @@ jobs:
           token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
           echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
 
-      - name: Call protected Klaviyo preflight
+      - name: Execute campaigns after live deploy
         shell: bash
         run: |
           set -euo pipefail
           url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-2026-08-11"
           ok=0
-          for attempt in $(seq 1 30); do
-            status=$(curl --silent --show-error -o kway-klaviyo-preflight.json -w '%{http_code}' \
-              -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
-            if [ "$status" = "200" ]; then ok=1; break; fi
-            echo "preflight attempt $attempt returned HTTP $status"
+          for attempt in $(seq 1 40); do
+            status=$(curl --silent --show-error -o kway-klaviyo-execution.json -w '%{http_code}' \
+              -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
+            if [ "$status" = "200" ]; then
+              operation=$(node -e "const d=require('./kway-klaviyo-execution.json');process.stdout.write(String(d.operation||''))" || true)
+              if [ "$operation" = "kway_klaviyo_execute" ]; then ok=1; break; fi
+            fi
+            echo "execution attempt $attempt returned HTTP $status before execution route was ready"
             sleep 10
           done
-          if [ "$ok" != "1" ]; then
-            cat kway-klaviyo-preflight.json || true
-            exit 3
-          fi
+          if [ "$ok" != "1" ]; then cat kway-klaviyo-execution.json || true; exit 3; fi
           node - <<'NODE'
-          const fs=require('node:fs');
-          const d=JSON.parse(fs.readFileSync('kway-klaviyo-preflight.json','utf8'));
-          console.log(JSON.stringify({
-            ok:d.ok,
-            phase:d.phase,
-            configured:d.configured,
-            metrics:d.metrics,
-            metric_error:d.metrics_error||null,
-            kway_segments:d.kway_segments,
-            segments_error:d.segments_error||null,
-            campaigns:d.campaigns,
-            campaigns_error:d.campaigns_error||null
-          }, null, 2));
+          const d=require('./kway-klaviyo-execution.json');
+          console.log(JSON.stringify(d,null,2));
           if(d.ok!==true) process.exit(4);
+          if(!Array.isArray(d.results)||d.results.length!==2||d.results.some(r=>r.ok!==true)) process.exit(5);
           NODE
 
-      - name: Upload private preflight artifact
+      - name: Verify Klaviyo campaign states
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-2026-08-11"
+          curl --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-klaviyo-status.json
+          node - <<'NODE'
+          const d=require('./kway-klaviyo-status.json');
+          console.log(JSON.stringify(d,null,2));
+          if(d.ok!==true || !Array.isArray(d.campaigns) || d.campaigns.length!==2) process.exit(6);
+          if(d.campaigns.some(c=>!['Scheduled','Sent'].includes(c.status))) process.exit(7);
+          NODE
+
+      - name: Upload private execution artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kway-klaviyo-preflight-${{ github.run_id }}
-          path: kway-klaviyo-preflight.json
+          name: kway-klaviyo-execution-${{ github.run_id }}
+          path: |
+            kway-klaviyo-execution.json
+            kway-klaviyo-status.json
           retention-days: 7
           if-no-files-found: error
