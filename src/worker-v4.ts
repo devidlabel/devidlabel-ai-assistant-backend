@@ -2,10 +2,6 @@ import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
-import { handleKwayKlaviyoOnce } from "./klaviyo-kway-once";
-import { handleKwayKlaviyoExecute2Once } from "./klaviyo-kway-execute2-once";
-import { handleKwayKlaviyoExecute3Once } from "./klaviyo-kway-execute3-once";
-import { handleKwayAug13Once } from "./klaviyo-kway-aug13-once";
 
 export { MarePlanCoordinator };
 
@@ -26,18 +22,6 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
-    const kwayAug13Response = await handleKwayAug13Once(request, env as any);
-    if (kwayAug13Response) return kwayAug13Response;
-
-    const kwayKlaviyoExecute3Response = await handleKwayKlaviyoExecute3Once(request, env as any);
-    if (kwayKlaviyoExecute3Response) return kwayKlaviyoExecute3Response;
-
-    const kwayKlaviyoExecute2Response = await handleKwayKlaviyoExecute2Once(request, env as any);
-    if (kwayKlaviyoExecute2Response) return kwayKlaviyoExecute2Response;
-
-    const kwayKlaviyoResponse = await handleKwayKlaviyoOnce(request, env as any);
-    if (kwayKlaviyoResponse) return kwayKlaviyoResponse;
-
     const url = new URL(request.url);
     if (url.pathname === "/auth/youtube/start") {
       if (request.method !== "GET") return jsonResponse({ ok: false, provider: "youtube", error: "method_not_allowed" }, 405);
