@@ -1,4 +1,4 @@
-name: TEMP Inspect K-Way Klaviyo Campaigns
+name: TEMP Execute K-Way Aug 13 Campaign
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions:
   id-token: write
 
 jobs:
-  inspect:
+  execute:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Fetch GitHub Actions OIDC token
         shell: bash
@@ -24,22 +24,55 @@ jobs:
           token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
           echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
 
-      - name: Inspect campaign states
+      - name: Build audience, estimate recipients and schedule
         shell: bash
         run: |
           set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-execute3-2026-08-11"
-          curl --max-time 30 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-klaviyo-status.json
-          cat kway-klaviyo-status.json
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-aug13-2026-08-11"
+          ok=0
+          for attempt in $(seq 1 20); do
+            status=$(curl --max-time 90 --connect-timeout 10 --silent --show-error \
+              -o kway-aug13-execution.json -w '%{http_code}' \
+              -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" || true)
+            if [ "$status" = "200" ]; then
+              operation=$(node -e "const d=require('./kway-aug13-execution.json');process.stdout.write(String(d.operation||''))" || true)
+              if [ "$operation" = "kway_aug13_execute" ]; then ok=1; break; fi
+            fi
+            echo "attempt $attempt returned HTTP $status"
+            sleep 8
+          done
+          if [ "$ok" != "1" ]; then cat kway-aug13-execution.json || true; exit 3; fi
+          cat kway-aug13-execution.json
           node - <<'NODE'
-          const d=require('./kway-klaviyo-status.json');
-          if(d.ok!==true || !Array.isArray(d.campaigns)) process.exit(3);
+          const d=require('./kway-aug13-execution.json');
+          if(d.ok!==true) process.exit(4);
+          if(!d.campaign_id && !d.campaign?.id) process.exit(5);
           NODE
 
-      - name: Upload private status artifact
+      - name: Verify Aug 13 campaign state
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-klaviyo-aug13-2026-08-11"
+          for attempt in $(seq 1 12); do
+            curl --max-time 30 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-aug13-status.json
+            state=$(node -e "const d=require('./kway-aug13-status.json');process.stdout.write(String(d.campaign?.status||''))")
+            echo "Klaviyo status: $state"
+            if [ "$state" = "Scheduled" ] || [ "$state" = "Sent" ]; then break; fi
+            sleep 5
+          done
+          cat kway-aug13-status.json
+          node - <<'NODE'
+          const d=require('./kway-aug13-status.json');
+          if(d.ok!==true || !['Scheduled','Sent'].includes(d.campaign?.status)) process.exit(6);
+          NODE
+
+      - name: Upload private execution artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kway-klaviyo-status-${{ github.run_id }}
-          path: kway-klaviyo-status.json
+          name: kway-aug13-execution-${{ github.run_id }}
+          path: |
+            kway-aug13-execution.json
+            kway-aug13-status.json
           retention-days: 7
           if-no-files-found: error
