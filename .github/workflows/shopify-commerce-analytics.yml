@@ -92,11 +92,11 @@ jobs:
             fi
 
             if [ "$PRIMARY_OK" = "true" ]; then
-              echo "Primary 1/3/7-day windows are valid; long-window analytics are partial."
-            else
-              echo "Primary Shopify analytics windows are incomplete."
+              echo "Primary 1/3/7-day windows are valid; accepting partial 14/30-day analytics without further retries."
+              break
             fi
 
+            echo "Primary Shopify analytics windows are incomplete."
             if [ "$ATTEMPT" -lt 3 ]; then
               SLEEP_SECONDS=$((ATTEMPT * 20))
               echo "Retrying after ${SLEEP_SECONDS}s to clear transient/rate-limit errors."
