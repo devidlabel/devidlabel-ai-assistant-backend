@@ -78,7 +78,60 @@ jobs:
         shell: bash
         run: |
           test -n "$SHOPIFY_REPORT_ACCESS_TOKEN$DAILY_PULSE_ACCESS_TOKEN"
-          node scripts/build-shopify-commerce-analytics.mjs
+
+          for ATTEMPT in 1 2 3; do
+            echo "Shopify analytics build attempt $ATTEMPT/3"
+            node scripts/build-shopify-commerce-analytics.mjs
+
+            PRIMARY_OK="$(node - <<'NODE'
+            const fs = require('node:fs');
+            const data = JSON.parse(fs.readFileSync('shopify-commerce-analytics.json', 'utf8'));
+            const required = new Set(['yesterday', 'last_3_days', 'last_7_days']);
+            const windows = Array.isArray(data.windows) ? data.windows : [];
+            const selected = windows.filter(window => required.has(window.key));
+            const ok = selected.length === required.size && selected.every(window =>
+              window?.source_status?.orders?.ok === true && window?.source_status?.analytics?.ok === true
+            );
+            process.stdout.write(ok ? 'true' : 'false');
+            NODE
+            )"
+            COMPLETE="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).ok === true")"
+
+            if [ "$COMPLETE" = "true" ]; then
+              echo "All Shopify analytics windows are complete."
+              break
+            fi
+
+            if [ "$PRIMARY_OK" = "true" ]; then
+              echo "Primary 1/3/7-day windows are valid; long-window analytics are partial."
+            else
+              echo "Primary Shopify analytics windows are incomplete."
+            fi
+
+            if [ "$ATTEMPT" -lt 3 ]; then
+              SLEEP_SECONDS=$((ATTEMPT * 20))
+              echo "Retrying after ${SLEEP_SECONDS}s to clear transient/rate-limit errors."
+              sleep "$SLEEP_SECONDS"
+            fi
+          done
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('shopify-commerce-analytics.json', 'utf8'));
+          const required = new Set(['yesterday', 'last_3_days', 'last_7_days']);
+          const windows = Array.isArray(data.windows) ? data.windows : [];
+          const selected = windows.filter(window => required.has(window.key));
+          const primaryOk = selected.length === required.size && selected.every(window =>
+            window?.source_status?.orders?.ok === true && window?.source_status?.analytics?.ok === true
+          );
+          if (!primaryOk) {
+            console.error('Shopify analytics primary 1/3/7-day windows are still incomplete after retries.');
+            process.exit(1);
+          }
+          if (data.ok !== true) {
+            console.warn('Shopify analytics is usable for the daily report, but one or more 14/30-day windows remain partial.');
+          }
+          NODE
 
       - name: Upload private Shopify analytics artifact
         if: steps.window.outputs.run == 'true'
@@ -95,13 +148,26 @@ jobs:
         run: |
           mkdir -p ops/shopify-commerce-analytics
           GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).generated_at")"
-          OK="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).ok")"
+          COMPLETE="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).ok === true")"
+          OK="$(node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('shopify-commerce-analytics.json', 'utf8'));
+          const required = new Set(['yesterday', 'last_3_days', 'last_7_days']);
+          const windows = Array.isArray(data.windows) ? data.windows : [];
+          const selected = windows.filter(window => required.has(window.key));
+          const ok = selected.length === required.size && selected.every(window =>
+            window?.source_status?.orders?.ok === true && window?.source_status?.analytics?.ok === true
+          );
+          process.stdout.write(ok ? 'true' : 'false');
+          NODE
+          )"
           cat > ops/shopify-commerce-analytics/latest.json <<EOF
           {
             "run_id": ${{ github.run_id }},
             "artifact_name": "shopify-commerce-analytics-${{ github.run_id }}",
             "generated_at": "$GENERATED_AT",
             "ok": $OK,
+            "complete": $COMPLETE,
             "timezone": "Europe/Rome"
           }
           EOF
