@@ -10,11 +10,15 @@ on:
       - 'src/tiktok-reporting.ts'
       - 'src/youtube-reporting.ts'
   schedule:
-    # Run at :35 in the two UTC hours that can correspond to 08:35 Europe/Rome.
-    # The first step keeps only the execution whose local Rome hour is 08,
-    # so DST changes do not shift the business report.
-    - cron: '35 6 * * *'
-    - cron: '35 7 * * *'
+    # Target 07:25 Europe/Rome before the 08:00 ChatGPT business report.
+    # Two UTC slots cover CET/CEST; the freshness guard below makes the job
+    # idempotent and also provides a recovery slot when GitHub starts late.
+    - cron: '25 5 * * *'
+    - cron: '25 6 * * *'
+
+concurrency:
+  group: daily-pulse-daily
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -28,26 +32,50 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Check Europe/Rome report window
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check Europe/Rome pre-report window and freshness
         id: window
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual_or_code_change" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           HOUR="$(TZ=Europe/Rome date +%H)"
-          if [ "$HOUR" = "08" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
+          TODAY="$(TZ=Europe/Rome date +%F)"
+          LATEST_DATE="$(node - <<'NODE'
+          const fs = require('node:fs');
+          try {
+            const data = JSON.parse(fs.readFileSync('ops/daily-pulse/latest.json', 'utf8'));
+            if (!data.generated_at) process.exit(0);
+            const parts = new Intl.DateTimeFormat('en-CA', {
+              timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit'
+            }).formatToParts(new Date(data.generated_at));
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            process.stdout.write(`${values.year}-${values.month}-${values.day}`);
+          } catch {}
+          NODE
+          )"
+
+          if [ "$LATEST_DATE" = "$TODAY" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=already_fresh_today" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Checkout repository
-        if: steps.window.outputs.run == 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: main
+          if [ "$HOUR" -ge 7 ] && [ "$HOUR" -le 8 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=scheduled_pre_report_window" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=outside_pre_report_window" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Fetch protected Daily Pulse
         if: steps.window.outputs.run == 'true'
@@ -128,6 +156,7 @@ jobs:
             generated_at: data.generated_at,
             yesterday_status: data.yesterday?.source_status,
             last_7_days_status: data.last_7_days?.source_status,
+            search_console_status: data.search_console?.source_status,
             youtube_status: data.youtube?.source_status,
             paid_media_primary_scope_yesterday: data.yesterday?.combined?.paid_media_primary_scope,
             paid_media_primary_scope_last_7_days: data.last_7_days?.combined?.paid_media_primary_scope,
