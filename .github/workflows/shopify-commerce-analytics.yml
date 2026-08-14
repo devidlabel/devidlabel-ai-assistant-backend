@@ -83,18 +83,7 @@ jobs:
             echo "Shopify analytics build attempt $ATTEMPT/3"
             node scripts/build-shopify-commerce-analytics.mjs
 
-            PRIMARY_OK="$(node - <<'NODE'
-            const fs = require('node:fs');
-            const data = JSON.parse(fs.readFileSync('shopify-commerce-analytics.json', 'utf8'));
-            const required = new Set(['yesterday', 'last_3_days', 'last_7_days']);
-            const windows = Array.isArray(data.windows) ? data.windows : [];
-            const selected = windows.filter(window => required.has(window.key));
-            const ok = selected.length === required.size && selected.every(window =>
-              window?.source_status?.orders?.ok === true && window?.source_status?.analytics?.ok === true
-            );
-            process.stdout.write(ok ? 'true' : 'false');
-            NODE
-            )"
+            PRIMARY_OK="$(node -e 'const fs=require("node:fs"); const data=JSON.parse(fs.readFileSync("shopify-commerce-analytics.json","utf8")); const required=new Set(["yesterday","last_3_days","last_7_days"]); const windows=Array.isArray(data.windows)?data.windows:[]; const selected=windows.filter(window=>required.has(window.key)); const ok=selected.length===required.size&&selected.every(window=>window?.source_status?.orders?.ok===true&&window?.source_status?.analytics?.ok===true); process.stdout.write(ok?"true":"false");')"
             COMPLETE="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).ok === true")"
 
             if [ "$COMPLETE" = "true" ]; then
@@ -149,18 +138,7 @@ jobs:
           mkdir -p ops/shopify-commerce-analytics
           GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).generated_at")"
           COMPLETE="$(node -p "JSON.parse(require('fs').readFileSync('shopify-commerce-analytics.json','utf8')).ok === true")"
-          OK="$(node - <<'NODE'
-          const fs = require('node:fs');
-          const data = JSON.parse(fs.readFileSync('shopify-commerce-analytics.json', 'utf8'));
-          const required = new Set(['yesterday', 'last_3_days', 'last_7_days']);
-          const windows = Array.isArray(data.windows) ? data.windows : [];
-          const selected = windows.filter(window => required.has(window.key));
-          const ok = selected.length === required.size && selected.every(window =>
-            window?.source_status?.orders?.ok === true && window?.source_status?.analytics?.ok === true
-          );
-          process.stdout.write(ok ? 'true' : 'false');
-          NODE
-          )"
+          OK="$(node -e 'const fs=require("node:fs"); const data=JSON.parse(fs.readFileSync("shopify-commerce-analytics.json","utf8")); const required=new Set(["yesterday","last_3_days","last_7_days"]); const windows=Array.isArray(data.windows)?data.windows:[]; const selected=windows.filter(window=>required.has(window.key)); const ok=selected.length===required.size&&selected.every(window=>window?.source_status?.orders?.ok===true&&window?.source_status?.analytics?.ok===true); process.stdout.write(ok?"true":"false");')"
           cat > ops/shopify-commerce-analytics/latest.json <<EOF
           {
             "run_id": ${{ github.run_id }},
