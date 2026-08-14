@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-08-14T20:19:00+02:00",
-  "reason": "Verify Shopify analytics after shell parsing fix"
+  "requested_at": "2026-08-14T20:23:00+02:00",
+  "reason": "Verify Shopify snapshot accepts valid 1/3/7-day windows without over-retrying"
 }
