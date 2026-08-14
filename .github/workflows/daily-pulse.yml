@@ -90,10 +90,9 @@ jobs:
             "$WORKER_URL/internal/daily-pulse/report" \
             -o daily-pulse.json
 
-          # GA4 is intentionally fetched in fresh Worker invocations. The complete
-          # Daily Pulse now includes enough external APIs to reach the Free/Bundled
-          # per-invocation subrequest ceiling if both detailed GA4 reports run inside
-          # the same Worker request. Separate calls preserve the full GA4 detail.
+          # Detailed external sources are fetched in separate Worker invocations.
+          # This prevents Search Console / YouTube / GA4 from competing for the
+          # Cloudflare per-invocation subrequest budget used by the aggregate pulse.
           curl --fail --silent --show-error \
             --retry 3 --retry-delay 5 \
             -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
@@ -104,23 +103,46 @@ jobs:
             -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
             "$WORKER_URL/internal/ga4/report?timeframe=last_7_days" \
             -o ga4-last-7-days.json
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/search-console/report?timeframe=last_7_days" \
+            -o search-console-last-7-days.json
+          curl --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/youtube/report?days=7" \
+            -o youtube-last-7-days.json
+          curl --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/youtube/report?days=28" \
+            -o youtube-last-28-days.json
 
           node - <<'NODE'
           const fs = require('node:fs');
           const data = JSON.parse(fs.readFileSync('daily-pulse.json', 'utf8'));
           const ga4Yesterday = JSON.parse(fs.readFileSync('ga4-yesterday.json', 'utf8'));
           const ga4Last7Days = JSON.parse(fs.readFileSync('ga4-last-7-days.json', 'utf8'));
-          if (data.ok !== true || ga4Yesterday.ok !== true || ga4Last7Days.ok !== true) {
+          const searchConsoleLast7Days = JSON.parse(fs.readFileSync('search-console-last-7-days.json', 'utf8'));
+          const youtubeLast7Days = JSON.parse(fs.readFileSync('youtube-last-7-days.json', 'utf8'));
+          const youtubeLast28Days = JSON.parse(fs.readFileSync('youtube-last-28-days.json', 'utf8'));
+
+          if (data.ok !== true || ga4Yesterday.ok !== true || ga4Last7Days.ok !== true || searchConsoleLast7Days.ok !== true) {
             console.error(JSON.stringify({
               daily_pulse_ok: data.ok,
               ga4_yesterday_ok: ga4Yesterday.ok,
               ga4_last_7_days_ok: ga4Last7Days.ok,
+              search_console_last_7_days_ok: searchConsoleLast7Days.ok,
               ga4_yesterday_message: ga4Yesterday.message || null,
               ga4_last_7_days_message: ga4Last7Days.message || null,
+              search_console_message: searchConsoleLast7Days.message || null,
             }));
             process.exit(1);
           }
 
+          const tableRows = (table, limit) => Array.isArray(table?.rows) ? table.rows.slice(0, limit) : [];
+          const objectRows = (value, limit) => Array.isArray(value) ? value.slice(0, limit) : [];
           const compactGa4 = (source) => ({
             ok: true,
             property_id: source.property_id || null,
@@ -135,6 +157,52 @@ jobs:
             ecommerce_funnel: source.ecommerce_funnel || {},
             reconciled_in_workflow: true,
           });
+          const compactSearchConsole = (source) => ({
+            ok: true,
+            site_url: source.site_url || null,
+            timeframe: source.timeframe || null,
+            totals: source.totals || {},
+            daily: tableRows(source.daily, 31),
+            queries: tableRows(source.queries, 150),
+            pages: tableRows(source.pages, 150),
+            devices: tableRows(source.devices, 20),
+            countries: tableRows(source.countries, 50),
+            limitations: source.limitations || [],
+            reconciled_in_workflow: true,
+          });
+          const youtubeSectionData = (source, name) => {
+            const section = source?.sections?.[name];
+            return section && section.ok === true && section.data && typeof section.data === 'object' ? section.data : {};
+          };
+          const compactYouTube = (source) => {
+            if (source?.ok !== true) return {
+              ok: false,
+              status: 502,
+              error: source?.error || 'youtube_unavailable',
+              authorization: source?.status || {},
+              reconciled_in_workflow: true,
+            };
+            const channel = youtubeSectionData(source, 'channel');
+            const summary = youtubeSectionData(source, 'summary');
+            const videos = youtubeSectionData(source, 'videos');
+            const traffic = youtubeSectionData(source, 'traffic_sources');
+            const search = youtubeSectionData(source, 'search_terms');
+            return {
+              ok: true,
+              provider: 'youtube',
+              read_only: source.read_only !== false,
+              days: source.days || null,
+              section_counts: source.section_counts || {},
+              authorization: source.status || {},
+              channel: channel.channel || {},
+              summary: summary.summary || {},
+              top_videos: objectRows(videos.videos, 25),
+              traffic_sources: objectRows(traffic.traffic_sources, 30),
+              search_terms: objectRows(search.search_terms, 50),
+              retrieved_at: source.retrieved_at || null,
+              reconciled_in_workflow: true,
+            };
+          };
 
           data.yesterday = data.yesterday || {};
           data.yesterday.sources = data.yesterday.sources || {};
@@ -148,8 +216,25 @@ jobs:
           data.last_7_days.sources.ga4 = compactGa4(ga4Last7Days);
           data.last_7_days.source_status.ga4 = { ok: true, status: 200, reconciled_in_workflow: true };
 
+          data.search_console = {
+            last_7_days: compactSearchConsole(searchConsoleLast7Days),
+            source_status: { ok: true, status: 200, reconciled_in_workflow: true },
+          };
+
+          const youtube7 = compactYouTube(youtubeLast7Days);
+          const youtube28 = compactYouTube(youtubeLast28Days);
+          data.youtube = {
+            last_7_days: youtube7,
+            last_28_days: youtube28,
+            source_status: {
+              last_7_days: { ok: youtube7.ok === true, status: youtube7.ok === true ? 200 : 502, reconciled_in_workflow: true },
+              last_28_days: { ok: youtube28.ok === true, status: youtube28.ok === true ? 200 : 502, reconciled_in_workflow: true },
+            },
+          };
+
           data.notes = Array.isArray(data.notes) ? data.notes : [];
-          data.notes.push('Detailed GA4 is reconciled by the Daily Pulse workflow in separate Worker invocations to preserve the Cloudflare subrequest budget.');
+          data.notes.push('Detailed GA4 and Search Console are reconciled by the workflow in separate Worker invocations to preserve the Cloudflare subrequest budget.');
+          data.notes.push('YouTube 7/28-day intelligence is also fetched separately; YouTube failure is reported as a source alert and does not block the commerce report.');
           fs.writeFileSync('daily-pulse.json', JSON.stringify(data, null, 2));
 
           console.log(JSON.stringify({
