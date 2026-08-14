@@ -3,9 +3,15 @@ name: Shopify Commerce Analytics Snapshot
 on:
   workflow_dispatch:
   schedule:
-    # Run before the 09:00 Europe/Rome ChatGPT report. Two UTC slots handle DST.
-    - cron: '20 6 * * *'
-    - cron: '20 7 * * *'
+    # Target 07:05 Europe/Rome before the 08:00 ChatGPT business report.
+    # Two UTC slots cover CET/CEST; the freshness guard below makes the job
+    # idempotent and also provides a recovery slot when GitHub starts late.
+    - cron: '5 5 * * *'
+    - cron: '5 6 * * *'
+
+concurrency:
+  group: shopify-commerce-analytics-daily
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -19,26 +25,50 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Check Europe/Rome report window
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check Europe/Rome pre-report window and freshness
         id: window
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual_dispatch" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           HOUR="$(TZ=Europe/Rome date +%H)"
-          if [ "$HOUR" = "08" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
+          TODAY="$(TZ=Europe/Rome date +%F)"
+          LATEST_DATE="$(node - <<'NODE'
+          const fs = require('node:fs');
+          try {
+            const data = JSON.parse(fs.readFileSync('ops/shopify-commerce-analytics/latest.json', 'utf8'));
+            if (!data.generated_at) process.exit(0);
+            const parts = new Intl.DateTimeFormat('en-CA', {
+              timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit'
+            }).formatToParts(new Date(data.generated_at));
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            process.stdout.write(`${values.year}-${values.month}-${values.day}`);
+          } catch {}
+          NODE
+          )"
+
+          if [ "$LATEST_DATE" = "$TODAY" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=already_fresh_today" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Checkout repository
-        if: steps.window.outputs.run == 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: main
+          if [ "$HOUR" -ge 7 ] && [ "$HOUR" -le 8 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=scheduled_pre_report_window" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=outside_pre_report_window" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build Shopify commerce analytics bundle
         if: steps.window.outputs.run == 'true'
