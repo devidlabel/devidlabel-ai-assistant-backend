@@ -19,19 +19,8 @@ function isSafeIdentifier(value: string): boolean {
   return /^[A-Za-z0-9_-]{3,100}$/.test(value);
 }
 
-function isEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
 function configured(env: KlaviyoOperationsEnv): boolean {
-  const fromEmail = normalize(env.KLAVIYO_DEFAULT_FROM_EMAIL);
-  const replyTo = normalize(env.KLAVIYO_DEFAULT_REPLY_TO_EMAIL) || fromEmail;
-  return Boolean(
-    normalize(env.KLAVIYO_OPERATIONS_API_KEY)
-    && isEmail(fromEmail)
-    && normalize(env.KLAVIYO_DEFAULT_FROM_LABEL)
-    && isEmail(replyTo),
-  );
+  return Boolean(normalize(env.KLAVIYO_OPERATIONS_API_KEY));
 }
 
 export function klaviyoCampaignUpdateConfiguration(env: KlaviyoOperationsEnv): JsonObject {
@@ -39,6 +28,7 @@ export function klaviyoCampaignUpdateConfiguration(env: KlaviyoOperationsEnv): J
     configured: configured(env),
     required_scopes: ["campaigns:read", "campaigns:write"],
     supported_changes: ["campaign name", "email subject", "preview text", "assigned template"],
+    preserves_existing_sender_identity: true,
     draft_only: true,
     send_or_schedule_exposed: false,
   };
@@ -127,14 +117,10 @@ async function patchCampaignMessage(
   subject: string,
   previewText: string,
 ): Promise<void> {
-  const fromEmail = normalize(env.KLAVIYO_DEFAULT_FROM_EMAIL);
-  const fromLabel = normalize(env.KLAVIYO_DEFAULT_FROM_LABEL);
-  const replyToEmail = normalize(env.KLAVIYO_DEFAULT_REPLY_TO_EMAIL) || fromEmail;
-  const content: JsonObject = {
-    from_email: fromEmail,
-    from_label: fromLabel,
-    reply_to_email: replyToEmail,
-  };
+  // Klaviyo accepts partial content updates. Do not inject empty sender defaults
+  // when editing an existing draft: preserve the sender/reply-to already stored
+  // on the campaign message unless an explicit sender-edit capability is added.
+  const content: JsonObject = {};
   if (subject) content.subject = subject;
   if (previewText || previewText === "") content.preview_text = previewText;
 
@@ -225,6 +211,7 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
     changes,
     safety: {
       draft_only_verified: true,
+      existing_sender_identity_preserved: true,
       send_or_schedule_performed: false,
       send_capability_exposed: false,
       requires_human_review: true,
