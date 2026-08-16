@@ -6,6 +6,7 @@ const KLAVIYO_API_BASE = "https://a.klaviyo.com";
 const KLAVIYO_REVISION = "2026-07-15";
 const APPROVAL_CONFIRMATION = "UPDATE KLAVIYO DRAFT";
 const MAX_RETRIES = 2;
+const MAX_HTML_BYTES = 180 * 1024;
 
 function normalize(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -26,8 +27,8 @@ function configured(env: KlaviyoOperationsEnv): boolean {
 export function klaviyoCampaignUpdateConfiguration(env: KlaviyoOperationsEnv): JsonObject {
   return {
     configured: configured(env),
-    required_scopes: ["campaigns:read", "campaigns:write"],
-    supported_changes: ["campaign name", "email subject", "preview text", "assigned template"],
+    required_scopes: ["campaigns:read", "campaigns:write", "templates:write"],
+    supported_changes: ["campaign name", "email subject", "preview text", "assigned template", "HTML email body via managed CODE template"],
     preserves_existing_sender_identity: true,
     draft_only: true,
     send_or_schedule_exposed: false,
@@ -101,42 +102,18 @@ async function getMessageId(env: KlaviyoOperationsEnv, campaignId: string): Prom
 async function patchCampaignName(env: KlaviyoOperationsEnv, campaignId: string, name: string): Promise<void> {
   await klaviyoFetch(env, `/api/campaigns/${encodeURIComponent(campaignId)}`, {
     method: "PATCH",
-    body: JSON.stringify({
-      data: {
-        type: "campaign",
-        id: campaignId,
-        attributes: { name },
-      },
-    }),
+    body: JSON.stringify({ data: { type: "campaign", id: campaignId, attributes: { name } } }),
   });
 }
 
-async function patchCampaignMessage(
-  env: KlaviyoOperationsEnv,
-  messageId: string,
-  subject: string,
-  previewText: string,
-): Promise<void> {
-  // Klaviyo accepts partial content updates. Do not inject empty sender defaults
-  // when editing an existing draft: preserve the sender/reply-to already stored
-  // on the campaign message unless an explicit sender-edit capability is added.
+async function patchCampaignMessage(env: KlaviyoOperationsEnv, messageId: string, subject: string, previewText: string): Promise<void> {
   const content: JsonObject = {};
   if (subject) content.subject = subject;
   if (previewText || previewText === "") content.preview_text = previewText;
-
   await klaviyoFetch(env, `/api/campaign-messages/${encodeURIComponent(messageId)}`, {
     method: "PATCH",
     body: JSON.stringify({
-      data: {
-        type: "campaign-message",
-        id: messageId,
-        attributes: {
-          definition: {
-            channel: "email",
-            content,
-          },
-        },
-      },
+      data: { type: "campaign-message", id: messageId, attributes: { definition: { channel: "email", content } } },
     }),
   });
 }
@@ -148,56 +125,73 @@ async function assignTemplate(env: KlaviyoOperationsEnv, messageId: string, temp
       data: {
         type: "campaign-message",
         id: messageId,
-        relationships: {
-          template: {
-            data: { type: "template", id: templateId },
-          },
-        },
+        relationships: { template: { data: { type: "template", id: templateId } } },
       },
     }),
   });
 }
 
+async function createManagedHtmlTemplate(env: KlaviyoOperationsEnv, campaignId: string, html: string, text: string): Promise<string> {
+  const name = `MARE K-Way Final Sale ${campaignId.slice(-8)} ${new Date().toISOString().slice(0, 16)}`;
+  const payload = await klaviyoFetch(env, "/api/templates", {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "template",
+        attributes: {
+          name,
+          editor_type: "CODE",
+          html,
+          ...(text ? { text } : {}),
+        },
+      },
+    }),
+  });
+  const data = asObject(payload.data);
+  const id = normalize(data.id);
+  if (!id) throw new Error("klaviyo_template_create_missing_id");
+  return id;
+}
+
 export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoOperationsEnv): Promise<JsonObject> {
   if (!configured(env)) throw new Error("klaviyo_operations_not_configured");
-  if (normalize(args.approval_confirmation) !== APPROVAL_CONFIRMATION) {
-    throw new Error("klaviyo_update_confirmation_required");
-  }
+  if (normalize(args.approval_confirmation) !== APPROVAL_CONFIRMATION) throw new Error("klaviyo_update_confirmation_required");
 
   const campaignId = normalize(args.campaign_id);
   let messageId = normalize(args.campaign_message_id);
   const campaignName = normalize(args.campaign_name);
   const subject = normalize(args.subject);
   const previewText = typeof args.preview_text === "string" ? args.preview_text.trim() : "";
-  const templateId = normalize(args.template_id);
+  const requestedTemplateId = normalize(args.template_id);
+  const htmlBody = typeof args.html_body === "string" ? args.html_body.trim() : "";
+  const textBody = typeof args.text_body === "string" ? args.text_body.trim() : "";
 
   if (!isSafeIdentifier(campaignId)) throw new Error("invalid_campaign_id");
   if (messageId && !isSafeIdentifier(messageId)) throw new Error("invalid_campaign_message_id");
   if (campaignName && (campaignName.length < 3 || campaignName.length > 180)) throw new Error("invalid_campaign_name");
   if (subject && subject.length > 200) throw new Error("invalid_subject");
   if (previewText.length > 300) throw new Error("invalid_preview_text");
-  if (templateId && !isSafeIdentifier(templateId)) throw new Error("invalid_template_id");
-  if (!campaignName && !subject && args.preview_text === undefined && !templateId) throw new Error("no_klaviyo_changes_requested");
+  if (requestedTemplateId && !isSafeIdentifier(requestedTemplateId)) throw new Error("invalid_template_id");
+  if (htmlBody && new TextEncoder().encode(htmlBody).byteLength > MAX_HTML_BYTES) throw new Error("klaviyo_html_body_too_large");
+  if (textBody.length > 30000) throw new Error("klaviyo_text_body_too_large");
+  if (!campaignName && !subject && args.preview_text === undefined && !requestedTemplateId && !htmlBody) throw new Error("no_klaviyo_changes_requested");
 
   const campaign = await getCampaign(env, campaignId);
   const status = campaignStatus(campaign);
   if (status && status !== "draft") throw new Error("klaviyo_campaign_is_not_draft");
   messageId = messageId || relatedMessageId(campaign) || await getMessageId(env, campaignId);
-  if ((subject || args.preview_text !== undefined || templateId) && !messageId) {
-    throw new Error("klaviyo_campaign_message_not_found");
-  }
+  if ((subject || args.preview_text !== undefined || requestedTemplateId || htmlBody) && !messageId) throw new Error("klaviyo_campaign_message_not_found");
 
   const changes: string[] = [];
-  if (campaignName) {
-    await patchCampaignName(env, campaignId, campaignName);
-    changes.push("campaign_name");
-  }
-  if (subject || args.preview_text !== undefined) {
-    await patchCampaignMessage(env, messageId, subject, previewText);
-    changes.push("message_content");
-  }
-  if (templateId) {
-    await assignTemplate(env, messageId, templateId);
+  let assignedTemplateId = requestedTemplateId;
+  if (campaignName) { await patchCampaignName(env, campaignId, campaignName); changes.push("campaign_name"); }
+  if (subject || args.preview_text !== undefined) { await patchCampaignMessage(env, messageId, subject, previewText); changes.push("message_content"); }
+  if (htmlBody) {
+    assignedTemplateId = await createManagedHtmlTemplate(env, campaignId, htmlBody, textBody);
+    await assignTemplate(env, messageId, assignedTemplateId);
+    changes.push("managed_html_template_created", "template_assignment");
+  } else if (requestedTemplateId) {
+    await assignTemplate(env, messageId, requestedTemplateId);
     changes.push("template_assignment");
   }
 
@@ -208,6 +202,7 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
     external_write_performed: true,
     campaign_id: campaignId,
     campaign_message_id: messageId || null,
+    assigned_template_id: assignedTemplateId || null,
     changes,
     safety: {
       draft_only_verified: true,
