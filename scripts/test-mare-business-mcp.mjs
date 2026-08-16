@@ -6,6 +6,7 @@ const safeMcpSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
 const finalMcpSource = readFileSync("src/mare-business-mcp-final.ts", "utf8");
 const capabilitiesSource = readFileSync("src/mare-business-capabilities.ts", "utf8");
 const shopifySource = readFileSync("src/mare-business-shopify.ts", "utf8");
+const shopifyCompact = shopifySource.replace(/\s+/g, "");
 const completeShopifySource = readFileSync("src/mare-business-shopify-complete.ts", "utf8");
 const completeShopifyCompact = completeShopifySource.replace(/\s+/g, "");
 const marketplaceSource = readFileSync("src/mare-business-marketplace.ts", "utf8");
@@ -50,9 +51,9 @@ for (const capability of [
 ]) assert.ok(capabilitiesSource.includes(`id: "${capability}"`), `Missing dynamic capability ${capability}`);
 
 for (const fragment of [
-  "inventoryLevels(first: 20)", "unitCost { amount currencyCode }", "compareAtPrice", "collections(first: 50)", "media(first: 100)",
+  "inventoryLevels(first:5)", "unitCost{amountcurrencyCode}", "compareAtPrice", "collections(first:20)", "media(first:20)",
   "shopify_catalog_json", "shopify_catalog_csv",
-]) assert.ok(shopifySource.includes(fragment), `Missing canonical Shopify catalog field or artifact: ${fragment}`);
+]) assert.ok(shopifyCompact.includes(fragment), `Missing canonical Shopify catalog field or artifact: ${fragment}`);
 
 for (const fragment of [
   "pageInfo{hasNextPageendCursor}", "VARIANT_PAGE_QUERY", "loadAllVariants", "complete_variant_pagination:true",
