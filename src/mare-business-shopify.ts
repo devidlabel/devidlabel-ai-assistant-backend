@@ -60,7 +60,7 @@ const CATALOG_QUERY = `
             alt
             ... on MediaImage {
               image { url width height }
-              originalSource { url width height }
+              originalSource { url }
             }
           }
         }
@@ -188,8 +188,8 @@ function mapProduct(node: JsonObject): JsonObject {
       status: item.status ?? null,
       alt: item.alt ?? null,
       url: original.url ?? image.url ?? null,
-      width: original.width ?? image.width ?? null,
-      height: original.height ?? image.height ?? null,
+      width: image.width ?? null,
+      height: image.height ?? null,
     };
   });
   const collections = (Array.isArray(collectionsConnection.nodes) ? collectionsConnection.nodes : []).map((raw) => {
