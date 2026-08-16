@@ -7,6 +7,7 @@ const finalMcpSource = readFileSync("src/mare-business-mcp-final.ts", "utf8");
 const capabilitiesSource = readFileSync("src/mare-business-capabilities.ts", "utf8");
 const shopifySource = readFileSync("src/mare-business-shopify.ts", "utf8");
 const completeShopifySource = readFileSync("src/mare-business-shopify-complete.ts", "utf8");
+const completeShopifyCompact = completeShopifySource.replace(/\s+/g, "");
 const marketplaceSource = readFileSync("src/mare-business-marketplace.ts", "utf8");
 const completeMarketplaceSource = readFileSync("src/mare-business-marketplace-complete.ts", "utf8");
 const tiktokSource = readFileSync("src/mare-business-tiktok.ts", "utf8");
@@ -54,9 +55,9 @@ for (const fragment of [
 ]) assert.ok(shopifySource.includes(fragment), `Missing canonical Shopify catalog field or artifact: ${fragment}`);
 
 for (const fragment of [
-  "pageInfo { hasNextPage endCursor }", "VARIANT_PAGE_QUERY", "loadAllVariants", "complete_variant_pagination: true",
-  "inventoryLevels(first: 250)", "collections(first: 250)", "media(first: 250)",
-]) assert.ok(completeShopifySource.includes(fragment), `Missing complete catalog pagination guard: ${fragment}`);
+  "pageInfo{hasNextPageendCursor}", "VARIANT_PAGE_QUERY", "loadAllVariants", "complete_variant_pagination:true",
+  "inventoryLevels(first:250)", "collections(first:250)", "media(first:250)",
+]) assert.ok(completeShopifyCompact.includes(fragment), `Missing complete catalog pagination guard: ${fragment}`);
 
 for (const fragment of [
   '"google_merchant"', '"meta_catalog"', '"tiktok_catalog"', '"amazon_json_listings"', '"spartoo_csv"', '"miinto_csv"',
