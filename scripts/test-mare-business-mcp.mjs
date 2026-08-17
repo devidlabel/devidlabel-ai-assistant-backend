@@ -57,7 +57,7 @@ for (const fragment of [
 
 for (const fragment of [
   "pageInfo{hasNextPageendCursor}", "VARIANT_PAGE_QUERY", "loadAllVariants", "complete_variant_pagination:true",
-  "inventoryLevels(first:250)", "collections(first:250)", "media(first:250)",
+  "inventoryLevels(first:10)", "collections(first:20)", "media(first:20)",
 ]) assert.ok(completeShopifyCompact.includes(fragment), `Missing complete catalog pagination guard: ${fragment}`);
 
 for (const fragment of [

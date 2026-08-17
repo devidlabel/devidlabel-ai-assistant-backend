@@ -26,8 +26,8 @@ type VariantPageData = { product?: { variants?: Connection<VariantNode> | null }
 type ProductPageData = { products?: Connection<ProductNode> };
 
 const MAX_PRODUCTS = 2500;
-const PRODUCT_PAGE_SIZE = 25;
-const VARIANT_PAGE_SIZE = 100;
+const PRODUCT_PAGE_SIZE = 3;
+const VARIANT_PAGE_SIZE = 20;
 
 const PRODUCT_QUERY = `
   query MareBusinessCatalogComplete($first: Int!, $after: String, $query: String) {
@@ -46,8 +46,8 @@ const PRODUCT_QUERY = `
         publishedAt
         descriptionHtml
         seo { title description }
-        collections(first: 250) { nodes { id handle title } }
-        media(first: 250) {
+        collections(first: 20) { nodes { id handle title } }
+        media(first: 20) {
           nodes {
             id
             mediaContentType
@@ -59,7 +59,7 @@ const PRODUCT_QUERY = `
             }
           }
         }
-        variants(first: 100) {
+        variants(first: 20) {
           pageInfo { hasNextPage endCursor }
           nodes {
             id
@@ -75,7 +75,7 @@ const PRODUCT_QUERY = `
               id
               tracked
               unitCost { amount currencyCode }
-              inventoryLevels(first: 250) {
+              inventoryLevels(first: 10) {
                 nodes {
                   id
                   location { id name }
@@ -109,7 +109,7 @@ const VARIANT_PAGE_QUERY = `
             id
             tracked
             unitCost { amount currencyCode }
-            inventoryLevels(first: 250) {
+            inventoryLevels(first: 10) {
               nodes {
                 id
                 location { id name }
