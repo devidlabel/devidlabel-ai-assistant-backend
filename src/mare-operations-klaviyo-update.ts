@@ -28,8 +28,9 @@ export function klaviyoCampaignUpdateConfiguration(env: KlaviyoOperationsEnv): J
   return {
     configured: configured(env),
     required_scopes: ["campaigns:read", "campaigns:write", "templates:write"],
-    supported_changes: ["campaign name", "email subject", "preview text", "assigned template", "HTML email body via managed CODE template"],
+    supported_changes: ["campaign name", "email subject", "preview text", "assigned template", "HTML email body via managed CODE template", "Smart Sending"],
     preserves_existing_sender_identity: true,
+    post_write_campaign_readback: true,
     draft_only: true,
     send_or_schedule_exposed: false,
   };
@@ -106,6 +107,19 @@ async function patchCampaignName(env: KlaviyoOperationsEnv, campaignId: string, 
   });
 }
 
+async function patchCampaignSmartSending(env: KlaviyoOperationsEnv, campaignId: string, useSmartSending: boolean): Promise<void> {
+  await klaviyoFetch(env, `/api/campaigns/${encodeURIComponent(campaignId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      data: {
+        type: "campaign",
+        id: campaignId,
+        attributes: { send_options: { use_smart_sending: useSmartSending } },
+      },
+    }),
+  });
+}
+
 async function patchCampaignMessage(env: KlaviyoOperationsEnv, messageId: string, subject: string, previewText: string): Promise<void> {
   const content: JsonObject = {};
   if (subject) content.subject = subject;
@@ -165,6 +179,8 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
   const requestedTemplateId = normalize(args.template_id);
   const htmlBody = typeof args.html_body === "string" ? args.html_body.trim() : "";
   const textBody = typeof args.text_body === "string" ? args.text_body.trim() : "";
+  const smartSendingRequested = typeof args.use_smart_sending === "boolean";
+  const useSmartSending = args.use_smart_sending === true;
 
   if (!isSafeIdentifier(campaignId)) throw new Error("invalid_campaign_id");
   if (messageId && !isSafeIdentifier(messageId)) throw new Error("invalid_campaign_message_id");
@@ -174,7 +190,7 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
   if (requestedTemplateId && !isSafeIdentifier(requestedTemplateId)) throw new Error("invalid_template_id");
   if (htmlBody && new TextEncoder().encode(htmlBody).byteLength > MAX_HTML_BYTES) throw new Error("klaviyo_html_body_too_large");
   if (textBody.length > 30000) throw new Error("klaviyo_text_body_too_large");
-  if (!campaignName && !subject && args.preview_text === undefined && !requestedTemplateId && !htmlBody) throw new Error("no_klaviyo_changes_requested");
+  if (!campaignName && !subject && args.preview_text === undefined && !requestedTemplateId && !htmlBody && !smartSendingRequested) throw new Error("no_klaviyo_changes_requested");
 
   const campaign = await getCampaign(env, campaignId);
   const status = campaignStatus(campaign);
@@ -185,6 +201,7 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
   const changes: string[] = [];
   let assignedTemplateId = requestedTemplateId;
   if (campaignName) { await patchCampaignName(env, campaignId, campaignName); changes.push("campaign_name"); }
+  if (smartSendingRequested) { await patchCampaignSmartSending(env, campaignId, useSmartSending); changes.push("smart_sending"); }
   if (subject || args.preview_text !== undefined) { await patchCampaignMessage(env, messageId, subject, previewText); changes.push("message_content"); }
   if (htmlBody) {
     assignedTemplateId = await createManagedHtmlTemplate(env, campaignId, htmlBody, textBody);
@@ -195,6 +212,11 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
     changes.push("template_assignment");
   }
 
+  const readbackCampaign = await getCampaign(env, campaignId);
+  const readbackAttributes = asObject(readbackCampaign.attributes);
+  const readbackSendOptions = asObject(readbackAttributes.send_options);
+  const readbackAudiences = asObject(readbackAttributes.audiences);
+
   return {
     ok: true,
     operation: "klaviyo_campaign_draft_update",
@@ -204,8 +226,17 @@ export async function updateKlaviyoCampaignDraft(args: JsonObject, env: KlaviyoO
     campaign_message_id: messageId || null,
     assigned_template_id: assignedTemplateId || null,
     changes,
+    readback: {
+      campaign_status: normalize(readbackAttributes.status) || null,
+      campaign_name: normalize(readbackAttributes.name) || null,
+      use_smart_sending: typeof readbackSendOptions.use_smart_sending === "boolean" ? readbackSendOptions.use_smart_sending : null,
+      audience_included_ids: Array.isArray(readbackAudiences.included) ? readbackAudiences.included : [],
+      audience_excluded_ids: Array.isArray(readbackAudiences.excluded) ? readbackAudiences.excluded : [],
+      scheduled_at: readbackAttributes.scheduled_at ?? null,
+    },
     safety: {
       draft_only_verified: true,
+      post_write_campaign_readback_performed: true,
       existing_sender_identity_preserved: true,
       send_or_schedule_performed: false,
       send_capability_exposed: false,
