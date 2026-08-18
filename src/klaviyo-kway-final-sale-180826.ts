@@ -235,13 +235,22 @@ function measurement(condition: JsonObject): JsonObject {
   return asObject(condition.measurement_filter);
 }
 
+function approximateDays(filter: JsonObject): number {
+  const quantity = Number(filter.quantity);
+  const unit = normalize(filter.unit);
+  if (unit === "day") return quantity;
+  if (unit === "week") return quantity * 7;
+  if (unit === "month") return quantity * 30;
+  return Number.NaN;
+}
+
 function isZeroOrder30Group(group: JsonObject): boolean {
   const rows = conditions(group);
   return rows.length > 0 && rows.every((item) => {
     const when = timeframe(item);
     const amount = measurement(item);
     return normalize(item.type) === "profile-metric" && Number(amount.value) === 0 &&
-      Number(when.quantity) === 30 && normalize(when.unit) === "day";
+      approximateDays(when) === 30;
   });
 }
 
@@ -255,7 +264,7 @@ function isOpened90Group(group: JsonObject): boolean {
   if (rows.length !== 1 || normalize(rows[0].type) !== "profile-metric") return false;
   const when = timeframe(rows[0]);
   const amount = measurement(rows[0]);
-  return Number(when.quantity) === 90 && normalize(when.unit) === "day" && Number(amount.value) >= 1;
+  return approximateDays(when) === 90 && Number(amount.value) >= 1;
 }
 
 function withCountAndWindow(condition: JsonObject, count: number, days: number | null): JsonObject {
