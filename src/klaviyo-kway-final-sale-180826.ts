@@ -313,6 +313,7 @@ function buildCohortDefinitions(engaged: JsonObject, historical: JsonObject): { 
 async function createOrReuseSegment(apiKey: string, name: string, definition: JsonObject): Promise<JsonObject> {
   const existing = await findSegmentByName(apiKey, name);
   if (existing) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     const full = await getSegment(apiKey, normalize(existing.id));
     if (JSON.stringify(segmentDefinition(full)) !== JSON.stringify(definition)) throw new Error(`existing_segment_definition_mismatch:${name}`);
     return full;
