@@ -264,7 +264,10 @@ function isOpened90Group(group: JsonObject): boolean {
   if (rows.length !== 1 || normalize(rows[0].type) !== "profile-metric") return false;
   const when = timeframe(rows[0]);
   const amount = measurement(rows[0]);
-  return approximateDays(when) === 90 && Number(amount.value) >= 1;
+  const operator = normalize(amount.operator);
+  const value = Number(amount.value);
+  const hasOpened = (operator === "greater-than" && value === 0) || value >= 1;
+  return approximateDays(when) === 90 && hasOpened;
 }
 
 function withCountAndWindow(condition: JsonObject, count: number, days: number | null): JsonObject {
