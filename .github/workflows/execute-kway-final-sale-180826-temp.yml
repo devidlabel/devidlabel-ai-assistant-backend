@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 jobs:
-  # Execute after stable main deployment of exact opened condition.
+  # Execute with bounded Klaviyo rate-limit backoff.
   execute:
     runs-on: ubuntu-latest
     timeout-minutes: 12
