@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 jobs:
-  # Read exact source definitions after stable main deployment.
+  # Execute after matching exact greater-than-zero opened condition.
   execute:
     runs-on: ubuntu-latest
     timeout-minutes: 12
