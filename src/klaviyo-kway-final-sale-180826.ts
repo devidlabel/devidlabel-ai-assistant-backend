@@ -174,7 +174,11 @@ async function kfetch(apiKey: string, path: string, init: RequestInit = {}): Pro
 }
 
 async function must(apiKey: string, path: string, init: RequestInit = {}): Promise<JsonObject> {
-  const result = await kfetch(apiKey, path, init);
+  let result = await kfetch(apiKey, path, init);
+  for (let attempt = 1; result.status === 429 && attempt <= 5; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1300 * attempt));
+    result = await kfetch(apiKey, path, init);
+  }
   if (result.ok) return result.body;
   const errors = Array.isArray(result.body.errors) ? result.body.errors : [];
   const first = errors.length ? asObject(errors[0]) : {};
