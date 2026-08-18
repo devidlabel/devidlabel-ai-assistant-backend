@@ -37,8 +37,8 @@ const SEND_AT = "2026-08-18T16:30:00+00:00";
 const SEND_AT_MS = Date.parse(SEND_AT);
 const SUBJECT = "K-Way Final Sale: ultime taglie fino al -50%";
 const PREVIEW = "Giubbotti e accessori K-Way in Final Sale. Le disponibilità migliori stanno terminando.";
-const COHORT_A_NAME = "DL | K-WAY FINAL SALE | ENGAGED90 | EXCL BUYERS14 | 180826 | V4";
-const COHORT_B_NAME = "DL | K-WAY FINAL SALE | HISTORICAL ALL TIME | DORMANT60 | OPEN0 90 | 180826 | V4";
+const COHORT_A_NAME = "DL | K-WAY FINAL SALE | ENGAGED90 | EXCL BUYERS14 | 180826 | V5";
+const COHORT_B_NAME = "DL | K-WAY FINAL SALE | HISTORICAL ALL TIME | DORMANT60 | OPEN0 90 | 180826 | V5";
 const CAMPAIGN_A_NAME = "DL | 2026-08-18 18:30 | K-WAY FINAL SALE | ENGAGED90";
 const CAMPAIGN_B_NAME = "DL | 2026-08-18 18:30 | K-WAY FINAL SALE | HISTORICAL K-WAY";
 const MARKETPLACE_NAME = "BC - Amazon, Spartoo and Ebay profiles";
@@ -465,7 +465,14 @@ async function estimateRecipients(apiKey: string, campaignId: string): Promise<n
   });
   for (let attempt = 0; attempt < 20; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    const job = await must(apiKey, `/api/campaign-recipient-estimation-jobs/${campaignId}`);
+    let job: JsonObject;
+    try {
+      job = await must(apiKey, `/api/campaign-recipient-estimation-jobs/${campaignId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes(":: 404 ::") && attempt < 19) continue;
+      throw error;
+    }
     const status = normalize(asObject(asObject(job.data).attributes).status);
     if (status === "complete") break;
     if (status === "cancelled") return 0;
