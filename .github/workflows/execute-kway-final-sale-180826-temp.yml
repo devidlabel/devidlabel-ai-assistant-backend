@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 jobs:
-  # Read exact source definitions before any provider mutation.
+  # Read exact source definitions after stable main deployment.
   execute:
     runs-on: ubuntu-latest
     timeout-minutes: 12
