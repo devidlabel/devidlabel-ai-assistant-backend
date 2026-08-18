@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 jobs:
-  # Execute with bounded Klaviyo rate-limit backoff.
+  # Complete drafts after spacing segment count reads.
   execute:
     runs-on: ubuntu-latest
     timeout-minutes: 12
