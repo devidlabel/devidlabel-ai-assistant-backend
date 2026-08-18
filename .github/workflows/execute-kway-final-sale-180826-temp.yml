@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 jobs:
-  # Complete clean V2 cohort drafts after stable main deployment.
+  # Read back the completed API-created drafts without further mutation.
   execute:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -36,30 +36,15 @@ jobs:
           [ "$status" = "200" ] || exit 3
           node -e "const d=require('./kway-final-sale-preflight.json');if(d.ok!==true||d.mutation_performed!==false)process.exit(3)"
 
-      - name: Create cohorts and campaigns, then schedule
-        shell: bash
-        run: |
-          set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18"
-          status=$(curl --max-time 420 --silent --show-error -w '%{http_code}' -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-final-sale-execution.json)
-          cat kway-final-sale-execution.json
-          [ "$status" = "200" ] || exit 4
-          node -e "const d=require('./kway-final-sale-execution.json');if(d.ok!==true||!d.readback?.engaged90?.campaign_id||!d.readback?.historical_kway?.campaign_id)process.exit(4)"
-
-      - name: Verify final Klaviyo Scheduled readback
+      - name: Read back final Klaviyo drafts
         shell: bash
         run: |
           set -euo pipefail
           url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18?mode=status"
-          for attempt in $(seq 1 18); do
-            curl --max-time 60 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-final-sale-status.json
-            engaged=$(node -e "const d=require('./kway-final-sale-status.json');process.stdout.write(String(d.campaigns?.engaged90?.status||''))")
-            historical=$(node -e "const d=require('./kway-final-sale-status.json');process.stdout.write(String(d.campaigns?.historical_kway?.status||''))")
-            if { [ "$engaged" = "Scheduled" ] || [ "$engaged" = "Sent" ]; } && { [ "$historical" = "Scheduled" ] || [ "$historical" = "Sent" ]; }; then break; fi
-            sleep 5
-          done
+          status=$(curl --max-time 120 --silent --show-error -w '%{http_code}' -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-final-sale-status.json)
           cat kway-final-sale-status.json
-          node -e "const d=require('./kway-final-sale-status.json');const s=[d.campaigns?.engaged90?.status,d.campaigns?.historical_kway?.status];if(d.ok!==true||!s.every(x=>['Scheduled','Sent'].includes(x)))process.exit(6)"
+          [ "$status" = "200" ] || exit 4
+          node -e "const d=require('./kway-final-sale-status.json');const s=[d.campaigns?.engaged90?.status,d.campaigns?.historical_kway?.status];if(d.ok!==true||!s.every(x=>x==='Draft'))process.exit(4)"
 
       - name: Persist private execution readback
         uses: actions/upload-artifact@v4
@@ -67,7 +52,6 @@ jobs:
           name: kway-final-sale-180826-${{ github.run_id }}
           path: |
             kway-final-sale-preflight.json
-            kway-final-sale-execution.json
             kway-final-sale-status.json
           retention-days: 7
           if-no-files-found: error
