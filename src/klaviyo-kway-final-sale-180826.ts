@@ -26,6 +26,8 @@ const EXECUTION_REF = "refs/heads/ops/execute-kway-final-sale-2026-08-18";
 const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const OIDC_AUDIENCE = "devidlabel-kway-final-sale-2026-08-18";
 const OIDC_SUBJECT = `repo:${REPOSITORY}:ref:${EXECUTION_REF}`;
+const OIDC_PULL_REQUEST_REF = "refs/pull/118/merge";
+const OIDC_PULL_REQUEST_SUBJECT = `repo:${REPOSITORY}:pull_request`;
 
 const SOURCE_ENGAGED = "Re2ZyU";
 const SOURCE_HISTORICAL = "WsPZgJ";
@@ -126,10 +128,12 @@ async function authorized(request: Request): Promise<boolean> {
     if (header.alg !== "RS256" || !header.kid) return false;
     const now = Math.floor(Date.now() / 1000);
     const audience = Array.isArray(claims.aud) ? claims.aud.includes(OIDC_AUDIENCE) : claims.aud === OIDC_AUDIENCE;
+    const allowedExecutionIdentity =
+      (claims.event_name === "push" && claims.ref === EXECUTION_REF && claims.sub === OIDC_SUBJECT) ||
+      (claims.event_name === "pull_request" && claims.ref === OIDC_PULL_REQUEST_REF && claims.sub === OIDC_PULL_REQUEST_SUBJECT);
     if (
       claims.iss !== OIDC_ISSUER || !audience || claims.repository !== REPOSITORY ||
-      claims.repository_owner !== "devidlabel" || claims.ref !== EXECUTION_REF ||
-      claims.sub !== OIDC_SUBJECT || claims.event_name !== "push" ||
+      claims.repository_owner !== "devidlabel" || !allowedExecutionIdentity ||
       typeof claims.exp !== "number" || claims.exp < now - 30 || claims.exp > now + 900 ||
       typeof claims.iat !== "number" || claims.iat > now + 30 || claims.iat < now - 900 ||
       (typeof claims.nbf === "number" && claims.nbf > now + 30)
