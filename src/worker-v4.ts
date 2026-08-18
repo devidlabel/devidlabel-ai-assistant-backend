@@ -2,6 +2,7 @@ import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
+import { handleKwayFinalSale180826 } from "./klaviyo-kway-final-sale-180826";
 
 export { MarePlanCoordinator };
 
@@ -22,6 +23,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const kwayFinalSaleResponse = await handleKwayFinalSale180826(request, env);
+    if (kwayFinalSaleResponse) return kwayFinalSaleResponse;
+
     const url = new URL(request.url);
     if (url.pathname === "/auth/youtube/start") {
       if (request.method !== "GET") return jsonResponse({ ok: false, provider: "youtube", error: "method_not_allowed" }, 405);
