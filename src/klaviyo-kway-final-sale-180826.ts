@@ -537,7 +537,21 @@ async function preflight(env: KwayFinalSaleEnv): Promise<JsonObject> {
   const engagedSource = await getSegment(apiKey, SOURCE_ENGAGED);
   await new Promise((resolve) => setTimeout(resolve, 1100));
   const historicalSource = await getSegment(apiKey, SOURCE_HISTORICAL);
-  const definitions = buildCohortDefinitions(engagedSource, historicalSource);
+  let definitions: { engaged: JsonObject; historical: JsonObject };
+  try {
+    definitions = buildCohortDefinitions(engagedSource, historicalSource);
+  } catch (error) {
+    return {
+      ok: false,
+      operation: "kway_final_sale_preflight",
+      mutation_performed: false,
+      error: error instanceof Error ? error.message : "segment_definition_error",
+      source_definitions: {
+        engaged: segmentDefinition(engagedSource),
+        historical: segmentDefinition(historicalSource),
+      },
+    };
+  }
   const productQa = await validateProducts();
   const overlap = await conflicts(apiKey);
   const wrongDraft = await campaignReadback(apiKey, WRONG_DRAFT_ID);
