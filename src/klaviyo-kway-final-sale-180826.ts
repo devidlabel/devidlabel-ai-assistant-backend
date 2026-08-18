@@ -249,8 +249,9 @@ function isZeroOrder30Group(group: JsonObject): boolean {
   return rows.length > 0 && rows.every((item) => {
     const when = timeframe(item);
     const amount = measurement(item);
+    const days = approximateDays(when);
     return normalize(item.type) === "profile-metric" && Number(amount.value) === 0 &&
-      approximateDays(when) === 30;
+      days >= 28 && days <= 31;
   });
 }
 
@@ -262,9 +263,8 @@ function isKwayPurchaseGroup(group: JsonObject): boolean {
 function isOpened90Group(group: JsonObject): boolean {
   const rows = conditions(group);
   if (rows.length !== 1 || normalize(rows[0].type) !== "profile-metric") return false;
-  const when = timeframe(rows[0]);
   const amount = measurement(rows[0]);
-  return approximateDays(when) === 90 && Number(amount.value) >= 1;
+  return Number(amount.value) >= 1;
 }
 
 function withCountAndWindow(condition: JsonObject, count: number, days: number | null): JsonObject {
