@@ -30,8 +30,9 @@ jobs:
         run: |
           set -euo pipefail
           url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18"
-          curl --max-time 120 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-final-sale-preflight.json
+          status=$(curl --max-time 120 --silent --show-error -w '%{http_code}' -H "Authorization: Bearer $OIDC_TOKEN" "$url" -o kway-final-sale-preflight.json)
           cat kway-final-sale-preflight.json
+          [ "$status" = "200" ] || exit 3
           node -e "const d=require('./kway-final-sale-preflight.json');if(d.ok!==true||d.mutation_performed!==false)process.exit(3)"
 
       - name: Create cohorts and campaigns, then schedule
