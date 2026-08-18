@@ -1,4 +1,4 @@
-name: TEMP Read Back K-Way Final Sale 18 Aug 2026
+name: TEMP Diagnose K-Way Final Sale 18 Aug 2026
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions:
   id-token: write
 
 jobs:
-  readback:
+  diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,31 +28,25 @@ jobs:
           token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
           echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
 
-      - name: Poll final Klaviyo readback
+      - name: Read live preflight and status
         shell: bash
         run: |
           set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18?mode=status"
-          for attempt in $(seq 1 72); do
-            curl --max-time 60 --fail --silent --show-error \
-              -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
-              -o ops/kway-final-sale-180826-final-readback.json
-            engaged=$(node -e "const d=require('./ops/kway-final-sale-180826-final-readback.json');process.stdout.write(String(d.campaigns?.engaged90?.status||''))")
-            historical=$(node -e "const d=require('./ops/kway-final-sale-180826-final-readback.json');process.stdout.write(String(d.campaigns?.historical_kway?.status||''))")
-            if { [ "$engaged" = "Scheduled" ] || [ "$engaged" = "Sent" ]; } && \
-               { [ "$historical" = "Scheduled" ] || [ "$historical" = "Sent" ]; }; then
-              exit 0
-            fi
-            sleep 5
-          done
-          exit 7
+          base="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18"
+          curl --max-time 120 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$base" -o /tmp/preflight.json
+          curl --max-time 120 --fail --silent --show-error -H "Authorization: Bearer $OIDC_TOKEN" "$base?mode=status" -o /tmp/status.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const body={captured_at:new Date().toISOString(),preflight:JSON.parse(fs.readFileSync('/tmp/preflight.json')),status:JSON.parse(fs.readFileSync('/tmp/status.json'))};
+          fs.writeFileSync('ops/kway-final-sale-180826-diagnostic.json',JSON.stringify(body,null,2)+'\n');
+          NODE
 
-      - name: Persist exact API readback
+      - name: Persist diagnostic readback
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "MARE Operations"
           git config user.email "operations@devidlabel.com"
-          git add ops/kway-final-sale-180826-final-readback.json
-          git commit -m "Persist K-Way Final Sale readback [skip ci]"
+          git add ops/kway-final-sale-180826-diagnostic.json
+          git commit -m "Persist K-Way Final Sale diagnostic [skip ci]"
           git push origin HEAD:ops/execute-kway-final-sale-2026-08-18
