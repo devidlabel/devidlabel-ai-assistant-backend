@@ -437,7 +437,15 @@ async function createCampaign(apiKey: string, name: string, audienceId: string, 
   return { id, messageId: createdMessageId, reused: false };
 }
 
-async function patchCampaignMessage(apiKey: string, campaign: { id: string; messageId: string }, senderIdentity: { from_email: string; from_label: string; reply_to_email: string }): Promise<void> {
+async function patchCampaignMessage(apiKey: string, campaign: { id: string; messageId: string }, audienceId: string, excludedId: string, senderIdentity: { from_email: string; from_label: string; reply_to_email: string }): Promise<void> {
+  await must(apiKey, `/api/campaigns/${campaign.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ data: { type: "campaign", id: campaign.id, attributes: {
+      audiences: { included: [audienceId], excluded: [excludedId] },
+      send_options: { use_smart_sending: false },
+      tracking_options: { add_tracking_params: true, custom_tracking_params: [], is_tracking_clicks: true, is_tracking_opens: true },
+    } } }),
+  });
   await must(apiKey, `/api/campaign-messages/${campaign.messageId}`, {
     method: "PATCH",
     body: JSON.stringify({ data: { type: "campaign-message", id: campaign.messageId, attributes: { definition: { channel: "email", content: {
@@ -606,8 +614,8 @@ async function execute(env: KwayFinalSaleEnv): Promise<JsonObject> {
   // PATCHes that repeat a static send_strategy after its timestamp has passed, even while the
   // campaign remains a Draft. Only refresh the message envelope here so interrupted executions
   // can safely resume and finish the creative without altering the intended audience or timing.
-  await patchCampaignMessage(apiKey, campaignA, senderIdentity);
-  await patchCampaignMessage(apiKey, campaignB, senderIdentity);
+  await patchCampaignMessage(apiKey, campaignA, normalize(cohortA.id), excludedId, senderIdentity);
+  await patchCampaignMessage(apiKey, campaignB, normalize(cohortB.id), excludedId, senderIdentity);
 
   const templateA = await createTemplate(apiKey, "DL | K-WAY FINAL SALE | ENGAGED90 | 180826", emailHtml("engaged90"));
   const templateB = await createTemplate(apiKey, "DL | K-WAY FINAL SALE | HISTORICAL K-WAY | 180826", emailHtml("historical_kway"));
