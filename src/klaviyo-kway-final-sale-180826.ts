@@ -437,17 +437,7 @@ async function createCampaign(apiKey: string, name: string, audienceId: string, 
   return { id, messageId: createdMessageId, reused: false };
 }
 
-async function patchCampaign(apiKey: string, campaign: { id: string; messageId: string }, name: string, audienceId: string, excludedId: string, senderIdentity: { from_email: string; from_label: string; reply_to_email: string }): Promise<void> {
-  await must(apiKey, `/api/campaigns/${campaign.id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ data: { type: "campaign", id: campaign.id, attributes: {
-      name,
-      audiences: { included: [audienceId], excluded: [excludedId] },
-      send_strategy: { method: "static", datetime: SEND_AT, options: { is_local: false } },
-      send_options: { use_smart_sending: false },
-      tracking_options: { add_tracking_params: true, custom_tracking_params: [], is_tracking_clicks: true, is_tracking_opens: true },
-    } } }),
-  });
+async function patchCampaignMessage(apiKey: string, campaign: { id: string; messageId: string }, senderIdentity: { from_email: string; from_label: string; reply_to_email: string }): Promise<void> {
   await must(apiKey, `/api/campaign-messages/${campaign.messageId}`, {
     method: "PATCH",
     body: JSON.stringify({ data: { type: "campaign-message", id: campaign.messageId, attributes: { definition: { channel: "email", content: {
@@ -612,8 +602,12 @@ async function execute(env: KwayFinalSaleEnv): Promise<JsonObject> {
   const excludedId = normalize(marketplace.id);
   const campaignA = await createCampaign(apiKey, CAMPAIGN_A_NAME, normalize(cohortA.id), excludedId, senderIdentity);
   const campaignB = await createCampaign(apiKey, CAMPAIGN_B_NAME, normalize(cohortB.id), excludedId, senderIdentity);
-  await patchCampaign(apiKey, campaignA, CAMPAIGN_A_NAME, normalize(cohortA.id), excludedId, senderIdentity);
-  await patchCampaign(apiKey, campaignB, CAMPAIGN_B_NAME, normalize(cohortB.id), excludedId, senderIdentity);
+  // The create payload already contains the complete campaign configuration. Klaviyo rejects
+  // PATCHes that repeat a static send_strategy after its timestamp has passed, even while the
+  // campaign remains a Draft. Only refresh the message envelope here so interrupted executions
+  // can safely resume and finish the creative without altering the intended audience or timing.
+  await patchCampaignMessage(apiKey, campaignA, senderIdentity);
+  await patchCampaignMessage(apiKey, campaignB, senderIdentity);
 
   const templateA = await createTemplate(apiKey, "DL | K-WAY FINAL SALE | ENGAGED90 | 180826", emailHtml("engaged90"));
   const templateB = await createTemplate(apiKey, "DL | K-WAY FINAL SALE | HISTORICAL K-WAY | 180826", emailHtml("historical_kway"));
@@ -630,7 +624,20 @@ async function execute(env: KwayFinalSaleEnv): Promise<JsonObject> {
     return { ok: false, operation: "kway_final_sale_execute", error: "recipient_estimation_zero", cohorts: { engaged90: { id: normalize(cohortA.id), count: cohortACount }, historical_kway: { id: normalize(cohortB.id), count: cohortBCount } }, estimates: { engaged90: recipientsA, historical_kway: recipientsB }, drafts };
   }
   if (Date.now() > SEND_AT_MS - 5 * 60 * 1000) {
-    return { ok: false, operation: "kway_final_sale_execute", error: "schedule_window_too_close", estimates: { engaged90: recipientsA, historical_kway: recipientsB }, drafts };
+    return {
+      ok: false,
+      operation: "kway_final_sale_execute",
+      error: "schedule_window_too_close",
+      generated_at: new Date().toISOString(),
+      target: { datetime: SEND_AT, timezone: "Europe/Rome", local: "2026-08-18 18:30" },
+      cohorts: { engaged90: { id: normalize(cohortA.id), count: cohortACount }, historical_kway: { id: normalize(cohortB.id), count: cohortBCount } },
+      estimates: { engaged90: recipientsA, historical_kway: recipientsB, deduplicated_total: recipientsA + recipientsB },
+      marketplace_exclusion: { id: excludedId, name: MARKETPLACE_NAME },
+      smart_sending: false,
+      templates: { engaged90: templateA, historical_kway: templateB },
+      products: PRODUCTS.map((product) => ({ category: product.category, name: product.name, url: product.url, stock: product.stock, discount: product.discount })),
+      drafts,
+    };
   }
 
   await schedule(apiKey, campaignA.id);
