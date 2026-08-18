@@ -1,0 +1,90 @@
+name: TEMP Execute K-Way Final Sale 18 Aug 2026
+
+on:
+  push:
+    branches:
+      - ops/execute-kway-final-sale-2026-08-18
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Fetch GitHub Actions OIDC token
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail --silent --show-error \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-kway-final-sale-2026-08-18")
+          token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
+          echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Run read-only operational preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18"
+          curl --max-time 120 --fail --silent --show-error \
+            -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
+            -o kway-final-sale-preflight.json
+          cat kway-final-sale-preflight.json
+          node - <<'NODE'
+          const d=require('./kway-final-sale-preflight.json');
+          if(d.ok!==true || d.mutation_performed!==false) process.exit(3);
+          NODE
+
+      - name: Create cohorts and campaigns, then schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18"
+          curl --max-time 420 --fail --silent --show-error \
+            -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
+            -o kway-final-sale-execution.json
+          cat kway-final-sale-execution.json
+          node - <<'NODE'
+          const d=require('./kway-final-sale-execution.json');
+          if(d.ok!==true) process.exit(4);
+          if(!d.readback?.engaged90?.campaign_id || !d.readback?.historical_kway?.campaign_id) process.exit(5);
+          NODE
+
+      - name: Verify final Klaviyo Scheduled readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/kway-final-sale-2026-08-18?mode=status"
+          for attempt in $(seq 1 18); do
+            curl --max-time 60 --fail --silent --show-error \
+              -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
+              -o kway-final-sale-status.json
+            engaged=$(node -e "const d=require('./kway-final-sale-status.json');process.stdout.write(String(d.campaigns?.engaged90?.status||''))")
+            historical=$(node -e "const d=require('./kway-final-sale-status.json');process.stdout.write(String(d.campaigns?.historical_kway?.status||''))")
+            echo "Klaviyo status: engaged90=$engaged historical_kway=$historical"
+            if { [ "$engaged" = "Scheduled" ] || [ "$engaged" = "Sent" ]; } && \
+               { [ "$historical" = "Scheduled" ] || [ "$historical" = "Sent" ]; }; then
+              break
+            fi
+            sleep 5
+          done
+          cat kway-final-sale-status.json
+          node - <<'NODE'
+          const d=require('./kway-final-sale-status.json');
+          const states=[d.campaigns?.engaged90?.status,d.campaigns?.historical_kway?.status];
+          if(d.ok!==true || !states.every(s=>['Scheduled','Sent'].includes(s))) process.exit(6);
+          NODE
+
+      - name: Upload private QA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kway-final-sale-180826-${{ github.run_id }}
+          path: |
+            kway-final-sale-preflight.json
+            kway-final-sale-execution.json
+            kway-final-sale-status.json
+          retention-days: 7
+          if-no-files-found: error
