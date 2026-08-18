@@ -22,6 +22,7 @@ jobs:
             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-kway-final-sale-2026-08-18")
           token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
+          node -e 'const p=process.argv[1].split(".")[1].replace(/-/g,"+").replace(/_/g,"/");const c=JSON.parse(Buffer.from(p,"base64url"));console.log(JSON.stringify({iss:c.iss,aud:c.aud,sub:c.sub,repository:c.repository,repository_owner:c.repository_owner,ref:c.ref,event_name:c.event_name}))' "$token"
           echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
 
       - name: Run read-only operational preflight
