@@ -1,0 +1,75 @@
+name: Deploy TORNA40 Readback 2026-08-19
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/deploy-torna40-readback-2026-08-19.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Deploy current main
+        id: deploy
+        if: steps.typecheck.outcome == 'success'
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+      - name: Live readback
+        id: readback
+        if: steps.deploy.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            code=$(curl -sS --max-time 25 -o /tmp/readback.json -w '%{http_code}' 'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/torna40-readback-2026-08-19' || true)
+            if [ "$code" = "200" ]; then cat /tmp/readback.json; exit 0; fi
+            sleep 3
+          done
+          echo "readback_http=$code" >&2
+          cat /tmp/readback.json 2>/dev/null || true
+          exit 1
+      - name: Publish deploy/readback status
+        if: always()
+        shell: bash
+        env:
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          READBACK_OUTCOME: ${{ steps.readback.outcome }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          raw=''
+          p=Path('/tmp/readback.json')
+          if p.exists(): raw=p.read_text(errors='replace')[:5000]
+          try: body=json.loads(raw) if raw else None
+          except: body={'raw':raw}
+          out={'typecheck':os.getenv('TYPECHECK_OUTCOME'),'deploy':os.getenv('DEPLOY_OUTCOME'),'readback':os.getenv('READBACK_OUTCOME'),'response':body}
+          Path('/tmp/status.json').write_text(json.dumps(out,indent=2,ensure_ascii=False))
+          print(json.dumps(out,ensure_ascii=False))
+          PY
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C ops/torna40-readback-report
+          mkdir -p ops/reports
+          cp /tmp/status.json ops/reports/torna40-readback-2026-08-19.json
+          git add ops/reports/torna40-readback-2026-08-19.json
+          git commit -m 'chore(data): TORNA40 readback deployment status' || true
+          git push --force origin HEAD:ops/torna40-readback-report
