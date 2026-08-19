@@ -3,6 +3,7 @@ import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mar
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
 import { handleKwayFinalSale180826 } from "./klaviyo-kway-final-sale-180826";
+import { handleTorna40Readback190826 } from "./shopify-torna40-readback-190826";
 
 export { MarePlanCoordinator };
 
@@ -23,6 +24,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const torna40ReadbackResponse = await handleTorna40Readback190826(request, env as any);
+    if (torna40ReadbackResponse) return torna40ReadbackResponse;
+
     const kwayFinalSaleResponse = await handleKwayFinalSale180826(request, env);
     if (kwayFinalSaleResponse) return kwayFinalSaleResponse;
 
