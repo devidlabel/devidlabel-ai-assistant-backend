@@ -1,0 +1,48 @@
+{
+  "typecheck": "success",
+  "deploy": "success",
+  "readback": "success",
+  "response": {
+    "ok": true,
+    "operation": "torna40_readback",
+    "code": "TORNA40",
+    "exists": true,
+    "node_id": "gid://shopify/DiscountCodeNode/1822389109077",
+    "discount": {
+      "title": "Customer Reactivation | TORNA40 | Agosto 2026",
+      "status": "ACTIVE",
+      "startsAt": "2026-08-19T08:00:00Z",
+      "endsAt": "2026-08-24T21:59:59Z",
+      "appliesOncePerCustomer": true,
+      "usageLimit": 65,
+      "asyncUsageCount": 0,
+      "combinesWith": {
+        "orderDiscounts": false,
+        "productDiscounts": false,
+        "shippingDiscounts": false
+      },
+      "minimumRequirement": {
+        "greaterThanOrEqualToSubtotal": {
+          "amount": "149.0",
+          "currencyCode": "EUR"
+        }
+      },
+      "customerGets": {
+        "value": {
+          "amount": {
+            "amount": "40.0",
+            "currencyCode": "EUR"
+          },
+          "appliesOnEachItem": false
+        }
+      },
+      "codes": {
+        "nodes": [
+          {
+            "code": "TORNA40"
+          }
+        ]
+      }
+    }
+  }
+}
