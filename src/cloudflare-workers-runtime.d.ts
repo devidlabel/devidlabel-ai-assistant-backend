@@ -4,6 +4,7 @@ declare module "cloudflare:workers" {
       storage: {
         get<T = unknown>(key: string): Promise<T | undefined>;
         put(key: string, value: unknown): Promise<void>;
+        setAlarm(scheduledTime: number | Date): Promise<void>;
         transaction<T>(callback: (txn: {
           get<U = unknown>(key: string): Promise<U | undefined>;
           put(key: string, value: unknown): Promise<void>;
