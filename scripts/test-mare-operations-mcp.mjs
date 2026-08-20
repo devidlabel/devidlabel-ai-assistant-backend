@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 const source = readFileSync("src/mare-operations-mcp.ts", "utf8");
 const permissionsSource = readFileSync("src/mare-operations-permissions.ts", "utf8");
+const policySource = readFileSync("src/mare-autonomy-policy.ts", "utf8");
+const runnerSource = readFileSync("src/mare-autonomy-runner.ts", "utf8");
 const metaSource = readFileSync("src/mare-operations-meta.ts", "utf8");
 const githubSource = readFileSync("src/mare-operations-github.ts", "utf8");
 const googleSource = readFileSync("src/mare-operations-google-ads.ts", "utf8");
@@ -28,11 +30,27 @@ for (const fragment of [
   'risk_tiered_autonomy',
   'reversible_safe_writes_mode: "AUTO+LOG"',
   'live_writes_require_confirmation: true',
-  'shopify.metafields.update_existing',
+  'MARE_AUTO_LOG_CAPABILITIES',
+  'policy_source: "mare-autonomy-policy"',
   'compareDigest compare-and-set',
+  'aggregate list and segment audience read',
+  'aggregate email-marketing consent read',
+  'campaign create paused',
+  'marketing_api_bridge_configured',
   'required_upstream_permissions: ["ads_read", "ads_management"]',
   'required_account_role: "STANDARD or higher for mutations"',
 ]) assert.ok(permissionsSource.includes(fragment), `Missing permissions audit fragment: ${fragment}`);
+
+for (const capability of [
+  "klaviyo.campaign.draft.create",
+  "klaviyo.campaign.draft.update",
+  "github.pull_request.create",
+  "shopify.metafields.update_existing",
+]) assert.ok(policySource.includes(`"${capability}"`), `Missing shared AUTO+LOG capability: ${capability}`);
+assert.ok(policySource.includes('MARE_AUTONOMY_POLICY_VERSION = "p3"'));
+assert.ok(runnerSource.includes('from "./mare-autonomy-policy.js"'));
+assert.ok(runnerSource.includes('enum: [...MARE_AUTO_LOG_CAPABILITIES]'));
+assert.equal(runnerSource.includes("const AUTO_CAPABILITIES = new Set"), false, "Runner must not own a duplicate autonomy allowlist");
 
 for (const [text, fragment] of [
   [metaSource, 'ACTIVATE META ADS'],
@@ -75,6 +93,7 @@ const { handleMareOperationsMcpRequest } = await import(`file://${join(out, "mar
 const endpoint = "https://worker.test/mcp-operations";
 const env = {
   MARE_OPS_ACCESS_TOKEN: "ops-secret",
+  KLAVIYO_PRIVATE_API_KEY: "klaviyo-read-secret",
   KLAVIYO_OPERATIONS_API_KEY: "klaviyo-write-secret",
   KLAVIYO_DEFAULT_FROM_EMAIL: "operations@example.test",
   KLAVIYO_DEFAULT_FROM_LABEL: "MARE Test",
@@ -94,6 +113,8 @@ const env = {
   SEARCH_CONSOLE_SITE_URL: "sc-domain:devidlabel.com",
   GITHUB_OPERATIONS_TOKEN: "github-token",
   GITHUB_OPERATIONS_REPOSITORIES: "devidlabel/devidlabel-ai-assistant-backend,devidlabel/devidlabel-shopify-theme",
+  TIKTOK_ACCESS_TOKEN: "tiktok-access",
+  TIKTOK_ADVERTISER_ID: "123456789",
 };
 
 function rpc(method, params = {}, id = 1) {
@@ -147,21 +168,33 @@ const auditResponse = await handleMareOperationsMcpRequest(
 );
 const auditBody = await auditResponse.json();
 assert.equal(auditBody.result.isError, false);
-assert.equal(auditBody.result.structuredContent.policy.model, "risk_tiered_autonomy");
-assert.equal(auditBody.result.structuredContent.policy.reversible_safe_writes_require_confirmation, false);
-assert.equal(auditBody.result.structuredContent.policy.reversible_safe_writes_mode, "AUTO+LOG");
-assert.equal(auditBody.result.structuredContent.policy.live_writes_require_confirmation, true);
-assert.equal(auditBody.result.structuredContent.policy.autonomous_execution_persists_beyond_chat_session, true);
-assert.deepEqual(auditBody.result.structuredContent.policy.autonomous_capabilities_p1, [
+const audit = auditBody.result.structuredContent;
+assert.equal(audit.policy.model, "risk_tiered_autonomy");
+assert.equal(audit.policy.policy_version, "p3");
+assert.equal(audit.policy.policy_source, "mare-autonomy-policy");
+assert.equal(audit.policy.reversible_safe_writes_require_confirmation, false);
+assert.equal(audit.policy.reversible_safe_writes_mode, "AUTO+LOG");
+assert.equal(audit.policy.live_writes_require_confirmation, true);
+assert.equal(audit.policy.autonomous_execution_persists_beyond_chat_session, true);
+assert.deepEqual(audit.policy.autonomous_capabilities, [
   "klaviyo.campaign.draft.create",
   "klaviyo.campaign.draft.update",
   "github.pull_request.create",
   "shopify.metafields.update_existing",
 ]);
-assert.equal(auditBody.result.structuredContent.providers.shopify.autonomy_mode, "AUTO+LOG for existing custom Product/ProductVariant metafields only");
-assert.equal(auditBody.result.structuredContent.providers.shopify.safety_controls.includes("compareDigest compare-and-set"), true);
-assert.equal(auditBody.result.structuredContent.providers.github.configured, true);
+assert.equal(audit.providers.shopify.autonomy_mode, "AUTO+LOG for existing custom Product/ProductVariant metafields only");
+assert.equal(audit.providers.shopify.safety_controls.includes("compareDigest compare-and-set"), true);
+assert.equal(audit.providers.klaviyo.aggregate_crm_reads_configured, true);
+assert.equal(audit.providers.klaviyo.implemented_operations.includes("aggregate list and segment audience read"), true);
+assert.equal(audit.providers.klaviyo.implemented_operations.includes("aggregate email-marketing consent read"), true);
+assert.equal(audit.providers.klaviyo.read_data_policy, "aggregate CRM reads return no individual contact data");
+assert.equal(audit.providers.tiktok_ads.configured, true);
+assert.equal(audit.providers.tiktok_ads.status, "marketing_api_bridge_configured");
+assert.equal(audit.providers.tiktok_ads.implemented_operations.includes("campaign create paused"), true);
+assert.equal(audit.providers.github.configured, true);
 assert.equal(JSON.stringify(auditBody).includes("github-token"), false);
+assert.equal(JSON.stringify(auditBody).includes("klaviyo-read-secret"), false);
+assert.equal(JSON.stringify(auditBody).includes("tiktok-access"), false);
 
 const previewResponse = await handleMareOperationsMcpRequest(
   request(rpc("tools/call", {
@@ -259,7 +292,9 @@ console.log(JSON.stringify({
   controlled_write_tools: 5,
   exact_confirmations_required_for_direct_live_execution: true,
   reversible_safe_autonomy_mode: "AUTO+LOG",
+  shared_autonomy_policy: true,
   autonomous_capabilities: 4,
+  provider_audit_current: true,
   external_writes_enabled: true,
   irreversible_actions_enabled: false,
   secret_values_exposed: false,
