@@ -33,6 +33,14 @@ id = "1677a2da44da455fa3b15977ff0099e4"
 name = "MARE_PLAN_COORDINATOR"
 class_name = "MarePlanCoordinator"
 
+[[durable_objects.bindings]]
+name = "MARE_AUTONOMY_RUNNER"
+class_name = "MareAutonomyRunner"
+
 [[migrations]]
 tag = "v1_mare_plan_coordinator"
 new_sqlite_classes = ["MarePlanCoordinator"]
+
+[[migrations]]
+tag = "v2_mare_autonomy_runner"
+new_sqlite_classes = ["MareAutonomyRunner"]
