@@ -33,6 +33,9 @@ for (const fragment of [
   'MARE_AUTO_LOG_CAPABILITIES',
   'policy_source: "mare-autonomy-policy"',
   'compareDigest compare-and-set',
+  'compareDigest null create-if-absent',
+  'assign missing Product features.season from product_feature_season metaobject',
+  'shopify.product.season.assign_missing via mare_autonomy_submit',
   'aggregate list and segment audience read',
   'aggregate email-marketing consent read',
   'campaign create paused',
@@ -46,8 +49,11 @@ for (const capability of [
   "klaviyo.campaign.draft.update",
   "github.pull_request.create",
   "shopify.metafields.update_existing",
+  "shopify.product.season.assign_missing",
 ]) assert.ok(policySource.includes(`"${capability}"`), `Missing shared AUTO+LOG capability: ${capability}`);
-assert.ok(policySource.includes('MARE_AUTONOMY_POLICY_VERSION = "p3"'));
+assert.ok(policySource.includes('MARE_AUTONOMY_POLICY_VERSION = "p4"'));
+assert.ok(policySource.includes('metaobject_type: "product_feature_season"'));
+assert.ok(policySource.includes('overwrite_allowed: false'));
 assert.ok(runnerSource.includes('from "./mare-autonomy-policy.js"'));
 assert.ok(runnerSource.includes('enum: [...MARE_AUTO_LOG_CAPABILITIES]'));
 assert.equal(runnerSource.includes("const AUTO_CAPABILITIES = new Set"), false, "Runner must not own a duplicate autonomy allowlist");
@@ -170,7 +176,7 @@ const auditBody = await auditResponse.json();
 assert.equal(auditBody.result.isError, false);
 const audit = auditBody.result.structuredContent;
 assert.equal(audit.policy.model, "risk_tiered_autonomy");
-assert.equal(audit.policy.policy_version, "p3");
+assert.equal(audit.policy.policy_version, "p4");
 assert.equal(audit.policy.policy_source, "mare-autonomy-policy");
 assert.equal(audit.policy.reversible_safe_writes_require_confirmation, false);
 assert.equal(audit.policy.reversible_safe_writes_mode, "AUTO+LOG");
@@ -181,9 +187,13 @@ assert.deepEqual(audit.policy.autonomous_capabilities, [
   "klaviyo.campaign.draft.update",
   "github.pull_request.create",
   "shopify.metafields.update_existing",
+  "shopify.product.season.assign_missing",
 ]);
-assert.equal(audit.providers.shopify.autonomy_mode, "AUTO+LOG for existing custom Product/ProductVariant metafields only");
-assert.equal(audit.providers.shopify.safety_controls.includes("compareDigest compare-and-set"), true);
+assert.equal(audit.providers.shopify.autonomy_mode, "AUTO+LOG for existing custom metafields plus missing-only Product features.season assignment");
+assert.equal(audit.providers.shopify.implemented_operations.includes("assign missing Product features.season from product_feature_season metaobject"), true);
+assert.equal(audit.providers.shopify.exposed_write_tools.includes("shopify.product.season.assign_missing via mare_autonomy_submit"), true);
+assert.equal(audit.providers.shopify.safety_controls.includes("season assignment: compareDigest null create-if-absent"), true);
+assert.equal(audit.providers.shopify.approval_required_for.includes("overwrite existing season"), true);
 assert.equal(audit.providers.klaviyo.aggregate_crm_reads_configured, true);
 assert.equal(audit.providers.klaviyo.implemented_operations.includes("aggregate list and segment audience read"), true);
 assert.equal(audit.providers.klaviyo.implemented_operations.includes("aggregate email-marketing consent read"), true);
@@ -293,7 +303,8 @@ console.log(JSON.stringify({
   exact_confirmations_required_for_direct_live_execution: true,
   reversible_safe_autonomy_mode: "AUTO+LOG",
   shared_autonomy_policy: true,
-  autonomous_capabilities: 4,
+  autonomous_capabilities: 5,
+  bounded_missing_season_autonomy: true,
   provider_audit_current: true,
   external_writes_enabled: true,
   irreversible_actions_enabled: false,

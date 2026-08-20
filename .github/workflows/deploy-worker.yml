@@ -74,6 +74,9 @@ jobs:
       - name: Test bounded Shopify metafield autonomy
         run: npm run test:shopify-metafields
 
+      - name: Test missing Shopify season autonomy
+        run: npm run test:shopify-season
+
       - name: Test Klaviyo reporting resilience
         run: npm run test:klaviyo-reporting
 
@@ -143,6 +146,7 @@ jobs:
             'klaviyo.campaign.draft.update',
             'github.pull_request.create',
             'shopify.metafields.update_existing',
+            'shopify.product.season.assign_missing',
           ];
           const missingCapabilities = requiredCapabilities.filter(name => !capabilityEnum.includes(name));
           console.log(JSON.stringify({
@@ -257,6 +261,7 @@ jobs:
             worker_url: 'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev',
             verification: outcomes,
             shopify_existing_metafield_autonomy: capabilityEnum.includes('shopify.metafields.update_existing'),
+            shopify_missing_season_autonomy: capabilityEnum.includes('shopify.product.season.assign_missing'),
             autonomy_capabilities: capabilityEnum,
           };
           fs.writeFileSync('/tmp/mare-deploy-receipt.json', JSON.stringify(receipt, null, 2) + '\n');

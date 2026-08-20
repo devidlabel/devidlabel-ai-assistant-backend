@@ -2,6 +2,7 @@ import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
 import { updateExistingShopifyMetafields } from "./mare-business-shopify-metafields.js";
+import { assignMissingShopifyProductSeasons } from "./mare-business-shopify-season.js";
 import {
   generateMarketplaceFeedComplete,
   generateMatrixifyCatalogComplete,
@@ -52,6 +53,7 @@ type StoredPlan = {
 
 const PLAN_TTL_SECONDS = 24 * 60 * 60;
 const SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing";
+const SHOPIFY_SEASON_CAPABILITY_ID = "shopify.product.season.assign_missing";
 const TIKTOK_CAPABILITIES = new Set([
   "tiktok.authorization.status",
   "tiktok.authorization.start",
@@ -203,6 +205,44 @@ function shopifyMetafieldCapability(env: SafeBusinessEnv): MareBusinessCapabilit
   };
 }
 
+function shopifySeasonCapability(env: SafeBusinessEnv): MareBusinessCapability {
+  const configured = Boolean(normalize(env.SHOPIFY_SHOP_DOMAIN) && env.SHOPIFY_TOKENS_KV);
+  return {
+    id: SHOPIFY_SEASON_CAPABILITY_ID,
+    provider: "shopify",
+    domain: "catalog",
+    operation: "execute",
+    risk: "reversible_write",
+    implemented: true,
+    configured,
+    available: configured,
+    approval: "explicit",
+    description: "Assign the Shopify Product features.season metaobject_reference only when it is currently missing. The referenced product_feature_season handle must resolve before an atomic compareDigest-null create-if-absent write; existing seasons are never overwritten.",
+    request_schema: {
+      type: "object",
+      properties: {
+        assignments: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: {
+            type: "object",
+            properties: {
+              product_id: { type: "string", pattern: "^gid://shopify/Product/[0-9]+$" },
+              season_reference: { type: "string", pattern: "^product_feature_season\\.[a-z0-9][a-z0-9-]{0,99}$" },
+            },
+            required: ["product_id", "season_reference"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["assignments"],
+      additionalProperties: false,
+    },
+    missing: configured ? [] : ["Shopify OAuth/KV with read_metaobjects and write_products"],
+  };
+}
+
 async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessCapability[]> {
   const status = await tiktokSafeAuthorizationStatus(env);
   const authorized = status.authorized === true;
@@ -224,6 +264,11 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
   const existingShopifyMetafield = capabilities.findIndex((item) => item.id === SHOPIFY_METAFIELD_CAPABILITY_ID);
   if (existingShopifyMetafield >= 0) capabilities[existingShopifyMetafield] = shopifyMetafield;
   else capabilities.push(shopifyMetafield);
+
+  const shopifySeason = shopifySeasonCapability(env);
+  const existingShopifySeason = capabilities.findIndex((item) => item.id === SHOPIFY_SEASON_CAPABILITY_ID);
+  if (existingShopifySeason >= 0) capabilities[existingShopifySeason] = shopifySeason;
+  else capabilities.push(shopifySeason);
 
   return capabilities;
 }
@@ -323,6 +368,37 @@ async function prepareShopifyMetafieldWrite(
   });
 }
 
+async function prepareShopifySeasonWrite(
+  capability: MareBusinessCapability,
+  requestPayload: JsonObject,
+  env: SafeBusinessEnv,
+): Promise<JsonObject> {
+  const plan = createPlan(capability, requestPayload);
+  await storePlan(plan, env);
+  return textToolResult({
+    ok: true,
+    status: "prepared",
+    plan,
+    required_confirmation: "EXECUTE MARE PLAN",
+    immutable_request: true,
+    external_write_performed: false,
+    guardrails: {
+      missing_only: true,
+      owner_type: "Product",
+      namespace: "features",
+      key: "season",
+      type: "metaobject_reference",
+      metaobject_type: "product_feature_season",
+      compare_digest_null_create_if_absent: true,
+      overwrite_existing_allowed: false,
+      arbitrary_metafield_creation_allowed: false,
+      delete_allowed: false,
+      read_before_write: true,
+      read_after_write: true,
+    },
+  });
+}
+
 async function executeTikTokPlan(
   plan: StoredPlan,
   confirmation: string,
@@ -406,6 +482,37 @@ async function executeShopifyMetafieldPlan(
   }
 }
 
+async function executeShopifySeasonPlan(
+  plan: StoredPlan,
+  confirmation: string,
+  env: SafeBusinessEnv,
+): Promise<JsonObject> {
+  if (confirmation !== "EXECUTE MARE PLAN") throw new Error("approval_confirmation_required:EXECUTE MARE PLAN");
+  if (plan.status === "completed") return textToolResult({ ok: true, status: "completed", idempotent_replay: true, plan });
+  if (plan.status === "failed" || plan.status === "reconciliation_required") throw new Error("plan_reconciliation_required");
+  if (plan.status === "cancelled") throw new Error("plan_cancelled");
+  if (plan.status === "executing") throw new Error("plan_already_executing");
+  if (Date.parse(plan.expires_at) <= Date.now()) throw new Error("plan_expired");
+  const capability = await resolveCapability(plan.capability_id, env);
+  if (!capability?.available) throw new Error(`capability_no_longer_available:${capability?.missing.join(",") || "unknown"}`);
+
+  plan.status = "executing";
+  await storePlan(plan, env);
+  try {
+    const result = await assignMissingShopifyProductSeasons(plan.request, env);
+    plan.status = "completed";
+    plan.executed_at = new Date().toISOString();
+    plan.result_summary = result;
+    await storePlan(plan, env);
+    return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
+  } catch (error) {
+    plan.status = "reconciliation_required";
+    plan.error = error instanceof Error ? error.message : "shopify_season_plan_execution_failed";
+    await storePlan(plan, env);
+    throw error;
+  }
+}
+
 async function delegateAndReadJson(request: Request, env: SafeBusinessEnv): Promise<{ response: Response; body: JsonObject }> {
   const response = await handleMareBusinessMcpRequest(request, env as any);
   if (!response) throw new Error("business_mcp_handler_not_found");
@@ -466,6 +573,7 @@ export async function handleMareBusinessMcpSafeRequest(
           complete_variant_pagination: true,
           correct_regular_and_sale_price_mapping: true,
           shopify_existing_metafields_first_class: true,
+          shopify_missing_season_first_class: true,
         },
       };
       return rpcToolResponse(request, rpc.id, textToolResult(payload));
@@ -503,11 +611,15 @@ export async function handleMareBusinessMcpSafeRequest(
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, await prepareShopifyMetafieldWrite(capability, requestPayload, env));
       }
+      if (capabilityId === SHOPIFY_SEASON_CAPABILITY_ID) {
+        if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
+        return rpcToolResponse(request, rpc.id, await prepareShopifySeasonWrite(capability, requestPayload, env));
+      }
     }
 
     if (toolName === "mare_validate") {
       const plan = await loadPlan(normalize(args.plan_id), env);
-      if (TIKTOK_CAPABILITIES.has(plan.capability_id) || plan.capability_id === SHOPIFY_METAFIELD_CAPABILITY_ID) {
+      if (TIKTOK_CAPABILITIES.has(plan.capability_id) || [SHOPIFY_METAFIELD_CAPABILITY_ID, SHOPIFY_SEASON_CAPABILITY_ID].includes(plan.capability_id)) {
         const capability = await resolveCapability(plan.capability_id, env);
         return rpcToolResponse(request, rpc.id, textToolResult({
           ok: true,
@@ -530,6 +642,9 @@ export async function handleMareBusinessMcpSafeRequest(
       }
       if (plan.capability_id === SHOPIFY_METAFIELD_CAPABILITY_ID) {
         return rpcToolResponse(request, rpc.id, await executeShopifyMetafieldPlan(plan, normalize(args.approval_confirmation), env));
+      }
+      if (plan.capability_id === SHOPIFY_SEASON_CAPABILITY_ID) {
+        return rpcToolResponse(request, rpc.id, await executeShopifySeasonPlan(plan, normalize(args.approval_confirmation), env));
       }
     }
   } catch (error) {
