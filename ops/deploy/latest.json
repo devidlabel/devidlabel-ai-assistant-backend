@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "generated_at": "2026-08-20T17:08:16.060Z",
+  "source_commit": "78af2fc7b7b323420489c9d9b6f6f9b1b9b1d4f0",
+  "workflow_run_id": 32395814598,
+  "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
+  "verification": {
+    "worker_deployed": true,
+    "autonomy_discovery": true,
+    "shopify_existing_metafield_autonomy": true,
+    "live_order_probe": true,
+    "shopify_historical_orders": true,
+    "youtube_read_only": true
+  },
+  "autonomy_capabilities": [
+    "klaviyo.campaign.draft.create",
+    "klaviyo.campaign.draft.update",
+    "github.pull_request.create",
+    "shopify.metafields.update_existing"
+  ]
+}
