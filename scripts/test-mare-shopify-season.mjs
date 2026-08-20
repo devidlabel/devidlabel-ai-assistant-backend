@@ -24,6 +24,7 @@ const PRODUCT_ID = "gid://shopify/Product/123";
 const METAOBJECT_ID = "gid://shopify/Metaobject/99";
 const calls = [];
 let phase = "success";
+let mutationSeen = false;
 
 function response(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -49,6 +50,7 @@ globalThis.fetch = async (url, init) => {
       value: METAOBJECT_ID,
       compareDigest: null,
     });
+    mutationSeen = true;
     return response({ data: { metafieldsSet: { metafields: [{ id: "gid://shopify/Metafield/7", namespace: "features", key: "season", type: "metaobject_reference", value: METAOBJECT_ID, compareDigest: "digest-new" }], userErrors: [] } } });
   }
 
@@ -56,8 +58,7 @@ globalThis.fetch = async (url, init) => {
     if (phase === "existing") {
       return response({ data: { p0: { __typename: "Product", id: PRODUCT_ID, metafield: { id: "gid://shopify/Metafield/6", namespace: "features", key: "season", type: "metaobject_reference", value: "gid://shopify/Metaobject/88", compareDigest: "digest-existing", reference: { id: "gid://shopify/Metaobject/88", handle: "spring-summer", type: "product_feature_season" } } } } });
     }
-    const mutationAlreadyCalled = calls.some((call) => call.query.includes("mutation MareAssignMissingProductSeason"));
-    return response({ data: { p0: { __typename: "Product", id: PRODUCT_ID, metafield: mutationAlreadyCalled ? { id: "gid://shopify/Metafield/7", namespace: "features", key: "season", type: "metaobject_reference", value: METAOBJECT_ID, compareDigest: "digest-new", reference: { id: METAOBJECT_ID, handle: "continuous", type: "product_feature_season" } } : null } } });
+    return response({ data: { p0: { __typename: "Product", id: PRODUCT_ID, metafield: mutationSeen ? { id: "gid://shopify/Metafield/7", namespace: "features", key: "season", type: "metaobject_reference", value: METAOBJECT_ID, compareDigest: "digest-new", reference: { id: METAOBJECT_ID, handle: "continuous", type: "product_feature_season" } } : null } } });
   }
 
   return response({ errors: [{ message: "unexpected query" }] }, 400);
@@ -107,12 +108,14 @@ await assert.rejects(
 assert.equal(calls.length, beforeUnresolved + 1, "unresolved metaobject must stop before product read or mutation");
 
 phase = "existing";
+mutationSeen = false;
 const beforeExisting = calls.length;
 await assert.rejects(
   () => assignMissingShopifyProductSeasons({ assignments: [{ product_id: PRODUCT_ID, season_reference: "product_feature_season.continuous" }] }, env),
   /shopify_season_must_be_missing/,
 );
 assert.equal(calls.length, beforeExisting + 2, "existing season must stop after metaobject resolve and pre-read, before mutation");
+assert.equal(mutationSeen, false, "existing season must never reach the mutation");
 
 const safeSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
 const policySource = readFileSync("src/mare-autonomy-policy.ts", "utf8");
