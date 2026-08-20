@@ -1,3 +1,9 @@
+import {
+  MARE_AUTO_LOG_CAPABILITIES,
+  MARE_AUTONOMY_POLICY_VERSION,
+  MARE_SHOPIFY_METAFIELD_GUARDRAILS,
+} from "./mare-autonomy-policy.js";
+
 type JsonObject = Record<string, unknown>;
 
 export type OperationsPermissionsEnv = {
@@ -54,23 +60,21 @@ export function buildOperationsPermissionsAudit(env: OperationsPermissionsEnv): 
       ? "user_oauth"
       : "unconfigured";
   const allowedGithubRepos = githubRepositories(env);
+  const tiktokConfigured = bool(env.TIKTOK_ACCESS_TOKEN) && bool(env.TIKTOK_ADVERTISER_ID);
 
   return {
     ok: true,
     generated_at: new Date().toISOString(),
     policy: {
       model: "risk_tiered_autonomy",
+      policy_version: MARE_AUTONOMY_POLICY_VERSION,
+      policy_source: "mare-autonomy-policy",
       reads_require_confirmation: false,
       reversible_safe_writes_require_confirmation: false,
       reversible_safe_writes_mode: "AUTO+LOG",
       live_writes_require_confirmation: true,
       irreversible_actions_require_separate_confirmation: true,
-      autonomous_capabilities_p1: [
-        "klaviyo.campaign.draft.create",
-        "klaviyo.campaign.draft.update",
-        "github.pull_request.create",
-        "shopify.metafields.update_existing",
-      ],
+      autonomous_capabilities: [...MARE_AUTO_LOG_CAPABILITIES],
       autonomous_execution_persists_beyond_chat_session: true,
       raw_secret_values_exposed: false,
     },
@@ -86,7 +90,7 @@ export function buildOperationsPermissionsAudit(env: OperationsPermissionsEnv): 
         exposed_write_tools: ["shopify.metafields.update_existing via mare_autonomy_submit"],
         autonomy_mode: "AUTO+LOG for existing custom Product/ProductVariant metafields only",
         safety_controls: [
-          "maximum 25 metafields per atomic mutation",
+          `maximum ${MARE_SHOPIFY_METAFIELD_GUARDRAILS.maximum_items_per_atomic_write} metafields per atomic mutation`,
           "existing metafields only",
           "namespace custom only",
           "Product and ProductVariant owners only",
@@ -101,13 +105,22 @@ export function buildOperationsPermissionsAudit(env: OperationsPermissionsEnv): 
       },
       klaviyo: {
         reporting_configured: bool(env.KLAVIYO_PRIVATE_API_KEY),
+        aggregate_crm_reads_configured: bool(env.KLAVIYO_PRIVATE_API_KEY),
         operations_configured: bool(env.KLAVIYO_OPERATIONS_API_KEY),
+        required_read_scopes: ["lists:read", "segments:read", "profiles:read"],
         required_operations_scopes: ["campaigns:read", "campaigns:write"],
-        implemented_operations: ["create campaign draft", "update campaign draft"],
-        autonomy_mode: "AUTO+LOG for draft create/update through mare_autonomy_submit",
+        implemented_operations: [
+          "campaign/flow reporting",
+          "aggregate list and segment audience read",
+          "aggregate email-marketing consent read",
+          "create campaign draft",
+          "update campaign draft",
+        ],
+        read_data_policy: "aggregate CRM reads return no individual contact data",
+        autonomy_mode: "AUTO+LOG for draft create/update; reads are AUTO",
         approval_required_for: ["send campaign", "schedule campaign", "activate flow", "modify profiles", "modify consent"],
         blocked_operations: ["send campaign", "schedule campaign", "activate flow", "modify profiles", "modify consent"],
-        verification_level: "credential_presence_only_write_scope_verified_on_first_safe_call",
+        verification_level: "aggregate_reads_provider_bounded; write_scope_verified_on_first_safe_call",
       },
       meta: {
         configured: bool(env.META_ADS_ACCESS_TOKEN) && bool(env.META_AD_ACCOUNT_ID),
@@ -154,11 +167,14 @@ export function buildOperationsPermissionsAudit(env: OperationsPermissionsEnv): 
         verification_level: "configuration_and_repository_allowlist_only",
       },
       tiktok_ads: {
-        configured: bool(env.TIKTOK_ACCESS_TOKEN) && bool(env.TIKTOK_ADVERTISER_ID),
-        implemented_operations: [],
-        exposed_write_tools: [],
+        configured: tiktokConfigured,
+        implemented_operations: ["authorization status", "campaign read", "campaign create paused", "campaign update/pause/enable"],
+        exposed_write_tools: ["tiktok.campaign.create", "tiktok.campaign.update through Business OS immutable plans"],
         autonomy_mode: "approval_required_for_live_write",
-        status: bool(env.TIKTOK_ACCESS_TOKEN) && bool(env.TIKTOK_ADVERTISER_ID) ? "credentials_present_but_bridge_not_implemented" : "awaiting_marketing_api_approval_and_credentials",
+        execution_defaults: ["campaign create disabled/paused by default", "enable requires explicit live-plan approval"],
+        blocked_operations: ["delete campaign", "unbounded bulk mutation", "enable without explicit live-plan confirmation"],
+        status: tiktokConfigured ? "marketing_api_bridge_configured" : "awaiting_or_missing_marketing_api_authorization",
+        verification_level: "authorized_advertiser_positive_proof_before_token_persist",
       },
     },
   };

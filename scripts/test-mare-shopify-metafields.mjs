@@ -177,6 +177,7 @@ await assert.rejects(
 
 const safeSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
 const autonomySource = readFileSync("src/mare-autonomy-runner.ts", "utf8");
+const policySource = readFileSync("src/mare-autonomy-policy.ts", "utf8");
 for (const fragment of [
   'SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing"',
   'risk: "reversible_write"',
@@ -193,10 +194,13 @@ for (const fragment of [
   'callBusinessTool(env, "mare_validate"',
   'callBusinessTool(env, "mare_execute"',
   'coordinated_plan_ledger: true',
-  'audit_schema: "mare_autonomy_p2"',
+  'audit_schema: "mare_autonomy_p3"',
+  'from "./mare-autonomy-policy.js"',
 ]) assert.ok(autonomySource.includes(fragment), `Missing coordinated autonomy fragment: ${fragment}`);
+assert.ok(policySource.includes('"shopify.metafields.update_existing"'), "Shared policy must own the Shopify AUTO+LOG capability");
 assert.equal(autonomySource.includes('import { updateExistingShopifyMetafields }'), false, "Autonomy runner must not bypass the Business OS plan coordinator");
 assert.equal(autonomySource.includes('if (job.capability_id === "shopify.metafields.update_existing")'), false, "Shopify autonomy must not have a direct execution shortcut");
+assert.equal(autonomySource.includes("const AUTO_CAPABILITIES = new Set"), false, "Autonomy runner must not duplicate its capability allowlist");
 
 console.log(JSON.stringify({
   ok: true,
@@ -212,5 +216,6 @@ console.log(JSON.stringify({
   business_os_first_class: true,
   immutable_plan_required: true,
   coordinator_ledger_required: true,
+  shared_policy_registry: true,
   direct_runner_shortcut_allowed: false,
 }));

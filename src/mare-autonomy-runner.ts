@@ -1,5 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleMareBusinessMcpFinalRequest } from "./mare-business-mcp-final.js";
+import {
+  MARE_AUTO_LOG_CAPABILITIES,
+  buildMareAutonomyPolicy,
+  isMareAutoLogCapability,
+} from "./mare-autonomy-policy.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -54,16 +59,10 @@ type AutonomyJob = {
   error?: string;
 };
 
-const SERVER_VERSION = "0.3.0";
+const SERVER_VERSION = "0.4.0";
 const MAX_REQUEST_BYTES = 320 * 1024;
 const MAX_ATTEMPTS = 3;
 const BASE_RETRY_MS = 15_000;
-const AUTO_CAPABILITIES = new Set([
-  "klaviyo.campaign.draft.create",
-  "klaviyo.campaign.draft.update",
-  "github.pull_request.create",
-  "shopify.metafields.update_existing",
-]);
 
 const AUTONOMY_TOOLS = [
   {
@@ -75,12 +74,7 @@ const AUTONOMY_TOOLS = [
       properties: {
         capability_id: {
           type: "string",
-          enum: [
-            "klaviyo.campaign.draft.create",
-            "klaviyo.campaign.draft.update",
-            "github.pull_request.create",
-            "shopify.metafields.update_existing",
-          ],
+          enum: [...MARE_AUTO_LOG_CAPABILITIES],
         },
         request: {
           type: "object",
@@ -120,7 +114,7 @@ const AUTONOMY_TOOLS = [
   {
     name: "mare_autonomy_policy",
     title: "Read MARE autonomy policy",
-    description: "Returns the autonomous capability allowlist and actions that still require human approval.",
+    description: "Returns the autonomous capability allowlist and actions that still require human approval from the shared MARE policy registry.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: {
       readOnlyHint: true,
@@ -191,41 +185,7 @@ function rpcResponse(request: Request, id: RpcRequest["id"], result: JsonObject)
 }
 
 function policyPayload(): JsonObject {
-  return {
-    ok: true,
-    version: "p2",
-    model: "risk_tiered_autonomy",
-    autonomous_mode: "AUTO+LOG",
-    autonomous_capabilities: Array.from(AUTO_CAPABILITIES),
-    approval_required: [
-      "send or schedule Klaviyo campaigns",
-      "activate or materially increase paid-media spend",
-      "publish live product-media replacements",
-      "create or delete Shopify metafields",
-      "merge pull requests",
-      "bulk destructive writes",
-      "delete or irreversible provider actions",
-    ],
-    shopify_guardrails: {
-      existing_metafields_only: true,
-      namespace_allowlist: ["custom"],
-      owner_type_allowlist: ["Product", "ProductVariant"],
-      maximum_items_per_atomic_write: 25,
-      compare_and_set: true,
-      read_before_write: true,
-      read_after_write: true,
-      create_allowed: false,
-      delete_allowed: false,
-    },
-    guarantees: {
-      durable_execution: true,
-      bounded_retries: true,
-      immutable_provider_plan: true,
-      coordinated_plan_ledger: true,
-      provider_idempotency_reused_when_supported: true,
-      external_write_on_submit: false,
-    },
-  };
+  return buildMareAutonomyPolicy();
 }
 
 function validateJobId(value: string): boolean {
@@ -286,7 +246,7 @@ function requestForJob(job: AutonomyJob): JsonObject {
 }
 
 async function executeAutonomousJob(job: AutonomyJob, env: AutonomyEnv): Promise<{ planId: string; result: JsonObject }> {
-  if (!AUTO_CAPABILITIES.has(job.capability_id)) throw new Error("capability_not_autonomous");
+  if (!isMareAutoLogCapability(job.capability_id)) throw new Error("capability_not_autonomous");
 
   const prepared = await callBusinessTool(env, "mare_prepare", {
     capability_id: job.capability_id,
@@ -316,7 +276,7 @@ function retryDelay(attempt: number): number {
 
 function audit(event: string, job: AutonomyJob, detail?: string): void {
   console.info(JSON.stringify({
-    audit_schema: "mare_autonomy_p2",
+    audit_schema: "mare_autonomy_p3",
     event,
     generated_at: new Date().toISOString(),
     job_id: job.job_id,
@@ -351,7 +311,7 @@ export class MareAutonomyRunner extends DurableObject<Record<string, unknown>> {
       if (existing) return new Response(JSON.stringify({ ok: true, idempotent_replay: true, job: existing }), { status: 200 });
       const capabilityId = normalize(body.capability_id);
       const payload = object(body.request);
-      if (!AUTO_CAPABILITIES.has(capabilityId)) return new Response(JSON.stringify({ ok: false, error: "capability_not_autonomous" }), { status: 400 });
+      if (!isMareAutoLogCapability(capabilityId)) return new Response(JSON.stringify({ ok: false, error: "capability_not_autonomous" }), { status: 400 });
       try { assertRequestSize(payload); } catch (error) {
         return new Response(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "invalid_request" }), { status: 413 });
       }
@@ -462,7 +422,7 @@ async function submitJob(request: Request, env: AutonomyEnv, args: JsonObject): 
   if (!env.MARE_AUTONOMY_RUNNER) return toolFailure("mare_autonomy_runner_not_configured");
   const capabilityId = normalize(args.capability_id);
   const payload = object(args.request);
-  if (!AUTO_CAPABILITIES.has(capabilityId)) return toolFailure("capability_not_autonomous", policyPayload());
+  if (!isMareAutoLogCapability(capabilityId)) return toolFailure("capability_not_autonomous", policyPayload());
   try { assertRequestSize(payload); } catch (error) {
     return toolFailure(error instanceof Error ? error.message : "autonomy_request_invalid");
   }
