@@ -111,6 +111,28 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
 
+      - name: Verify MARE autonomy discovery
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            --retry 5 --retry-delay 3 \
+            -H "Content-Type: application/json" \
+            -H "MCP-Protocol-Version: 2025-06-18" \
+            --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/mcp-business \
+            -o /tmp/mare-tools.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/mare-tools.json', 'utf8'));
+          const tools = Array.isArray(data?.result?.tools) ? data.result.tools : [];
+          const names = new Set(tools.map(tool => tool?.name).filter(Boolean));
+          const required = ['mare_autonomy_submit', 'mare_autonomy_status', 'mare_autonomy_policy'];
+          const missing = required.filter(name => !names.has(name));
+          console.log(JSON.stringify({ tool_count: tools.length, autonomy_tools: required.filter(name => names.has(name)), missing }, null, 2));
+          if (missing.length) process.exit(2);
+          NODE
+
       - name: Verify deployed live order flow
         if: github.event_name != 'pull_request'
         run: npm run probe:live-orders
