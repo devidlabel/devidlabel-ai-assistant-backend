@@ -2,6 +2,7 @@ import {
   MARE_AUTO_LOG_CAPABILITIES,
   MARE_AUTONOMY_POLICY_VERSION,
   MARE_SHOPIFY_METAFIELD_GUARDRAILS,
+  MARE_SHOPIFY_SEASON_GUARDRAILS,
 } from "./mare-autonomy-policy.js";
 
 type JsonObject = Record<string, unknown>;
@@ -83,24 +84,35 @@ export function buildOperationsPermissionsAudit(env: OperationsPermissionsEnv): 
         configured: bool(env.SHOPIFY_SHOP_DOMAIN) && shopifyAdminConfigured,
         credential_mode: Boolean(env.SHOPIFY_TOKENS_KV) ? "oauth_kv" : bool(env.SHOPIFY_ADMIN_ACCESS_TOKEN) ? "legacy_admin_token" : shopifyOauthConfigured ? "oauth_not_installed_or_unverified" : "unconfigured",
         declared_read_scope_family: [
-          "orders", "products", "inventory", "reports", "returns", "content", "translations",
+          "orders", "products", "inventory", "reports", "returns", "content", "translations", "metaobjects",
         ],
         declared_write_scope_family: ["products/metafields through installed Shopify OAuth scopes"],
-        implemented_operations: ["reporting", "order lookup", "product recommendation", "update existing custom product/variant metafields"],
-        exposed_write_tools: ["shopify.metafields.update_existing via mare_autonomy_submit"],
-        autonomy_mode: "AUTO+LOG for existing custom Product/ProductVariant metafields only",
-        safety_controls: [
-          `maximum ${MARE_SHOPIFY_METAFIELD_GUARDRAILS.maximum_items_per_atomic_write} metafields per atomic mutation`,
-          "existing metafields only",
-          "namespace custom only",
-          "Product and ProductVariant owners only",
-          "read-before-write",
-          "compareDigest compare-and-set",
-          "read-after-write",
-          "create/delete disabled",
+        implemented_operations: [
+          "reporting",
+          "order lookup",
+          "product recommendation",
+          "update existing custom product/variant metafields",
+          "assign missing Product features.season from product_feature_season metaobject",
         ],
-        approval_required_for: ["create metafield", "delete metafield", "generic product mutation", "inventory mutation", "publication/content mutation"],
-        verification_level: "bounded_write_with_provider_readback",
+        exposed_write_tools: [
+          "shopify.metafields.update_existing via mare_autonomy_submit",
+          "shopify.product.season.assign_missing via mare_autonomy_submit",
+        ],
+        autonomy_mode: "AUTO+LOG for existing custom metafields plus missing-only Product features.season assignment",
+        safety_controls: [
+          `maximum ${MARE_SHOPIFY_METAFIELD_GUARDRAILS.maximum_items_per_atomic_write} existing custom metafields per atomic mutation`,
+          "existing custom metafields: namespace custom only; Product and ProductVariant owners only",
+          "existing custom metafields: compareDigest compare-and-set",
+          `season assignment: maximum ${MARE_SHOPIFY_SEASON_GUARDRAILS.maximum_items_per_atomic_write} Products per atomic mutation`,
+          `season assignment: exact ${MARE_SHOPIFY_SEASON_GUARDRAILS.namespace}.${MARE_SHOPIFY_SEASON_GUARDRAILS.key} ${MARE_SHOPIFY_SEASON_GUARDRAILS.metafield_type} only`,
+          `season assignment: metaobject type ${MARE_SHOPIFY_SEASON_GUARDRAILS.metaobject_type} only`,
+          "season assignment: compareDigest null create-if-absent",
+          "season assignment: existing value causes hard stop; overwrite disabled",
+          "read-before-write and read-after-write",
+          "arbitrary metafield creation and delete disabled",
+        ],
+        approval_required_for: ["create arbitrary metafield", "overwrite existing season", "delete metafield", "generic product mutation", "inventory mutation", "publication/content mutation"],
+        verification_level: "bounded_write_with_provider_readback_and_compare_digest",
         missing_for_operations: [],
       },
       klaviyo: {
