@@ -7,13 +7,9 @@ import { join } from "node:path";
 const out = mkdtempSync(join(tmpdir(), "mare-shopify-metafields-"));
 execFileSync("npx", [
   "tsc",
+  "--project", "tsconfig.json",
   "--outDir", out,
   "--noEmit", "false",
-  "--module", "ESNext",
-  "--target", "ES2022",
-  "--moduleResolution", "Bundler",
-  "--lib", "ES2022,WebWorker",
-  "src/mare-business-shopify-metafields.ts",
 ], { stdio: "inherit" });
 
 const { updateExistingShopifyMetafields } = await import(`file://${join(out, "mare-business-shopify-metafields.js")}`);
