@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleMareBusinessMcpFinalRequest } from "./mare-business-mcp-final.js";
+import { updateExistingShopifyMetafields } from "./mare-business-shopify-metafields.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -54,7 +55,7 @@ type AutonomyJob = {
   error?: string;
 };
 
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.0";
 const MAX_REQUEST_BYTES = 320 * 1024;
 const MAX_ATTEMPTS = 3;
 const BASE_RETRY_MS = 15_000;
@@ -62,13 +63,14 @@ const AUTO_CAPABILITIES = new Set([
   "klaviyo.campaign.draft.create",
   "klaviyo.campaign.draft.update",
   "github.pull_request.create",
+  "shopify.metafields.update_existing",
 ]);
 
 const AUTONOMY_TOOLS = [
   {
     name: "mare_autonomy_submit",
     title: "Run a safe MARE action autonomously",
-    description: "Queues an allowlisted reversible write for persistent server-side execution. P0 supports Klaviyo draft create/update and GitHub draft PR creation. The job continues independently of the chat session, retries bounded transient failures, and logs the final result. It never sends email, activates ads, merges PRs, deletes data, or performs unapproved live writes.",
+    description: "Queues an allowlisted reversible write for persistent server-side execution. Supports Klaviyo draft create/update, GitHub draft PR creation and bounded updates of existing Shopify custom metafields. Jobs continue independently of the chat session, retry bounded transient failures and log the final result. It never sends email, activates ads, merges PRs, creates/deletes Shopify metafields or performs unapproved live writes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -78,11 +80,12 @@ const AUTONOMY_TOOLS = [
             "klaviyo.campaign.draft.create",
             "klaviyo.campaign.draft.update",
             "github.pull_request.create",
+            "shopify.metafields.update_existing",
           ],
         },
         request: {
           type: "object",
-          description: "Capability-specific request. Follow mare_describe for the selected capability.",
+          description: "Capability-specific request. For shopify.metafields.update_existing pass metafields: 1-25 items with owner_id (Product/ProductVariant GID), namespace custom, key and string value. Shopify targets must already exist; the worker reads compareDigest before the atomic write and verifies readback afterward.",
           additionalProperties: true,
         },
       },
@@ -118,7 +121,7 @@ const AUTONOMY_TOOLS = [
   {
     name: "mare_autonomy_policy",
     title: "Read MARE autonomy policy",
-    description: "Returns the P0 autonomous capability allowlist and actions that still require human approval.",
+    description: "Returns the autonomous capability allowlist and actions that still require human approval.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: {
       readOnlyHint: true,
@@ -191,7 +194,7 @@ function rpcResponse(request: Request, id: RpcRequest["id"], result: JsonObject)
 function policyPayload(): JsonObject {
   return {
     ok: true,
-    version: "p0",
+    version: "p1",
     model: "risk_tiered_autonomy",
     autonomous_mode: "AUTO+LOG",
     autonomous_capabilities: Array.from(AUTO_CAPABILITIES),
@@ -199,10 +202,22 @@ function policyPayload(): JsonObject {
       "send or schedule Klaviyo campaigns",
       "activate or materially increase paid-media spend",
       "publish live product-media replacements",
+      "create or delete Shopify metafields",
       "merge pull requests",
       "bulk destructive writes",
       "delete or irreversible provider actions",
     ],
+    shopify_guardrails: {
+      existing_metafields_only: true,
+      namespace_allowlist: ["custom"],
+      owner_type_allowlist: ["Product", "ProductVariant"],
+      maximum_items_per_atomic_write: 25,
+      compare_and_set: true,
+      read_before_write: true,
+      read_after_write: true,
+      create_allowed: false,
+      delete_allowed: false,
+    },
     guarantees: {
       durable_execution: true,
       bounded_retries: true,
@@ -272,6 +287,12 @@ function requestForJob(job: AutonomyJob): JsonObject {
 
 async function executeAutonomousJob(job: AutonomyJob, env: AutonomyEnv): Promise<{ planId: string | null; result: JsonObject }> {
   if (!AUTO_CAPABILITIES.has(job.capability_id)) throw new Error("capability_not_autonomous");
+
+  if (job.capability_id === "shopify.metafields.update_existing") {
+    const result = await updateExistingShopifyMetafields(requestForJob(job), env as any);
+    return { planId: null, result };
+  }
+
   const prepared = await callBusinessTool(env, "mare_prepare", {
     capability_id: job.capability_id,
     request: requestForJob(job),
@@ -299,7 +320,7 @@ function retryDelay(attempt: number): number {
 
 function audit(event: string, job: AutonomyJob, detail?: string): void {
   console.info(JSON.stringify({
-    audit_schema: "mare_autonomy_p0",
+    audit_schema: "mare_autonomy_p1",
     event,
     generated_at: new Date().toISOString(),
     job_id: job.job_id,
@@ -431,7 +452,7 @@ async function augmentDiscovery(request: Request, rpc: RpcRequest, env: Autonomy
 
   if (rpc.method === "initialize") {
     const instructions = normalize(result.instructions);
-    const autonomyInstruction = " For reversible low-risk operations, prefer mare_autonomy_submit for Klaviyo draft create/update and GitHub draft PR creation. These jobs are AUTO+LOG, persist independently of the chat session, and must not ask the user for an execution confirmation. Sending email, activating ads, merging PRs, destructive writes and other live actions still require explicit approval.";
+    const autonomyInstruction = " For reversible low-risk operations, prefer mare_autonomy_submit for Klaviyo draft create/update, GitHub draft PR creation, and updates to already-existing Shopify custom metafields on products or variants. These jobs are AUTO+LOG, persist independently of the chat session, and must not ask the user for an execution confirmation. Shopify metafield autonomy is update-only with compareDigest CAS and readback; creation/deletion is not allowed. Sending email, activating ads, merging PRs, destructive writes and other live actions still require explicit approval.";
     return new Response(JSON.stringify({ ...body, result: { ...result, instructions: `${instructions}${autonomyInstruction}`.trim() } }), {
       status: delegated.status,
       headers: responseHeaders(request),
