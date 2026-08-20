@@ -2,6 +2,7 @@ import { googleServiceAccountAccessToken, parseGoogleServiceAccount } from "./go
 
 const GA4_BASE = "https://analyticsdata.googleapis.com/v1beta";
 const GA4_SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
+const GA4_MAX_REPORTS_PER_BATCH = 5;
 
 type Ga4Env = {
   GOOGLE_ADS_SERVICE_ACCOUNT_JSON?: string;
@@ -11,7 +12,6 @@ type Ga4Env = {
   DAILY_PULSE_ACCESS_TOKEN?: string;
   KLAVIYO_REPORT_ACCESS_TOKEN?: string;
 };
-
 type JsonObject = Record<string, unknown>;
 type TimeRange = { since: string; until: string; preset: string };
 type Ga4Table = {
@@ -106,7 +106,6 @@ function safeTable(payload: JsonObject): Ga4Table {
   const metricHeaders = Array.isArray(payload.metricHeaders) ? payload.metricHeaders : [];
   const dimensions = dimensionHeaders.map((header) => header && typeof header === "object" && !Array.isArray(header) ? normalize((header as JsonObject).name) : "");
   const metrics = metricHeaders.map((header) => header && typeof header === "object" && !Array.isArray(header) ? normalize((header as JsonObject).name) : "");
-
   const parseRow = (raw: unknown): Record<string, string | number> => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
     const row = raw as JsonObject;
@@ -123,7 +122,6 @@ function safeTable(payload: JsonObject): Ga4Table {
     });
     return output;
   };
-
   const rows = Array.isArray(payload.rows) ? payload.rows.map(parseRow) : [];
   const totals = Array.isArray(payload.totals) ? payload.totals.map(parseRow) : [];
   return {
@@ -158,14 +156,30 @@ async function ga4Fetch(url: string, accessToken: string, body: JsonObject): Pro
   return payload;
 }
 
-async function runReport(propertyId: string, accessToken: string, range: TimeRange, body: JsonObject): Promise<Ga4Table> {
-  const payload = await ga4Fetch(`${GA4_BASE}/properties/${propertyId}:runReport`, accessToken, {
+function reportRequest(range: TimeRange, body: JsonObject): JsonObject {
+  return {
     dateRanges: [{ startDate: range.since, endDate: range.until }],
     keepEmptyRows: false,
     returnPropertyQuota: true,
     ...body,
+  };
+}
+
+async function batchRunReports(
+  propertyId: string,
+  accessToken: string,
+  range: TimeRange,
+  bodies: JsonObject[],
+): Promise<Ga4Table[]> {
+  if (!bodies.length || bodies.length > GA4_MAX_REPORTS_PER_BATCH) throw new Error("invalid_ga4_batch_size");
+  const payload = await ga4Fetch(`${GA4_BASE}/properties/${propertyId}:batchRunReports`, accessToken, {
+    requests: bodies.map((body) => reportRequest(range, body)),
   });
-  return safeTable(payload);
+  const reports = Array.isArray(payload.reports)
+    ? payload.reports.filter((report): report is JsonObject => Boolean(report && typeof report === "object" && !Array.isArray(report)))
+    : [];
+  if (reports.length !== bodies.length) throw new Error("incomplete_ga4_batch_response");
+  return reports.map(safeTable);
 }
 
 function dimensions(...names: string[]): JsonObject[] {
@@ -183,7 +197,6 @@ export async function handleGa4ReportingRequest(request: Request, env: Ga4Env): 
 
   const propertyId = digits(env.GA4_PROPERTY_ID);
   const configured = Boolean(parseGoogleServiceAccount(env.GOOGLE_ADS_SERVICE_ACCOUNT_JSON) && propertyId);
-
   if (path === "/internal/ga4/health") {
     if (request.method !== "GET") return jsonResponse({ ok: false, source: "ga4", message: "Metodo non supportato." }, 405);
     return jsonResponse({
@@ -195,14 +208,12 @@ export async function handleGa4ReportingRequest(request: Request, env: Ga4Env): 
       report_token_configured: Boolean(reportToken(env)),
     });
   }
-
   if (!isAuthorized(request, env)) return jsonResponse({ ok: false, source: "ga4", message: "Non autorizzato." }, 401);
   if (!configured) return jsonResponse({ ok: false, source: "ga4", message: "Configurazione GA4 incompleta." }, 503);
   if (request.method !== "GET") return jsonResponse({ ok: false, source: "ga4", message: "Metodo non supportato." }, 405);
 
   try {
     const accessToken = await googleServiceAccountAccessToken(env.GOOGLE_ADS_SERVICE_ACCOUNT_JSON, GA4_SCOPE);
-
     if (path === "/internal/ga4/realtime") {
       const payload = await ga4Fetch(`${GA4_BASE}/properties/${propertyId}:runRealtimeReport`, accessToken, {
         dimensions: dimensions("country"),
@@ -218,65 +229,70 @@ export async function handleGa4ReportingRequest(request: Request, env: Ga4Env): 
         realtime: safeTable(payload),
       });
     }
-
     if (path === "/internal/ga4/report") {
       const range = parseTimeRange(url);
       if (!range) return jsonResponse({ ok: false, source: "ga4", message: "Intervallo data non valido." }, 400);
-
-      const overview = await runReport(propertyId, accessToken, range, {
-        metrics: metrics("activeUsers", "newUsers", "sessions", "engagedSessions", "engagementRate", "screenPageViews", "eventCount", "ecommercePurchases", "purchaseRevenue", "totalRevenue"),
-        metricAggregations: ["TOTAL"],
-        limit: "1",
-      });
-      const daily = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("date"),
-        metrics: metrics("activeUsers", "sessions", "engagedSessions", "ecommercePurchases", "purchaseRevenue"),
-        orderBys: [{ dimension: { dimensionName: "date" } }],
-        limit: "500",
-      });
-      const landing_pages = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("landingPagePlusQueryString"),
-        metrics: metrics("sessions", "activeUsers", "engagementRate", "ecommercePurchases", "purchaseRevenue"),
-        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-        limit: "250",
-      });
-      const source_medium = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("sessionSourceMedium"),
-        metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
-        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-        limit: "250",
-      });
-      const campaigns = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("sessionCampaignName"),
-        metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
-        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-        limit: "250",
-      });
-      const devices = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("deviceCategory"),
-        metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
-        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-        limit: "20",
-      });
-      const countries = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("country"),
-        metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
-        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-        limit: "100",
-      });
-      const ecommerce_funnel = await runReport(propertyId, accessToken, range, {
-        dimensions: dimensions("eventName"),
-        metrics: metrics("eventCount", "activeUsers"),
-        dimensionFilter: {
-          filter: {
-            fieldName: "eventName",
-            inListFilter: { values: ["view_item", "add_to_cart", "begin_checkout", "purchase"], caseSensitive: true },
-          },
+      const reportBodies: JsonObject[] = [
+        {
+          metrics: metrics("activeUsers", "newUsers", "sessions", "engagedSessions", "engagementRate", "screenPageViews", "eventCount", "ecommercePurchases", "purchaseRevenue", "totalRevenue"),
+          metricAggregations: ["TOTAL"],
+          limit: "1",
         },
-        orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
-        limit: "20",
-      });
-
+        {
+          dimensions: dimensions("date"),
+          metrics: metrics("activeUsers", "sessions", "engagedSessions", "ecommercePurchases", "purchaseRevenue"),
+          orderBys: [{ dimension: { dimensionName: "date" } }],
+          limit: "500",
+        },
+        {
+          dimensions: dimensions("landingPagePlusQueryString"),
+          metrics: metrics("sessions", "activeUsers", "engagementRate", "ecommercePurchases", "purchaseRevenue"),
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "250",
+        },
+        {
+          dimensions: dimensions("sessionSourceMedium"),
+          metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "250",
+        },
+        {
+          dimensions: dimensions("sessionCampaignName"),
+          metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "250",
+        },
+        {
+          dimensions: dimensions("deviceCategory"),
+          metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "20",
+        },
+        {
+          dimensions: dimensions("country"),
+          metrics: metrics("sessions", "activeUsers", "ecommercePurchases", "purchaseRevenue"),
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: "100",
+        },
+        {
+          dimensions: dimensions("eventName"),
+          metrics: metrics("eventCount", "activeUsers"),
+          dimensionFilter: {
+            filter: {
+              fieldName: "eventName",
+              inListFilter: { values: ["view_item", "add_to_cart", "begin_checkout", "purchase"], caseSensitive: true },
+            },
+          },
+          orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+          limit: "20",
+        },
+      ];
+      const firstBatch = await batchRunReports(propertyId, accessToken, range, reportBodies.slice(0, GA4_MAX_REPORTS_PER_BATCH));
+      const secondBatch = await batchRunReports(propertyId, accessToken, range, reportBodies.slice(GA4_MAX_REPORTS_PER_BATCH));
+      const [overview, daily, landing_pages, source_medium, campaigns, devices, countries, ecommerce_funnel] = [
+        ...firstBatch,
+        ...secondBatch,
+      ];
       return jsonResponse({
         ok: true,
         source: "ga4",
@@ -293,7 +309,6 @@ export async function handleGa4ReportingRequest(request: Request, env: Ga4Env): 
         ecommerce_funnel,
       });
     }
-
     return jsonResponse({ ok: false, source: "ga4", message: "Endpoint non trovato." }, 404);
   } catch (error) {
     const status = typeof error === "object" && error && "status" in error && typeof (error as { status?: unknown }).status === "number"
