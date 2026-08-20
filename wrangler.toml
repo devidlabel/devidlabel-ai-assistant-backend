@@ -1,7 +1,6 @@
 name = "devidlabel-ai-assistant-backend"
 main = "src/worker-v4.ts"
 compatibility_date = "2026-06-25"
-
 [vars]
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
@@ -10,6 +9,7 @@ SHOPIFY_API_VERSION = "2025-10"
 SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS = "3600"
 COMMERCE_TENANT_ID = "devid_multibrand"
 PRODUCT_IMAGE_MODEL = "gpt-image-2"
+GITHUB_OPERATIONS_REPOSITORIES = "devidlabel/devidlabel-ai-assistant-backend"
 # Meta identifiers are non-secret runtime configuration. Access tokens remain Cloudflare secrets only.
 META_AD_ACCOUNT_ID = "843613162004896"
 META_GRAPH_API_VERSION = "v26.0"
@@ -22,7 +22,6 @@ SEARCH_CONSOLE_SITE_URL = "sc-domain:devidlabel.com"
 GA4_PROPERTY_ID = "345407658"
 # YouTube uses server-side OAuth and stores only the authorized refresh/access tokens in the existing KV namespace.
 YOUTUBE_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/youtube/callback"
-
 [images]
 binding = "IMAGES"
 
