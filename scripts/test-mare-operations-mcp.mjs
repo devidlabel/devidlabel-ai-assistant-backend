@@ -25,7 +25,9 @@ for (const fragment of [
 ]) assert.ok(source.includes(fragment), `Missing Operations contract fragment: ${fragment}`);
 
 for (const fragment of [
-  'least_privilege_with_explicit_execution_approval',
+  'risk_tiered_autonomy',
+  'reversible_safe_writes_mode: "AUTO+LOG"',
+  'live_writes_require_confirmation: true',
   'required_upstream_permissions: ["ads_read", "ads_management"]',
   'required_account_role: "STANDARD or higher for mutations"',
 ]) assert.ok(permissionsSource.includes(fragment), `Missing permissions audit fragment: ${fragment}`);
@@ -143,7 +145,16 @@ const auditResponse = await handleMareOperationsMcpRequest(
 );
 const auditBody = await auditResponse.json();
 assert.equal(auditBody.result.isError, false);
-assert.equal(auditBody.result.structuredContent.policy.writes_require_confirmation, true);
+assert.equal(auditBody.result.structuredContent.policy.model, "risk_tiered_autonomy");
+assert.equal(auditBody.result.structuredContent.policy.reversible_safe_writes_require_confirmation, false);
+assert.equal(auditBody.result.structuredContent.policy.reversible_safe_writes_mode, "AUTO+LOG");
+assert.equal(auditBody.result.structuredContent.policy.live_writes_require_confirmation, true);
+assert.equal(auditBody.result.structuredContent.policy.autonomous_execution_persists_beyond_chat_session, true);
+assert.deepEqual(auditBody.result.structuredContent.policy.autonomous_capabilities_p0, [
+  "klaviyo.campaign.draft.create",
+  "klaviyo.campaign.draft.update",
+  "github.pull_request.create",
+]);
 assert.equal(auditBody.result.structuredContent.providers.github.configured, true);
 assert.equal(JSON.stringify(auditBody).includes("github-token"), false);
 
@@ -241,7 +252,8 @@ console.log(JSON.stringify({
   contract: "mare_operations_os_execution_core",
   tools: 8,
   controlled_write_tools: 5,
-  exact_confirmations_required: true,
+  exact_confirmations_required_for_direct_live_execution: true,
+  reversible_safe_autonomy_mode: "AUTO+LOG",
   external_writes_enabled: true,
   irreversible_actions_enabled: false,
   secret_values_exposed: false,
