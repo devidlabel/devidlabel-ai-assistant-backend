@@ -107,7 +107,9 @@ jobs:
         run: npm run probe:live-orders
 
       - name: Deploy to Cloudflare Workers
+        id: deploy_worker
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -115,7 +117,9 @@ jobs:
           command: deploy
 
       - name: Verify MARE autonomy discovery
+        id: verify_autonomy
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         shell: bash
         run: |
           curl --fail --silent --show-error \
@@ -152,11 +156,15 @@ jobs:
           NODE
 
       - name: Verify deployed live order flow
+        id: verify_live_orders
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         run: npm run probe:live-orders
 
       - name: Verify Shopify historical order visibility
+        id: verify_shopify_history
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         shell: bash
         run: |
           curl --fail --silent --show-error \
@@ -172,7 +180,9 @@ jobs:
           NODE
 
       - name: Verify YouTube read-only analytics
+        id: verify_youtube
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         shell: bash
         env:
           DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
@@ -210,43 +220,92 @@ jobs:
           if ((data.section_counts?.successful || 0) < 3) process.exit(3);
           NODE
 
-      - name: Publish verified production deploy receipt
-        if: github.event_name != 'pull_request'
+      - name: Publish diagnostic production deploy receipt
+        id: publish_receipt
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
         shell: bash
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy_worker.outcome }}
+          AUTONOMY_OUTCOME: ${{ steps.verify_autonomy.outcome }}
+          LIVE_ORDERS_OUTCOME: ${{ steps.verify_live_orders.outcome }}
+          SHOPIFY_HISTORY_OUTCOME: ${{ steps.verify_shopify_history.outcome }}
+          YOUTUBE_OUTCOME: ${{ steps.verify_youtube.outcome }}
         run: |
-          mkdir -p ops/deploy
           node - <<'NODE'
           const fs = require('node:fs');
-          const tools = JSON.parse(fs.readFileSync('/tmp/mare-tools.json', 'utf8'));
-          const rows = Array.isArray(tools?.result?.tools) ? tools.result.tools : [];
-          const submit = rows.find(tool => tool?.name === 'mare_autonomy_submit') || {};
-          const capabilityEnum = submit?.inputSchema?.properties?.capability_id?.enum || [];
+          let capabilityEnum = [];
+          try {
+            const tools = JSON.parse(fs.readFileSync('/tmp/mare-tools.json', 'utf8'));
+            const rows = Array.isArray(tools?.result?.tools) ? tools.result.tools : [];
+            const submit = rows.find(tool => tool?.name === 'mare_autonomy_submit') || {};
+            capabilityEnum = submit?.inputSchema?.properties?.capability_id?.enum || [];
+          } catch {}
+          const outcomes = {
+            worker_deployed: process.env.DEPLOY_OUTCOME || 'skipped',
+            autonomy_discovery: process.env.AUTONOMY_OUTCOME || 'skipped',
+            live_order_probe: process.env.LIVE_ORDERS_OUTCOME || 'skipped',
+            shopify_historical_orders: process.env.SHOPIFY_HISTORY_OUTCOME || 'skipped',
+            youtube_read_only: process.env.YOUTUBE_OUTCOME || 'skipped',
+          };
+          const ok = Object.values(outcomes).every(value => value === 'success');
           const receipt = {
-            ok: true,
+            ok,
             generated_at: new Date().toISOString(),
             source_commit: process.env.GITHUB_SHA,
             workflow_run_id: Number(process.env.GITHUB_RUN_ID || 0),
             worker_url: 'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev',
-            verification: {
-              worker_deployed: true,
-              autonomy_discovery: true,
-              shopify_existing_metafield_autonomy: capabilityEnum.includes('shopify.metafields.update_existing'),
-              live_order_probe: true,
-              shopify_historical_orders: true,
-              youtube_read_only: true,
-            },
+            verification: outcomes,
+            shopify_existing_metafield_autonomy: capabilityEnum.includes('shopify.metafields.update_existing'),
             autonomy_capabilities: capabilityEnum,
           };
-          fs.writeFileSync('ops/deploy/latest.json', JSON.stringify(receipt, null, 2) + '\n');
+          fs.writeFileSync('/tmp/mare-deploy-receipt.json', JSON.stringify(receipt, null, 2) + '\n');
           console.log(JSON.stringify(receipt, null, 2));
           NODE
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ops/deploy/latest.json
-          if git diff --cached --quiet; then
-            exit 0
+
+          pushed=0
+          for attempt in 1 2 3 4 5; do
+            echo "Publishing deploy receipt, attempt ${attempt}/5"
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p ops/deploy
+            cp /tmp/mare-deploy-receipt.json ops/deploy/latest.json
+            git add -- ops/deploy/latest.json
+            git commit -m "Update verified production deploy receipt"
+            if git push origin HEAD:main; then
+              pushed=1
+              break
+            fi
+            sleep $((attempt * 2))
+          done
+          if [ "$pushed" -ne 1 ]; then
+            echo "Unable to publish deploy receipt after collision-safe retries" >&2
+            exit 1
           fi
-          git commit -m "Update verified production deploy receipt"
-          git fetch origin main
-          git rebase origin/main
-          git push origin HEAD:main
+
+      - name: Enforce production verification gate
+        if: always() && github.event_name != 'pull_request'
+        shell: bash
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy_worker.outcome }}
+          AUTONOMY_OUTCOME: ${{ steps.verify_autonomy.outcome }}
+          LIVE_ORDERS_OUTCOME: ${{ steps.verify_live_orders.outcome }}
+          SHOPIFY_HISTORY_OUTCOME: ${{ steps.verify_shopify_history.outcome }}
+          YOUTUBE_OUTCOME: ${{ steps.verify_youtube.outcome }}
+          RECEIPT_OUTCOME: ${{ steps.publish_receipt.outcome }}
+        run: |
+          node - <<'NODE'
+          const outcomes = {
+            worker_deployed: process.env.DEPLOY_OUTCOME || 'skipped',
+            autonomy_discovery: process.env.AUTONOMY_OUTCOME || 'skipped',
+            live_order_probe: process.env.LIVE_ORDERS_OUTCOME || 'skipped',
+            shopify_historical_orders: process.env.SHOPIFY_HISTORY_OUTCOME || 'skipped',
+            youtube_read_only: process.env.YOUTUBE_OUTCOME || 'skipped',
+            deploy_receipt: process.env.RECEIPT_OUTCOME || 'skipped',
+          };
+          console.log(JSON.stringify(outcomes, null, 2));
+          if (!Object.values(outcomes).every(value => value === 'success')) process.exit(1);
+          NODE
