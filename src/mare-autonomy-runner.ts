@@ -1,6 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleMareBusinessMcpFinalRequest } from "./mare-business-mcp-final.js";
-import { updateExistingShopifyMetafields } from "./mare-business-shopify-metafields.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -55,7 +54,7 @@ type AutonomyJob = {
   error?: string;
 };
 
-const SERVER_VERSION = "0.2.0";
+const SERVER_VERSION = "0.3.0";
 const MAX_REQUEST_BYTES = 320 * 1024;
 const MAX_ATTEMPTS = 3;
 const BASE_RETRY_MS = 15_000;
@@ -70,7 +69,7 @@ const AUTONOMY_TOOLS = [
   {
     name: "mare_autonomy_submit",
     title: "Run a safe MARE action autonomously",
-    description: "Queues an allowlisted reversible write for persistent server-side execution. Supports Klaviyo draft create/update, GitHub draft PR creation and bounded updates of existing Shopify custom metafields. Jobs continue independently of the chat session, retry bounded transient failures and log the final result. It never sends email, activates ads, merges PRs, creates/deletes Shopify metafields or performs unapproved live writes.",
+    description: "Queues an allowlisted reversible write for persistent server-side execution. Supports Klaviyo draft create/update, GitHub draft PR creation and bounded updates of existing Shopify custom metafields. Every autonomous write goes through the standard immutable Business OS plan and execution coordinator. Jobs continue independently of the chat session, retry bounded transient failures and log the final result. It never sends email, activates ads, merges PRs, creates/deletes Shopify metafields or performs unapproved live writes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -102,7 +101,7 @@ const AUTONOMY_TOOLS = [
   {
     name: "mare_autonomy_status",
     title: "Read autonomous MARE job status",
-    description: "Returns the durable status, attempts, plan id and final result for an autonomous MARE job.",
+    description: "Returns the durable status, attempts, immutable Business OS plan id and final result for an autonomous MARE job.",
     inputSchema: {
       type: "object",
       properties: {
@@ -194,7 +193,7 @@ function rpcResponse(request: Request, id: RpcRequest["id"], result: JsonObject)
 function policyPayload(): JsonObject {
   return {
     ok: true,
-    version: "p1",
+    version: "p2",
     model: "risk_tiered_autonomy",
     autonomous_mode: "AUTO+LOG",
     autonomous_capabilities: Array.from(AUTO_CAPABILITIES),
@@ -222,6 +221,7 @@ function policyPayload(): JsonObject {
       durable_execution: true,
       bounded_retries: true,
       immutable_provider_plan: true,
+      coordinated_plan_ledger: true,
       provider_idempotency_reused_when_supported: true,
       external_write_on_submit: false,
     },
@@ -285,13 +285,8 @@ function requestForJob(job: AutonomyJob): JsonObject {
   return payload;
 }
 
-async function executeAutonomousJob(job: AutonomyJob, env: AutonomyEnv): Promise<{ planId: string | null; result: JsonObject }> {
+async function executeAutonomousJob(job: AutonomyJob, env: AutonomyEnv): Promise<{ planId: string; result: JsonObject }> {
   if (!AUTO_CAPABILITIES.has(job.capability_id)) throw new Error("capability_not_autonomous");
-
-  if (job.capability_id === "shopify.metafields.update_existing") {
-    const result = await updateExistingShopifyMetafields(requestForJob(job), env as any);
-    return { planId: null, result };
-  }
 
   const prepared = await callBusinessTool(env, "mare_prepare", {
     capability_id: job.capability_id,
@@ -299,10 +294,11 @@ async function executeAutonomousJob(job: AutonomyJob, env: AutonomyEnv): Promise
   });
   const plan = object(prepared.plan);
   const planId = normalize(plan.plan_id);
-  if (!planId) {
-    if (normalize(prepared.status) === "completed") return { planId: null, result: prepared };
-    throw new Error("autonomy_prepare_missing_plan_id");
-  }
+  if (!planId) throw new Error("autonomy_prepare_missing_plan_id");
+
+  const validated = await callBusinessTool(env, "mare_validate", { plan_id: planId });
+  if (validated.valid !== true) throw new Error("autonomy_plan_validation_failed");
+
   const executed = await callBusinessTool(env, "mare_execute", {
     plan_id: planId,
     approval_confirmation: "EXECUTE MARE PLAN",
@@ -320,7 +316,7 @@ function retryDelay(attempt: number): number {
 
 function audit(event: string, job: AutonomyJob, detail?: string): void {
   console.info(JSON.stringify({
-    audit_schema: "mare_autonomy_p1",
+    audit_schema: "mare_autonomy_p2",
     event,
     generated_at: new Date().toISOString(),
     job_id: job.job_id,
@@ -399,7 +395,7 @@ export class MareAutonomyRunner extends DurableObject<Record<string, unknown>> {
 
     try {
       const execution = await executeAutonomousJob(job, this.runtimeEnv);
-      job.plan_id = execution.planId || undefined;
+      job.plan_id = execution.planId;
       job.result = execution.result;
       job.status = "completed";
       job.completed_at = new Date().toISOString();
@@ -452,7 +448,7 @@ async function augmentDiscovery(request: Request, rpc: RpcRequest, env: Autonomy
 
   if (rpc.method === "initialize") {
     const instructions = normalize(result.instructions);
-    const autonomyInstruction = " For reversible low-risk operations, prefer mare_autonomy_submit for Klaviyo draft create/update, GitHub draft PR creation, and updates to already-existing Shopify custom metafields on products or variants. These jobs are AUTO+LOG, persist independently of the chat session, and must not ask the user for an execution confirmation. Shopify metafield autonomy is update-only with compareDigest CAS and readback; creation/deletion is not allowed. Sending email, activating ads, merging PRs, destructive writes and other live actions still require explicit approval.";
+    const autonomyInstruction = " For reversible low-risk operations, prefer mare_autonomy_submit for Klaviyo draft create/update, GitHub draft PR creation, and updates to already-existing Shopify custom metafields on products or variants. These jobs are AUTO+LOG, persist independently of the chat session, and must not ask the user for an execution confirmation. All autonomous writes still pass through the immutable Business OS plan, validation and execution coordinator. Shopify metafield autonomy is update-only with compareDigest CAS and readback; creation/deletion is not allowed. Sending email, activating ads, merging PRs, destructive writes and other live actions still require explicit approval.";
     return new Response(JSON.stringify({ ...body, result: { ...result, instructions: `${instructions}${autonomyInstruction}`.trim() } }), {
       status: delegated.status,
       headers: responseHeaders(request),
@@ -489,6 +485,7 @@ async function submitJob(request: Request, env: AutonomyEnv, args: JsonObject): 
     policy: "AUTO+LOG",
     external_write_performed_on_submit: false,
     durable_execution: true,
+    coordinated_plan_ledger: true,
     status_tool: "mare_autonomy_status",
   });
 }
