@@ -1,5 +1,6 @@
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { handleMareAutonomyMcpRequest, MareAutonomyRunner } from "./mare-autonomy-runner";
+import { handleMareKlaviyoCrmMcpRequest } from "./mare-business-klaviyo-crm-mcp";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
@@ -25,6 +26,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const klaviyoCrmResponse = await handleMareKlaviyoCrmMcpRequest(request, env as any);
+    if (klaviyoCrmResponse) return klaviyoCrmResponse;
+
     const autonomyResponse = await handleMareAutonomyMcpRequest(request, env as any);
     if (autonomyResponse) return autonomyResponse;
 
