@@ -1,17 +1,18 @@
 {
-  "ok": true,
-  "generated_at": "2026-08-20T17:24:58.017Z",
-  "source_commit": "879e55fe4ad51cecb830b4a9915a275a200d369c",
-  "workflow_run_id": 32397357128,
+  "ok": false,
+  "generated_at": "2026-08-20T17:46:39.415Z",
+  "source_commit": "bf9dcb7cd423d4c9ea94017d9f7e6170849e48b7",
+  "workflow_run_id": 32399376270,
   "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
   "verification": {
     "worker_deployed": "success",
-    "autonomy_discovery": "success",
+    "autonomy_discovery": "failure",
     "live_order_probe": "success",
     "shopify_historical_orders": "success",
     "youtube_read_only": "success"
   },
   "shopify_existing_metafield_autonomy": true,
+  "shopify_missing_season_autonomy": false,
   "autonomy_capabilities": [
     "klaviyo.campaign.draft.create",
     "klaviyo.campaign.draft.update",
