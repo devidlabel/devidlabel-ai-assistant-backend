@@ -201,7 +201,7 @@ export async function assignMissingShopifyProductSeasons(
     assigned_count: assignments.length,
     atomic_write: true,
     concurrency_control: "compare_digest_null_create_if_absent",
-    field_allowlist: { owner_type: "Product", namespace: NAMESPACE, key: KEY, type: METAFIELD_TYPE, metaobject_type: METAOBJECT_TYPE },
+    field_allowlist: { owner_type: "Product", namespace: NAMESPACE, key: KEY, metafield_type: METAFIELD_TYPE, metaobject_type: METAOBJECT_TYPE },
     overwrite_existing_allowed: false,
     arbitrary_metafield_creation_allowed: false,
     delete_allowed: false,
