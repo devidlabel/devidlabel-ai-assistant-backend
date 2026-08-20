@@ -1,0 +1,162 @@
+name: MARE Autonomy Command Bridge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/autonomy/commands/*.json'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  execute-command:
+    name: Verify and execute MARE command
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout command commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Validate add-only command commit
+        id: command
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] || ! [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid push SHA context" >&2
+            exit 1
+          fi
+          if [[ "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            echo "Branch creation events are not accepted as command commits" >&2
+            exit 1
+          fi
+
+          mapfile -t changed < <(git diff --name-only "$BEFORE_SHA" "$SOURCE_SHA")
+          mapfile -t added < <(git diff --diff-filter=A --name-only "$BEFORE_SHA" "$SOURCE_SHA")
+          if [[ ${#changed[@]} -ne 1 || ${#added[@]} -ne 1 || "${changed[0]}" != "${added[0]}" ]]; then
+            echo "A command commit must contain exactly one newly added file and no other changes" >&2
+            exit 1
+          fi
+          command_path="${added[0]}"
+          if ! [[ "$command_path" =~ ^ops/autonomy/commands/mac_[A-Za-z0-9-]{20,80}\.json$ ]]; then
+            echo "Command path is not allowed" >&2
+            exit 1
+          fi
+          printf '%s' "$command_path" > /tmp/mare-command-path
+          echo "command_path=$command_path" >> "$GITHUB_OUTPUT"
+
+      - name: Submit and track durable MARE job
+        shell: bash
+        env:
+          GH_ACTIONS_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          COMMAND_PATH: ${{ steps.command.outputs.command_path }}
+          WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+        run: |
+          set -euo pipefail
+          test -n "$GH_ACTIONS_TOKEN"
+          test -n "$COMMAND_PATH"
+
+          node - <<'NODE' > /tmp/mare-context.json
+          const fs = require('node:fs');
+          fs.writeFileSync('/tmp/mare-context.json', JSON.stringify({
+            run_id: Number(process.env.RUN_ID),
+            source_commit: process.env.SOURCE_COMMIT,
+            command_path: process.env.COMMAND_PATH,
+          }));
+          NODE
+
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Actions-Token: $GH_ACTIONS_TOKEN" \
+            --data-binary @/tmp/mare-context.json \
+            "$WORKER_URL/internal/autonomy/git-command/submit" \
+            -o /tmp/mare-submit.json
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/mare-submit.json', 'utf8'));
+          console.log(JSON.stringify({
+            ok: data.ok,
+            command_id: data.command_id,
+            job_id: data.job_id,
+            capability_id: data.capability_id,
+            status: data.status,
+            durable_execution: data.durable_execution,
+            receipt_path: data.receipt_path,
+          }, null, 2));
+          if (data.ok !== true || !data.command_id || !data.job_id) process.exit(1);
+          NODE
+
+          for attempt in $(seq 1 40); do
+            curl --fail --silent --show-error \
+              --retry 2 --retry-delay 2 \
+              -H "Content-Type: application/json" \
+              -H "X-GitHub-Actions-Token: $GH_ACTIONS_TOKEN" \
+              --data-binary @/tmp/mare-context.json \
+              "$WORKER_URL/internal/autonomy/git-command/status" \
+              -o /tmp/mare-status.json
+
+            status=$(node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/mare-status.json', 'utf8'));
+          console.log(data.status || 'unknown');
+          NODE
+            )
+            echo "MARE command status: $status (poll $attempt/40)"
+
+            if [[ "$status" == "completed" ]]; then
+              node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/mare-status.json', 'utf8'));
+          console.log(JSON.stringify({
+            ok: data.ok,
+            command_id: data.command_id,
+            job_id: data.job_id,
+            capability_id: data.capability_id,
+            status: data.status,
+            attempts: data.attempts,
+            terminal: data.terminal,
+            receipt_published: data.receipt_published,
+            receipt_path: data.receipt_path,
+            safe_result: data.safe_result,
+          }, null, 2));
+          if (data.ok !== true || data.terminal !== true || data.receipt_published !== true) process.exit(1);
+          NODE
+              exit 0
+            fi
+
+            if [[ "$status" == "failed" || "$status" == "cancelled" ]]; then
+              node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/mare-status.json', 'utf8'));
+          console.error(JSON.stringify({
+            command_id: data.command_id,
+            job_id: data.job_id,
+            capability_id: data.capability_id,
+            status: data.status,
+            attempts: data.attempts,
+            error_code: data.error_code,
+            receipt_published: data.receipt_published,
+            receipt_path: data.receipt_path,
+          }, null, 2));
+          process.exit(1);
+          NODE
+            fi
+
+            sleep 15
+          done
+
+          echo "MARE durable command did not reach a terminal state inside the workflow window" >&2
+          exit 1
