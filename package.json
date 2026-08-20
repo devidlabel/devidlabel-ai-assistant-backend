@@ -18,6 +18,7 @@
     "test:order-chat-response": "node scripts/test-order-chat-response.mjs",
     "test:shopify-oauth": "node scripts/test-shopify-oauth.mjs",
     "test:shopify-reporting": "node scripts/test-shopify-reporting.mjs",
+    "test:shopify-metafields": "node scripts/test-mare-shopify-metafields.mjs",
     "test:klaviyo-reporting": "node scripts/test-klaviyo-reporting.mjs",
     "test:meta-reporting": "node scripts/test-meta-reporting.mjs",
     "test:google-ads-reporting": "node scripts/test-google-ads-reporting.mjs",
