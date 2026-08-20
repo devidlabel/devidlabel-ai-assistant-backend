@@ -71,6 +71,9 @@ jobs:
       - name: Test Shopify ADV reporting
         run: npm run test:shopify-reporting
 
+      - name: Test bounded Shopify metafield autonomy
+        run: npm run test:shopify-metafields
+
       - name: Test Klaviyo reporting resilience
         run: npm run test:klaviyo-reporting
 
