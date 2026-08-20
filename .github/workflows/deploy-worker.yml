@@ -125,14 +125,17 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 3 \
-            -H "Content-Type: application/json" \
-            -H "MCP-Protocol-Version: 2025-06-18" \
-            --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
-            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/mcp-business \
-            -o /tmp/mare-tools.json
-          node - <<'NODE'
+          verified=0
+          for attempt in $(seq 1 12); do
+            echo "Checking propagated MARE autonomy schema, attempt ${attempt}/12"
+            if curl --fail --silent --show-error \
+              --retry 2 --retry-delay 2 \
+              -H "Content-Type: application/json" \
+              -H "MCP-Protocol-Version: 2025-06-18" \
+              --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
+              https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/mcp-business \
+              -o /tmp/mare-tools.json; then
+              if node - <<'NODE'
           const fs = require('node:fs');
           const data = JSON.parse(fs.readFileSync('/tmp/mare-tools.json', 'utf8'));
           const tools = Array.isArray(data?.result?.tools) ? data.result.tools : [];
@@ -158,6 +161,17 @@ jobs:
           }, null, 2));
           if (missing.length || missingCapabilities.length) process.exit(2);
           NODE
+              then
+                verified=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          if [ "$verified" -ne 1 ]; then
+            echo "MARE autonomy discovery did not converge after propagation retries" >&2
+            exit 2
+          fi
 
       - name: Verify deployed live order flow
         id: verify_live_orders
