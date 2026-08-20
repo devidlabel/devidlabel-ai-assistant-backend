@@ -1,8 +1,30 @@
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const calls = [];
+let phase = "bootstrap";
+let mutationSeen = false;
+
+function writeDiagnostics(error) {
+  try {
+    mkdirSync("test-results", { recursive: true });
+    writeFileSync("test-results/shopify-season-debug.json", JSON.stringify({
+      phase,
+      mutationSeen,
+      error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error),
+      calls: calls.map((call) => ({
+        query_kind: call.query.includes("MareResolveSeasonMetaobjects") ? "resolve_metaobject" : call.query.includes("MareAssignMissingProductSeason") ? "mutation" : call.query.includes("MareSeasonState") ? "season_state" : "other",
+        query: call.query,
+        variables: call.variables,
+      })),
+    }, null, 2));
+  } catch {}
+}
+process.on("uncaughtExceptionMonitor", writeDiagnostics);
+process.on("unhandledRejection", writeDiagnostics);
 
 const out = mkdtempSync(join(tmpdir(), "mare-shopify-season-"));
 execFileSync("npx", [
@@ -22,9 +44,7 @@ const env = {
 
 const PRODUCT_ID = "gid://shopify/Product/123";
 const METAOBJECT_ID = "gid://shopify/Metaobject/99";
-const calls = [];
-let phase = "success";
-let mutationSeen = false;
+phase = "success";
 
 function response(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -85,12 +105,14 @@ assert.equal(result.after[0].season_reference, "product_feature_season.continuou
 assert.equal(calls.length, 4, "resolve metaobject, pre-read, atomic mutation and readback expected");
 
 const beforeInvalid = calls.length;
+phase = "invalid_reference";
 await assert.rejects(
   () => assignMissingShopifyProductSeasons({ assignments: [{ product_id: PRODUCT_ID, season_reference: "custom.anything" }] }, env),
   /invalid_shopify_season_reference/,
 );
 assert.equal(calls.length, beforeInvalid, "invalid season reference must fail before network access");
 
+phase = "duplicate";
 await assert.rejects(
   () => assignMissingShopifyProductSeasons({ assignments: [
     { product_id: PRODUCT_ID, season_reference: "product_feature_season.continuous" },
@@ -117,6 +139,7 @@ await assert.rejects(
 assert.equal(calls.length, beforeExisting + 2, "existing season must stop after metaobject resolve and pre-read, before mutation");
 assert.equal(mutationSeen, false, "existing season must never reach the mutation");
 
+phase = "source_contract";
 const safeSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
 const policySource = readFileSync("src/mare-autonomy-policy.ts", "utf8");
 for (const fragment of [
