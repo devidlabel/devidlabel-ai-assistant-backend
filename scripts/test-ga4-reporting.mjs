@@ -27,6 +27,21 @@ const env = () => ({
   GOOGLE_ORGANIC_REPORT_ACCESS_TOKEN: 'report-secret',
 });
 
+const reportPayload = (body) => {
+  const dimensionHeaders = (body.dimensions || []).map(({ name }) => ({ name }));
+  const metricHeaders = (body.metrics || []).map(({ name }) => ({ name, type: 'TYPE_INTEGER' }));
+  const dimensionValues = dimensionHeaders.map(({ name }) => ({ value: name === 'date' ? '20260801' : name === 'eventName' ? 'purchase' : name === 'country' ? 'Italy' : '/collections/test' }));
+  const metricValues = metricHeaders.map(({ name }, index) => ({ value: name.toLowerCase().includes('revenue') ? '500.25' : String(index + 10) }));
+  return {
+    dimensionHeaders,
+    metricHeaders,
+    rows: [{ dimensionValues, metricValues }],
+    totals: [{ metricValues }],
+    rowCount: 1,
+    propertyQuota: { tokensPerDay: { remaining: 1000 } },
+  };
+};
+
 const calls = [];
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input);
@@ -38,20 +53,12 @@ globalThis.fetch = async (input, init = {}) => {
     assert(jwtPayload.scope === 'https://www.googleapis.com/auth/analytics.readonly', 'GA4 OAuth scope should be readonly');
     return new Response(JSON.stringify({ access_token: 'access-token', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
-  if (url.includes(':runReport') || url.includes(':runRealtimeReport')) {
+  if (url.includes(':batchRunReports')) {
     const body = JSON.parse(String(init.body));
-    const dimensionHeaders = (body.dimensions || []).map(({ name }) => ({ name }));
-    const metricHeaders = (body.metrics || []).map(({ name }) => ({ name, type: 'TYPE_INTEGER' }));
-    const dimensionValues = dimensionHeaders.map(({ name }) => ({ value: name === 'date' ? '20260801' : name === 'eventName' ? 'purchase' : name === 'country' ? 'Italy' : '/collections/test' }));
-    const metricValues = metricHeaders.map(({ name }, index) => ({ value: name.toLowerCase().includes('revenue') ? '500.25' : String(index + 10) }));
-    return new Response(JSON.stringify({
-      dimensionHeaders,
-      metricHeaders,
-      rows: [{ dimensionValues, metricValues }],
-      totals: [{ metricValues }],
-      rowCount: 1,
-      propertyQuota: { tokensPerDay: { remaining: 1000 } },
-    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify({ reports: body.requests.map(reportPayload) }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (url.includes(':runRealtimeReport')) {
+    return new Response(JSON.stringify(reportPayload(JSON.parse(String(init.body)))), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
 };
@@ -61,19 +68,19 @@ assert(health?.status === 200, 'GA4 health should be public');
 const healthBody = await health.json();
 assert(healthBody.property_id === '345407658', 'GA4 property ID should normalize');
 assert(JSON.stringify(healthBody).includes('report-secret') === false, 'Health must not leak bearer');
-
 const denied = await handleGa4ReportingRequest(new Request('https://worker.test/internal/ga4/report'), env());
 assert(denied?.status === 401, 'GA4 report should require bearer');
-
 const report = await handleGa4ReportingRequest(new Request('https://worker.test/internal/ga4/report?timeframe=last_7_days', { headers: { Authorization: 'Bearer report-secret' } }), env());
 assert(report?.status === 200, 'GA4 report should succeed');
 const reportBody = await report.json();
 assert(reportBody.property_id === '345407658', 'GA4 report should expose property ID');
 assert(reportBody.overview.metrics.includes('sessions'), 'Overview should include sessions');
 assert(reportBody.ecommerce_funnel.rows[0].eventName === 'purchase', 'Funnel should normalize event rows');
-assert(calls.filter((call) => call.url.includes(':runReport')).length === 8, 'GA4 bundle should request eight standard reports');
+const batchCalls = calls.filter((call) => call.url.includes(':batchRunReports'));
+assert(batchCalls.length === 2, 'GA4 bundle should use two batch requests');
+assert(JSON.stringify(batchCalls.map((call) => JSON.parse(String(call.init.body)).requests.length)) === JSON.stringify([5, 3]), 'GA4 batches should contain five and three reports');
+assert(calls.filter((call) => call.url.includes(':runReport')).length === 0, 'GA4 bundle should not use individual standard report requests');
 assert(calls.every((call) => call.url.includes('analyticsdata.googleapis.com') ? call.init.headers.Authorization === 'Bearer access-token' : true), 'OAuth token must stay upstream');
-
 const realtime = await handleGa4ReportingRequest(new Request('https://worker.test/internal/ga4/realtime', { headers: { Authorization: 'Bearer report-secret' } }), env());
 assert(realtime?.status === 200, 'GA4 realtime should succeed');
 const realtimeBody = await realtime.json();
