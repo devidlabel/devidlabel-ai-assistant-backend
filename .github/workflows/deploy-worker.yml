@@ -132,8 +132,23 @@ jobs:
           const names = new Set(tools.map(tool => tool?.name).filter(Boolean));
           const required = ['mare_autonomy_submit', 'mare_autonomy_status', 'mare_autonomy_policy'];
           const missing = required.filter(name => !names.has(name));
-          console.log(JSON.stringify({ tool_count: tools.length, autonomy_tools: required.filter(name => names.has(name)), missing }, null, 2));
-          if (missing.length) process.exit(2);
+          const submit = tools.find(tool => tool?.name === 'mare_autonomy_submit') || {};
+          const capabilityEnum = submit?.inputSchema?.properties?.capability_id?.enum || [];
+          const requiredCapabilities = [
+            'klaviyo.campaign.draft.create',
+            'klaviyo.campaign.draft.update',
+            'github.pull_request.create',
+            'shopify.metafields.update_existing',
+          ];
+          const missingCapabilities = requiredCapabilities.filter(name => !capabilityEnum.includes(name));
+          console.log(JSON.stringify({
+            tool_count: tools.length,
+            autonomy_tools: required.filter(name => names.has(name)),
+            missing,
+            autonomy_capabilities: capabilityEnum,
+            missing_capabilities: missingCapabilities,
+          }, null, 2));
+          if (missing.length || missingCapabilities.length) process.exit(2);
           NODE
 
       - name: Verify deployed live order flow
