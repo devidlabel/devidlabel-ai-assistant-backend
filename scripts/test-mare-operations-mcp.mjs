@@ -28,6 +28,8 @@ for (const fragment of [
   'risk_tiered_autonomy',
   'reversible_safe_writes_mode: "AUTO+LOG"',
   'live_writes_require_confirmation: true',
+  'shopify.metafields.update_existing',
+  'compareDigest compare-and-set',
   'required_upstream_permissions: ["ads_read", "ads_management"]',
   'required_account_role: "STANDARD or higher for mutations"',
 ]) assert.ok(permissionsSource.includes(fragment), `Missing permissions audit fragment: ${fragment}`);
@@ -150,11 +152,14 @@ assert.equal(auditBody.result.structuredContent.policy.reversible_safe_writes_re
 assert.equal(auditBody.result.structuredContent.policy.reversible_safe_writes_mode, "AUTO+LOG");
 assert.equal(auditBody.result.structuredContent.policy.live_writes_require_confirmation, true);
 assert.equal(auditBody.result.structuredContent.policy.autonomous_execution_persists_beyond_chat_session, true);
-assert.deepEqual(auditBody.result.structuredContent.policy.autonomous_capabilities_p0, [
+assert.deepEqual(auditBody.result.structuredContent.policy.autonomous_capabilities_p1, [
   "klaviyo.campaign.draft.create",
   "klaviyo.campaign.draft.update",
   "github.pull_request.create",
+  "shopify.metafields.update_existing",
 ]);
+assert.equal(auditBody.result.structuredContent.providers.shopify.autonomy_mode, "AUTO+LOG for existing custom Product/ProductVariant metafields only");
+assert.equal(auditBody.result.structuredContent.providers.shopify.safety_controls.includes("compareDigest compare-and-set"), true);
 assert.equal(auditBody.result.structuredContent.providers.github.configured, true);
 assert.equal(JSON.stringify(auditBody).includes("github-token"), false);
 
@@ -254,6 +259,7 @@ console.log(JSON.stringify({
   controlled_write_tools: 5,
   exact_confirmations_required_for_direct_live_execution: true,
   reversible_safe_autonomy_mode: "AUTO+LOG",
+  autonomous_capabilities: 4,
   external_writes_enabled: true,
   irreversible_actions_enabled: false,
   secret_values_exposed: false,
