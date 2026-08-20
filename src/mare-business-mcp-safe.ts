@@ -1,6 +1,7 @@
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
+import { updateExistingShopifyMetafields } from "./mare-business-shopify-metafields.js";
 import {
   generateMarketplaceFeedComplete,
   generateMatrixifyCatalogComplete,
@@ -50,6 +51,7 @@ type StoredPlan = {
 };
 
 const PLAN_TTL_SECONDS = 24 * 60 * 60;
+const SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing";
 const TIKTOK_CAPABILITIES = new Set([
   "tiktok.authorization.status",
   "tiktok.authorization.start",
@@ -161,6 +163,46 @@ function startCapability(status: JsonObject): MareBusinessCapability {
   };
 }
 
+function shopifyMetafieldCapability(env: SafeBusinessEnv): MareBusinessCapability {
+  const configured = Boolean(normalize(env.SHOPIFY_SHOP_DOMAIN) && env.SHOPIFY_TOKENS_KV);
+  return {
+    id: SHOPIFY_METAFIELD_CAPABILITY_ID,
+    provider: "shopify",
+    domain: "catalog",
+    operation: "execute",
+    risk: "reversible_write",
+    implemented: true,
+    configured,
+    available: configured,
+    approval: "explicit",
+    description: "Update 1-25 already-existing custom metafields on Shopify products or variants using compareDigest CAS, atomic write and mandatory readback. Creation and deletion are not allowed.",
+    request_schema: {
+      type: "object",
+      properties: {
+        metafields: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: {
+            type: "object",
+            properties: {
+              owner_id: { type: "string", pattern: "^gid://shopify/(Product|ProductVariant)/[0-9]+$" },
+              namespace: { type: "string", enum: ["custom"] },
+              key: { type: "string", pattern: "^[A-Za-z0-9_-]{1,64}$" },
+              value: { type: "string" },
+            },
+            required: ["owner_id", "namespace", "key", "value"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["metafields"],
+      additionalProperties: false,
+    },
+    missing: configured ? [] : ["Shopify OAuth/KV"],
+  };
+}
+
 async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessCapability[]> {
   const status = await tiktokSafeAuthorizationStatus(env);
   const authorized = status.authorized === true;
@@ -177,6 +219,12 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
   const start = startCapability(status);
   if (existingStart >= 0) capabilities[existingStart] = start;
   else capabilities.push(start);
+
+  const shopifyMetafield = shopifyMetafieldCapability(env);
+  const existingShopifyMetafield = capabilities.findIndex((item) => item.id === SHOPIFY_METAFIELD_CAPABILITY_ID);
+  if (existingShopifyMetafield >= 0) capabilities[existingShopifyMetafield] = shopifyMetafield;
+  else capabilities.push(shopifyMetafield);
+
   return capabilities;
 }
 
@@ -250,6 +298,31 @@ async function prepareTikTokWrite(
   });
 }
 
+async function prepareShopifyMetafieldWrite(
+  capability: MareBusinessCapability,
+  requestPayload: JsonObject,
+  env: SafeBusinessEnv,
+): Promise<JsonObject> {
+  const plan = createPlan(capability, requestPayload);
+  await storePlan(plan, env);
+  return textToolResult({
+    ok: true,
+    status: "prepared",
+    plan,
+    required_confirmation: "EXECUTE MARE PLAN",
+    immutable_request: true,
+    external_write_performed: false,
+    guardrails: {
+      existing_metafields_only: true,
+      compare_digest_cas: true,
+      read_before_write: true,
+      read_after_write: true,
+      create_allowed: false,
+      delete_allowed: false,
+    },
+  });
+}
+
 async function executeTikTokPlan(
   plan: StoredPlan,
   confirmation: string,
@@ -297,6 +370,37 @@ async function executeTikTokPlan(
   } catch (error) {
     plan.status = "reconciliation_required";
     plan.error = error instanceof Error ? error.message : "tiktok_plan_execution_failed";
+    await storePlan(plan, env);
+    throw error;
+  }
+}
+
+async function executeShopifyMetafieldPlan(
+  plan: StoredPlan,
+  confirmation: string,
+  env: SafeBusinessEnv,
+): Promise<JsonObject> {
+  if (confirmation !== "EXECUTE MARE PLAN") throw new Error("approval_confirmation_required:EXECUTE MARE PLAN");
+  if (plan.status === "completed") return textToolResult({ ok: true, status: "completed", idempotent_replay: true, plan });
+  if (plan.status === "failed" || plan.status === "reconciliation_required") throw new Error("plan_reconciliation_required");
+  if (plan.status === "cancelled") throw new Error("plan_cancelled");
+  if (plan.status === "executing") throw new Error("plan_already_executing");
+  if (Date.parse(plan.expires_at) <= Date.now()) throw new Error("plan_expired");
+  const capability = await resolveCapability(plan.capability_id, env);
+  if (!capability?.available) throw new Error(`capability_no_longer_available:${capability?.missing.join(",") || "unknown"}`);
+
+  plan.status = "executing";
+  await storePlan(plan, env);
+  try {
+    const result = await updateExistingShopifyMetafields(plan.request, env);
+    plan.status = "completed";
+    plan.executed_at = new Date().toISOString();
+    plan.result_summary = result;
+    await storePlan(plan, env);
+    return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
+  } catch (error) {
+    plan.status = "reconciliation_required";
+    plan.error = error instanceof Error ? error.message : "shopify_metafield_plan_execution_failed";
     await storePlan(plan, env);
     throw error;
   }
@@ -361,6 +465,7 @@ export async function handleMareBusinessMcpSafeRequest(
           failed_live_plan_replay_blocked: true,
           complete_variant_pagination: true,
           correct_regular_and_sale_price_mapping: true,
+          shopify_existing_metafields_first_class: true,
         },
       };
       return rpcToolResponse(request, rpc.id, textToolResult(payload));
@@ -394,11 +499,15 @@ export async function handleMareBusinessMcpSafeRequest(
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, await prepareTikTokWrite(capability, requestPayload, env));
       }
+      if (capabilityId === SHOPIFY_METAFIELD_CAPABILITY_ID) {
+        if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
+        return rpcToolResponse(request, rpc.id, await prepareShopifyMetafieldWrite(capability, requestPayload, env));
+      }
     }
 
     if (toolName === "mare_validate") {
       const plan = await loadPlan(normalize(args.plan_id), env);
-      if (TIKTOK_CAPABILITIES.has(plan.capability_id)) {
+      if (TIKTOK_CAPABILITIES.has(plan.capability_id) || plan.capability_id === SHOPIFY_METAFIELD_CAPABILITY_ID) {
         const capability = await resolveCapability(plan.capability_id, env);
         return rpcToolResponse(request, rpc.id, textToolResult({
           ok: true,
@@ -418,6 +527,9 @@ export async function handleMareBusinessMcpSafeRequest(
       }
       if (["tiktok.campaign.create", "tiktok.campaign.update"].includes(plan.capability_id)) {
         return rpcToolResponse(request, rpc.id, await executeTikTokPlan(plan, normalize(args.approval_confirmation), env));
+      }
+      if (plan.capability_id === SHOPIFY_METAFIELD_CAPABILITY_ID) {
+        return rpcToolResponse(request, rpc.id, await executeShopifyMetafieldPlan(plan, normalize(args.approval_confirmation), env));
       }
     }
   } catch (error) {

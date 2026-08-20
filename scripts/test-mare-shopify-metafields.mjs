@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -175,6 +175,29 @@ await assert.rejects(
   /shopify_metafields_set_rejected/,
 );
 
+const safeSource = readFileSync("src/mare-business-mcp-safe.ts", "utf8");
+const autonomySource = readFileSync("src/mare-autonomy-runner.ts", "utf8");
+for (const fragment of [
+  'SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing"',
+  'risk: "reversible_write"',
+  'approval: "explicit"',
+  'prepareShopifyMetafieldWrite',
+  'executeShopifyMetafieldPlan',
+  'updateExistingShopifyMetafields(plan.request, env)',
+  'required_confirmation: "EXECUTE MARE PLAN"',
+  'shopify_existing_metafields_first_class: true',
+]) assert.ok(safeSource.includes(fragment), `Missing first-class Shopify Business OS fragment: ${fragment}`);
+
+for (const fragment of [
+  'callBusinessTool(env, "mare_prepare"',
+  'callBusinessTool(env, "mare_validate"',
+  'callBusinessTool(env, "mare_execute"',
+  'coordinated_plan_ledger: true',
+  'audit_schema: "mare_autonomy_p2"',
+]) assert.ok(autonomySource.includes(fragment), `Missing coordinated autonomy fragment: ${fragment}`);
+assert.equal(autonomySource.includes('import { updateExistingShopifyMetafields }'), false, "Autonomy runner must not bypass the Business OS plan coordinator");
+assert.equal(autonomySource.includes('if (job.capability_id === "shopify.metafields.update_existing")'), false, "Shopify autonomy must not have a direct execution shortcut");
+
 console.log(JSON.stringify({
   ok: true,
   contract: "mare_shopify_existing_metafields_autonomy",
@@ -186,4 +209,8 @@ console.log(JSON.stringify({
   read_after_write: true,
   creation_allowed: false,
   deletion_allowed: false,
+  business_os_first_class: true,
+  immutable_plan_required: true,
+  coordinator_ledger_required: true,
+  direct_runner_shortcut_allowed: false,
 }));
