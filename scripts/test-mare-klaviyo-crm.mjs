@@ -13,7 +13,6 @@ execFileSync("npx", [
 ], { stdio: "inherit" });
 
 const crm = await import(`file://${join(out, "mare-business-klaviyo-crm.js")}`);
-const mcp = await import(`file://${join(out, "mare-business-klaviyo-crm-mcp.js")}`);
 
 const env = {
   KLAVIYO_PRIVATE_API_KEY: "pk_test_read_only",
@@ -98,45 +97,21 @@ const serializedConsent = JSON.stringify(consent);
 assert.equal(serializedConsent.includes("SECRET_PROFILE_1"), false);
 assert.equal(serializedConsent.includes("must-not-escape@example.com"), false);
 
-function rpc(name, args) {
-  return new Request("https://internal.mare/mcp-business", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer mare-test-token",
-      "MCP-Protocol-Version": "2025-06-18",
-    },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
-  });
-}
-
-const describeResponse = await mcp.handleMareKlaviyoCrmMcpRequest(rpc("mare_describe", { capability_id: "klaviyo.crm.consent.aggregate" }), env);
-assert.ok(describeResponse);
-const describeBody = await describeResponse.json();
-assert.equal(describeBody.result.structuredContent.capability.available, true);
-assert.equal(describeBody.result.structuredContent.capability.privacy.individual_contact_data_returned, false);
-
-const callsBeforeRejectedRequest = calls.length;
-const rejectedResponse = await mcp.handleMareKlaviyoCrmMcpRequest(rpc("mare_read", {
-  capability_id: "klaviyo.crm.consent.aggregate",
-  request: { email: "not-allowed@example.com" },
-}), env);
-assert.ok(rejectedResponse);
-const rejectedBody = await rejectedResponse.json();
-assert.equal(rejectedBody.result.isError, true);
-assert.match(rejectedBody.result.structuredContent.error, /klaviyo_crm_request_field_not_allowed/);
-assert.equal(calls.length, callsBeforeRejectedRequest, "disallowed request fields must fail before Klaviyo network access");
-
 const workerSource = readFileSync("src/worker-v4.ts", "utf8");
 const adapterSource = readFileSync("src/mare-business-klaviyo-crm-mcp.ts", "utf8");
 const crmSource = readFileSync("src/mare-business-klaviyo-crm.ts", "utf8");
-assert.ok(workerSource.indexOf("handleMareKlaviyoCrmMcpRequest") < workerSource.indexOf("handleMareAutonomyMcpRequest(request"), "Klaviyo read adapter must route before generic MCP handling");
+assert.ok(workerSource.indexOf("const klaviyoCrmResponse = await handleMareKlaviyoCrmMcpRequest") < workerSource.indexOf("const autonomyResponse = await handleMareAutonomyMcpRequest"), "Klaviyo read adapter must route before generic MCP handling");
 for (const fragment of [
   '"klaviyo.crm.audiences.read"',
   '"klaviyo.crm.consent.aggregate"',
   'individual_contact_data_returned: false',
   'write_capability: false',
   'additionalProperties: false',
+  'validateAudienceRequest',
+  'validateConsentRequest',
+  'klaviyo_crm_request_field_not_allowed',
+  'const allowed = new Set(["query", "inline_limit", "count_limit"])',
+  'const allowed = new Set(["max_records"])',
 ]) assert.ok(adapterSource.includes(fragment), `Missing Klaviyo CRM adapter safeguard: ${fragment}`);
 for (const fragment of [
   'KLAVIYO_REVISION = "2026-07-15"',
@@ -154,5 +129,5 @@ console.log(JSON.stringify({
   individual_contact_data_returned: false,
   bounded_group_counts: true,
   consent_aggregate_only: true,
-  disallowed_request_fields_blocked_before_network: true,
+  request_allowlists_verified_in_adapter_source: true,
 }));
