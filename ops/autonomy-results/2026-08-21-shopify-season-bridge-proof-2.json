@@ -1,0 +1,18 @@
+{
+  "schema": "mare_autonomy_result_v1",
+  "request_path": "ops/autonomy-requests/2026-08-21-shopify-season-bridge-proof-2.json",
+  "source_commit": "786b5acbb26c1ba9879c0b67ae96f1c289921a24",
+  "submit_http": "400",
+  "final_status": "",
+  "submit": {
+    "ok": false,
+    "error": "invalid_job_id",
+    "request_path": "ops/autonomy-requests/2026-08-21-shopify-season-bridge-proof-2.json",
+    "request_hash": "04f8e7fb08ab485f4643b2443a0f4206cbc70165f6719ae48faf22fc85a7eebb",
+    "job_id": "maj_gh_04f8e7fb08ab485f4643b2443a0f4206cbc70165f6719ae4"
+  },
+  "status": {
+    "ok": false,
+    "error": "invalid_job_id"
+  }
+}
