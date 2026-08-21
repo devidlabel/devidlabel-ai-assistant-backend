@@ -1,5 +1,6 @@
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { handleMareAutonomyMcpRequest, MareAutonomyRunner } from "./mare-autonomy-runner";
+import { handleGitHubAutonomyBridgeRequest } from "./mare-github-autonomy-bridge";
 import { handleMareKlaviyoCrmMcpRequest } from "./mare-business-klaviyo-crm-mcp";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
@@ -31,6 +32,9 @@ export default {
 
     const autonomyResponse = await handleMareAutonomyMcpRequest(request, env as any);
     if (autonomyResponse) return autonomyResponse;
+
+    const githubAutonomyBridgeResponse = await handleGitHubAutonomyBridgeRequest(request, env as any);
+    if (githubAutonomyBridgeResponse) return githubAutonomyBridgeResponse;
 
     const torna40ReadbackResponse = await handleTorna40Readback190826(request, env as any);
     if (torna40ReadbackResponse) return torna40ReadbackResponse;

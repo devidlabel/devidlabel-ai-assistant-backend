@@ -1,0 +1,116 @@
+name: MARE autonomy request bridge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/autonomy-requests/*.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mare-autonomy-request-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Submit and reconcile autonomous MARE requests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve changed autonomy requests
+        shell: bash
+        run: |
+          git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" \
+            | grep '^ops/autonomy-requests/.*\.json$' \
+            > /tmp/mare-autonomy-requests.txt || true
+          if [ ! -s /tmp/mare-autonomy-requests.txt ]; then
+            echo "No MARE autonomy request files found in this commit." >&2
+            exit 1
+          fi
+          cat /tmp/mare-autonomy-requests.txt
+
+      - name: Submit requests and wait for durable result
+        id: mare_bridge
+        shell: bash
+        run: |
+          set -u
+          endpoint="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/github-autonomy-bridge"
+          mkdir -p ops/autonomy-results
+          overall_failure=0
+
+          while IFS= read -r request_path; do
+            [ -n "$request_path" ] || continue
+            echo "Submitting $request_path"
+
+            jq -n --arg action submit --arg request_path "$request_path" \
+              '{action:$action,request_path:$request_path}' > /tmp/mare-submit-request.json
+
+            if ! curl --fail-with-body --silent --show-error \
+              --retry 4 --retry-delay 2 \
+              -H 'Content-Type: application/json' \
+              --data @/tmp/mare-submit-request.json \
+              "$endpoint" > /tmp/mare-submit-response.json; then
+              cat /tmp/mare-submit-response.json || true
+              overall_failure=1
+              continue
+            fi
+
+            cat /tmp/mare-submit-response.json
+            job_id="$(jq -r '.job_id // empty' /tmp/mare-submit-response.json)"
+            if [ -z "$job_id" ]; then
+              echo "Bridge response did not include job_id" >&2
+              overall_failure=1
+              continue
+            fi
+
+            final_status=""
+            for attempt in $(seq 1 60); do
+              jq -n --arg action status --arg request_path "$request_path" \
+                '{action:$action,request_path:$request_path}' > /tmp/mare-status-request.json
+              if curl --fail-with-body --silent --show-error \
+                --retry 2 --retry-delay 1 \
+                -H 'Content-Type: application/json' \
+                --data @/tmp/mare-status-request.json \
+                "$endpoint" > /tmp/mare-status-response.json; then
+                final_status="$(jq -r '.job.status // empty' /tmp/mare-status-response.json)"
+                echo "Attempt ${attempt}: ${job_id} -> ${final_status:-unknown}"
+                if [ "$final_status" = "completed" ] || [ "$final_status" = "failed" ] || [ "$final_status" = "cancelled" ]; then
+                  break
+                fi
+              fi
+              sleep 3
+            done
+
+            result_name="$(basename "$request_path")"
+            jq -n \
+              --arg schema 'mare_autonomy_result_v1' \
+              --arg request_path "$request_path" \
+              --arg source_commit "$GITHUB_SHA" \
+              --slurpfile submit /tmp/mare-submit-response.json \
+              --slurpfile status /tmp/mare-status-response.json \
+              '{schema:$schema,request_path:$request_path,source_commit:$source_commit,submit:$submit[0],status:$status[0]}' \
+              > "ops/autonomy-results/$result_name"
+
+            if [ "$final_status" != "completed" ]; then
+              overall_failure=1
+            fi
+          done < /tmp/mare-autonomy-requests.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ops/autonomy-results
+          if ! git diff --cached --quiet; then
+            git commit -m "Log MARE autonomy result for ${GITHUB_SHA}"
+            git push
+          fi
+
+          exit "$overall_failure"
