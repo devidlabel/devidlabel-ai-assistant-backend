@@ -1,0 +1,78 @@
+name: Social product media snapshot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/social-requests/*.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: social-product-media-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Snapshot Shopify public product media
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve request
+        id: request
+        shell: bash
+        run: |
+          request_path="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep '^ops/social-requests/.*\.json$' | head -n 1 || true)"
+          test -n "$request_path"
+          vendor="$(jq -r '.vendor // "Sprayground"' "$request_path")"
+          standard_only="$(jq -r 'if .standard_only == false then "0" else "1" end' "$request_path")"
+          limit="$(jq -r '.limit // 100' "$request_path")"
+          echo "request_path=$request_path" >> "$GITHUB_OUTPUT"
+          echo "vendor=$vendor" >> "$GITHUB_OUTPUT"
+          echo "standard_only=$standard_only" >> "$GITHUB_OUTPUT"
+          echo "limit=$limit" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch exact Shopify media
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/public-product-media'
+          curl --fail-with-body --silent --show-error \
+            --retry 8 --retry-delay 3 --retry-all-errors \
+            --get "$endpoint" \
+            --data-urlencode "vendor=${{ steps.request.outputs.vendor }}" \
+            --data-urlencode "standard_only=${{ steps.request.outputs.standard_only }}" \
+            --data-urlencode "limit=${{ steps.request.outputs.limit }}" \
+            -o /tmp/product-media.json
+          jq -e '.ok == true and (.products | type == "array")' /tmp/product-media.json >/dev/null
+          count="$(jq '.products | length' /tmp/product-media.json)"
+          echo "Shopify standard-size product media rows: $count"
+          if [ "$count" -lt 15 ]; then
+            echo "Expected at least 15 standard-size products, got $count" >&2
+            cat /tmp/product-media.json
+            exit 2
+          fi
+
+      - name: Publish safe snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ops/social-data
+          jq '{schema:"mare_social_product_media_v1",captured_at:.generated_at,source:.source,vendor:.vendor,standard_only:.standard_only,count:.count,products:.products}' \
+            /tmp/product-media.json > ops/social-data/sprayground-standard-backpacks.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ops/social-data/sprayground-standard-backpacks.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Sprayground Shopify media snapshot"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
