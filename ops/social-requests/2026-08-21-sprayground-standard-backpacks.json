@@ -1,0 +1,7 @@
+{
+  "schema": "mare_social_media_snapshot_request_v1",
+  "vendor": "Sprayground",
+  "standard_only": true,
+  "limit": 100,
+  "purpose": "Instagram carousel: exact Shopify product media only"
+}
