@@ -5,6 +5,7 @@ import { handleMareKlaviyoCrmMcpRequest } from "./mare-business-klaviyo-crm-mcp"
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
 import { handleYouTubeReportingRequest } from "./youtube-reporting";
+import { handlePublicProductMediaRequest } from "./public-product-media";
 import { handleKwayFinalSale180826 } from "./klaviyo-kway-final-sale-180826";
 import { handleTorna40Readback190826 } from "./shopify-torna40-readback-190826";
 
@@ -35,6 +36,9 @@ export default {
 
     const githubAutonomyBridgeResponse = await handleGitHubAutonomyBridgeRequest(request, env as any);
     if (githubAutonomyBridgeResponse) return githubAutonomyBridgeResponse;
+
+    const publicProductMediaResponse = await handlePublicProductMediaRequest(request, env as any);
+    if (publicProductMediaResponse) return publicProductMediaResponse;
 
     const torna40ReadbackResponse = await handleTorna40Readback190826(request, env as any);
     if (torna40ReadbackResponse) return torna40ReadbackResponse;
