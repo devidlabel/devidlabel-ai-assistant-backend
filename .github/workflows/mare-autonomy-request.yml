@@ -51,53 +51,63 @@ jobs:
             [ -n "$request_path" ] || continue
             echo "Submitting $request_path"
 
+            printf '{}\n' > /tmp/mare-submit-response.json
+            printf '{}\n' > /tmp/mare-status-response.json
+            job_id=""
+            submit_http=""
+
             jq -n --arg action submit --arg request_path "$request_path" \
               '{action:$action,request_path:$request_path}' > /tmp/mare-submit-request.json
 
-            if ! curl --fail-with-body --silent --show-error \
-              --retry 4 --retry-delay 2 \
-              -H 'Content-Type: application/json' \
-              --data @/tmp/mare-submit-request.json \
-              "$endpoint" > /tmp/mare-submit-response.json; then
-              cat /tmp/mare-submit-response.json || true
-              overall_failure=1
-              continue
-            fi
-
-            cat /tmp/mare-submit-response.json
-            job_id="$(jq -r '.job_id // empty' /tmp/mare-submit-response.json)"
-            if [ -z "$job_id" ]; then
-              echo "Bridge response did not include job_id" >&2
-              overall_failure=1
-              continue
-            fi
+            for submit_attempt in $(seq 1 12); do
+              submit_http="$(curl --silent --show-error \
+                --connect-timeout 10 --max-time 30 \
+                --output /tmp/mare-submit-response.json \
+                --write-out '%{http_code}' \
+                -H 'Content-Type: application/json' \
+                --data @/tmp/mare-submit-request.json \
+                "$endpoint" || true)"
+              job_id="$(jq -r '.job_id // empty' /tmp/mare-submit-response.json 2>/dev/null || true)"
+              echo "Submit attempt ${submit_attempt}: HTTP ${submit_http:-network_error}, job=${job_id:-none}"
+              if [[ "$submit_http" =~ ^2[0-9][0-9]$ ]] && [ -n "$job_id" ]; then
+                break
+              fi
+              sleep 5
+            done
 
             final_status=""
-            for attempt in $(seq 1 60); do
-              jq -n --arg action status --arg request_path "$request_path" \
-                '{action:$action,request_path:$request_path}' > /tmp/mare-status-request.json
-              if curl --fail-with-body --silent --show-error \
-                --retry 2 --retry-delay 1 \
-                -H 'Content-Type: application/json' \
-                --data @/tmp/mare-status-request.json \
-                "$endpoint" > /tmp/mare-status-response.json; then
-                final_status="$(jq -r '.job.status // empty' /tmp/mare-status-response.json)"
-                echo "Attempt ${attempt}: ${job_id} -> ${final_status:-unknown}"
+            if [ -n "$job_id" ]; then
+              for attempt in $(seq 1 60); do
+                jq -n --arg action status --arg request_path "$request_path" \
+                  '{action:$action,request_path:$request_path}' > /tmp/mare-status-request.json
+                status_http="$(curl --silent --show-error \
+                  --connect-timeout 10 --max-time 30 \
+                  --output /tmp/mare-status-response.json \
+                  --write-out '%{http_code}' \
+                  -H 'Content-Type: application/json' \
+                  --data @/tmp/mare-status-request.json \
+                  "$endpoint" || true)"
+                if [[ "$status_http" =~ ^2[0-9][0-9]$ ]]; then
+                  final_status="$(jq -r '.job.status // empty' /tmp/mare-status-response.json 2>/dev/null || true)"
+                fi
+                echo "Status attempt ${attempt}: ${job_id} -> ${final_status:-unknown} (HTTP ${status_http:-network_error})"
                 if [ "$final_status" = "completed" ] || [ "$final_status" = "failed" ] || [ "$final_status" = "cancelled" ]; then
                   break
                 fi
-              fi
-              sleep 3
-            done
+                sleep 3
+              done
+            fi
 
             result_name="$(basename "$request_path")"
             jq -n \
               --arg schema 'mare_autonomy_result_v1' \
               --arg request_path "$request_path" \
               --arg source_commit "$GITHUB_SHA" \
+              --arg submit_http "$submit_http" \
+              --arg final_status "$final_status" \
               --slurpfile submit /tmp/mare-submit-response.json \
               --slurpfile status /tmp/mare-status-response.json \
-              '{schema:$schema,request_path:$request_path,source_commit:$source_commit,submit:$submit[0],status:$status[0]}' \
+              '{schema:$schema,request_path:$request_path,source_commit:$source_commit,submit_http:$submit_http,final_status:$final_status,submit:$submit[0],status:$status[0]}' \
               > "ops/autonomy-results/$result_name"
 
             if [ "$final_status" != "completed" ]; then
@@ -110,6 +120,7 @@ jobs:
           git add ops/autonomy-results
           if ! git diff --cached --quiet; then
             git commit -m "Log MARE autonomy result for ${GITHUB_SHA}"
+            git pull --rebase origin main
             git push
           fi
 
