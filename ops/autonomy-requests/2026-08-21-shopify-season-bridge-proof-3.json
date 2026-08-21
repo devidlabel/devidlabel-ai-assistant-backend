@@ -1,0 +1,12 @@
+{
+  "schema": "mare_autonomy_request_v1",
+  "capability_id": "shopify.product.season.assign_missing",
+  "request": {
+    "assignments": [
+      {
+        "product_id": "gid://shopify/Product/10412754436437",
+        "season_reference": "product_feature_season.continuous"
+      }
+    ]
+  }
+}
