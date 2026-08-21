@@ -1,0 +1,486 @@
+{
+  "schema": "mare_social_product_media_compact_v1",
+  "captured_at": "2026-08-21T09:57:01.552Z",
+  "source": "shopify_admin_graphql_public_safe",
+  "vendor": "Sprayground",
+  "standard_only": true,
+  "count": 34,
+  "products": [
+    {
+      "id": "gid://shopify/Product/10426392084821",
+      "title": "Ninja Star Bear Bear Backpack",
+      "handle": "sprayground-ninja-star-bear-bear-backpack-spr910b7109nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-ninja-star-bear-bear-backpack-spr910b7109nsz",
+      "dimensions_cm": [
+        43,
+        27,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/90991.png?v=1774434127",
+      "image_width": 1080,
+      "image_height": 1350
+    },
+    {
+      "id": "gid://shopify/Product/10426410172757",
+      "title": "Pink Panther Caught Sneaking Dlxr Backpack",
+      "handle": "sprayground-pink-panther-caught-sneaking-dlxr-backpack-spr910b6978nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-pink-panther-caught-sneaking-dlxr-backpack-spr910b6978nsz",
+      "dimensions_cm": [
+        43,
+        27,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/90654.png?v=1774434231",
+      "image_width": 1080,
+      "image_height": 1350
+    },
+    {
+      "id": "gid://shopify/Product/10426427244885",
+      "title": "Monaco Deux Monte Carlo Backpack",
+      "handle": "sprayground-monaco-deux-monte-carlo-backpack-spr910b7264nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-monaco-deux-monte-carlo-backpack-spr910b7264nsz",
+      "dimensions_cm": [
+        43,
+        27,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/90635.png?v=1774434235",
+      "image_width": 1080,
+      "image_height": 1350
+    },
+    {
+      "id": "gid://shopify/Product/10426430980437",
+      "title": "Zaino1 Off Bags Stan Lee",
+      "handle": "sprayground-zaino1-off-bags-stan-lee-spr910b7225nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-zaino1-off-bags-stan-lee-spr910b7225nsz",
+      "dimensions_cm": [
+        43,
+        27,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/RIDIMENSIONATE4-15_048b3f83-3bb3-431e-8c69-471fa2ab07c7.jpg?v=1777888305",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11196020949333",
+      "title": "Zaino Pink Sharks in Paris Patch Savage Backpack",
+      "handle": "sprayground-zaino-pink-sharks-in-paris-patch-savage-backpack-spr910b9013nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-zaino-pink-sharks-in-paris-patch-savage-backpack-spr910b9013nsz",
+      "dimensions_cm": [
+        45,
+        15,
+        29
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/96709.png?v=1775291727",
+      "image_width": 1080,
+      "image_height": 1350
+    },
+    {
+      "id": "gid://shopify/Product/11439775514965",
+      "title": "Zaino Spiked And Spiked Backpack",
+      "handle": "sprayground-spiked-and-spiked-backpack-china-spr-910b8362nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-spiked-and-spiked-backpack-china-spr-910b8362nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/123_e177d743-87cf-41dc-a5d8-55f59a50694d.jpg?v=1786099790",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776235861",
+      "title": "Zaino Brown And Cream Drip Check Shark Backpack",
+      "handle": "sprayground-brown-and-cream-drip-check-shark-backpack-china-spr-910b8552nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-brown-and-cream-drip-check-shark-backpack-china-spr-910b8552nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/241_952abdd0-d14b-4224-966d-cbc15ae20a98.jpg?v=1784046395",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776203093",
+      "title": "Zaino Bag Done Wrong Backpack",
+      "handle": "sprayground-bag-done-wrong-backpack-china-spr-910b8551nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-bag-done-wrong-backpack-china-spr-910b8551nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/387_a0d1a6f0-e028-418a-a2cb-365e7335c291.jpg?v=1785244668",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776268629",
+      "title": "Zaino Black And White Drip Check Shark Backpack",
+      "handle": "sprayground-black-and-white-drip-check-shark-backpack-china-spr-910b8553nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-black-and-white-drip-check-shark-backpack-china-spr-910b8553nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/232_a506b652-1727-4bae-8114-49081ecda4ae.jpg?v=1784046434",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776301397",
+      "title": "Zaino Sprayground Authentic Luxe Black Backpack",
+      "handle": "sprayground-sprayground-authentic-luxe-black-backpack-china-spr-910b8620nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-sprayground-authentic-luxe-black-backpack-china-spr-910b8620nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/259_5badc195-2636-4554-b165-3228ea2f6520.jpg?v=1784047268",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776465237",
+      "title": "Zaino Sharks In Paris Wtf Bubble Brown Check Backpack",
+      "handle": "sprayground-sharks-in-paris-wtf-bubble-brown-check-backpack-china-spr-910b8634nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-sharks-in-paris-wtf-bubble-brown-check-backpack-china-spr-910b8634nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/55_29d28500-fd3d-4892-8263-d62cac272eaa.jpg?v=1785766744",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776432469",
+      "title": "Zaino Sharks In Paris Wtf Bubbly Black Check Backpack",
+      "handle": "sprayground-sharks-in-paris-wtf-bubbly-black-check-backpack-china-spr-910b8633nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-sharks-in-paris-wtf-bubbly-black-check-backpack-china-spr-910b8633nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/115_32e97553-cbac-4d82-8ec0-967e5bb6d65f.jpg?v=1784037119",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776530773",
+      "title": "Zaino Disappearing Shark Backpack",
+      "handle": "sprayground-disappearing-shark-backpack-china-spr-910b8658nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-disappearing-shark-backpack-china-spr-910b8658nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/B8658_GIF.gif?v=1784028688",
+      "image_width": 1080,
+      "image_height": 1350
+    },
+    {
+      "id": "gid://shopify/Product/11439777612117",
+      "title": "Zaino Sharks In Paris Pyramid Backpack",
+      "handle": "sprayground-sharks-in-paris-pyramid-backpack-china-spr-910b8744nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-sharks-in-paris-pyramid-backpack-china-spr-910b8744nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/41_0085c0d6-58ca-48e2-9098-35e304221bfc.jpg?v=1785766618",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439776956757",
+      "title": "Zaino Diablo Sketchy Hoodie Backpack",
+      "handle": "sprayground-diablo-sketchy-hoodie-backpack-china-spr-910b8690nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-diablo-sketchy-hoodie-backpack-china-spr-910b8690nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/288_132c011a-4559-47fe-bfd7-f53015cf5058.jpg?v=1784048125",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439777939797",
+      "title": "Zaino Money Banks Backpack",
+      "handle": "sprayground-money-banks-backpack-china-spr-910b8793nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-money-banks-backpack-china-spr-910b8793nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/368.jpg?v=1785243960",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778005333",
+      "title": "Zaino Peanuts Snoopy Jams Backpack",
+      "handle": "sprayground-peanuts-snoopy-jams-backpack-china-spr-910b8798nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-peanuts-snoopy-jams-backpack-china-spr-910b8798nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/25_01868f21-e9ea-485b-9cc4-8238cb94b2b5.jpg?v=1785765703",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778070869",
+      "title": "Zaino Pink Panther Pawprints Backpack",
+      "handle": "sprayground-pink-panther-pawprints-backpack-china-spr-910b8860nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-pink-panther-pawprints-backpack-china-spr-910b8860nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/152_b88e7187-3a69-4a3e-a642-7916c4fa2a43.jpg?v=1784038195",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778038101",
+      "title": "Zaino Star Wars Stormtrooper Pattern Backpack",
+      "handle": "sprayground-star-wars-stormtrooper-pattern-backpack-china-spr-910b8804nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-star-wars-stormtrooper-pattern-backpack-china-spr-910b8804nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/402.jpg?v=1785245393",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778365781",
+      "title": "Zaino Blue Ink Doodle Backpack",
+      "handle": "sprayground-blue-ink-doodle-backpack-china-spr-910b8883nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-blue-ink-doodle-backpack-china-spr-910b8883nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/34_867d0ef4-7d80-4241-a4ba-d94fecaa51ba.jpg?v=1785765785",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778693461",
+      "title": "Zaino Inspector Gadget Gadget Hands Backpack",
+      "handle": "sprayground-inspector-gadget-gadget-hands-backpack-china-spr-910b9079nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-inspector-gadget-gadget-hands-backpack-china-spr-910b9079nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/317_c8b8186d-0ead-4208-ad17-6b3231cc5c3a.jpg?v=1784049012",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778562389",
+      "title": "Zaino Looney Tunes Fight Cloud Backpack",
+      "handle": "sprayground-looney-tunes-fight-cloud-backpack-china-spr-910b9071nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-looney-tunes-fight-cloud-backpack-china-spr-910b9071nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/336_5bdd0850-aee1-4c7a-bb25-ba5c0bea54d0.jpg?v=1784048938",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778726229",
+      "title": "Zaino Rick And Morty Portal Jumping Backpack",
+      "handle": "sprayground-rick-and-morty-portal-jumping-backpack-china-spr-910b9082nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-rick-and-morty-portal-jumping-backpack-china-spr-910b9082nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/307_52bdd7ac-76b7-4f6a-89a3-1a20dfcba49a.jpg?v=1784049079",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778922837",
+      "title": "Zaino Star Wars Vader Half Graff Backpack",
+      "handle": "sprayground-star-wars-vader-half-graff-backpack-china-spr-910b9089nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-star-wars-vader-half-graff-backpack-china-spr-910b9089nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/1_25d440b4-4203-40ec-ac78-a5c0ea1dda80.jpg?v=1785764752",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778988373",
+      "title": "Zaino Looney Tunes Taz Beast Feast Backpack",
+      "handle": "sprayground-looney-tunes-taz-beast-feast-backpack-china-spr-910b9111nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-looney-tunes-taz-beast-feast-backpack-china-spr-910b9111nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/106_fb5720fe-08ab-4170-a4f3-d3c7315b1a8c.jpg?v=1786098344",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439778955605",
+      "title": "Zaino Rugrats Susie Painting Shark Backpack",
+      "handle": "sprayground-rugrats-susie-painting-shark-backpack-china-spr-910b9099nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-rugrats-susie-painting-shark-backpack-china-spr-910b9099nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/223_c3f84570-e40f-484e-9510-b769b23df601.jpg?v=1784045566",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439779152213",
+      "title": "Zaino Disney Old School Mickey Sketch Backpack",
+      "handle": "sprayground-disney-old-school-mickey-sketch-backpack-china-spr-910b9128nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-disney-old-school-mickey-sketch-backpack-china-spr-910b9128nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/409.jpg?v=1785246310",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439779316053",
+      "title": "Zaino Sonic On The Run Backpack",
+      "handle": "sprayground-sonic-on-the-run-backpack-china-spr-910b9138nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-sonic-on-the-run-backpack-china-spr-910b9138nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/408.jpg?v=1785245829",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439779184981",
+      "title": "Zaino Pink Panther Graff Backpack",
+      "handle": "sprayground-pink-panther-graff-backpack-china-spr-910b9134nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-pink-panther-graff-backpack-china-spr-910b9134nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/360_92c1e5aa-c72c-48aa-8cfc-f92675035674.jpg?v=1785243454",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439779545429",
+      "title": "Zaino Disney Stitch Breakout Backpack",
+      "handle": "sprayground-disney-stitch-breakout-backpack-china-spr-910b9174nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-disney-stitch-breakout-backpack-china-spr-910b9174nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/438_10d210c6-1909-4092-bbe0-d70f90fb7972.jpg?v=1785246662",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439779905877",
+      "title": "Zaino New Ai Pattern Backpack",
+      "handle": "sprayground-new-ai-pattern-backpack-china-spr-910b9257nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-new-ai-pattern-backpack-china-spr-910b9257nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/139_279db6f3-b28f-4228-a7a0-1d7720ef79f1.jpg?v=1786099707",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439779840341",
+      "title": "Zaino Mauritshuis Museum Girl With A Pearl Earring Frame Backpack",
+      "handle": "sprayground-mauritshuis-museum-girl-with-a-pearl-earring-frame-backpack-china-spr-910b9189nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-mauritshuis-museum-girl-with-a-pearl-earring-frame-backpack-china-spr-910b9189nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/130_817b84f5-db06-4fd9-b43a-453721b1555b.jpg?v=1786099658",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439780168021",
+      "title": "Zaino Dc Joker Tagged Up Batmobile Backpack",
+      "handle": "sprayground-dc-joker-tagged-up-batmobile-backpack-china-spr-910b9286nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-dc-joker-tagged-up-batmobile-backpack-china-spr-910b9286nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/113_6dc0cb8f-7cac-40a2-8085-a03f8ebd2e66.jpg?v=1786099459",
+      "image_width": 600,
+      "image_height": 771
+    },
+    {
+      "id": "gid://shopify/Product/11439780790613",
+      "title": "Zaino Blacked Out Embossed Gold Tooth Backpack",
+      "handle": "sprayground-blacked-out-embossed-gold-tooth-backpack-china-spr-910b9325nsz",
+      "online_store_url": "https://devidlabel.com/products/sprayground-blacked-out-embossed-gold-tooth-backpack-china-spr-910b9325nsz",
+      "dimensions_cm": [
+        46,
+        29,
+        15
+      ],
+      "image_url": "https://cdn.shopify.com/s/files/1/1014/1545/3013/files/341_c058ab76-7cd1-4706-9a12-82f7b5a8bbae.jpg?v=1784305987",
+      "image_width": 600,
+      "image_height": 771
+    }
+  ]
+}
