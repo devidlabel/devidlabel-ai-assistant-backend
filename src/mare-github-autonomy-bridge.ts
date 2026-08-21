@@ -86,7 +86,8 @@ async function loadAuthorizedRequest(requestPath: string): Promise<{
   if (!Object.keys(payload).length) throw new Error("autonomy_request_payload_missing");
 
   const requestHash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
-  const jobId = `maj_gh_${requestHash.slice(0, 48)}`;
+  const jobId = `maj_gh-${requestHash.slice(0, 48)}`;
+  if (!/^maj_[A-Za-z0-9-]{20,80}$/.test(jobId)) throw new Error("bridge_job_id_invalid");
   return { requestPath, requestHash, jobId, capabilityId, payload };
 }
 
