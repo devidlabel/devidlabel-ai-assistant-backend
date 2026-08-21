@@ -19,6 +19,7 @@ const BRIDGE_PATH = "/internal/github-autonomy-bridge";
 const REQUEST_PATH_PATTERN = /^ops\/autonomy-requests\/[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.json$/;
 const RAW_REPOSITORY_BASE = "https://raw.githubusercontent.com/devidlabel/devidlabel-ai-assistant-backend/main/";
 const MAX_REQUEST_BYTES = 320 * 1024;
+const RETRYABLE_FETCH_STATUSES = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
 
 function normalize(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -44,6 +45,25 @@ function hex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchRequestText(requestPath: string): Promise<string> {
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    const response = await fetch(`${RAW_REPOSITORY_BASE}${requestPath}`, {
+      headers: { Accept: "application/json", "User-Agent": "MARE-Business-OS" },
+      cf: { cacheTtl: 0, cacheEverything: false },
+    } as RequestInit);
+    lastStatus = response.status;
+    if (response.ok) return response.text();
+    if (!RETRYABLE_FETCH_STATUSES.has(response.status) || attempt === 8) break;
+    await sleep(Math.min(250 * (2 ** (attempt - 1)), 2000));
+  }
+  throw new Error(`autonomy_request_fetch_failed_${lastStatus || "unknown"}`);
+}
+
 async function loadAuthorizedRequest(requestPath: string): Promise<{
   requestPath: string;
   requestHash: string;
@@ -53,13 +73,7 @@ async function loadAuthorizedRequest(requestPath: string): Promise<{
 }> {
   if (!REQUEST_PATH_PATTERN.test(requestPath)) throw new Error("invalid_autonomy_request_path");
 
-  const response = await fetch(`${RAW_REPOSITORY_BASE}${requestPath}`, {
-    headers: { Accept: "application/json", "User-Agent": "MARE-Business-OS" },
-    cf: { cacheTtl: 0, cacheEverything: false },
-  } as RequestInit);
-  if (!response.ok) throw new Error(`autonomy_request_fetch_failed_${response.status}`);
-
-  const text = await response.text();
+  const text = await fetchRequestText(requestPath);
   if (new TextEncoder().encode(text).byteLength > MAX_REQUEST_BYTES) throw new Error("autonomy_request_too_large");
 
   let parsed: JsonObject;
