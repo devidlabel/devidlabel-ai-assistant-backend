@@ -60,7 +60,7 @@ jobs:
             exit 2
           fi
 
-      - name: Publish safe snapshot
+      - name: Publish safe snapshots
         shell: bash
         run: |
           set -euo pipefail
@@ -68,11 +68,30 @@ jobs:
           jq '{schema:"mare_social_product_media_v1",captured_at:.generated_at,source:.source,vendor:.vendor,standard_only:.standard_only,count:.count,products:.products}' \
             /tmp/product-media.json > ops/social-data/sprayground-standard-backpacks.json
 
+          jq '{
+            schema:"mare_social_product_media_compact_v1",
+            captured_at:.generated_at,
+            source:.source,
+            vendor:.vendor,
+            standard_only:.standard_only,
+            count:.count,
+            products:[.products[] | {
+              id,
+              title,
+              handle,
+              online_store_url,
+              dimensions_cm,
+              image_url:(.images[0].url // null),
+              image_width:(.images[0].width // null),
+              image_height:(.images[0].height // null)
+            }]
+          }' /tmp/product-media.json > ops/social-data/sprayground-standard-backpacks-compact.json
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ops/social-data/sprayground-standard-backpacks.json
+          git add ops/social-data/sprayground-standard-backpacks.json ops/social-data/sprayground-standard-backpacks-compact.json
           if ! git diff --cached --quiet; then
-            git commit -m "Update Sprayground Shopify media snapshot"
+            git commit -m "Update Sprayground Shopify media snapshots"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
