@@ -1,0 +1,209 @@
+{
+  "run_id": 32750618766,
+  "generated_at": "2026-08-24T16:24:38.776Z",
+  "preflight_ok": true,
+  "execution_ok": false,
+  "execution_error": "/api/segments/Ux3diP?additional-fields[segment]=profile_count&fields[segment]=name,definition,is_active,is_processing,profile_count,created,updated :: 429 :: throttled",
+  "aug27_before": {
+    "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
+    "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
+    "status": "Scheduled",
+    "send_strategy": {
+      "method": "static",
+      "datetime": "2026-08-27T16:30:00+00:00",
+      "options": {
+        "is_local": false
+      }
+    },
+    "scheduled_at": "2026-08-04T10:39:47.249652+00:00",
+    "audiences": {
+      "included": [
+        "ShWyu9",
+        "UFqNst",
+        "W286ix"
+      ],
+      "excluded": [
+        "RpnuJf",
+        "SW5AMm",
+        "VGjrR5"
+      ]
+    },
+    "send_options": {
+      "use_smart_sending": true,
+      "ignore_unsubscribes": false
+    },
+    "tracking_options": {
+      "add_tracking_params": false,
+      "custom_tracking_params": [],
+      "is_tracking_clicks": true,
+      "is_tracking_opens": true
+    }
+  },
+  "aug27_after": {
+    "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
+    "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
+    "status": "Scheduled",
+    "send_strategy": {
+      "method": "static",
+      "datetime": "2026-08-27T16:30:00+00:00",
+      "options": {
+        "is_local": false
+      }
+    },
+    "scheduled_at": "2026-08-04T10:39:47.249652+00:00",
+    "audiences": {
+      "included": [
+        "ShWyu9",
+        "UFqNst",
+        "W286ix"
+      ],
+      "excluded": [
+        "RpnuJf",
+        "SW5AMm",
+        "VGjrR5"
+      ]
+    },
+    "send_options": {
+      "use_smart_sending": true,
+      "ignore_unsubscribes": false
+    },
+    "tracking_options": {
+      "add_tracking_params": false,
+      "custom_tracking_params": [],
+      "is_tracking_clicks": true,
+      "is_tracking_opens": true
+    }
+  },
+  "sep3": {
+    "id": "01KZ61Y2BEV506ZGKXZKKD7PX2",
+    "name": "DL | 2026-09-03 18:30 | Sprayground BTS | BTS Checklist",
+    "status": "Draft",
+    "send_strategy": {
+      "method": "static",
+      "datetime": "2026-09-03T16:30:00+00:00",
+      "options": {
+        "is_local": false
+      }
+    },
+    "scheduled_at": null,
+    "audiences": {
+      "included": [
+        "ShWyu9",
+        "UsAH79"
+      ],
+      "excluded": [
+        "RpnuJf",
+        "SW5AMm",
+        "VGjrR5"
+      ]
+    },
+    "send_options": {
+      "use_smart_sending": true,
+      "ignore_unsubscribes": false
+    },
+    "tracking_options": {
+      "add_tracking_params": false,
+      "custom_tracking_params": [],
+      "is_tracking_clicks": true,
+      "is_tracking_opens": true
+    }
+  },
+  "sep10": {
+    "id": "01KZ61Z03B1C67S1C809FZHDCT",
+    "name": "DL | 2026-09-10 18:30 | Sprayground BTS | Most Chosen",
+    "status": "Scheduled",
+    "send_strategy": {
+      "method": "static",
+      "datetime": "2026-09-10T16:30:00+00:00",
+      "options": {
+        "is_local": false
+      }
+    },
+    "scheduled_at": "2026-08-04T10:39:55.056345+00:00",
+    "audiences": {
+      "included": [
+        "ShWyu9",
+        "WYUdKH"
+      ],
+      "excluded": [
+        "RpnuJf",
+        "SW5AMm",
+        "VGjrR5"
+      ]
+    },
+    "send_options": {
+      "use_smart_sending": true,
+      "ignore_unsubscribes": false
+    },
+    "tracking_options": {
+      "add_tracking_params": false,
+      "custom_tracking_params": [],
+      "is_tracking_clicks": true,
+      "is_tracking_opens": true
+    }
+  },
+  "micro_wave": null,
+  "segments": null,
+  "live_products": [
+    {
+      "rank": 1,
+      "title": "Zaino Shark Central Black Embroidered Shark Backpack",
+      "stock": 5,
+      "price": 119
+    },
+    {
+      "rank": 2,
+      "title": "Zaino Shark Central Embossed Black Nylon Backpack",
+      "stock": 5,
+      "price": 119
+    },
+    {
+      "rank": 3,
+      "title": "Portafoglio Sharks In Paris Wtf Bubbly Black Check Wallet",
+      "stock": 10,
+      "price": 45
+    },
+    {
+      "rank": 4,
+      "title": "Borsa Sharks In Paris Wtf Bubbly Black Check Mini Duffle",
+      "stock": 5,
+      "price": 135
+    },
+    {
+      "rank": 5,
+      "title": "Portafoglio Sharks In Paris Wtf Bubble Brown Check Wallet",
+      "stock": 10,
+      "price": 45
+    },
+    {
+      "rank": 6,
+      "title": "Disappearing Shark Crossover Clutch",
+      "stock": 6,
+      "price": 75
+    },
+    {
+      "rank": 7,
+      "title": "2 Tone Gold Trinity Crossover Clutch",
+      "stock": 2,
+      "price": 119
+    },
+    {
+      "rank": 8,
+      "title": "Center Rip Revealing Gray Check Toiletry Brick",
+      "stock": 15,
+      "price": 75
+    },
+    {
+      "rank": 9,
+      "title": "Portafoglio Raised Check Wallet",
+      "stock": 10,
+      "price": 59
+    },
+    {
+      "rank": 10,
+      "title": "Raised Check Messenger Sling",
+      "stock": 10,
+      "price": 89
+    }
+  ]
+}
