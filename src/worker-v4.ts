@@ -11,6 +11,7 @@ import { handleTorna40Readback190826 } from "./shopify-torna40-readback-190826";
 import { handleKlaviyoCampaignInventoryRequest } from "./klaviyo-campaign-inventory";
 import { handleKlaviyoAudienceInventoryRequest } from "./klaviyo-audience-inventory";
 import { handleSpraygroundLiveCatalogRequest } from "./sprayground-live-catalog";
+import { handleSpraygroundPeak240826 } from "./klaviyo-sprayground-peak-240826";
 
 export { MarePlanCoordinator, MareAutonomyRunner };
 
@@ -48,6 +49,9 @@ export default {
 
     const kwayFinalSaleResponse = await handleKwayFinalSale180826(request, env);
     if (kwayFinalSaleResponse) return kwayFinalSaleResponse;
+
+    const spraygroundPeakResponse = await handleSpraygroundPeak240826(request, env as any);
+    if (spraygroundPeakResponse) return spraygroundPeakResponse;
 
     const klaviyoCampaignInventoryResponse = await handleKlaviyoCampaignInventoryRequest(request, env as any);
     if (klaviyoCampaignInventoryResponse) return klaviyoCampaignInventoryResponse;
