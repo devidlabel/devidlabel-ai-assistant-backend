@@ -1,0 +1,90 @@
+name: Klaviyo Audience Inventory
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/klaviyo-audience-inventory/request.json'
+      - '.github/workflows/klaviyo-audience-inventory.yml'
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fetch read-only Klaviyo audience inventory
+        id: fetch_inventory
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          ok=0
+          for attempt in $(seq 1 18); do
+            HTTP_STATUS="$(curl --silent --show-error \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              -o klaviyo-audience-inventory.json \
+              -w '%{http_code}' \
+              "$WORKER_URL/internal/klaviyo/audience-inventory" || true)"
+            echo "attempt=$attempt http=$HTTP_STATUS"
+            if [ "$HTTP_STATUS" = "200" ] && node -e "const d=require('./klaviyo-audience-inventory.json'); if(d.ok!==true) process.exit(1); console.log(JSON.stringify(d.counts))"; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          echo "http_status=$HTTP_STATUS" >> "$GITHUB_OUTPUT"
+          if [ "$ok" -ne 1 ]; then
+            test -f klaviyo-audience-inventory.json || echo '{"ok":false,"error":"no_response_body"}' > klaviyo-audience-inventory.json
+          fi
+
+      - name: Upload audience inventory response artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: klaviyo-audience-inventory-${{ github.run_id }}
+          path: klaviyo-audience-inventory.json
+          retention-days: 45
+          if-no-files-found: error
+
+      - name: Publish diagnostic pointer
+        shell: bash
+        env:
+          HTTP_STATUS: ${{ steps.fetch_inventory.outputs.http_status }}
+        run: |
+          mkdir -p ops/klaviyo-audience-inventory
+          node - <<'NODE'
+          const fs = require('node:fs');
+          let data = {};
+          try { data = JSON.parse(fs.readFileSync('klaviyo-audience-inventory.json','utf8')); } catch { data = {ok:false,error:'invalid_json'}; }
+          const pointer = {
+            run_id: Number(process.env.GITHUB_RUN_ID),
+            artifact_name: `klaviyo-audience-inventory-${process.env.GITHUB_RUN_ID}`,
+            generated_at: data.generated_at || new Date().toISOString(),
+            ok: data.ok === true,
+            http_status: Number(process.env.HTTP_STATUS || 0),
+            list_count: data.counts?.lists ?? null,
+            segment_count: data.counts?.segments ?? null,
+            error: data.error || null,
+            timezone: 'Europe/Rome',
+          };
+          fs.writeFileSync('ops/klaviyo-audience-inventory/latest.json', JSON.stringify(pointer, null, 2) + '\n');
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/klaviyo-audience-inventory/latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update Klaviyo audience inventory pointer"
+          git pull --rebase origin main
+          git push origin HEAD:main
