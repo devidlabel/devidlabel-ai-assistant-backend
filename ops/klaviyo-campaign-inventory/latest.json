@@ -1,0 +1,12 @@
+{
+  "run_id": 32729279013,
+  "artifact_name": "klaviyo-campaign-inventory-32729279013",
+  "generated_at": "2026-08-24T12:50:49.390Z",
+  "ok": false,
+  "http_status": 401,
+  "draft_count": null,
+  "scheduled_count": null,
+  "error": "unauthorized",
+  "provider_status": null,
+  "timezone": "Europe/Rome"
+}
