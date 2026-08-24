@@ -31,24 +31,19 @@ jobs:
         shell: bash
         run: |
           test -n "$DAILY_PULSE_ACCESS_TOKEN"
-          ok=0
-          for attempt in $(seq 1 18); do
-            HTTP_STATUS="$(curl --silent --show-error \
-              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
-              -o klaviyo-audience-inventory.json \
-              -w '%{http_code}' \
-              "$WORKER_URL/internal/klaviyo/audience-inventory" || true)"
-            echo "attempt=$attempt http=$HTTP_STATUS"
-            if [ "$HTTP_STATUS" = "200" ] && node -e "const d=require('./klaviyo-audience-inventory.json'); if(d.ok!==true) process.exit(1); console.log(JSON.stringify(d.counts))"; then
-              ok=1
-              break
-            fi
-            sleep 10
-          done
+          HTTP_STATUS="$(curl --silent --show-error \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            -o klaviyo-audience-inventory.json \
+            -w '%{http_code}' \
+            "$WORKER_URL/internal/klaviyo/audience-inventory" || true)"
           echo "http_status=$HTTP_STATUS" >> "$GITHUB_OUTPUT"
-          if [ "$ok" -ne 1 ]; then
-            test -f klaviyo-audience-inventory.json || echo '{"ok":false,"error":"no_response_body"}' > klaviyo-audience-inventory.json
-          fi
+          test -f klaviyo-audience-inventory.json || echo '{"ok":false,"error":"no_response_body"}' > klaviyo-audience-inventory.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          let data = {};
+          try { data = JSON.parse(fs.readFileSync('klaviyo-audience-inventory.json','utf8')); } catch { data = {ok:false,error:'invalid_json'}; }
+          console.log(JSON.stringify({ok:data.ok, counts:data.counts || null, error:data.error || null, status:data.status || null}, null, 2));
+          NODE
 
       - name: Upload audience inventory response artifact
         uses: actions/upload-artifact@v4
@@ -77,6 +72,7 @@ jobs:
             list_count: data.counts?.lists ?? null,
             segment_count: data.counts?.segments ?? null,
             error: data.error || null,
+            provider_status: data.status || null,
             timezone: 'Europe/Rome',
           };
           fs.writeFileSync('ops/klaviyo-audience-inventory/latest.json', JSON.stringify(pointer, null, 2) + '\n');
