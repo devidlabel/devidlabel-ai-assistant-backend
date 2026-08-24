@@ -8,7 +8,7 @@ on:
       - '.github/workflows/execute-sprayground-peak-240826-temp.yml'
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -16,6 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout execution branch
+        uses: actions/checkout@v4
+        with:
+          ref: ops/execute-sprayground-peak-2026-08-24
+
       - name: Fetch GitHub Actions OIDC token
         shell: bash
         run: |
@@ -69,16 +74,54 @@ jobs:
           NODE
 
       - name: Read final campaign state
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sprayground-peak-2026-08-24"
-          curl --max-time 180 --fail --silent --show-error \
-            -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
-            -o sprayground-final-readback.json
-          cat sprayground-final-readback.json
+          set +e
+          if [ -n "${OIDC_TOKEN:-}" ]; then
+            url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sprayground-peak-2026-08-24"
+            curl --max-time 180 --silent --show-error \
+              -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
+              -o sprayground-final-readback.json
+            cat sprayground-final-readback.json || true
+          fi
 
-      - name: Persist private execution receipts
+      - name: Persist branch execution receipt
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ops/sprayground-peak-execution
+          node - <<'NODE'
+          const fs=require('fs');
+          function read(path){try{return JSON.parse(fs.readFileSync(path,'utf8'))}catch{return null}}
+          const p=read('sprayground-preflight.json');
+          const e=read('sprayground-execution.json');
+          const f=read('sprayground-final-readback.json');
+          const receipt={
+            run_id:Number(process.env.GITHUB_RUN_ID),
+            generated_at:new Date().toISOString(),
+            preflight_ok:p?.ok===true,
+            execution_ok:e?.ok===true && e?.mutation_performed===true,
+            execution_error:e?.error||null,
+            aug27_before:e?.aug27?.before||p?.campaigns?.aug27||null,
+            aug27_after:e?.aug27?.after||f?.campaigns?.aug27||null,
+            sep3:e?.sep3_draft?.readback||f?.campaigns?.sep3||null,
+            sep10:e?.sep10||f?.campaigns?.sep10||null,
+            micro_wave:e?.micro_wave||null,
+            segments:e?.segments||null,
+            live_products:e?.live_products||p?.live_products||null
+          };
+          fs.writeFileSync('ops/sprayground-peak-execution/latest.json',JSON.stringify(receipt,null,2)+'\n');
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/sprayground-peak-execution/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record Sprayground peak execution receipt"
+            git push origin HEAD:ops/execute-sprayground-peak-2026-08-24
+          fi
+
+      - name: Persist private execution artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -87,7 +130,8 @@ jobs:
             sprayground-preflight.json
             sprayground-execution.json
             sprayground-final-readback.json
+            ops/sprayground-peak-execution/latest.json
           retention-days: 30
           if-no-files-found: warn
 
-# execution-trigger: 2026-08-24T18:24:00+02:00
+# execution-trigger: 2026-08-24T18:27:00+02:00
