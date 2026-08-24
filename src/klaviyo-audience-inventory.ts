@@ -10,22 +10,12 @@ type KlaviyoAudienceInventoryEnv = {
 const KLAVIYO_API_BASE = "https://a.klaviyo.com";
 const KLAVIYO_REVISION = "2026-07-15";
 const MAX_PAGES = 100;
+const SPRAYGROUND_IDS = new Set(["ShWyu9", "UFqNst", "W286ix", "WYUdKH", "UsAH79", "RpnuJf", "SW5AMm", "VGjrR5"]);
 
-function normalize(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-function asObject(value: unknown): JsonObject {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
-}
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
-}
-function timingSafeEqualText(left: string, right: string): boolean {
-  if (!left || !right || left.length !== right.length) return false;
-  let diff = 0;
-  for (let i = 0; i < left.length; i += 1) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
-  return diff === 0;
-}
+function normalize(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
+function asObject(value: unknown): JsonObject { return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {}; }
+function jsonResponse(body: unknown, status = 200): Response { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } }); }
+function timingSafeEqualText(left: string, right: string): boolean { if (!left || !right || left.length !== right.length) return false; let diff = 0; for (let i = 0; i < left.length; i += 1) diff |= left.charCodeAt(i) ^ right.charCodeAt(i); return diff === 0; }
 function isAuthorized(request: Request, env: KlaviyoAudienceInventoryEnv): boolean {
   const authorization = request.headers.get("Authorization") || "";
   const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
@@ -36,18 +26,15 @@ async function klaviyoGet(pathOrUrl: string, apiKey: string): Promise<JsonObject
   const url = pathOrUrl.startsWith("http") ? new URL(pathOrUrl) : new URL(KLAVIYO_API_BASE + pathOrUrl);
   if (url.protocol !== "https:" || url.hostname !== "a.klaviyo.com" || !url.pathname.startsWith("/api/")) throw new Error("klaviyo_pagination_url_rejected");
   const response = await fetch(url.toString(), { headers: { Accept: "application/vnd.api+json", Authorization: `Klaviyo-API-Key ${apiKey}`, revision: KLAVIYO_REVISION } });
-  let body: JsonObject = {};
-  try { body = await response.json() as JsonObject; } catch {}
-  if (!response.ok) {
-    const error = new Error(`klaviyo_audience_inventory_failed_${response.status}`) as Error & { status?: number };
-    error.status = response.status;
-    throw error;
-  }
+  let body: JsonObject = {}; try { body = await response.json() as JsonObject; } catch {}
+  if (!response.ok) { const error = new Error(`klaviyo_audience_inventory_failed_${response.status}`) as Error & { status?: number }; error.status = response.status; throw error; }
   return body;
 }
 async function collect(kind: "lists" | "segments", apiKey: string): Promise<JsonObject[]> {
   const rows: JsonObject[] = [];
-  let next: string | null = `/api/${kind}?page[size]=100&sort=-updated`;
+  const pageSize = kind === "segments" ? 10 : 100;
+  const fields = kind === "segments" ? "&fields[segment]=name,definition,is_active,is_processing,created,updated" : "";
+  let next: string | null = `/api/${kind}?page[size]=${pageSize}&sort=-updated${fields}`;
   let pages = 0;
   while (next && pages < MAX_PAGES) {
     const body = await klaviyoGet(next, apiKey);
@@ -59,7 +46,17 @@ async function collect(kind: "lists" | "segments", apiKey: string): Promise<Json
 }
 function compact(kind: "list" | "segment", row: JsonObject): JsonObject {
   const attributes = asObject(row.attributes);
-  return { id: normalize(row.id) || null, type: kind, name: normalize(attributes.name) || null, created: attributes.created || attributes.created_at || null, updated: attributes.updated || attributes.updated_at || null, is_active: attributes.is_active ?? null, is_processing: attributes.is_processing ?? null };
+  const id = normalize(row.id);
+  return {
+    id: id || null,
+    type: kind,
+    name: normalize(attributes.name) || null,
+    created: attributes.created || attributes.created_at || null,
+    updated: attributes.updated || attributes.updated_at || null,
+    is_active: attributes.is_active ?? null,
+    is_processing: attributes.is_processing ?? null,
+    ...(kind === "segment" && SPRAYGROUND_IDS.has(id) ? { definition: attributes.definition ?? null } : {}),
+  };
 }
 async function readWithKey(apiKey: string): Promise<{ lists: JsonObject[]; segments: JsonObject[] }> {
   const [lists, segments] = await Promise.all([collect("lists", apiKey), collect("segments", apiKey)]);
@@ -91,7 +88,7 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
         counts: { lists: lists.length, segments: segments.length },
         audiences: [...lists.map((row) => compact("list", row)), ...segments.map((row) => compact("segment", row))],
         attempts,
-        notes: ["Read-only metadata only; no individual profile data is returned."],
+        notes: ["Read-only metadata only; no individual profile data is returned.", "Definitions are included only for segment IDs already referenced by the approved Sprayground campaign plan."],
       });
     } catch (error) {
       const detail = error as Error & { status?: number };
