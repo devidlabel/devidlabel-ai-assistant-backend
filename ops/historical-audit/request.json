@@ -1,11 +1,10 @@
 {
-  "requested_at": "2026-08-20T08:04:00+02:00",
-  "title": "Daily Commerce Report 2026-08-19",
+  "requested_at": "2026-08-24T13:43:00+02:00",
+  "title": "August MTD & Week 17-23 Review 2026",
   "periods": [
-    {"label":"day","start":"2026-08-19","end":"2026-08-19"},
-    {"label":"3d","start":"2026-08-17","end":"2026-08-19"},
-    {"label":"7d","start":"2026-08-13","end":"2026-08-19"},
-    {"label":"14d","start":"2026-08-06","end":"2026-08-19"},
-    {"label":"30d","start":"2026-07-21","end":"2026-08-19"}
+    {"label":"aug_mtd_01_23","start":"2026-08-01","end":"2026-08-23"},
+    {"label":"week_17_23","start":"2026-08-17","end":"2026-08-23"},
+    {"label":"prev_week_10_16","start":"2026-08-10","end":"2026-08-16"},
+    {"label":"early_aug_01_09","start":"2026-08-01","end":"2026-08-09"}
   ]
 }
