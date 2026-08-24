@@ -1,0 +1,91 @@
+name: TEMP Execute Sprayground Peak 24 Aug 2026
+
+on:
+  push:
+    branches:
+      - ops/execute-sprayground-peak-2026-08-24
+    paths:
+      - '.github/workflows/execute-sprayground-peak-240826-temp.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Fetch GitHub Actions OIDC token
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail --silent --show-error \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-sprayground-peak-2026-08-24")
+          token=$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.value) process.exit(2); process.stdout.write(d.value)' "$response")
+          echo "OIDC_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Run read-only preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sprayground-peak-2026-08-24"
+          status=$(curl --max-time 180 --silent --show-error -w '%{http_code}' \
+            -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
+            -o sprayground-preflight.json)
+          cat sprayground-preflight.json
+          [ "$status" = "200" ] || exit 3
+          node - <<'NODE'
+          const d=require('./sprayground-preflight.json');
+          if(d.ok!==true||d.mutation_performed!==false) process.exit(3);
+          if(d.campaigns?.aug27?.status!=='Scheduled') process.exit(4);
+          if(d.campaigns?.sep3?.status!=='Draft') process.exit(5);
+          if(d.campaigns?.sep10?.status!=='Scheduled') process.exit(6);
+          if(!Array.isArray(d.live_products)||d.live_products.length<6) process.exit(7);
+          NODE
+
+      - name: Execute approved plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sprayground-peak-2026-08-24"
+          status=$(curl --max-time 600 --silent --show-error -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $OIDC_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"approval":"EXECUTE SPRAYGROUND PEAK PLAN"}' \
+            "$url" \
+            -o sprayground-execution.json)
+          cat sprayground-execution.json
+          [ "$status" = "200" ] || exit 8
+          node - <<'NODE'
+          const d=require('./sprayground-execution.json');
+          if(d.ok!==true||d.mutation_performed!==true) process.exit(8);
+          if(d.aug27?.after?.status!=='Scheduled') process.exit(9);
+          if(d.sep3_draft?.readback?.campaign_status!=='Draft') process.exit(10);
+          if(d.sep10?.campaign_mutated!==false) process.exit(11);
+          if(!d.segments?.viewer?.id||!d.segments?.atc?.id||!d.segments?.checkout?.id||!d.segments?.past_buyer?.id||!d.segments?.recent_buyer_exclusion?.id) process.exit(12);
+          NODE
+
+      - name: Read final campaign state
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sprayground-peak-2026-08-24"
+          curl --max-time 180 --fail --silent --show-error \
+            -H "Authorization: Bearer $OIDC_TOKEN" "$url" \
+            -o sprayground-final-readback.json
+          cat sprayground-final-readback.json
+
+      - name: Persist private execution receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprayground-peak-240826-${{ github.run_id }}
+          path: |
+            sprayground-preflight.json
+            sprayground-execution.json
+            sprayground-final-readback.json
+          retention-days: 30
+          if-no-files-found: warn
