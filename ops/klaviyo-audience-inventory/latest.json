@@ -1,0 +1,12 @@
+{
+  "run_id": 32730150317,
+  "artifact_name": "klaviyo-audience-inventory-32730150317",
+  "generated_at": "2026-08-24T13:00:24.427Z",
+  "ok": false,
+  "http_status": 502,
+  "list_count": null,
+  "segment_count": null,
+  "error": "klaviyo_audience_inventory_failed_403",
+  "provider_status": 403,
+  "timezone": "Europe/Rome"
+}
