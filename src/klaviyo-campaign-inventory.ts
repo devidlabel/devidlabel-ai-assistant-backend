@@ -2,6 +2,7 @@ type JsonObject = Record<string, unknown>;
 
 type KlaviyoCampaignInventoryEnv = {
   KLAVIYO_PRIVATE_API_KEY?: string;
+  KLAVIYO_OPERATIONS_API_KEY?: string;
   KLAVIYO_REPORT_ACCESS_TOKEN?: string;
   DAILY_PULSE_ACCESS_TOKEN?: string;
 };
@@ -163,8 +164,8 @@ export async function handleKlaviyoCampaignInventoryRequest(
   if (request.method !== "GET") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
   if (!isAuthorized(request, env)) return jsonResponse({ ok: false, error: "unauthorized" }, 401);
 
-  const apiKey = normalize(env.KLAVIYO_PRIVATE_API_KEY);
-  if (!apiKey) return jsonResponse({ ok: false, error: "klaviyo_api_key_not_configured" }, 503);
+  const apiKey = normalize(env.KLAVIYO_OPERATIONS_API_KEY) || normalize(env.KLAVIYO_PRIVATE_API_KEY);
+  if (!apiKey) return jsonResponse({ ok: false, error: "klaviyo_campaign_read_key_not_configured" }, 503);
 
   try {
     const [drafts, scheduled] = await Promise.all([
@@ -181,6 +182,7 @@ export async function handleKlaviyoCampaignInventoryRequest(
       scheduled,
       notes: [
         "Read-only inventory: no campaign, audience, schedule or content is modified.",
+        "Campaign metadata uses the Operations key when configured because it is scoped for campaigns:read.",
         "Draft campaigns are sorted by most recently updated; scheduled campaigns by send time.",
       ],
     });
