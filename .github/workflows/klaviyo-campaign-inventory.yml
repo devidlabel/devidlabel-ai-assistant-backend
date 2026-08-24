@@ -25,31 +25,27 @@ jobs:
           ref: main
 
       - name: Fetch read-only Klaviyo campaign inventory
+        id: fetch_inventory
         env:
           DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
         shell: bash
         run: |
           test -n "$DAILY_PULSE_ACCESS_TOKEN"
-          ok=0
-          for attempt in $(seq 1 18); do
-            echo "Klaviyo inventory attempt ${attempt}/18"
-            if curl --fail --silent --show-error \
-              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
-              "$WORKER_URL/internal/klaviyo/campaign-inventory" \
-              -o klaviyo-campaign-inventory.json; then
-              if node -e "const d=require('./klaviyo-campaign-inventory.json'); if(d.ok!==true) process.exit(1); console.log(JSON.stringify(d.counts))"; then
-                ok=1
-                break
-              fi
-            fi
-            sleep 10
-          done
-          if [ "$ok" -ne 1 ]; then
-            echo "Klaviyo campaign inventory endpoint unavailable after retries" >&2
-            exit 2
-          fi
+          HTTP_STATUS="$(curl --silent --show-error \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            -o klaviyo-campaign-inventory.json \
+            -w '%{http_code}' \
+            "$WORKER_URL/internal/klaviyo/campaign-inventory" || true)"
+          echo "http_status=$HTTP_STATUS" >> "$GITHUB_OUTPUT"
+          test -f klaviyo-campaign-inventory.json || echo '{"ok":false,"error":"no_response_body"}' > klaviyo-campaign-inventory.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          let data = {};
+          try { data = JSON.parse(fs.readFileSync('klaviyo-campaign-inventory.json','utf8')); } catch { data = {ok:false,error:'invalid_json'}; }
+          console.log(JSON.stringify({ok:data.ok, counts:data.counts || null, error:data.error || null, status:data.status || null}, null, 2));
+          NODE
 
-      - name: Upload private inventory artifact
+      - name: Upload inventory response artifact
         uses: actions/upload-artifact@v4
         with:
           name: klaviyo-campaign-inventory-${{ github.run_id }}
@@ -57,23 +53,30 @@ jobs:
           retention-days: 45
           if-no-files-found: error
 
-      - name: Publish non-sensitive latest pointer
+      - name: Publish diagnostic pointer
         shell: bash
+        env:
+          HTTP_STATUS: ${{ steps.fetch_inventory.outputs.http_status }}
         run: |
           mkdir -p ops/klaviyo-campaign-inventory
-          GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('klaviyo-campaign-inventory.json','utf8')).generated_at")"
-          DRAFTS="$(node -p "JSON.parse(require('fs').readFileSync('klaviyo-campaign-inventory.json','utf8')).counts.drafts")"
-          SCHEDULED="$(node -p "JSON.parse(require('fs').readFileSync('klaviyo-campaign-inventory.json','utf8')).counts.scheduled")"
-          cat > ops/klaviyo-campaign-inventory/latest.json <<EOF
-          {
-            "run_id": ${{ github.run_id }},
-            "artifact_name": "klaviyo-campaign-inventory-${{ github.run_id }}",
-            "generated_at": "$GENERATED_AT",
-            "draft_count": $DRAFTS,
-            "scheduled_count": $SCHEDULED,
-            "timezone": "Europe/Rome"
-          }
-          EOF
+          node - <<'NODE'
+          const fs = require('node:fs');
+          let data = {};
+          try { data = JSON.parse(fs.readFileSync('klaviyo-campaign-inventory.json','utf8')); } catch { data = {ok:false,error:'invalid_json'}; }
+          const pointer = {
+            run_id: Number(process.env.GITHUB_RUN_ID),
+            artifact_name: `klaviyo-campaign-inventory-${process.env.GITHUB_RUN_ID}`,
+            generated_at: data.generated_at || new Date().toISOString(),
+            ok: data.ok === true,
+            http_status: Number(process.env.HTTP_STATUS || 0),
+            draft_count: data.counts?.drafts ?? null,
+            scheduled_count: data.counts?.scheduled ?? null,
+            error: data.error || null,
+            provider_status: data.status || null,
+            timezone: 'Europe/Rome',
+          };
+          fs.writeFileSync('ops/klaviyo-campaign-inventory/latest.json', JSON.stringify(pointer, null, 2) + '\n');
+          NODE
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ops/klaviyo-campaign-inventory/latest.json
