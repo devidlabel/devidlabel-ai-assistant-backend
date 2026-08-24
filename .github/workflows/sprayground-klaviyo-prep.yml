@@ -24,7 +24,7 @@ jobs:
         with:
           ref: main
 
-      - name: Read live Shopify Sprayground catalog and Klaviyo audiences
+      - name: Read live Shopify Sprayground catalog and Klaviyo segments
         env:
           DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
         shell: bash
@@ -44,7 +44,7 @@ jobs:
           (async () => {
             const [catalogResult, audienceResult] = await Promise.all([
               get('/internal/shopify/sprayground-live-catalog'),
-              get('/internal/klaviyo/audience-inventory'),
+              get('/internal/klaviyo/audience-inventory?segments_only=1'),
             ]);
             const out = {
               ok: catalogResult.http_status === 200 && catalogResult.body?.ok === true,
@@ -57,9 +57,10 @@ jobs:
             fs.writeFileSync('sprayground-klaviyo-prep.json', JSON.stringify(out, null, 2));
             console.log(JSON.stringify({
               ok: out.ok,
-              catalog_http_status: out.catalog_http_status,
               product_count: out.catalog?.product_count ?? null,
-              audience_http_status: out.audience_http_status,
+              segment_status: out.audience_http_status,
+              segment_count: out.audiences?.counts?.segments ?? null,
+              credential_mode: out.audiences?.credential_mode ?? null,
               audience_error: out.audiences?.error ?? null,
             }, null, 2));
             if (!out.ok) process.exit(2);
@@ -92,6 +93,8 @@ jobs:
             catalog_http_status: data.catalog_http_status ?? null,
             product_count: data.catalog?.product_count ?? null,
             audience_http_status: data.audience_http_status ?? null,
+            segment_count: data.audiences?.counts?.segments ?? null,
+            credential_mode: data.audiences?.credential_mode ?? null,
             audience_error: data.audiences?.error ?? null,
             timezone: 'Europe/Rome',
           };
