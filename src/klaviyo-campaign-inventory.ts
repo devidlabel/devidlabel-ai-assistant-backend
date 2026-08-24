@@ -38,10 +38,13 @@ function timingSafeEqualText(left: string, right: string): boolean {
 }
 
 function isAuthorized(request: Request, env: KlaviyoCampaignInventoryEnv): boolean {
-  const expected = normalize(env.KLAVIYO_REPORT_ACCESS_TOKEN) || normalize(env.DAILY_PULSE_ACCESS_TOKEN);
   const authorization = request.headers.get("Authorization") || "";
   const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-  return timingSafeEqualText(supplied, expected);
+  const accepted = [
+    normalize(env.KLAVIYO_REPORT_ACCESS_TOKEN),
+    normalize(env.DAILY_PULSE_ACCESS_TOKEN),
+  ].filter(Boolean);
+  return accepted.some((expected) => timingSafeEqualText(supplied, expected));
 }
 
 async function klaviyoFetch(path: string, apiKey: string): Promise<JsonObject> {
