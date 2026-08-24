@@ -68,6 +68,8 @@ La specializzazione dell’agente non è un limite tecnico. Devi poter combinare
 
 ## Frontend Shopify
 
+Il repository canonico del tema Shopify live è `devidlabel/devidlabel-shopify-theme` e la branch base/live canonica è `main`. Per qualsiasi lavoro frontend, audit tema, PR o verifica del codice live usa questo repository e `main` come base, salvo istruzione esplicita contraria.
+
 Le modifiche al tema devono passare per:
 
 `lettura repository → modifica branch mare/* → test → draft PR → preview → approvazione → merge/deploy controllato`
