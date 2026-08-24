@@ -10,6 +10,7 @@ import { handleKwayFinalSale180826 } from "./klaviyo-kway-final-sale-180826";
 import { handleTorna40Readback190826 } from "./shopify-torna40-readback-190826";
 import { handleKlaviyoCampaignInventoryRequest } from "./klaviyo-campaign-inventory";
 import { handleKlaviyoAudienceInventoryRequest } from "./klaviyo-audience-inventory";
+import { handleSpraygroundLiveCatalogRequest } from "./sprayground-live-catalog";
 
 export { MarePlanCoordinator, MareAutonomyRunner };
 
@@ -53,6 +54,9 @@ export default {
 
     const klaviyoAudienceInventoryResponse = await handleKlaviyoAudienceInventoryRequest(request, env as any);
     if (klaviyoAudienceInventoryResponse) return klaviyoAudienceInventoryResponse;
+
+    const spraygroundLiveCatalogResponse = await handleSpraygroundLiveCatalogRequest(request, env as any);
+    if (spraygroundLiveCatalogResponse) return spraygroundLiveCatalogResponse;
 
     const url = new URL(request.url);
     if (url.pathname === "/auth/youtube/start") {
