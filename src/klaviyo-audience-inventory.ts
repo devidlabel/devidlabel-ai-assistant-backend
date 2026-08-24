@@ -10,7 +10,7 @@ type KlaviyoAudienceInventoryEnv = {
 const KLAVIYO_API_BASE = "https://a.klaviyo.com";
 const KLAVIYO_REVISION = "2026-07-15";
 const MAX_PAGES = 100;
-const SPRAYGROUND_IDS = new Set(["ShWyu9", "UFqNst", "W286ix", "WYUdKH", "UsAH79", "RpnuJf", "SW5AMm", "VGjrR5"]);
+const SPRAYGROUND_IDS = new Set(["ShWyu9", "UFqNst", "W286ix", "WYUdKH", "UsAH79", "RpnuJf", "SW5AMm", "VGjrR5", "WsPZgJ", "Re2ZyU"]);
 
 function normalize(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
 function asObject(value: unknown): JsonObject { return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {}; }
@@ -92,7 +92,7 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
           counts: { lists: null, segments: segments.length },
           audiences: segments.map((row) => compact("segment", row)),
           attempts,
-          notes: ["Read-only segment metadata only; no individual profile data is returned.", "Definitions are included only for segment IDs already referenced by the approved Sprayground campaign plan."],
+          notes: ["Read-only segment metadata only; no individual profile data is returned.", "Definitions are included only for segment IDs referenced by the approved Sprayground plan or its validated brand-buyer source segments."],
         });
       }
       const [lists, segments] = await Promise.all([collect("lists", candidate.key), collect("segments", candidate.key)]);
@@ -105,7 +105,7 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
         counts: { lists: lists.length, segments: segments.length },
         audiences: [...lists.map((row) => compact("list", row)), ...segments.map((row) => compact("segment", row))],
         attempts,
-        notes: ["Read-only metadata only; no individual profile data is returned.", "Definitions are included only for segment IDs already referenced by the approved Sprayground campaign plan."],
+        notes: ["Read-only metadata only; no individual profile data is returned.", "Definitions are included only for segment IDs referenced by the approved Sprayground plan or its validated brand-buyer source segments."],
       });
     } catch (error) {
       const detail = error as Error & { status?: number };
