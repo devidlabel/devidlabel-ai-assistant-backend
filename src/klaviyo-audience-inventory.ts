@@ -27,13 +27,20 @@ async function klaviyoGet(pathOrUrl: string, apiKey: string): Promise<JsonObject
   if (url.protocol !== "https:" || url.hostname !== "a.klaviyo.com" || !url.pathname.startsWith("/api/")) throw new Error("klaviyo_pagination_url_rejected");
   const response = await fetch(url.toString(), { headers: { Accept: "application/vnd.api+json", Authorization: `Klaviyo-API-Key ${apiKey}`, revision: KLAVIYO_REVISION } });
   let body: JsonObject = {}; try { body = await response.json() as JsonObject; } catch {}
-  if (!response.ok) { const error = new Error(`klaviyo_audience_inventory_failed_${response.status}`) as Error & { status?: number }; error.status = response.status; throw error; }
+  if (!response.ok) {
+    const errors = Array.isArray(body.errors) ? body.errors : [];
+    const first = errors.length ? asObject(errors[0]) : {};
+    const detail = normalize(first.detail) || normalize(first.title) || normalize(first.code);
+    const error = new Error(`klaviyo_audience_inventory_failed_${response.status}${detail ? `:${detail.slice(0,180)}` : ""}`) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 async function collect(kind: "lists" | "segments", apiKey: string): Promise<JsonObject[]> {
   const rows: JsonObject[] = [];
   const pageSize = kind === "segments" ? 10 : 100;
-  const fields = kind === "segments" ? "&fields[segment]=name,definition,is_active,is_processing,created,updated" : "";
+  const fields = kind === "segments" ? "&fields[segment]=name,definition,created,updated" : "";
   let next: string | null = `/api/${kind}?page[size]=${pageSize}&sort=-updated${fields}`;
   let pages = 0;
   while (next && pages < MAX_PAGES) {
@@ -53,14 +60,8 @@ function compact(kind: "list" | "segment", row: JsonObject): JsonObject {
     name: normalize(attributes.name) || null,
     created: attributes.created || attributes.created_at || null,
     updated: attributes.updated || attributes.updated_at || null,
-    is_active: attributes.is_active ?? null,
-    is_processing: attributes.is_processing ?? null,
     ...(kind === "segment" && SPRAYGROUND_IDS.has(id) ? { definition: attributes.definition ?? null } : {}),
   };
-}
-async function readWithKey(apiKey: string): Promise<{ lists: JsonObject[]; segments: JsonObject[] }> {
-  const [lists, segments] = await Promise.all([collect("lists", apiKey), collect("segments", apiKey)]);
-  return { lists, segments };
 }
 
 export async function handleKlaviyoAudienceInventoryRequest(request: Request, env: KlaviyoAudienceInventoryEnv): Promise<Response | null> {
@@ -68,6 +69,7 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
   if (url.pathname !== "/internal/klaviyo/audience-inventory") return null;
   if (request.method !== "GET") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
   if (!isAuthorized(request, env)) return jsonResponse({ ok: false, error: "unauthorized" }, 401);
+  const segmentsOnly = url.searchParams.get("segments_only") === "1";
 
   const candidates = [
     { mode: "private_reporting", key: normalize(env.KLAVIYO_PRIVATE_API_KEY) },
@@ -78,7 +80,22 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
   const attempts: JsonObject[] = [];
   for (const candidate of candidates) {
     try {
-      const { lists, segments } = await readWithKey(candidate.key);
+      if (segmentsOnly) {
+        const segments = await collect("segments", candidate.key);
+        return jsonResponse({
+          ok: true,
+          service: "klaviyo_audience_inventory",
+          revision: KLAVIYO_REVISION,
+          generated_at: new Date().toISOString(),
+          credential_mode: candidate.mode,
+          scope_probe: "segments_only",
+          counts: { lists: null, segments: segments.length },
+          audiences: segments.map((row) => compact("segment", row)),
+          attempts,
+          notes: ["Read-only segment metadata only; no individual profile data is returned.", "Definitions are included only for segment IDs already referenced by the approved Sprayground campaign plan."],
+        });
+      }
+      const [lists, segments] = await Promise.all([collect("lists", candidate.key), collect("segments", candidate.key)]);
       return jsonResponse({
         ok: true,
         service: "klaviyo_audience_inventory",
@@ -96,5 +113,5 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
       if (detail.status === 429) return jsonResponse({ ok: false, error: detail.message, status: 429, attempts }, 429);
     }
   }
-  return jsonResponse({ ok: false, error: "klaviyo_audience_inventory_all_keys_forbidden", attempts }, 502);
+  return jsonResponse({ ok: false, error: segmentsOnly ? "klaviyo_segment_scope_unavailable" : "klaviyo_audience_inventory_all_keys_forbidden", attempts }, 502);
 }
