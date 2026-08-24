@@ -1,0 +1,65 @@
+{
+  "campaign_id": "01KZ61Z03B1C67S1C809FZHDCT",
+  "campaign_message_id": "01KZ61Z03KBJ0WRJ8VF4BM35CR",
+  "scheduled_at_rome": "2026-09-10T18:30:00+02:00",
+  "status_policy": "Do not modify the scheduled campaign now. Revalidate and refresh on 2026-09-09 or 2026-09-10 before send.",
+  "concept": "MOST CHOSEN / LAST BIG BTS HIT",
+  "subject": "Gli Sprayground che stanno scegliendo di più",
+  "preview": "Una selezione aggiornata dei modelli disponibili ora.",
+  "hero": {
+    "eyebrow": "SPRAYGROUND · BACK TO SCHOOL",
+    "headline": "I PIÙ SCELTI. ADESSO.",
+    "body": "Il Back to School entra nella fase decisiva. Questa non è tutta la collezione: sono i modelli che stanno vincendo adesso, ancora disponibili.",
+    "cta": "SCOPRI I PIÙ SCELTI"
+  },
+  "merchandising_rule": {
+    "source": "Shopify live canonical catalog",
+    "collection_handle": "bts-26-sprayground",
+    "selection_time": "within 24 hours of send",
+    "sort_priority": [
+      "recent units sold / collection best-selling",
+      "inventory_quantity > 0",
+      "available_for_sale = true",
+      "recent Google/Meta commerce signal when available",
+      "healthy stock depth",
+      "visual/category diversity"
+    ],
+    "exclude": [
+      "out of stock",
+      "zero available variants",
+      "stale products selected on 2026-08-04",
+      "products with broken page/image"
+    ],
+    "product_count_target": 8
+  },
+  "layout": [
+    "dark hero + one primary CTA",
+    "TOP 1-3 large editorial cards",
+    "TOP 4-8 compact ranking grid",
+    "availability/urgency strip based only on real stock",
+    "final CTA to BTS26 Sprayground collection"
+  ],
+  "tracking": {
+    "utm_source": "klaviyo",
+    "utm_medium": "email",
+    "utm_campaign": "sprayground_most_chosen_100926",
+    "utm_content_rule": "hero|rank_01...rank_08|final_cta"
+  },
+  "audience_current": {
+    "included": ["ShWyu9", "WYUdKH"],
+    "excluded": ["RpnuJf", "SW5AMm", "VGjrR5"],
+    "smart_sending": true
+  },
+  "qa_before_reschedule": [
+    "read campaign status and send_strategy",
+    "read live Shopify products/stock/prices/images",
+    "verify all links and images HTTP 200",
+    "estimate recipients",
+    "verify no conflicting broad Sprayground campaign within 24h",
+    "revert Scheduled to Draft only immediately before refresh",
+    "assign refreshed template",
+    "reschedule original campaign",
+    "read back Scheduled status and exact send time"
+  ],
+  "prepared_at": "2026-08-24T18:15:00+02:00"
+}
