@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-08-24T15:01:00+02:00",
+  "scope": "Klaviyo operational audit with focus Sprayground peak through 2026-09-10",
+  "inventory": {
+    "draft_count": 34,
+    "scheduled_count": 5,
+    "draft_hygiene": {
+      "future_operational_drafts": 2,
+      "past_stale_drafts": 7,
+      "superseded_hold_do_not_send": 19,
+      "legacy_or_test": 6
+    }
+  },
+  "scheduled": [
+    {
+      "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
+      "datetime_rome": "2026-08-27T18:30:00+02:00",
+      "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
+      "subject": "Settembre si avvicina: scegli ora il tuo Sprayground",
+      "preview": "I modelli più forti sono disponibili adesso, ma non tutti resteranno.",
+      "included_audience_ids": ["ShWyu9", "UFqNst", "W286ix"],
+      "excluded_audience_ids": ["RpnuJf", "SW5AMm", "VGjrR5"],
+      "smart_sending": true,
+      "add_tracking_params": false,
+      "created_at": "2026-08-04T09:33:11.063587Z",
+      "last_updated_at": "2026-08-04T10:39:47.591920Z"
+    },
+    {
+      "id": "01KYW56AT6ZZN0NWP1PCKA58K4",
+      "datetime_rome": "2026-08-30T09:30:00+02:00",
+      "name": "DL | 2026-08-30 09:30 | Last Chance | End Month | WARM90 NO ORDER30",
+      "subject": "Fine agosto: gli ultimi pezzi Devid Label fino al 70%",
+      "included_audience_ids": ["SbihYe", "SwNsKw", "WaekFr", "Y8vYV4"],
+      "excluded_audience_ids": ["RJwTs7", "RpnuJf", "ShWyu9", "V782e4", "VGjrR5", "VwRxZn"],
+      "smart_sending": true,
+      "add_tracking_params": false
+    },
+    {
+      "id": "01KZ61Z03B1C67S1C809FZHDCT",
+      "datetime_rome": "2026-09-10T18:30:00+02:00",
+      "name": "DL | 2026-09-10 18:30 | Sprayground BTS | Most Chosen",
+      "subject": "Gli Sprayground che stanno scegliendo di più",
+      "preview": "Una selezione aggiornata dei modelli disponibili ora.",
+      "included_audience_ids": ["ShWyu9", "WYUdKH"],
+      "excluded_audience_ids": ["RpnuJf", "SW5AMm", "VGjrR5"],
+      "smart_sending": true,
+      "add_tracking_params": false,
+      "created_at": "2026-08-04T09:34:04.399159Z",
+      "last_updated_at": "2026-08-04T10:39:55.384724Z"
+    },
+    {
+      "id": "01KZ61ZP39RS5FRJD7CAE3H2E8",
+      "datetime_rome": "2026-09-17T18:30:00+02:00",
+      "name": "DL | 2026-09-17 18:30 | Sprayground BTS | Return Is Here",
+      "subject": "Il rientro è qui: controlla gli Sprayground disponibili"
+    },
+    {
+      "id": "01KZ620F19FBAH1NAHS6X1FD5M",
+      "datetime_rome": "2026-09-24T18:30:00+02:00",
+      "name": "DL | 2026-09-24 18:30 | Sprayground BTS | Final BTS Edit",
+      "subject": "Ultimo giro Back to School Sprayground"
+    }
+  ],
+  "future_drafts": [
+    {
+      "id": "01KZ61Y2BEV506ZGKXZKKD7PX2",
+      "intended_datetime_rome": "2026-09-03T18:30:00+02:00",
+      "name": "DL | 2026-09-03 18:30 | Sprayground BTS | BTS Checklist",
+      "subject": "Checklist Back to School: zaino, astuccio, accessori",
+      "preview": "Tutto quello che serve per partire con uno stile che si riconosce subito.",
+      "included_audience_ids": ["ShWyu9", "UsAH79"],
+      "excluded_audience_ids": ["RpnuJf", "SW5AMm", "VGjrR5"],
+      "smart_sending": true,
+      "add_tracking_params": false
+    },
+    {
+      "id": "01KYW58JJNP1H4Z65ATAB18623",
+      "name": "DL | 2026-09-05 | Last Chance | Final Call",
+      "subject": "Final Call: chiudiamo la Last Chance Devid Label",
+      "included_audience_ids": ["TnhnE6", "UsAH79"],
+      "excluded_audience_ids": ["SW5AMm", "VGjrR5"]
+    }
+  ],
+  "sprayground_sent_performance": [
+    {
+      "name": "DL | 2026-08-05 18:30 | Sprayground BTS | More Products",
+      "recipients": 8446,
+      "delivered": 8275,
+      "open_rate": 0.26441,
+      "click_rate": 0.00556,
+      "clicks_unique": 46,
+      "conversions": 0,
+      "conversion_value": 0,
+      "bounce_rate": 0.02025,
+      "unsubscribe_rate": 0.00218,
+      "spam_complaints": 0
+    },
+    {
+      "name": "DL | 2026-08-12 18:30 | Sprayground BTS | Complete The Set",
+      "recipients": 4043,
+      "delivered": 3980,
+      "open_rate": 0.48492,
+      "click_rate": 0.00352,
+      "clicks_unique": 14,
+      "conversions": 0,
+      "conversion_value": 0,
+      "bounce_rate": 0.01558,
+      "unsubscribe_rate": 0.00176,
+      "spam_complaints": 0
+    },
+    {
+      "name": "DL | 2026-08-01 | Brand Intent | Sprayground BTS",
+      "recipients": 42,
+      "delivered": 40,
+      "open_rate": 0.4,
+      "click_rate": 0.025,
+      "clicks_unique": 1,
+      "conversions": 0,
+      "conversion_value": 0
+    }
+  ],
+  "strong_flow_signals_mtd_01_23": [
+    {
+      "flow": "Welcome Flow",
+      "message": "WELCOME MAIL 1 + COUPON 5%",
+      "recipients": 716,
+      "open_rate": 0.61248,
+      "click_rate": 0.11611,
+      "conversions": 148,
+      "conversion_value": 12827.55005,
+      "revenue_per_recipient": 18.61763
+    },
+    {
+      "flow": "Abandoned Checkout",
+      "message": "Abandoned Checkout: Email 1",
+      "recipients": 193,
+      "open_rate": 0.41799,
+      "click_rate": 0.13228,
+      "conversions": 11,
+      "conversion_value": 597.78001,
+      "revenue_per_recipient": 3.16286
+    },
+    {
+      "flow": "Abandoned Checkout",
+      "message": "Abandoned Checkout: Email 2",
+      "recipients": 169,
+      "open_rate": 0.35329,
+      "click_rate": 0.09581,
+      "conversions": 3,
+      "conversion_value": 258,
+      "revenue_per_recipient": 1.54491
+    }
+  ],
+  "observations": [
+    "The current Sprayground calendar through September 10 has only August 27 and September 10 actually scheduled; September 3 remains Draft.",
+    "Scheduled Sprayground campaigns were created and scheduled on August 4 and therefore require live stock/product revalidation before send.",
+    "All future campaigns in this inventory have click/open tracking enabled but add_tracking_params=false.",
+    "Recent Sprayground broadcasts show acceptable opens but exceptionally weak click-through and zero Klaviyo-attributed orders, so simply increasing broadcast frequency without changing creative/offer/CTA is not supported by the data.",
+    "High-intent triggered flows materially outperform broad broadcasts, supporting a layered strategy of broad peak-season sends plus intent-based recovery audiences."
+  ]
+}
