@@ -1,0 +1,101 @@
+name: Sprayground Klaviyo Prep
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/sprayground-klaviyo-prep/request.json'
+      - '.github/workflows/sprayground-klaviyo-prep.yml'
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Read live Shopify Sprayground catalog and Klaviyo audiences
+        env:
+          MARE_BUSINESS_ACCESS_TOKEN: ${{ secrets.MARE_BUSINESS_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$MARE_BUSINESS_ACCESS_TOKEN"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const base = process.env.WORKER_URL;
+          const token = process.env.MARE_BUSINESS_ACCESS_TOKEN;
+          async function rpc(id, capability_id, request) {
+            const response = await fetch(`${base}/mcp-business`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'MCP-Protocol-Version': '2025-06-18',
+              },
+              body: JSON.stringify({
+                jsonrpc: '2.0', id, method: 'tools/call',
+                params: { name: 'mare_read', arguments: { capability_id, request } },
+              }),
+            });
+            const text = await response.text();
+            let body;
+            try { body = JSON.parse(text); } catch { body = { error: 'invalid_json', text: text.slice(0,1000) }; }
+            if (!response.ok) throw new Error(`${capability_id}:http_${response.status}:${text.slice(0,500)}`);
+            const result = body?.result || {};
+            if (result?.isError) throw new Error(`${capability_id}:${JSON.stringify(result.structuredContent || result)}`);
+            return result.structuredContent || result;
+          }
+          (async () => {
+            const [catalog, audiences] = await Promise.all([
+              rpc('shopify-sprayground', 'shopify.catalog.read', { query: 'Sprayground', max_products: 2500, inline_limit: 100, include_csv: false }),
+              rpc('klaviyo-audiences', 'klaviyo.crm.audiences.read', { query: '', inline_limit: 100, count_limit: 0 }),
+            ]);
+            const out = { ok: true, generated_at: new Date().toISOString(), catalog, audiences };
+            fs.writeFileSync('sprayground-klaviyo-prep.json', JSON.stringify(out, null, 2));
+            console.log(JSON.stringify({
+              ok: true,
+              catalog_returned: catalog?.products?.returned ?? catalog?.returned ?? null,
+              lists: audiences?.lists?.total_matching ?? null,
+              segments: audiences?.segments?.total_matching ?? null,
+            }, null, 2));
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Upload private prep artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprayground-klaviyo-prep-${{ github.run_id }}
+          path: sprayground-klaviyo-prep.json
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish pointer
+        shell: bash
+        run: |
+          mkdir -p ops/sprayground-klaviyo-prep
+          GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('sprayground-klaviyo-prep.json','utf8')).generated_at")"
+          cat > ops/sprayground-klaviyo-prep/latest.json <<EOF
+          {
+            "run_id": ${{ github.run_id }},
+            "artifact_name": "sprayground-klaviyo-prep-${{ github.run_id }}",
+            "generated_at": "$GENERATED_AT",
+            "timezone": "Europe/Rome"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/sprayground-klaviyo-prep/latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update Sprayground Klaviyo prep pointer"
+          git pull --rebase origin main
+          git push origin HEAD:main
