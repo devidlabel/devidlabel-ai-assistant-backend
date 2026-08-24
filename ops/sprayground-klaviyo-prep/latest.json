@@ -1,9 +1,9 @@
 {
-  "run_id": 32748611324,
-  "artifact_name": "sprayground-klaviyo-prep-32748611324",
-  "generated_at": "2026-08-24T16:03:46.629Z",
+  "run_id": 32748812964,
+  "artifact_name": "sprayground-klaviyo-prep-32748812964",
+  "generated_at": "2026-08-24T16:06:11.707Z",
   "ok": false,
-  "catalog_http_status": 404,
+  "catalog_http_status": 502,
   "product_count": null,
   "audience_http_status": 502,
   "audience_error": "klaviyo_audience_inventory_failed_403",
