@@ -1,0 +1,83 @@
+name: Klaviyo Campaign Inventory
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/klaviyo-campaign-inventory/request.json'
+      - '.github/workflows/klaviyo-campaign-inventory.yml'
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fetch read-only Klaviyo campaign inventory
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          ok=0
+          for attempt in $(seq 1 18); do
+            echo "Klaviyo inventory attempt ${attempt}/18"
+            if curl --fail --silent --show-error \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              "$WORKER_URL/internal/klaviyo/campaign-inventory" \
+              -o klaviyo-campaign-inventory.json; then
+              if node -e "const d=require('./klaviyo-campaign-inventory.json'); if(d.ok!==true) process.exit(1); console.log(JSON.stringify(d.counts))"; then
+                ok=1
+                break
+              fi
+            fi
+            sleep 10
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "Klaviyo campaign inventory endpoint unavailable after retries" >&2
+            exit 2
+          fi
+
+      - name: Upload private inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: klaviyo-campaign-inventory-${{ github.run_id }}
+          path: klaviyo-campaign-inventory.json
+          retention-days: 45
+          if-no-files-found: error
+
+      - name: Publish non-sensitive latest pointer
+        shell: bash
+        run: |
+          mkdir -p ops/klaviyo-campaign-inventory
+          GENERATED_AT="$(node -p "JSON.parse(require('fs').readFileSync('klaviyo-campaign-inventory.json','utf8')).generated_at")"
+          DRAFTS="$(node -p "JSON.parse(require('fs').readFileSync('klaviyo-campaign-inventory.json','utf8')).counts.drafts")"
+          SCHEDULED="$(node -p "JSON.parse(require('fs').readFileSync('klaviyo-campaign-inventory.json','utf8')).counts.scheduled")"
+          cat > ops/klaviyo-campaign-inventory/latest.json <<EOF
+          {
+            "run_id": ${{ github.run_id }},
+            "artifact_name": "klaviyo-campaign-inventory-${{ github.run_id }}",
+            "generated_at": "$GENERATED_AT",
+            "draft_count": $DRAFTS,
+            "scheduled_count": $SCHEDULED,
+            "timezone": "Europe/Rome"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/klaviyo-campaign-inventory/latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update Klaviyo campaign inventory pointer"
+          git pull --rebase origin main
+          git push origin HEAD:main
