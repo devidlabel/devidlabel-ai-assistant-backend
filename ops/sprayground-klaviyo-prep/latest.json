@@ -1,13 +1,13 @@
 {
-  "run_id": 32850979366,
-  "artifact_name": "sprayground-klaviyo-prep-32850979366",
-  "generated_at": "2026-08-25T13:02:39.656Z",
+  "run_id": 32851325099,
+  "artifact_name": "sprayground-klaviyo-prep-32851325099",
+  "generated_at": "2026-08-25T13:06:12.913Z",
   "ok": true,
   "catalog_http_status": 200,
   "product_count": 250,
-  "audience_http_status": 502,
-  "segment_count": null,
-  "credential_mode": null,
-  "audience_error": "klaviyo_segment_scope_unavailable",
+  "audience_http_status": 200,
+  "segment_count": 75,
+  "credential_mode": "operations",
+  "audience_error": null,
   "timezone": "Europe/Rome"
 }
