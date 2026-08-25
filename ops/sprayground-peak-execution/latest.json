@@ -1,9 +1,9 @@
 {
-  "run_id": 32750618766,
-  "generated_at": "2026-08-24T16:24:38.776Z",
+  "run_id": 32838179770,
+  "generated_at": "2026-08-25T10:38:29.518Z",
   "preflight_ok": true,
   "execution_ok": false,
-  "execution_error": "/api/segments/Ux3diP?additional-fields[segment]=profile_count&fields[segment]=name,definition,is_active,is_processing,profile_count,created,updated :: 429 :: throttled",
+  "execution_error": "/api/segments/Yh9v2z?additional-fields[segment]=profile_count&fields[segment]=name,definition,is_active,is_processing,profile_count,created,updated :: 429 :: throttled",
   "aug27_before": {
     "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
     "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
@@ -147,14 +147,14 @@
   "live_products": [
     {
       "rank": 1,
-      "title": "Zaino Shark Central Black Embroidered Shark Backpack",
+      "title": "Zaino Shark Central Embossed Black Nylon Backpack",
       "stock": 5,
       "price": 119
     },
     {
       "rank": 2,
-      "title": "Zaino Shark Central Embossed Black Nylon Backpack",
-      "stock": 5,
+      "title": "Zaino Shark Central Black Embroidered Shark Backpack",
+      "stock": 4,
       "price": 119
     },
     {
