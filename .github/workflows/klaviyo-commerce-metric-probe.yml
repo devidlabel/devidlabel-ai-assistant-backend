@@ -1,0 +1,53 @@
+name: Klaviyo Commerce Metric Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/klaviyo-commerce-metric-probe/request.json'
+      - '.github/workflows/klaviyo-commerce-metric-probe.yml'
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Fetch metric metadata
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --max-time 180 -w '%{http_code}' \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/klaviyo/commerce-metric-probe" \
+            -o klaviyo-commerce-metric-probe.json)
+          cat klaviyo-commerce-metric-probe.json
+          [ "$status" = "200" ]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: klaviyo-commerce-metric-probe-${{ github.run_id }}
+          path: klaviyo-commerce-metric-probe.json
+          retention-days: 15
+      - name: Publish pointer
+        shell: bash
+        run: |
+          mkdir -p ops/klaviyo-commerce-metric-probe
+          node - <<'NODE'
+          const fs=require('fs'); const d=JSON.parse(fs.readFileSync('klaviyo-commerce-metric-probe.json','utf8'));
+          fs.writeFileSync('ops/klaviyo-commerce-metric-probe/latest.json',JSON.stringify({run_id:Number(process.env.GITHUB_RUN_ID),generated_at:d.generated_at||new Date().toISOString(),ok:d.ok===true},null,2)+'\n');
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/klaviyo-commerce-metric-probe/latest.json
+          if ! git diff --cached --quiet; then git commit -m "Update Klaviyo commerce metric probe pointer" && git pull --rebase origin main && git push origin HEAD:main; fi
