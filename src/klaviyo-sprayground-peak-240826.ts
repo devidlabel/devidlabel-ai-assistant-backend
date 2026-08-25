@@ -32,6 +32,7 @@ function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; 
 function response(body: JsonObject, status = 200): Response { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } }); }
 function b64(value: string): Uint8Array { const normalized = value.replace(/-/g, "+").replace(/_/g, "/"); const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="); const binary = atob(padded); const bytes = new Uint8Array(binary.length); for (let i=0;i<binary.length;i+=1) bytes[i]=binary.charCodeAt(i); return bytes; }
 function decode<T>(value: string): T { return JSON.parse(new TextDecoder().decode(b64(value))) as T; }
+function sleep(ms:number):Promise<void>{return new Promise((resolve)=>setTimeout(resolve,ms));}
 
 async function authorized(request: Request): Promise<boolean> {
   const authorization = request.headers.get("Authorization") || "";
@@ -65,12 +66,14 @@ async function authorized(request: Request): Promise<boolean> {
 
 async function kfetch(apiKey: string, path: string, init: RequestInit = {}): Promise<{ ok:boolean; status:number; body:JsonObject }> {
   let last = { ok:false, status:0, body:{} as JsonObject };
-  for (let attempt=0; attempt<4; attempt+=1) {
+  for (let attempt=0; attempt<8; attempt+=1) {
     const result = await fetch(API + path, { ...init, headers: { Accept:"application/vnd.api+json", Authorization:`Klaviyo-API-Key ${apiKey}`, revision:REVISION, ...(init.body ? {"Content-Type":"application/vnd.api+json"}:{}), ...(init.headers||{}) } });
     let body:JsonObject={}; try { body=await result.json() as JsonObject; } catch {}
     last={ok:result.ok,status:result.status,body};
     if (result.ok || result.status !== 429) return last;
-    await new Promise((resolve)=>setTimeout(resolve, 1000*(attempt+1)));
+    const retryAfter=Number(result.headers.get("Retry-After")||"0");
+    const delay=Math.min(retryAfter>0?retryAfter*1000:2000*(attempt+1),15000);
+    await sleep(delay);
   }
   return last;
 }
@@ -81,16 +84,18 @@ function groups(def:JsonObject):JsonObject[]{return Array.isArray(def.condition_
 function conditions(group:JsonObject):JsonObject[]{return Array.isArray(group.conditions)?group.conditions.map(obj):[];}
 async function getSegment(apiKey:string,id:string):Promise<JsonObject>{ return obj((await must(apiKey,`/api/segments/${encodeURIComponent(id)}?additional-fields[segment]=profile_count&fields[segment]=name,definition,is_active,is_processing,profile_count,created,updated`)).data); }
 async function findSegment(apiKey:string,name:string):Promise<JsonObject|null>{ const q=new URLSearchParams(); q.set("filter",`equals(name,'${name.replace(/'/g,"\\'")}')`); q.set("page[size]","10"); q.set("fields[segment]","name,definition,is_active,is_processing,created,updated"); const p=await must(apiKey,"/api/segments?"+q.toString()); for(const item of Array.isArray(p.data)?p.data:[]){const row=obj(item); if(normalize(obj(row.attributes).name)===name)return row;} return null; }
-async function createOrReuseSegment(apiKey:string,name:string,def:JsonObject):Promise<JsonObject>{ const existing=await findSegment(apiKey,name); if(existing){const full=await getSegment(apiKey,normalize(existing.id)); if(JSON.stringify(definition(full))!==JSON.stringify(def))throw new Error(`segment_definition_mismatch:${name}`); return full;} const p=await must(apiKey,"/api/segments",{method:"POST",body:JSON.stringify({data:{type:"segment",attributes:{name,definition:def,is_starred:false}}})}); const id=normalize(obj(p.data).id); if(!id)throw new Error(`segment_created_without_id:${name}`); await new Promise((resolve)=>setTimeout(resolve,1200)); return getSegment(apiKey,id); }
+async function createOrReuseSegment(apiKey:string,name:string,def:JsonObject):Promise<JsonObject>{ const existing=await findSegment(apiKey,name); if(existing){await sleep(1200); const full=await getSegment(apiKey,normalize(existing.id)); if(JSON.stringify(definition(full))!==JSON.stringify(def))throw new Error(`segment_definition_mismatch:${name}`); return full;} const p=await must(apiKey,"/api/segments",{method:"POST",body:JSON.stringify({data:{type:"segment",attributes:{name,definition:def,is_starred:false}}})}); const id=normalize(obj(p.data).id); if(!id)throw new Error(`segment_created_without_id:${name}`); await sleep(3500); return getSegment(apiKey,id); }
 function metricId(condition:JsonObject):string{return normalize(condition.metric_id);}
 function withWindow(condition:JsonObject,count:number,days:number|null):JsonObject{const c=clone(condition); c.measurement="count"; c.measurement_filter={type:"numeric",operator:count===0?"equals":"greater-than-or-equal",value:count}; c.timeframe_filter=days===null?{type:"date",operator:"alltime"}:{type:"date",operator:"in-the-last",unit:"day",quantity:days}; return c;}
 function replaceBrand(value:unknown):unknown{ if(typeof value==="string")return value.replace(/K[\s-]?Way/gi,"Sprayground"); if(Array.isArray(value))return value.map(replaceBrand); if(value&&typeof value==="object"){const out:JsonObject={}; for(const [k,v] of Object.entries(value as JsonObject))out[k]=replaceBrand(v); return out;} return value; }
 
 async function ensureSegments(apiKey:string):Promise<JsonObject>{
   const high=await getSegment(apiKey,HIGH_INTENT); const highGroups=groups(definition(high));
+  await sleep(1200);
   const behavior=conditions(highGroups[0]); const viewed=behavior.find((c)=>metricId(c)==="UejCPq"); const atc=behavior.find((c)=>metricId(c)==="SXnBMm");
   const noOrder=highGroups[1]; const consent=highGroups[2]; if(!viewed||!atc||!noOrder||!consent)throw new Error("sprayground_high_intent_source_invalid");
   const checkoutSource=await getSegment(apiKey,CHECKOUT_SOURCE); const checkoutCondition=conditions(groups(definition(checkoutSource))[0]).find((c)=>metricId(c)==="TQUiiS"); if(!checkoutCondition)throw new Error("checkout_source_condition_missing");
+  await sleep(1200);
   const buyerSource=await getSegment(apiKey,BUYER_SOURCE); const buyerGroups=groups(definition(buyerSource)).filter((g)=>/k[\s-]?way/i.test(JSON.stringify(g)) && conditions(g).length>0); if(!buyerGroups.length)throw new Error("buyer_source_brand_group_missing");
   const buyerGroupsSpray=buyerGroups.map((g)=>replaceBrand(g) as JsonObject);
   const viewerDef={condition_groups:[{conditions:[clone(viewed)]},clone(noOrder),clone(consent)]};
@@ -98,16 +103,19 @@ async function ensureSegments(apiKey:string):Promise<JsonObject>{
   const checkoutDef={condition_groups:[{conditions:[withWindow(checkoutCondition,1,7)]},clone(highGroups[0]),clone(noOrder),clone(consent)]};
   const pastDef={condition_groups:[...buyerGroupsSpray.map((g)=>({conditions:conditions(g).map((c)=>withWindow(c,1,null))})),clone(consent)]};
   const recentDef={condition_groups:[...buyerGroupsSpray.map((g)=>({conditions:conditions(g).map((c)=>withWindow(c,1,30))})),clone(consent)]};
-  const rows=await Promise.all([
-    createOrReuseSegment(apiKey,"DL | SPRAYGROUND | VIEWER | 14D | NO ORDER 14D",viewerDef),
-    createOrReuseSegment(apiKey,"DL | SPRAYGROUND | ATC | 14D | NO ORDER 14D",atcDef),
-    createOrReuseSegment(apiKey,"DL | SPRAYGROUND | CHECKOUT | 7D | BRAND INTENT | NO ORDER 14D",checkoutDef),
-    createOrReuseSegment(apiKey,"DL | SPRAYGROUND | PAST BUYER | ALL TIME | CONSENT",pastDef),
-    createOrReuseSegment(apiKey,"DL | SPRAYGROUND | RECENT BUYER | 30D | CONSENT",recentDef),
-  ]);
-  const names=["viewer","atc","checkout","past_buyer","recent_buyer_exclusion"];
+  const specs:Array<[string,JsonObject,string]>=[
+    ["DL | SPRAYGROUND | VIEWER | 14D | NO ORDER 14D",viewerDef,"viewer"],
+    ["DL | SPRAYGROUND | ATC | 14D | NO ORDER 14D",atcDef,"atc"],
+    ["DL | SPRAYGROUND | CHECKOUT | 7D | BRAND INTENT | NO ORDER 14D",checkoutDef,"checkout"],
+    ["DL | SPRAYGROUND | PAST BUYER | ALL TIME | CONSENT",pastDef,"past_buyer"],
+    ["DL | SPRAYGROUND | RECENT BUYER | 30D | CONSENT",recentDef,"recent_buyer_exclusion"],
+  ];
   const out:JsonObject={high_intent_existing:{id:HIGH_INTENT,name:normalize(obj(high.attributes).name),profile_count:obj(high.attributes).profile_count??null}};
-  rows.forEach((row,i)=>{out[names[i]]={id:normalize(row.id),name:normalize(obj(row.attributes).name),profile_count:obj(row.attributes).profile_count??null};});
+  for(const [name,def,key] of specs){
+    const row=await createOrReuseSegment(apiKey,name,def);
+    out[key]={id:normalize(row.id),name:normalize(obj(row.attributes).name),profile_count:obj(row.attributes).profile_count??null};
+    await sleep(1800);
+  }
   return out;
 }
 
@@ -128,7 +136,7 @@ function emailHtml(kind:"intent"|"countdown"|"ranking",products:Product[]):strin
 
 async function getCampaign(apiKey:string,id:string):Promise<JsonObject>{return obj((await must(apiKey,`/api/campaigns/${id}?include=campaign-messages`)).data);}
 function campaignStatus(row:JsonObject):string{return normalize(obj(row.attributes).status);}
-async function waitStatus(apiKey:string,id:string,status:string):Promise<JsonObject>{for(let i=0;i<20;i+=1){const c=await getCampaign(apiKey,id);if(campaignStatus(c).toLowerCase()===status.toLowerCase())return c;await new Promise((r)=>setTimeout(r,1000));}throw new Error(`campaign_status_timeout:${id}:${status}`);}
+async function waitStatus(apiKey:string,id:string,status:string):Promise<JsonObject>{for(let i=0;i<20;i+=1){const c=await getCampaign(apiKey,id);if(campaignStatus(c).toLowerCase()===status.toLowerCase())return c;await sleep(1000);}throw new Error(`campaign_status_timeout:${id}:${status}`);}
 async function revertScheduled(apiKey:string,id:string):Promise<void>{const r=await kfetch(apiKey,`/api/campaign-send-jobs/${id}`,{method:"PATCH",body:JSON.stringify({data:{type:"campaign-send-job",id,attributes:{action:"revert"}}})});if(!r.ok)throw new Error(`campaign_revert_failed:${id}:${r.status}`);await waitStatus(apiKey,id,"Draft");}
 async function schedule(apiKey:string,id:string):Promise<void>{const r=await kfetch(apiKey,"/api/campaign-send-jobs",{method:"POST",body:JSON.stringify({data:{type:"campaign-send-job",id}})});if(!r.ok)throw new Error(`campaign_schedule_failed:${id}:${r.status}`);await waitStatus(apiKey,id,"Scheduled");}
 function readbackCampaign(row:JsonObject):JsonObject{const a=obj(row.attributes);return{id:normalize(row.id),name:normalize(a.name),status:normalize(a.status),send_strategy:a.send_strategy??null,scheduled_at:a.scheduled_at??null,audiences:a.audiences??null,send_options:a.send_options??null,tracking_options:a.tracking_options??null};}
