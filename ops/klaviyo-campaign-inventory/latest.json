@@ -1,11 +1,11 @@
 {
-  "run_id": 32839422552,
-  "artifact_name": "klaviyo-campaign-inventory-32839422552",
-  "generated_at": "2026-08-25T10:52:54.442Z",
+  "run_id": 32850678911,
+  "artifact_name": "klaviyo-campaign-inventory-32850678911",
+  "generated_at": "2026-08-25T12:59:33.766Z",
   "ok": true,
   "http_status": 200,
-  "draft_count": 35,
-  "scheduled_count": 5,
+  "draft_count": 34,
+  "scheduled_count": 8,
   "error": null,
   "provider_status": null,
   "timezone": "Europe/Rome"
