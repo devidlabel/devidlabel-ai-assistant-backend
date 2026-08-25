@@ -11,6 +11,7 @@ const KLAVIYO_API_BASE = "https://a.klaviyo.com";
 const KLAVIYO_REVISION = "2026-07-15";
 const MAX_PAGES = 100;
 const DETAIL_IDS = new Set(["ShWyu9", "UFqNst", "W286ix", "WYUdKH", "UsAH79", "RpnuJf", "SW5AMm", "VGjrR5", "WsPZgJ", "Re2ZyU", "REVE8F", "XkHjTb", "VdLqZ8"]);
+const COUNT_IDS = new Set(["REVE8F", "XkHjTb", "VdLqZ8"]);
 
 function normalize(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
 function asObject(value: unknown): JsonObject { return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {}; }
@@ -22,6 +23,7 @@ function isAuthorized(request: Request, env: KlaviyoAudienceInventoryEnv): boole
   const accepted = [normalize(env.KLAVIYO_REPORT_ACCESS_TOKEN), normalize(env.DAILY_PULSE_ACCESS_TOKEN)].filter(Boolean);
   return accepted.some((expected) => timingSafeEqualText(supplied, expected));
 }
+async function sleep(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
 async function klaviyoGet(pathOrUrl: string, apiKey: string): Promise<JsonObject> {
   const url = pathOrUrl.startsWith("http") ? new URL(pathOrUrl) : new URL(KLAVIYO_API_BASE + pathOrUrl);
   if (url.protocol !== "https:" || url.hostname !== "a.klaviyo.com" || !url.pathname.startsWith("/api/")) throw new Error("klaviyo_pagination_url_rejected");
@@ -40,7 +42,7 @@ async function klaviyoGet(pathOrUrl: string, apiKey: string): Promise<JsonObject
 async function collect(kind: "lists" | "segments", apiKey: string): Promise<JsonObject[]> {
   const rows: JsonObject[] = [];
   const pageSize = kind === "segments" ? 10 : 100;
-  const fields = kind === "segments" ? "&fields[segment]=name,definition,is_active,is_processing,created,updated&additional-fields[segment]=profile_count" : "";
+  const fields = kind === "segments" ? "&fields[segment]=name,definition,is_active,is_processing,created,updated" : "";
   let next: string | null = `/api/${kind}?page[size]=${pageSize}&sort=-updated${fields}`;
   let pages = 0;
   while (next && pages < MAX_PAGES) {
@@ -50,6 +52,17 @@ async function collect(kind: "lists" | "segments", apiKey: string): Promise<Json
     pages += 1;
   }
   return rows;
+}
+async function enrichSneakerCounts(rows: JsonObject[], apiKey: string): Promise<JsonObject[]> {
+  const byId = new Map(rows.map((row) => [normalize(row.id), row]));
+  for (const id of COUNT_IDS) {
+    if (!byId.has(id)) continue;
+    const body = await klaviyoGet(`/api/segments/${encodeURIComponent(id)}?additional-fields[segment]=profile_count&fields[segment]=name,definition,is_active,is_processing,profile_count,created,updated`, apiKey);
+    const detail = asObject(body.data);
+    if (normalize(detail.id) === id) byId.set(id, detail);
+    await sleep(1100);
+  }
+  return rows.map((row) => byId.get(normalize(row.id)) || row);
 }
 function compact(kind: "list" | "segment", row: JsonObject): JsonObject {
   const attributes = asObject(row.attributes);
@@ -84,7 +97,7 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
   for (const candidate of candidates) {
     try {
       if (segmentsOnly) {
-        const segments = await collect("segments", candidate.key);
+        const segments = await enrichSneakerCounts(await collect("segments", candidate.key), candidate.key);
         return jsonResponse({
           ok: true,
           service: "klaviyo_audience_inventory",
@@ -95,10 +108,11 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
           counts: { lists: null, segments: segments.length },
           audiences: segments.map((row) => compact("segment", row)),
           attempts,
-          notes: ["Read-only segment metadata only; no individual profile data is returned.", "Profile counts and processing state are included for QA of scheduled campaigns."],
+          notes: ["Read-only segment metadata only; no individual profile data is returned.", "Sneaker QA profile counts are fetched only through Klaviyo's individual Get Segment endpoint, where profile_count is supported."],
         });
       }
-      const [lists, segments] = await Promise.all([collect("lists", candidate.key), collect("segments", candidate.key)]);
+      const [lists, rawSegments] = await Promise.all([collect("lists", candidate.key), collect("segments", candidate.key)]);
+      const segments = await enrichSneakerCounts(rawSegments, candidate.key);
       return jsonResponse({
         ok: true,
         service: "klaviyo_audience_inventory",
@@ -108,7 +122,7 @@ export async function handleKlaviyoAudienceInventoryRequest(request: Request, en
         counts: { lists: lists.length, segments: segments.length },
         audiences: [...lists.map((row) => compact("list", row)), ...segments.map((row) => compact("segment", row))],
         attempts,
-        notes: ["Read-only metadata only; no individual profile data is returned.", "Profile counts and processing state are included for QA of scheduled campaigns."],
+        notes: ["Read-only metadata only; no individual profile data is returned.", "Sneaker QA profile counts are fetched only through Klaviyo's individual Get Segment endpoint, where profile_count is supported."],
       });
     } catch (error) {
       const detail = error as Error & { status?: number };
