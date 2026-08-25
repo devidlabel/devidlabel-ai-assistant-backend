@@ -1,0 +1,68 @@
+{
+  "verified_at": "2026-08-25T15:08:00+02:00",
+  "status": "completed",
+  "strategy": {
+    "base_gate": "Clicked Email > 0 in last 90 days + can receive email marketing",
+    "segmentation": "behavioral product-category affinity; no gender identity inference",
+    "smart_sending": true,
+    "tracking_params": true,
+    "reason_for_stagger": "15-minute stagger reduces duplicate exposure if a profile has verified behavior in both categories"
+  },
+  "audiences": {
+    "clicked_email_90d": {
+      "id": "REVE8F",
+      "name": "DL | CLICKED EMAIL | 90D | CONSENT",
+      "profile_count": 1207,
+      "is_processing": false
+    },
+    "sneakers_donna_interest": {
+      "id": "VdLqZ8",
+      "name": "DL | SNEAKERS DONNA INTEREST | CLICK90D | PRODUCT INTENT365D",
+      "profile_count": 24,
+      "is_processing": false,
+      "logic": "clicked email in last 90 days + viewed/added to cart a product uniquely associated with sneakers-donna in last 365 days + email consent"
+    },
+    "sneakers_uomo_interest": {
+      "id": "XkHjTb",
+      "name": "DL | SNEAKERS UOMO INTEREST | CLICK90D | PRODUCT INTENT365D",
+      "profile_count": 32,
+      "is_processing": false,
+      "logic": "clicked email in last 90 days + viewed/added to cart a product uniquely associated with sneakers-uomo in last 365 days + email consent"
+    }
+  },
+  "campaigns": {
+    "donna": {
+      "campaign_id": "01M0WFYY6R9FX8X08MC15BYN6Q",
+      "campaign_message_id": "01M0WFYY73E74NC88HXBJPZDYS",
+      "name": "DL | 2026-09-01 10:30 | Sneakers Donna | New Season + Last Sale | Click90D",
+      "status": "Scheduled",
+      "send_at_rome": "2026-09-01T10:30:00+02:00",
+      "audience_id": "VdLqZ8",
+      "subject": "Settembre parte dalle sneakers: nuovi arrivi donna",
+      "preview": "Nuova stagione davanti. Ultimi modelli in saldo dietro: scegli il tuo passo per il rientro.",
+      "content": "new-season sneakers first, then final-sale opportunities; no internal CRM labels in customer-facing copy"
+    },
+    "uomo": {
+      "campaign_id": "01M0WFZC2C4P3TX5E8Z74K45VT",
+      "campaign_message_id": "01M0WFZC2PK0WPJ5KD04B1R7JJ",
+      "name": "DL | 2026-09-01 10:45 | Sneakers Uomo | New Season + Last Sale | Click90D",
+      "status": "Scheduled",
+      "send_at_rome": "2026-09-01T10:45:00+02:00",
+      "audience_id": "XkHjTb",
+      "subject": "Back to Work: le nuove sneakers uomo sono qui",
+      "preview": "Nuovi arrivi per settembre + gli ultimi modelli in saldo ancora disponibili.",
+      "content": "new-season sneakers first, then final-sale opportunities; no internal CRM labels in customer-facing copy"
+    }
+  },
+  "merchandising": {
+    "donna_new": ["Playnewsky D-2041 White/Silver", "PlayNew D-2031 Coffee", "PlayNew D-2045 White/Bronze", "PlayNew D-2026 White/Bordeaux", "Sneaker 6.02 Panther Phantom"],
+    "donna_sale": ["Como - Sneaker in Nappa e Camoscio - Premium", "Trail Sbl 07 Black Land"],
+    "uomo_new": ["Hyper U-3027 White/Black", "Hyper U-3012 Bianco", "PlayNew U-1024 Chocolate Taste", "PlayNew U-1035 Elba/Moor", "Sneaker 1.01 Vintage Eclipse"],
+    "uomo_sale": ["Como - Sneaker in Nappa e Camoscio - Premium", "Sneaker Trail SBL E-10 Lime Orange"]
+  },
+  "qa": {
+    "campaign_inventory_readback": "both campaigns independently verified Scheduled",
+    "segment_readback": "all three QA segments active and not processing; profile counts verified through individual Klaviyo Get Segment endpoint",
+    "no_gender_identity_inference": true
+  }
+}
