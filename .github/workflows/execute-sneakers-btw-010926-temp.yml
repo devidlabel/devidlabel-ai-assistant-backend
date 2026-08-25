@@ -100,3 +100,5 @@ jobs:
             ops/sneakers-btw-execution/latest.json
           retention-days: 30
           if-no-files-found: warn
+
+# execution-trigger: 2026-08-25T14:58:00+02:00
