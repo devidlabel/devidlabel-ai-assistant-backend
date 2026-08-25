@@ -1,0 +1,67 @@
+{
+  "verified_at": "2026-08-25T12:58:00+02:00",
+  "source": "live Klaviyo campaign inventory + live Klaviyo segment inventory",
+  "plan_status": "completed",
+  "audiences": {
+    "high_intent_existing": {"id": "ShWyu9", "name": "DL | BRAND INTENT | SPRAYGROUND | 14D"},
+    "viewer": {"id": "SqFyt8", "name": "DL | SPRAYGROUND | VIEWER | 14D | NO ORDER 14D"},
+    "atc": {"id": "Ux3diP", "name": "DL | SPRAYGROUND | ATC | 14D | NO ORDER 14D"},
+    "checkout": {"id": "Yh9v2z", "name": "DL | SPRAYGROUND | CHECKOUT | 7D | BRAND INTENT | NO ORDER 14D"},
+    "past_buyer": {"id": "X37pMj", "name": "DL | SPRAYGROUND | PAST BUYER | ALL TIME | CONSENT"},
+    "recent_buyer_exclusion": {"id": "TPnUkN", "name": "DL | SPRAYGROUND | RECENT BUYER | 30D | CONSENT"}
+  },
+  "micro_wave_25_26_aug": {
+    "campaign_id": "01M0W8PH2SEX8F82123PCA1SDM",
+    "campaign_message_id": "01M0W8PH34QJNETW35KMT969GB",
+    "name": "DL | 2026-08-25-26 | Sprayground | High Intent | Hot Window",
+    "status": "Draft",
+    "audience_included": ["ShWyu9"],
+    "audience_excluded": ["TPnUkN"],
+    "send_strategy_datetime": "2026-08-26T16:30:00+00:00",
+    "subject": "Lo Sprayground che stavi guardando è ancora qui",
+    "preview": "Se ci stai tornando sopra, controlla ora disponibilità e modelli più richiesti.",
+    "smart_sending": true,
+    "scheduled_or_sent": false
+  },
+  "campaign_27_aug": {
+    "campaign_id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
+    "status": "Scheduled",
+    "send_at_rome": "2026-08-27T18:30:00+02:00",
+    "send_strategy_datetime": "2026-08-27T16:30:00+00:00",
+    "subject": "Settembre si avvicina: scegli ora il tuo Sprayground",
+    "preview": "I modelli più forti sono disponibili adesso, ma non tutti resteranno.",
+    "body_merchandising": "rewritten from live BTS26 Sprayground products; managed CODE template assignment completed before reschedule",
+    "original_campaign_id_preserved": true
+  },
+  "campaign_3_sep": {
+    "campaign_id": "01KZ61Y2BEV506ZGKXZKKD7PX2",
+    "status": "Draft",
+    "name": "DL | 2026-09-03 18:30 | Sprayground BTS | Best Seller Ranking",
+    "send_strategy_datetime": "2026-09-03T16:30:00+00:00",
+    "subject": "La classifica Sprayground del Back to School",
+    "preview": "I modelli che stanno scegliendo di più adesso, in ordine.",
+    "body_merchandising": "converted to live bestseller/ranking format with live BTS26 Sprayground products"
+  },
+  "campaign_10_sep": {
+    "campaign_id": "01KZ61Z03B1C67S1C809FZHDCT",
+    "status": "Scheduled",
+    "send_at_rome": "2026-09-10T18:30:00+02:00",
+    "mutated_now": false,
+    "blueprint_path": "ops/klaviyo-blueprints/sprayground-most-chosen-2026-09-10.json",
+    "product_selection_policy": "select live best sellers within 24 hours of send; inventory > 0; available_for_sale; exclude stale/out-of-stock products"
+  },
+  "live_merchandising_snapshot": {
+    "verified_product_catalog_count": 250,
+    "ranking_examples": [
+      "Zaino Shark Central Embossed Black Nylon Backpack",
+      "Zaino Shark Central Black Embroidered Shark Backpack",
+      "Portafoglio Sharks In Paris Wtf Bubbly Black Check Wallet",
+      "Borsa Sharks In Paris Wtf Bubbly Black Check Mini Duffle"
+    ]
+  },
+  "notes": [
+    "The operational Worker hit a Cloudflare subrequest limit during final readback after the writes; subsequent independent live Klaviyo inventory confirmed the final campaign states above.",
+    "The 27 Aug campaign briefly appeared as Queued without Recipients immediately after rescheduling, then independently verified as Scheduled at the original slot.",
+    "The micro-wave is prepared as Draft, not sent or scheduled, because the approved instruction was to prepare the 25/26 Aug intent wave without an explicit clock-time send instruction."
+  ]
+}
