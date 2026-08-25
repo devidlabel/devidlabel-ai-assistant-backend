@@ -1,8 +1,8 @@
 {
-  "run_id": 32694387386,
-  "artifact_name": "shopify-commerce-analytics-32694387386",
-  "generated_at": "2026-08-24T05:41:17.293Z",
+  "run_id": 32813385097,
+  "artifact_name": "shopify-commerce-analytics-32813385097",
+  "generated_at": "2026-08-25T05:35:07.112Z",
   "ok": true,
-  "complete": true,
+  "complete": false,
   "timezone": "Europe/Rome"
 }
