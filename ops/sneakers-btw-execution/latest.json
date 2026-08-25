@@ -1,11 +1,215 @@
 {
-  "run_id": 32850340327,
-  "generated_at": "2026-08-25T12:55:53.695Z",
-  "preflight_ok": false,
-  "execution_ok": false,
+  "run_id": 32850474925,
+  "generated_at": "2026-08-25T12:58:08.920Z",
+  "preflight_ok": true,
+  "execution_ok": true,
   "error": null,
-  "segments": null,
-  "campaigns": null,
-  "merchandising": null,
-  "safety": null
+  "segments": {
+    "clickers90": {
+      "id": "REVE8F",
+      "name": "DL | CLICKED EMAIL | 90D | CONSENT",
+      "profile_count": 171
+    },
+    "uomo_interest": {
+      "id": "XkHjTb",
+      "name": "DL | SNEAKERS UOMO INTEREST | CLICK90D | PRODUCT INTENT365D",
+      "profile_count": 0,
+      "unique_product_ids": 39
+    },
+    "donna_interest": {
+      "id": "VdLqZ8",
+      "name": "DL | SNEAKERS DONNA INTEREST | CLICK90D | PRODUCT INTENT365D",
+      "profile_count": 0,
+      "unique_product_ids": 47
+    }
+  },
+  "campaigns": {
+    "donna": {
+      "id": "01M0WFYY6R9FX8X08MC15BYN6Q",
+      "name": "DL | 2026-09-01 10:30 | Sneakers Donna | New Season + Last Sale | Click90D",
+      "status": "Queued without Recipients",
+      "send_strategy": {
+        "method": "static",
+        "datetime": "2026-09-01T08:30:00+00:00",
+        "options": {
+          "is_local": false
+        }
+      },
+      "scheduled_at": "2026-08-25T12:57:50.522102+00:00",
+      "audiences": {
+        "included": [
+          "VdLqZ8"
+        ],
+        "excluded": []
+      },
+      "send_options": {
+        "use_smart_sending": true,
+        "ignore_unsubscribes": false
+      },
+      "tracking_options": {
+        "add_tracking_params": true,
+        "custom_tracking_params": [],
+        "is_tracking_clicks": true,
+        "is_tracking_opens": true
+      }
+    },
+    "uomo": {
+      "id": "01M0WFZC2C4P3TX5E8Z74K45VT",
+      "name": "DL | 2026-09-01 10:45 | Sneakers Uomo | New Season + Last Sale | Click90D",
+      "status": "Queued without Recipients",
+      "send_strategy": {
+        "method": "static",
+        "datetime": "2026-09-01T08:45:00+00:00",
+        "options": {
+          "is_local": false
+        }
+      },
+      "scheduled_at": "2026-08-25T12:58:04.365576+00:00",
+      "audiences": {
+        "included": [
+          "XkHjTb"
+        ],
+        "excluded": []
+      },
+      "send_options": {
+        "use_smart_sending": true,
+        "ignore_unsubscribes": false
+      },
+      "tracking_options": {
+        "add_tracking_params": true,
+        "custom_tracking_params": [],
+        "is_tracking_clicks": true,
+        "is_tracking_opens": true
+      }
+    }
+  },
+  "merchandising": {
+    "donna": {
+      "fresh": [
+        {
+          "title": "Playnewsky D-2041 White/Silver",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "PlayNew D-2031 Coffee",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "PlayNew D-2045 White/Bronze",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "PlayNew D-2026 White/Bordeaux",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "Sneaker 6.02 Panther Phantom",
+          "vendor": "Puraai",
+          "stock": 8,
+          "price": 169
+        }
+      ],
+      "sale": [
+        {
+          "title": "Como - Sneaker in Nappa e Camoscio - Premium",
+          "vendor": "Devid Label",
+          "stock": 2,
+          "price": 55.9,
+          "compare": 139,
+          "discount_pct": 60
+        },
+        {
+          "title": "Como - Sneaker in Nappa e Camoscio - Premium",
+          "vendor": "Devid Label",
+          "stock": 2,
+          "price": 55.9,
+          "compare": 139,
+          "discount_pct": 60
+        },
+        {
+          "title": "Trail Sbl 07 Black Land",
+          "vendor": "Fessura",
+          "stock": 9,
+          "price": 79.5,
+          "compare": 159,
+          "discount_pct": 50
+        }
+      ]
+    },
+    "uomo": {
+      "fresh": [
+        {
+          "title": "Hyper U-3027 White/Black",
+          "vendor": "4B12",
+          "stock": 6,
+          "price": 209
+        },
+        {
+          "title": "Hyper U-3012 Bianco",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "PlayNew U-1024 Chocolate Taste",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "PlayNew U-1035 Elba/Moor",
+          "vendor": "4B12",
+          "stock": 8,
+          "price": 199
+        },
+        {
+          "title": "Sneaker 1.01 Vintage Eclipse",
+          "vendor": "Puraai",
+          "stock": 10,
+          "price": 199
+        }
+      ],
+      "sale": [
+        {
+          "title": "Como - Sneaker in Nappa e Camoscio - Premium",
+          "vendor": "Devid Label",
+          "stock": 4,
+          "price": 55.9,
+          "compare": 139,
+          "discount_pct": 60
+        },
+        {
+          "title": "Como - Sneaker in Nappa e Camoscio - Premium",
+          "vendor": "Devid Label",
+          "stock": 2,
+          "price": 55.9,
+          "compare": 139,
+          "discount_pct": 60
+        },
+        {
+          "title": "Sneaker Trail SBL E-10 Lime Orange",
+          "vendor": "Fessura",
+          "stock": 4,
+          "price": 79.5,
+          "compare": 159,
+          "discount_pct": 50
+        }
+      ]
+    }
+  },
+  "safety": {
+    "audience_gate": "Clicked Email > 0 in last 90 days + email marketing consent + collection-specific product intent",
+    "gender_inference_used": false,
+    "collection_overlap_removed_from_interest_ids": true,
+    "smart_sending": true,
+    "stagger_minutes": 15
+  }
 }
