@@ -12,6 +12,7 @@ import { handleKlaviyoCampaignInventoryRequest } from "./klaviyo-campaign-invent
 import { handleKlaviyoAudienceInventoryRequest } from "./klaviyo-audience-inventory";
 import { handleSpraygroundLiveCatalogRequest } from "./sprayground-live-catalog";
 import { handleSpraygroundPeak240826 } from "./klaviyo-sprayground-peak-240826";
+import { handleKlaviyoCommerceMetricProbeRequest } from "./klaviyo-commerce-metric-probe";
 
 export { MarePlanCoordinator, MareAutonomyRunner };
 
@@ -61,6 +62,9 @@ export default {
 
     const spraygroundLiveCatalogResponse = await handleSpraygroundLiveCatalogRequest(request, env as any);
     if (spraygroundLiveCatalogResponse) return spraygroundLiveCatalogResponse;
+
+    const klaviyoMetricProbeResponse = await handleKlaviyoCommerceMetricProbeRequest(request, env as any);
+    if (klaviyoMetricProbeResponse) return klaviyoMetricProbeResponse;
 
     const url = new URL(request.url);
     if (url.pathname === "/auth/youtube/start") {
