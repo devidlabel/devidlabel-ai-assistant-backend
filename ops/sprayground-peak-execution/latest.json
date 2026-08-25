@@ -1,9 +1,9 @@
 {
-  "run_id": 32838869915,
-  "generated_at": "2026-08-25T10:46:42.510Z",
+  "run_id": 32839213392,
+  "generated_at": "2026-08-25T10:51:14.807Z",
   "preflight_ok": true,
   "execution_ok": false,
-  "execution_error": "/api/campaigns :: 400 :: invalid_send_time",
+  "execution_error": "Too many subrequests by single Worker invocation. To configure this limit, refer to https://developers.cloudflare.com/workers/wrangler/configuration/#limits",
   "aug27_before": {
     "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
     "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
@@ -42,7 +42,7 @@
   "aug27_after": {
     "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
     "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
-    "status": "Scheduled",
+    "status": "Queued without Recipients",
     "send_strategy": {
       "method": "static",
       "datetime": "2026-08-27T16:30:00+00:00",
@@ -50,7 +50,7 @@
         "is_local": false
       }
     },
-    "scheduled_at": "2026-08-04T10:39:47.249652+00:00",
+    "scheduled_at": "2026-08-25T10:51:01.123099+00:00",
     "audiences": {
       "included": [
         "ShWyu9",
@@ -76,7 +76,7 @@
   },
   "sep3": {
     "id": "01KZ61Y2BEV506ZGKXZKKD7PX2",
-    "name": "DL | 2026-09-03 18:30 | Sprayground BTS | BTS Checklist",
+    "name": "DL | 2026-09-03 18:30 | Sprayground BTS | Best Seller Ranking",
     "status": "Draft",
     "send_strategy": {
       "method": "static",
