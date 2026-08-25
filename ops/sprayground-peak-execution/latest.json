@@ -1,9 +1,9 @@
 {
-  "run_id": 32838526184,
-  "generated_at": "2026-08-25T10:42:42.175Z",
+  "run_id": 32838869915,
+  "generated_at": "2026-08-25T10:46:42.510Z",
   "preflight_ok": true,
   "execution_ok": false,
-  "execution_error": "klaviyo_operations_not_configured",
+  "execution_error": "/api/campaigns :: 400 :: invalid_send_time",
   "aug27_before": {
     "id": "01KZ61XC0M402Q4P1C8ZCEXFMW",
     "name": "DL | 2026-08-27 18:30 | Sprayground BTS | September Countdown",
