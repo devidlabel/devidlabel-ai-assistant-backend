@@ -1,0 +1,12 @@
+{
+  "schema": "mare_autonomy_result_v1",
+  "request_path": "ops/autonomy-requests/2026-08-27-sprayground-restock-catalog.json",
+  "source_commit": "7eb050bcf245ac17232b00624ff0bf75e3ee5a4d",
+  "submit_http": "400",
+  "final_status": "",
+  "submit": {
+    "ok": false,
+    "error": "capability_not_autonomous"
+  },
+  "status": {}
+}
