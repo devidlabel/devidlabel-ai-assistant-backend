@@ -1,0 +1,38 @@
+name: Shopify media scope probe
+
+on:
+  push:
+    branches:
+      - codex/shopify-media-metadata-2026-08-27
+    paths:
+      - '.github/workflows/shopify-media-scope-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read safe Product Media OS health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H 'Accept: application/json' \
+            'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/mcp-product-media/health' \
+            | tee /tmp/product-media-health.json
+          echo
+          echo '--- Shopify media authorization summary ---'
+          jq '{configured, shopify, safety}' /tmp/product-media-health.json
+          if jq -e '.shopify.granted_scopes | index("write_files")' /tmp/product-media-health.json >/dev/null; then
+            echo 'WRITE_FILES_GRANTED=true'
+          else
+            echo 'WRITE_FILES_GRANTED=false'
+          fi
+          if jq -e '.shopify.granted_scopes | index("write_products")' /tmp/product-media-health.json >/dev/null; then
+            echo 'WRITE_PRODUCTS_GRANTED=true'
+          else
+            echo 'WRITE_PRODUCTS_GRANTED=false'
+          fi
