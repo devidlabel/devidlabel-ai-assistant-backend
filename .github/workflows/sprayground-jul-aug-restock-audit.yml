@@ -1,0 +1,179 @@
+name: Sprayground Jul-Aug Restock Audit
+
+on:
+  push:
+    branches:
+      - codex/sprayground-jul-aug-restock-audit
+    paths:
+      - 'ops/sprayground-restock-audit/request.json'
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/sprayground-jul-aug-restock-audit
+
+      - name: Build Sprayground Jul-Aug product velocity audit
+        env:
+          SHOPIFY_REPORT_ACCESS_TOKEN: ${{ secrets.SHOPIFY_REPORT_ACCESS_TOKEN }}
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SHOPIFY_REPORT_ACCESS_TOKEN:-}${DAILY_PULSE_ACCESS_TOKEN:-}"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const worker = process.env.WORKER_URL;
+          const token = process.env.SHOPIFY_REPORT_ACCESS_TOKEN || process.env.DAILY_PULSE_ACCESS_TOKEN;
+          const windows = [
+            {label:'july', start:'2026-07-01', end:'2026-07-31'},
+            {label:'august_to_27', start:'2026-08-01', end:'2026-08-27'},
+          ];
+
+          async function fetchWindow(w) {
+            const url = `${worker}/internal/shopify/report?timeframe=custom&start=${w.start}&end=${w.end}`;
+            let last;
+            for (let attempt=1; attempt<=4; attempt++) {
+              const r = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+              const text = await r.text();
+              let body;
+              try { body = JSON.parse(text); } catch { body = {ok:false,error:'invalid_json',sample:text.slice(0,200)}; }
+              last = {status:r.status, body};
+              if (r.ok && body.ok !== false) return body;
+              if (![429,500,502,503,504].includes(r.status)) break;
+              await new Promise(res => setTimeout(res, attempt*5000));
+            }
+            throw new Error(JSON.stringify(last));
+          }
+
+          function romeDate(ts) {
+            const p = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(ts));
+            const v = Object.fromEntries(p.map(x=>[x.type,x.value]));
+            return `${v.year}-${v.month}-${v.day}`;
+          }
+          function num(v){ const n=Number(v||0); return Number.isFinite(n)?n:0; }
+          function round(v){ return Math.round((v+Number.EPSILON)*100)/100; }
+          function extractVendorCode(item) {
+            const candidates=[item.sku,item.handle,item.product_title,item.variant_title].filter(Boolean).map(String);
+            for (const s of candidates) {
+              const m=s.toUpperCase().match(/(?:SPR[_-]?)?(910[A-Z0-9]+NSZ)/);
+              if(m) return m[1];
+            }
+            return null;
+          }
+          function emptyRow(item, code) {
+            return {
+              code,
+              sku_shopify:item.sku||null,
+              product_id:item.product_id||null,
+              title:item.product_title||null,
+              handle:item.handle||null,
+              product_type:item.product_type||null,
+              current_inventory_quantity:item.current_inventory_quantity ?? null,
+              current_unit_cost:item.current_unit_cost ?? null,
+              ecommerce:{units:0,revenue:0,first_sale:null,last_sale:null,sales_days:[],daily:{}},
+              all_valid_shopify:{units:0,revenue:0,first_sale:null,last_sale:null,sales_days:[],daily:{}},
+            };
+          }
+          function add(scope, date, q, revenue) {
+            scope.units += q; scope.revenue += revenue;
+            scope.daily[date]=(scope.daily[date]||0)+q;
+            if(!scope.first_sale || date<scope.first_sale) scope.first_sale=date;
+            if(!scope.last_sale || date>scope.last_sale) scope.last_sale=date;
+          }
+          function bucket(daily, start, end) {
+            return Object.entries(daily).filter(([d])=>d>=start&&d<=end).reduce((s,[,q])=>s+q,0);
+          }
+          function finalizeScope(s) {
+            const days=Object.keys(s.daily).sort();
+            return {
+              units:s.units,
+              revenue:round(s.revenue),
+              first_sale:s.first_sale,
+              last_sale:s.last_sale,
+              sales_days:days.length,
+              july_01_15:bucket(s.daily,'2026-07-01','2026-07-15'),
+              july_16_31:bucket(s.daily,'2026-07-16','2026-07-31'),
+              august_01_15:bucket(s.daily,'2026-08-01','2026-08-15'),
+              august_16_20:bucket(s.daily,'2026-08-16','2026-08-20'),
+              august_21_27:bucket(s.daily,'2026-08-21','2026-08-27'),
+              last_7d_21_27_aug:bucket(s.daily,'2026-08-21','2026-08-27'),
+              last_3d_25_27_aug:bucket(s.daily,'2026-08-25','2026-08-27'),
+              aug_27:bucket(s.daily,'2026-08-27','2026-08-27'),
+              daily:s.daily,
+            };
+          }
+
+          (async()=>{
+            const bodies=[];
+            for(const w of windows) bodies.push({window:w, body:await fetchWindow(w)});
+            const rows=new Map();
+            const warnings=[];
+            for(const {window,body} of bodies) {
+              warnings.push(...(Array.isArray(body.warnings)?body.warnings.map(x=>`${window.label}:${x}`):[]));
+              for(const order of Array.isArray(body.orders)?body.orders:[]) {
+                if(order.is_test===true || order.is_cancelled===true) continue;
+                const date=romeDate(order.processed_at);
+                const isEcom=order.channel_group==='ecommerce';
+                for(const item of Array.isArray(order.line_items)?order.line_items:[]) {
+                  if(String(item.vendor||'').trim().toLowerCase()!=='sprayground') continue;
+                  const q=num(item.current_quantity);
+                  if(q<=0) continue;
+                  const code=extractVendorCode(item) || `HANDLE:${item.handle||item.product_id||item.product_title||'unknown'}`;
+                  const row=rows.get(code)||emptyRow(item,code);
+                  if(item.current_inventory_quantity!==null && item.current_inventory_quantity!==undefined) row.current_inventory_quantity=item.current_inventory_quantity;
+                  if(item.current_unit_cost!==null && item.current_unit_cost!==undefined) row.current_unit_cost=item.current_unit_cost;
+                  if(!row.title && item.product_title) row.title=item.product_title;
+                  if(!row.handle && item.handle) row.handle=item.handle;
+                  const revenue=num(item.current_line_revenue_proxy);
+                  add(row.all_valid_shopify,date,q,revenue);
+                  if(isEcom) add(row.ecommerce,date,q,revenue);
+                  rows.set(code,row);
+                }
+              }
+            }
+            const products=[...rows.values()].map(r=>({
+              code:r.code,
+              sku_shopify:r.sku_shopify,
+              product_id:r.product_id,
+              title:r.title,
+              handle:r.handle,
+              product_type:r.product_type,
+              current_inventory_quantity:r.current_inventory_quantity,
+              current_unit_cost:r.current_unit_cost,
+              ecommerce:finalizeScope(r.ecommerce),
+              all_valid_shopify:finalizeScope(r.all_valid_shopify),
+            })).sort((a,b)=>b.ecommerce.units-a.ecommerce.units || b.all_valid_shopify.units-a.all_valid_shopify.units);
+            const out={
+              ok:true,
+              generated_at:new Date().toISOString(),
+              timezone:'Europe/Rome',
+              period:{start:'2026-07-01',end:'2026-08-27'},
+              methodology:{primary:'ecommerce = Online Store + Shop; currentQuantity after cancellations/refunds',secondary:'all_valid_shopify includes every non-test, non-cancelled Shopify source; Draft Orders are only a store proxy',stock:'current_inventory_quantity is live/current inventory returned by Shopify at report generation, not historical stock'},
+              product_count:products.length,
+              warnings:[...new Set(warnings)],
+              products,
+            };
+            fs.mkdirSync('ops/sprayground-restock-audit',{recursive:true});
+            fs.writeFileSync('ops/sprayground-restock-audit/result.json',JSON.stringify(out,null,2));
+            console.log(JSON.stringify({product_count:products.length, top:products.slice(0,20).map(p=>({code:p.code,title:p.title,units:p.ecommerce.units,current_inventory:p.current_inventory_quantity,first:p.ecommerce.first_sale,last:p.ecommerce.last_sale}))},null,2));
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Commit aggregate result to audit branch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ops/sprayground-restock-audit/result.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update Sprayground Jul-Aug restock audit result'
+            git push origin HEAD:codex/sprayground-jul-aug-restock-audit
+          fi
