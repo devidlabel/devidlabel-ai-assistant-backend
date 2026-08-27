@@ -69,7 +69,7 @@ const REQUEST_PATH_PATTERN = /^ops\/shopify-media-seo-requests\/[A-Za-z0-9][A-Za
 const RAW_REPOSITORY_BASE = "https://raw.githubusercontent.com/devidlabel/devidlabel-ai-assistant-backend/main/";
 const MAX_REQUEST_BYTES = 32 * 1024;
 const PRODUCT_PAGE_SIZE = 250;
-const FILE_UPDATE_BATCH_SIZE = 100;
+const FILE_UPDATE_BATCH_SIZE = 10;
 const MAX_PRODUCTS_HARD_LIMIT = 5000;
 const MAX_FILENAME_BASE = 180;
 const MAX_ALT_LENGTH = 180;
@@ -214,6 +214,10 @@ function buildShopifySearch(vendor: string): string {
   return parts.join(" ");
 }
 
+function cleanSingleVariantSku(value: string): string {
+  return value.replace(/\s+_?taglia\s+unica$/i, "").trim() || value;
+}
+
 function resolveMasterSku(product: ShopifyProductNode): { value: string; source: "xphub.master_sku" | "single_variant_sku" } | null {
   const metafieldValue = normalize(product.masterSku?.value);
   if (metafieldValue) return { value: metafieldValue, source: "xphub.master_sku" };
@@ -223,7 +227,7 @@ function resolveMasterSku(product: ShopifyProductNode): { value: string; source:
       .map((variant) => normalize(variant.sku))
       .filter(Boolean),
   ));
-  if (uniqueVariantSkus.length === 1) return { value: uniqueVariantSkus[0], source: "single_variant_sku" };
+  if (uniqueVariantSkus.length === 1) return { value: cleanSingleVariantSku(uniqueVariantSkus[0]), source: "single_variant_sku" };
   return null;
 }
 
@@ -443,7 +447,7 @@ async function applyUpdates(updates: DesiredMediaUpdate[], env: ShopifyMediaSeoE
       errors.push({ field: error.field || [], message: normalize(error.message), code: normalize(error.code) || null, batch_offset: offset });
     }
     applied += (result.fileUpdate?.files || []).length;
-    if (offset + FILE_UPDATE_BATCH_SIZE < updates.length) await sleep(120);
+    if (offset + FILE_UPDATE_BATCH_SIZE < updates.length) await sleep(180);
   }
   return { applied, errors };
 }
