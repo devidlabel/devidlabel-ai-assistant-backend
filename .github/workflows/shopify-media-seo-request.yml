@@ -1,0 +1,79 @@
+name: Shopify image SEO metadata request
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/shopify-media-seo-requests/*.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shopify-media-seo-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    name: Execute committed Shopify image metadata request
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve changed requests
+        shell: bash
+        run: |
+          git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" \
+            | grep '^ops/shopify-media-seo-requests/.*\.json$' \
+            > /tmp/shopify-media-seo-requests.txt || true
+          if [ ! -s /tmp/shopify-media-seo-requests.txt ]; then
+            echo 'No Shopify media SEO request files found in this commit.' >&2
+            exit 1
+          fi
+          cat /tmp/shopify-media-seo-requests.txt
+
+      - name: Execute authorized requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/shopify-media-seo-bridge'
+          mkdir -p ops/shopify-media-seo-results
+          overall_failure=0
+
+          while IFS= read -r request_path; do
+            [ -n "$request_path" ] || continue
+            result_name="$(basename "$request_path")"
+            echo "Executing $request_path"
+            jq -n --arg request_path "$request_path" '{request_path:$request_path}' > /tmp/shopify-media-seo-call.json
+            http_code="$(curl --silent --show-error \
+              --connect-timeout 15 --max-time 900 \
+              --retry 2 --retry-delay 3 \
+              --output "ops/shopify-media-seo-results/$result_name" \
+              --write-out '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              --data @/tmp/shopify-media-seo-call.json \
+              "$endpoint" || true)"
+            echo "HTTP $http_code"
+            cat "ops/shopify-media-seo-results/$result_name"
+            echo
+            ok="$(jq -r '.ok // false' "ops/shopify-media-seo-results/$result_name" 2>/dev/null || echo false)"
+            if [ "$http_code" != '200' ] || [ "$ok" != 'true' ]; then
+              overall_failure=1
+            fi
+          done < /tmp/shopify-media-seo-requests.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ops/shopify-media-seo-results
+          if ! git diff --cached --quiet; then
+            git commit -m "Log Shopify image SEO metadata result for ${GITHUB_SHA}"
+            git pull --rebase origin main
+            git push
+          fi
+
+          exit "$overall_failure"
