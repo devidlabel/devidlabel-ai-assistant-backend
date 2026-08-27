@@ -1,0 +1,4843 @@
+{
+  "ok": true,
+  "generated_at": "2026-08-27T17:02:11.915Z",
+  "timezone": "Europe/Rome",
+  "period": {
+    "start": "2026-07-01",
+    "end": "2026-08-27"
+  },
+  "methodology": {
+    "primary": "ecommerce = Online Store + Shop; currentQuantity after cancellations/refunds",
+    "secondary": "all_valid_shopify includes every non-test, non-cancelled Shopify source; Draft Orders are only a store proxy",
+    "stock": "current_inventory_quantity is live/current inventory returned by Shopify at report generation, not historical stock"
+  },
+  "product_count": 101,
+  "warnings": [],
+  "products": [
+    {
+      "code": "910B8502NSZ",
+      "sku_shopify": "SPR_910B8502NSZ",
+      "product_id": "gid://shopify/Product/11439775777109",
+      "title": "Zaino Center Rip Revealing Gray Check Backpack",
+      "handle": "sprayground-center-rip-revealing-gray-check-backpack-china-spr-910b8502nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 10,
+        "revenue": 1178.1,
+        "first_sale": "2026-07-28",
+        "last_sale": "2026-08-17",
+        "sales_days": 9,
+        "july_01_15": 0,
+        "july_16_31": 2,
+        "august_01_15": 7,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-28": 1,
+          "2026-07-30": 1,
+          "2026-08-05": 1,
+          "2026-08-06": 1,
+          "2026-08-08": 1,
+          "2026-08-13": 1,
+          "2026-08-14": 2,
+          "2026-08-15": 1,
+          "2026-08-17": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 15,
+        "revenue": 1773.1,
+        "first_sale": "2026-07-26",
+        "last_sale": "2026-08-19",
+        "sales_days": 12,
+        "july_01_15": 0,
+        "july_16_31": 4,
+        "august_01_15": 8,
+        "august_16_20": 3,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-26": 1,
+          "2026-07-28": 2,
+          "2026-07-30": 1,
+          "2026-08-05": 1,
+          "2026-08-06": 1,
+          "2026-08-08": 1,
+          "2026-08-09": 1,
+          "2026-08-13": 1,
+          "2026-08-14": 2,
+          "2026-08-15": 1,
+          "2026-08-17": 2,
+          "2026-08-19": 1
+        }
+      }
+    },
+    {
+      "code": "910B9526NSZ",
+      "sku_shopify": "SPR_910B9526NSZ",
+      "product_id": "gid://shopify/Product/11439782166869",
+      "title": "Metallic Pink Metallic Drip Pouch",
+      "handle": "sprayground-metallic-pink-metallic-drip-pouch-china-spr-910b9526nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 17,
+      "ecommerce": {
+        "units": 9,
+        "revenue": 393.75,
+        "first_sale": "2026-07-23",
+        "last_sale": "2026-08-11",
+        "sales_days": 7,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 8,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-23": 1,
+          "2026-08-04": 2,
+          "2026-08-06": 1,
+          "2026-08-07": 1,
+          "2026-08-08": 2,
+          "2026-08-10": 1,
+          "2026-08-11": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 10,
+        "revenue": 438.75,
+        "first_sale": "2026-07-23",
+        "last_sale": "2026-08-11",
+        "sales_days": 7,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 9,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-23": 1,
+          "2026-08-04": 3,
+          "2026-08-06": 1,
+          "2026-08-07": 1,
+          "2026-08-08": 2,
+          "2026-08-10": 1,
+          "2026-08-11": 1
+        }
+      }
+    },
+    {
+      "code": "910B9325NSZ",
+      "sku_shopify": "SPR_910B9325NSZ",
+      "product_id": "gid://shopify/Product/11439780790613",
+      "title": "Zaino Blacked Out Embossed Gold Tooth Backpack",
+      "handle": "sprayground-blacked-out-embossed-gold-tooth-backpack-china-spr-910b9325nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 8,
+        "revenue": 948.44,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-26",
+        "sales_days": 6,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 3,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 3,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1,
+          "2026-08-14": 1,
+          "2026-08-17": 2,
+          "2026-08-19": 1,
+          "2026-08-25": 2,
+          "2026-08-26": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 9,
+        "revenue": 1067.44,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-26",
+        "sales_days": 7,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 4,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 3,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1,
+          "2026-08-14": 1,
+          "2026-08-17": 2,
+          "2026-08-18": 1,
+          "2026-08-19": 1,
+          "2026-08-25": 2,
+          "2026-08-26": 1
+        }
+      }
+    },
+    {
+      "code": "910B9448NSZ",
+      "sku_shopify": "SPR_910B9448NSZ",
+      "product_id": "gid://shopify/Product/11439781380437",
+      "title": "Lux Black Ghost Drip Pouch",
+      "handle": "sprayground-lux-black-ghost-drip-pouch-china-spr-910b9448nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 14,
+      "ecommerce": {
+        "units": 8,
+        "revenue": 308.1,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 8,
+        "last_7d_21_27_aug": 8,
+        "last_3d_25_27_aug": 8,
+        "aug_27": 5,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-26": 2,
+          "2026-08-27": 5
+        }
+      },
+      "all_valid_shopify": {
+        "units": 8,
+        "revenue": 308.1,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 8,
+        "last_7d_21_27_aug": 8,
+        "last_3d_25_27_aug": 8,
+        "aug_27": 5,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-26": 2,
+          "2026-08-27": 5
+        }
+      }
+    },
+    {
+      "code": "910B8633NSZ",
+      "sku_shopify": "SPR_910B8633NSZ",
+      "product_id": "gid://shopify/Product/11439776432469",
+      "title": "Zaino Sharks In Paris Wtf Bubbly Black Check Backpack",
+      "handle": "sprayground-sharks-in-paris-wtf-bubbly-black-check-backpack-china-spr-910b8633nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 7,
+        "revenue": 803.25,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-08-26",
+        "sales_days": 7,
+        "july_01_15": 0,
+        "july_16_31": 2,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1,
+          "2026-07-24": 1,
+          "2026-08-15": 1,
+          "2026-08-17": 1,
+          "2026-08-21": 1,
+          "2026-08-24": 1,
+          "2026-08-26": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 10,
+        "revenue": 1160.25,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-08-26",
+        "sales_days": 10,
+        "july_01_15": 0,
+        "july_16_31": 2,
+        "august_01_15": 2,
+        "august_16_20": 2,
+        "august_21_27": 4,
+        "last_7d_21_27_aug": 4,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1,
+          "2026-07-24": 1,
+          "2026-08-08": 1,
+          "2026-08-15": 1,
+          "2026-08-17": 1,
+          "2026-08-18": 1,
+          "2026-08-21": 1,
+          "2026-08-22": 1,
+          "2026-08-24": 1,
+          "2026-08-26": 1
+        }
+      }
+    },
+    {
+      "code": "910B9147NSZ",
+      "sku_shopify": "SPR_910B9147NSZ",
+      "product_id": "gid://shopify/Product/11439779512661",
+      "title": "Zaino Pink Panther On The Run Backpack",
+      "handle": "sprayground-pink-panther-on-the-run-backpack-china-spr-910b9147nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 632.1,
+        "first_sale": "2026-07-19",
+        "last_sale": "2026-07-30",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 5,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-19": 1,
+          "2026-07-22": 1,
+          "2026-07-24": 1,
+          "2026-07-29": 1,
+          "2026-07-30": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 632.1,
+        "first_sale": "2026-07-19",
+        "last_sale": "2026-07-30",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 5,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-19": 1,
+          "2026-07-22": 1,
+          "2026-07-24": 1,
+          "2026-07-29": 1,
+          "2026-07-30": 1
+        }
+      }
+    },
+    {
+      "code": "910B8422NSZ",
+      "sku_shopify": "SPR_910B8422NSZ",
+      "product_id": "gid://shopify/Product/11439775678805",
+      "title": "Zaino Lux Black Ghost Drip Backpack",
+      "handle": "sprayground-lux-black-ghost-drip-backpack-china-spr-910b8422nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 571.2,
+        "first_sale": "2026-07-25",
+        "last_sale": "2026-07-26",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 5,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-25": 2,
+          "2026-07-26": 3
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 571.2,
+        "first_sale": "2026-07-25",
+        "last_sale": "2026-07-26",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 5,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-25": 2,
+          "2026-07-26": 3
+        }
+      }
+    },
+    {
+      "code": "910B9134NSZ",
+      "sku_shopify": "SPR_910B9134NSZ",
+      "product_id": "gid://shopify/Product/11439779184981",
+      "title": "Zaino Pink Panther Graff Backpack",
+      "handle": "sprayground-pink-panther-graff-backpack-china-spr-910b9134nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 42,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 552.25,
+        "first_sale": "2026-07-31",
+        "last_sale": "2026-08-23",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 3,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-31": 1,
+          "2026-08-04": 1,
+          "2026-08-05": 1,
+          "2026-08-08": 1,
+          "2026-08-23": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 552.25,
+        "first_sale": "2026-07-31",
+        "last_sale": "2026-08-23",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 3,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-31": 1,
+          "2026-08-04": 1,
+          "2026-08-05": 1,
+          "2026-08-08": 1,
+          "2026-08-23": 1
+        }
+      }
+    },
+    {
+      "code": "910B9111NSZ",
+      "sku_shopify": "SPR_910B9111NSZ",
+      "product_id": "gid://shopify/Product/11439778988373",
+      "title": "Zaino Looney Tunes Taz Beast Feast Backpack",
+      "handle": "sprayground-looney-tunes-taz-beast-feast-backpack-china-spr-910b9111nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 632.1,
+        "first_sale": "2026-08-16",
+        "last_sale": "2026-08-24",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 2,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-16": 1,
+          "2026-08-19": 1,
+          "2026-08-21": 1,
+          "2026-08-23": 1,
+          "2026-08-24": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 632.1,
+        "first_sale": "2026-08-16",
+        "last_sale": "2026-08-24",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 2,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-16": 1,
+          "2026-08-19": 1,
+          "2026-08-21": 1,
+          "2026-08-23": 1,
+          "2026-08-24": 1
+        }
+      }
+    },
+    {
+      "code": "910B9185NSZ",
+      "sku_shopify": "SPR_910B9185NSZ",
+      "product_id": "gid://shopify/Product/11439779643733",
+      "title": "Family Guy Stewie Holding Bear Keychain Backpack",
+      "handle": "sprayground-family-guy-stewie-holding-bear-keychain-backpack-china-spr-910b9185nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 619.2,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-26",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 2,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1,
+          "2026-08-19": 1,
+          "2026-08-22": 2,
+          "2026-08-26": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 619.2,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-26",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 2,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1,
+          "2026-08-19": 1,
+          "2026-08-22": 2,
+          "2026-08-26": 1
+        }
+      }
+    },
+    {
+      "code": "910B7621NSZ",
+      "sku_shopify": "SPR_910B7621NSZ",
+      "product_id": "gid://shopify/Product/11439775449429",
+      "title": "Zaino Split Ocean Deep Backpack",
+      "handle": "sprayground-split-ocean-deep-backpack-china-spr-910b7621nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 577.15,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 5,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-26": 3,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 577.15,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 5,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-26": 3,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8715NSZ",
+      "sku_shopify": "SPR_910B8715NSZ",
+      "product_id": "gid://shopify/Product/11439777481045",
+      "title": "Zaino Pink New Check Faces Backpack",
+      "handle": "sprayground-pink-new-check-faces-backpack-china-spr-910b8715nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 595,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-26",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 5,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-26": 4
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 595,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-26",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 5,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-26": 4
+        }
+      }
+    },
+    {
+      "code": "910T9510NSZ",
+      "sku_shopify": "SPR_910T9510NSZ",
+      "product_id": "gid://shopify/Product/11439784034645",
+      "title": "Raised Check Tote",
+      "handle": "sprayground-raised-check-tote-china-spr-910t9510nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 38,
+      "ecommerce": {
+        "units": 5,
+        "revenue": 485.1,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 5,
+        "aug_27": 2,
+        "daily": {
+          "2026-08-26": 3,
+          "2026-08-27": 2
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 485.1,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 5,
+        "aug_27": 2,
+        "daily": {
+          "2026-08-26": 3,
+          "2026-08-27": 2
+        }
+      }
+    },
+    {
+      "code": "910B9629NSZ",
+      "sku_shopify": "SPR_910B9629NSZ",
+      "product_id": "gid://shopify/Product/11439782494549",
+      "title": "Zaino Shark Central Black Embroidered Shark Backpack",
+      "handle": "sprayground-shark-central-black-embroidered-shark-backpack-china-spr-910b9629nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 452.2,
+        "first_sale": "2026-08-08",
+        "last_sale": "2026-08-26",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-08": 1,
+          "2026-08-22": 1,
+          "2026-08-26": 2
+        }
+      },
+      "all_valid_shopify": {
+        "units": 7,
+        "revenue": 809.2,
+        "first_sale": "2026-08-08",
+        "last_sale": "2026-08-26",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 6,
+        "last_7d_21_27_aug": 6,
+        "last_3d_25_27_aug": 3,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-08": 1,
+          "2026-08-22": 2,
+          "2026-08-24": 1,
+          "2026-08-25": 1,
+          "2026-08-26": 2
+        }
+      }
+    },
+    {
+      "code": "910B9635NSZ",
+      "sku_shopify": "SPR_910B9635NSZ",
+      "product_id": "gid://shopify/Product/11439782658389",
+      "title": "Zaino Shark Central Blacked Out Embossed Nylon Backpack",
+      "handle": "sprayground-shark-central-blacked-out-embossed-nylon-backpack-china-spr-910b9635nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 519.75,
+        "first_sale": "2026-08-02",
+        "last_sale": "2026-08-12",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 4,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-02": 1,
+          "2026-08-07": 1,
+          "2026-08-10": 1,
+          "2026-08-12": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 654.75,
+        "first_sale": "2026-08-02",
+        "last_sale": "2026-08-12",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 5,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-02": 1,
+          "2026-08-07": 1,
+          "2026-08-10": 1,
+          "2026-08-12": 2
+        }
+      }
+    },
+    {
+      "code": "910B8634NSZ",
+      "sku_shopify": "SPR_910B8634NSZ",
+      "product_id": "gid://shopify/Product/11439776465237",
+      "title": "Zaino Sharks In Paris Wtf Bubble Brown Check Backpack",
+      "handle": "sprayground-sharks-in-paris-wtf-bubble-brown-check-backpack-china-spr-910b8634nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 10,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 464.1,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-27",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-07": 1,
+          "2026-08-21": 1,
+          "2026-08-22": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 583.1,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-27",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 4,
+        "last_7d_21_27_aug": 4,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-07": 1,
+          "2026-08-21": 2,
+          "2026-08-22": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8798NSZ",
+      "sku_shopify": "SPR_910B8798NSZ",
+      "product_id": "gid://shopify/Product/11439778005333",
+      "title": "Zaino Peanuts Snoopy Jams Backpack",
+      "handle": "sprayground-peanuts-snoopy-jams-backpack-china-spr-910b8798nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 506.3,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-23",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-17": 1,
+          "2026-08-21": 1,
+          "2026-08-23": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 635.3,
+        "first_sale": "2026-08-08",
+        "last_sale": "2026-08-23",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 1,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-08": 1,
+          "2026-08-09": 1,
+          "2026-08-17": 1,
+          "2026-08-21": 1,
+          "2026-08-23": 1
+        }
+      }
+    },
+    {
+      "code": "910B9626NSZ",
+      "sku_shopify": "SPR_910B9626NSZ",
+      "product_id": "gid://shopify/Product/11439782461781",
+      "title": "Zaino Shark Central Embossed Black Nylon Backpack",
+      "handle": "sprayground-shark-central-embossed-black-nylon-backpack-china-spr-910b9626nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 5,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 470.05,
+        "first_sale": "2026-08-19",
+        "last_sale": "2026-08-24",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 2,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-19": 1,
+          "2026-08-20": 1,
+          "2026-08-21": 1,
+          "2026-08-24": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 589.05,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-24",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 3,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1,
+          "2026-08-19": 1,
+          "2026-08-20": 1,
+          "2026-08-21": 1,
+          "2026-08-24": 1
+        }
+      }
+    },
+    {
+      "code": "910B9257NSZ",
+      "sku_shopify": "SPR_910B9257NSZ",
+      "product_id": "gid://shopify/Product/11439779905877",
+      "title": "Zaino New Ai Pattern Backpack",
+      "handle": "sprayground-new-ai-pattern-backpack-china-spr-910b9257nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 540,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-23",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 1,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-13": 1,
+          "2026-08-19": 1,
+          "2026-08-23": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 4,
+        "revenue": 540,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-23",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 1,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-13": 1,
+          "2026-08-19": 1,
+          "2026-08-23": 1
+        }
+      }
+    },
+    {
+      "code": "910B9515NSZ",
+      "sku_shopify": "SPR_910B9515NSZ",
+      "product_id": "gid://shopify/Product/11439782068565",
+      "title": "Disappearing Shark Crossover Clutch",
+      "handle": "sprayground-disappearing-shark-crossover-clutch-china-spr-910b9515nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 6,
+      "current_unit_cost": 28,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 296.25,
+        "first_sale": "2026-08-11",
+        "last_sale": "2026-08-23",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-11": 1,
+          "2026-08-17": 1,
+          "2026-08-23": 2
+        }
+      },
+      "all_valid_shopify": {
+        "units": 4,
+        "revenue": 296.25,
+        "first_sale": "2026-08-11",
+        "last_sale": "2026-08-23",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-11": 1,
+          "2026-08-17": 1,
+          "2026-08-23": 2
+        }
+      }
+    },
+    {
+      "code": "910B9669NSZ",
+      "sku_shopify": "SPR_910B9669NSZ",
+      "product_id": "gid://shopify/Product/11439782691157",
+      "title": "Zaino Tupac Backpack",
+      "handle": "sprayground-tupac-backpack-china-spr-910b9669nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 4,
+        "revenue": 533.25,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 4,
+        "last_7d_21_27_aug": 4,
+        "last_3d_25_27_aug": 4,
+        "aug_27": 3,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-27": 3
+        }
+      },
+      "all_valid_shopify": {
+        "units": 4,
+        "revenue": 533.25,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 4,
+        "last_7d_21_27_aug": 4,
+        "last_3d_25_27_aug": 4,
+        "aug_27": 3,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-27": 3
+        }
+      }
+    },
+    {
+      "code": "910B8553NSZ",
+      "sku_shopify": "SPR_910B8553NSZ",
+      "product_id": "gid://shopify/Product/11439776268629",
+      "title": "Zaino Black And White Drip Check Shark Backpack",
+      "handle": "sprayground-black-and-white-drip-check-shark-backpack-china-spr-910b8553nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 351.05,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-08-19",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 2,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1,
+          "2026-08-18": 1,
+          "2026-08-19": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 9,
+        "revenue": 1065.05,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-08-24",
+        "sales_days": 7,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 1,
+        "august_16_20": 3,
+        "august_21_27": 4,
+        "last_7d_21_27_aug": 4,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1,
+          "2026-08-10": 1,
+          "2026-08-16": 1,
+          "2026-08-18": 1,
+          "2026-08-19": 1,
+          "2026-08-22": 2,
+          "2026-08-24": 2
+        }
+      }
+    },
+    {
+      "code": "910B9555NSZ",
+      "sku_shopify": "SPR_910B9555NSZ",
+      "product_id": "gid://shopify/Product/11439782232405",
+      "title": "Zaino Scarface Gold Embossed Backpack",
+      "handle": "sprayground-scarface-gold-embossed-backpack-china-spr-910b9555nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 55,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 427.75,
+        "first_sale": "2026-07-27",
+        "last_sale": "2026-08-05",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-27": 1,
+          "2026-08-05": 2
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 717.75,
+        "first_sale": "2026-07-27",
+        "last_sale": "2026-08-05",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 3,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-27": 3,
+          "2026-08-05": 2
+        }
+      }
+    },
+    {
+      "code": "910B9303NSZ",
+      "sku_shopify": "SPR_910B9303NSZ",
+      "product_id": "gid://shopify/Product/11439780233557",
+      "title": "Sharks In Paris Wtf Bubble Brown Check Pouch",
+      "handle": "sprayground-sharks-in-paris-wtf-bubble-brown-check-pouch-china-spr-910b9303nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 14,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 116.38,
+        "first_sale": "2026-08-22",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 3,
+        "last_7d_21_27_aug": 3,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-22": 1,
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 194.38,
+        "first_sale": "2026-08-21",
+        "last_sale": "2026-08-27",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 5,
+        "last_7d_21_27_aug": 5,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-21": 1,
+          "2026-08-22": 1,
+          "2026-08-23": 1,
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8552NSZ",
+      "sku_shopify": "SPR_910B8552NSZ",
+      "product_id": "gid://shopify/Product/11439776235861",
+      "title": "Zaino Brown And Cream Drip Check Shark Backpack",
+      "handle": "sprayground-brown-and-cream-drip-check-shark-backpack-china-spr-910b8552nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 6,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 357,
+        "first_sale": "2026-08-02",
+        "last_sale": "2026-08-18",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-02": 1,
+          "2026-08-08": 1,
+          "2026-08-18": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 4,
+        "revenue": 476,
+        "first_sale": "2026-08-02",
+        "last_sale": "2026-08-18",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 3,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-02": 1,
+          "2026-08-08": 2,
+          "2026-08-18": 1
+        }
+      }
+    },
+    {
+      "code": "910B6854NSZ",
+      "sku_shopify": "SPR_910B6854NSZ",
+      "product_id": "gid://shopify/Product/10426196853077",
+      "title": "Marsupio Hangover Drip Check",
+      "handle": "sprayground-marsupio-hangover-drip-check-spr910b6854nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": -1,
+      "current_unit_cost": 28.5,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 213.75,
+        "first_sale": "2026-07-04",
+        "last_sale": "2026-07-24",
+        "sales_days": 3,
+        "july_01_15": 2,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-04": 1,
+          "2026-07-09": 1,
+          "2026-07-24": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 213.75,
+        "first_sale": "2026-07-04",
+        "last_sale": "2026-07-24",
+        "sales_days": 3,
+        "july_01_15": 2,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-04": 1,
+          "2026-07-09": 1,
+          "2026-07-24": 1
+        }
+      }
+    },
+    {
+      "code": "910B8883NSZ",
+      "sku_shopify": "SPR_910B8883NSZ",
+      "product_id": "gid://shopify/Product/11439778365781",
+      "title": "Zaino Blue Ink Doodle Backpack",
+      "handle": "sprayground-blue-ink-doodle-backpack-china-spr-910b8883nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 36.5,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 280.25,
+        "first_sale": "2026-08-11",
+        "last_sale": "2026-08-22",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-11": 2,
+          "2026-08-22": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 280.25,
+        "first_sale": "2026-08-11",
+        "last_sale": "2026-08-22",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-11": 2,
+          "2026-08-22": 1
+        }
+      }
+    },
+    {
+      "code": "910B9082NSZ",
+      "sku_shopify": "SPR_910B9082NSZ",
+      "product_id": "gid://shopify/Product/11439778726229",
+      "title": "Zaino Rick And Morty Portal Jumping Backpack",
+      "handle": "sprayground-rick-and-morty-portal-jumping-backpack-china-spr-910b9082nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 3,
+        "revenue": 387,
+        "first_sale": "2026-08-12",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-12": 1,
+          "2026-08-19": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 387,
+        "first_sale": "2026-08-12",
+        "last_sale": "2026-08-27",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-12": 1,
+          "2026-08-19": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B9113NSZ",
+      "sku_shopify": "SPR_910B9113NSZ",
+      "product_id": "gid://shopify/Product/11439779021141",
+      "title": "Zaino Pink Panther Surf Backpack",
+      "handle": "sprayground-pink-panther-surf-backpack-china-spr-910b9113nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 258,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-10",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-10": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 645,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-19",
+        "sales_days": 5,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 4,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-10": 1,
+          "2026-08-13": 1,
+          "2026-08-14": 1,
+          "2026-08-19": 1
+        }
+      }
+    },
+    {
+      "code": "910B9412NSZ",
+      "sku_shopify": "SPR_910B9412NSZ",
+      "product_id": "gid://shopify/Product/11439781347669",
+      "title": "Money Banks Pouch",
+      "handle": "sprayground-money-banks-pouch-china-spr-910b9412nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 5,
+      "current_unit_cost": 17,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 90,
+        "first_sale": "2026-08-13",
+        "last_sale": "2026-08-24",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-13": 1,
+          "2026-08-24": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 5,
+        "revenue": 225,
+        "first_sale": "2026-08-13",
+        "last_sale": "2026-08-27",
+        "sales_days": 4,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 4,
+        "last_7d_21_27_aug": 4,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-13": 1,
+          "2026-08-24": 2,
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8967NSZ",
+      "sku_shopify": "SPR_910B8967NSZ",
+      "product_id": "gid://shopify/Product/11196422324565",
+      "title": "Tracolla Smeared Grunge Og",
+      "handle": "sprayground-smeared-grunge-og-sling-china-spr910b8967nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 178,
+        "first_sale": "2026-07-04",
+        "last_sale": "2026-08-05",
+        "sales_days": 2,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-04": 1,
+          "2026-08-05": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 267,
+        "first_sale": "2026-07-04",
+        "last_sale": "2026-08-05",
+        "sales_days": 3,
+        "july_01_15": 1,
+        "july_16_31": 1,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-04": 1,
+          "2026-07-25": 1,
+          "2026-08-05": 1
+        }
+      }
+    },
+    {
+      "code": "910B8237NSZ",
+      "sku_shopify": "SPR_910B8237NSZ",
+      "product_id": "gid://shopify/Product/10426336477525",
+      "title": "Check 2 Emboss Backpack Sling",
+      "handle": "sprayground-check-2-emboss-backpack-sling-spr910b8237nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 173.55,
+        "first_sale": "2026-07-19",
+        "last_sale": "2026-08-06",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-19": 1,
+          "2026-08-06": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 262.55,
+        "first_sale": "2026-07-19",
+        "last_sale": "2026-08-06",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 2,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-19": 1,
+          "2026-07-25": 1,
+          "2026-08-06": 1
+        }
+      }
+    },
+    {
+      "code": "910B8973NSZ",
+      "sku_shopify": "SPR_910B8973NSZ",
+      "product_id": "gid://shopify/Product/11196422652245",
+      "title": "Astuccio Smeared Grunge",
+      "handle": "sprayground-smeared-grunge-pencil-pouch-china-spr910b8973nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 17,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 90,
+        "first_sale": "2026-07-02",
+        "last_sale": "2026-08-07",
+        "sales_days": 2,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-02": 1,
+          "2026-08-07": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 90,
+        "first_sale": "2026-07-02",
+        "last_sale": "2026-08-07",
+        "sales_days": 2,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-02": 1,
+          "2026-08-07": 1
+        }
+      }
+    },
+    {
+      "code": "910B8294NSZ",
+      "sku_shopify": "SPR_910B8294NSZ",
+      "product_id": "gid://shopify/Product/10426312851797",
+      "title": "Cream And Brown Tear Check Toiletry Bag",
+      "handle": "sprayground-cream-and-brown-tear-check-toiletry-bag-spr910b8294nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 28.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 146.25,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-29",
+        "sales_days": 2,
+        "july_01_15": 1,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1,
+          "2026-07-29": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 146.25,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-29",
+        "sales_days": 2,
+        "july_01_15": 1,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1,
+          "2026-07-29": 1
+        }
+      }
+    },
+    {
+      "code": "910B8296NSZ",
+      "sku_shopify": "SPR_910B8296NSZ",
+      "product_id": "gid://shopify/Product/10426304692565",
+      "title": "Cream And Brown Tear Check Savvy Crossbody",
+      "handle": "sprayground-cream-and-brown-tear-check-savvy-crossbody-spr910b8296nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 28.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 150,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-05",
+        "sales_days": 2,
+        "july_01_15": 2,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1,
+          "2026-07-05": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 150,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-05",
+        "sales_days": 2,
+        "july_01_15": 2,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1,
+          "2026-07-05": 1
+        }
+      }
+    },
+    {
+      "code": "910B7819NSZ",
+      "sku_shopify": "SPR_910B7819NSZ",
+      "product_id": "gid://shopify/Product/10452568080725",
+      "title": "Sawtooth Sharks In Paris One-Strap Sling",
+      "handle": "sprayground-sawtooth-sharks-in-paris-one-strap-sling-spr910b7819nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 240.4,
+        "first_sale": "2026-08-04",
+        "last_sale": "2026-08-08",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-04": 1,
+          "2026-08-08": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 240.4,
+        "first_sale": "2026-08-04",
+        "last_sale": "2026-08-08",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-04": 1,
+          "2026-08-08": 1
+        }
+      }
+    },
+    {
+      "code": "910B8721NSZ",
+      "sku_shopify": "SPR_910B8721NSZ",
+      "product_id": "gid://shopify/Product/11439777513813",
+      "title": "Zaino Pink Ghost Drip Backpack",
+      "handle": "sprayground-pink-ghost-drip-backpack-china-spr-910b8721nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 226.1,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-07",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 2
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 226.1,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-07",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 2
+        }
+      }
+    },
+    {
+      "code": "910B8391NSZ",
+      "sku_shopify": "SPR_910B8391NSZ",
+      "product_id": "gid://shopify/Product/11439775416661",
+      "title": "Zaino Metallic Pink Metallic Drip Backpack",
+      "handle": "sprayground-metallic-pink-metallic-drip-backpack-china-spr-910b8391nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 61,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 310.05,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-08",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1,
+          "2026-08-08": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 310.05,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-08",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1,
+          "2026-08-08": 1
+        }
+      }
+    },
+    {
+      "code": "910B9138NSZ",
+      "sku_shopify": "SPR_910B9138NSZ",
+      "product_id": "gid://shopify/Product/11439779316053",
+      "title": "Zaino Sonic On The Run Backpack",
+      "handle": "sprayground-sonic-on-the-run-backpack-china-spr-910b9138nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 3,
+      "current_unit_cost": 42,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 219.19,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-19",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-19": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 219.19,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-19",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-19": 1
+        }
+      }
+    },
+    {
+      "code": "910B9078NSZ",
+      "sku_shopify": "SPR_910B9078NSZ",
+      "product_id": "gid://shopify/Product/11439778660693",
+      "title": "Zaino Disney Hokusai Money Wave Backpack",
+      "handle": "sprayground-disney-hokusai-money-wave-backpack-china-spr-910b9078nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 42,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 220,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-17",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-17": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 220,
+        "first_sale": "2026-08-09",
+        "last_sale": "2026-08-17",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-09": 1,
+          "2026-08-17": 1
+        }
+      }
+    },
+    {
+      "code": "910B8620NSZ",
+      "sku_shopify": "SPR_910B8620NSZ",
+      "product_id": "gid://shopify/Product/11439776301397",
+      "title": "Zaino Sprayground Authentic Luxe Black Backpack",
+      "handle": "sprayground-sprayground-authentic-luxe-black-backpack-china-spr-910b8620nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 98,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 497.25,
+        "first_sale": "2026-08-11",
+        "last_sale": "2026-08-24",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-11": 1,
+          "2026-08-24": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 497.25,
+        "first_sale": "2026-08-11",
+        "last_sale": "2026-08-24",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-11": 1,
+          "2026-08-24": 1
+        }
+      }
+    },
+    {
+      "code": "910B8470NSZ",
+      "sku_shopify": "SPR_910B8470NSZ",
+      "product_id": "gid://shopify/Product/11439775711573",
+      "title": "Zaino 2 Tone Gold Trinity Backpack",
+      "handle": "sprayground-2-tone-gold-trinity-backpack-china-spr-910b8470nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 98,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 510,
+        "first_sale": "2026-08-12",
+        "last_sale": "2026-08-16",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-12": 1,
+          "2026-08-16": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 510,
+        "first_sale": "2026-08-12",
+        "last_sale": "2026-08-16",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-12": 1,
+          "2026-08-16": 1
+        }
+      }
+    },
+    {
+      "code": "910B8860NSZ",
+      "sku_shopify": "SPR_910B8860NSZ",
+      "product_id": "gid://shopify/Product/11439778070869",
+      "title": "Zaino Pink Panther Pawprints Backpack",
+      "handle": "sprayground-pink-panther-pawprints-backpack-china-spr-910b8860nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 3,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 251.55,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-24",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1,
+          "2026-08-24": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 251.55,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-24",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1,
+          "2026-08-24": 1
+        }
+      }
+    },
+    {
+      "code": "910B8658NSZ",
+      "sku_shopify": "SPR_910B8658NSZ",
+      "product_id": "gid://shopify/Product/11439776530773",
+      "title": "Zaino Disappearing Shark Backpack",
+      "handle": "sprayground-disappearing-shark-backpack-china-spr-910b8658nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 67,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 344.79,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 344.79,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-25": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8666NSZ",
+      "sku_shopify": "SPR_910B8666NSZ",
+      "product_id": "gid://shopify/Product/11439776891221",
+      "title": "Zaino Crazy Thoughts Backpack",
+      "handle": "sprayground-crazy-thoughts-backpack-china-spr-910b8666nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 3,
+      "current_unit_cost": 36.5,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 180.5,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 180.5,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8876NSZ",
+      "sku_shopify": "SPR_910B8876NSZ",
+      "product_id": "gid://shopify/Product/11439778201941",
+      "title": "Zaino Raised Check Backpack",
+      "handle": "sprayground-raised-check-backpack-china-spr-910b8876nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 8,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 270,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 2
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 270,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 2
+        }
+      }
+    },
+    {
+      "code": "910B8702NSZ",
+      "sku_shopify": "SPR_910B8702NSZ",
+      "product_id": "gid://shopify/Product/11439777022293",
+      "title": "Zaino Brown Check Ghost Drip Backpack",
+      "handle": "sprayground-brown-check-ghost-drip-backpack-china-spr-910b8702nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 263.25,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 263.25,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B9354NSZ",
+      "sku_shopify": "SPR_910B9354NSZ",
+      "product_id": "gid://shopify/Product/11439781282133",
+      "title": "Center Rip Revealing Gray Check Pouch",
+      "handle": "sprayground-center-rip-revealing-gray-check-pouch-china-spr-910b9354nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 8,
+      "current_unit_cost": 14,
+      "ecommerce": {
+        "units": 2,
+        "revenue": 74.1,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 74.1,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-27",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 2,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-26": 1,
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B7993NSZ",
+      "sku_shopify": "SPR_910B7993NSZ",
+      "product_id": "gid://shopify/Product/10426389365077",
+      "title": "Hennyville Toiletry Brick",
+      "handle": "sprayground-hennyville-toiletry-brick-spr910b7993nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 89,
+        "first_sale": "2026-07-30",
+        "last_sale": "2026-07-30",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-30": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 267,
+        "first_sale": "2026-07-02",
+        "last_sale": "2026-07-30",
+        "sales_days": 3,
+        "july_01_15": 1,
+        "july_16_31": 2,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-02": 1,
+          "2026-07-28": 1,
+          "2026-07-30": 1
+        }
+      }
+    },
+    {
+      "code": "910T9378NSZ",
+      "sku_shopify": "SPR_910T9378NSZ",
+      "product_id": "gid://shopify/Product/11439783870805",
+      "title": "Pink Panther Pawprints Tote",
+      "handle": "sprayground-pink-panther-pawprints-tote-china-spr-910t9378nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 42,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 107.37,
+        "first_sale": "2026-08-22",
+        "last_sale": "2026-08-22",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-22": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 3,
+        "revenue": 327.37,
+        "first_sale": "2026-08-04",
+        "last_sale": "2026-08-23",
+        "sales_days": 3,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 2,
+        "last_7d_21_27_aug": 2,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-04": 1,
+          "2026-08-22": 1,
+          "2026-08-23": 1
+        }
+      }
+    },
+    {
+      "code": "HANDLE:sprayground-tagged-up-sharks-in-paris-swm-sprswm2004",
+      "sku_shopify": "SPR_SWM2004_L",
+      "product_id": "gid://shopify/Product/11426775564629",
+      "title": "Tagged Up Sharks In Paris Swm",
+      "handle": "sprayground-tagged-up-sharks-in-paris-swm-sprswm2004",
+      "product_type": "Costumi",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 35,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 90.25,
+        "first_sale": "2026-08-14",
+        "last_sale": "2026-08-14",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-14": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 185.25,
+        "first_sale": "2026-07-13",
+        "last_sale": "2026-08-14",
+        "sales_days": 2,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-13": 1,
+          "2026-08-14": 1
+        }
+      }
+    },
+    {
+      "code": "910B8980NSZ",
+      "sku_shopify": "SPR_910B8980NSZ",
+      "product_id": "gid://shopify/Product/11439778431317",
+      "title": "Zaino Monopoly Statue Backpack",
+      "handle": "sprayground-monopoly-statue-backpack-china-spr-910b8980nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 129,
+        "first_sale": "2026-08-10",
+        "last_sale": "2026-08-10",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-10": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 258,
+        "first_sale": "2026-08-03",
+        "last_sale": "2026-08-10",
+        "sales_days": 2,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 2,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-03": 1,
+          "2026-08-10": 1
+        }
+      }
+    },
+    {
+      "code": "910W8971NSZ",
+      "sku_shopify": "SPR_910W8971NSZ",
+      "product_id": "gid://shopify/Product/11196426060117",
+      "title": "Portafoglio Smeared Grunge",
+      "handle": "sprayground-smeared-grunge-wallet-china-spr910w8971nsz",
+      "product_type": "Portafogli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 19,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 50,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-03",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 50,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-03",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1
+        }
+      }
+    },
+    {
+      "code": "910T8970NSZ",
+      "sku_shopify": "SPR_910T8970NSZ",
+      "product_id": "gid://shopify/Product/11196423340373",
+      "title": "Tote Smeared Grunge",
+      "handle": "sprayground-smeared-grunge-tote-china-spr910t8970nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 38,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 99,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-03",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 99,
+        "first_sale": "2026-07-03",
+        "last_sale": "2026-07-03",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-03": 1
+        }
+      }
+    },
+    {
+      "code": "910B8737NSZ",
+      "sku_shopify": "SPR_910B8737NSZ",
+      "product_id": "gid://shopify/Product/11196416917845",
+      "title": "Zaino Upscale Check Dlxsv",
+      "handle": "sprayground-upscale-check-dlxsv-backpack-china-spr910b8737nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 67,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 175,
+        "first_sale": "2026-07-15",
+        "last_sale": "2026-07-15",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-15": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 175,
+        "first_sale": "2026-07-15",
+        "last_sale": "2026-07-15",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-15": 1
+        }
+      }
+    },
+    {
+      "code": "910B9043NSZ",
+      "sku_shopify": "SPR_910B9043NSZ",
+      "product_id": "gid://shopify/Product/11196425503061",
+      "title": "Gold Brick Lux Brick Toiletry",
+      "handle": "sprayground-gold-brick-lux-brick-toletry-brick-china-spr910b9043nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 28,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 75,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-07-22",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 75,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-07-22",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1
+        }
+      }
+    },
+    {
+      "code": "910D8944NSZ",
+      "sku_shopify": "SPR_910D8944NSZ",
+      "product_id": "gid://shopify/Product/11196417638741",
+      "title": "Borsone Sip Balloon Nero",
+      "handle": "sprayground-sip-balloon-black-large-duffle-china-spr910d8944nsz",
+      "product_type": "Borsoni e Valigie",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 72,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 189,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-07-22",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 189,
+        "first_sale": "2026-07-22",
+        "last_sale": "2026-07-22",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-22": 1
+        }
+      }
+    },
+    {
+      "code": "910D8898NSZ",
+      "sku_shopify": "SPR_910D8898NSZ",
+      "product_id": "gid://shopify/Product/11196420981077",
+      "title": "Borsa Red Redemption Mini Duffle",
+      "handle": "sprayground-red-redemption-mini-duffle-china-spr910d8898nsz",
+      "product_type": "Borsoni e Valigie",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-07-23",
+        "last_sale": "2026-07-23",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-23": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-07-23",
+        "last_sale": "2026-07-23",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-23": 1
+        }
+      }
+    },
+    {
+      "code": "910B7833NSZ",
+      "sku_shopify": "SPR_910B7833NSZ",
+      "product_id": "gid://shopify/Product/10426389266773",
+      "title": "Sawtooth Sharks In Paris Savage",
+      "handle": "sprayground-sawtooth-sharks-in-paris-savage-spr910b7833nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-07-25",
+        "last_sale": "2026-07-25",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-25": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-07-25",
+        "last_sale": "2026-07-25",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-25": 1
+        }
+      }
+    },
+    {
+      "code": "910B9042NSZ",
+      "sku_shopify": "SPR_910B9042NSZ",
+      "product_id": "gid://shopify/Product/11196420587861",
+      "title": "Borsello A Tracolla Gold Brick Lux",
+      "handle": "sprayground-gold-brick-lux-backpack-sling-china-spr910b9042nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 38,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 99,
+        "first_sale": "2026-07-28",
+        "last_sale": "2026-07-28",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-28": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 99,
+        "first_sale": "2026-07-28",
+        "last_sale": "2026-07-28",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-28": 1
+        }
+      }
+    },
+    {
+      "code": "910B8298NSZ",
+      "sku_shopify": "SPR_910B8298NSZ",
+      "product_id": "gid://shopify/Product/10426313081173",
+      "title": "Spritz Black Briefcase",
+      "handle": "sprayground-spritz-black-briefcase-spr910b8298nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 72,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 189,
+        "first_sale": "2026-08-04",
+        "last_sale": "2026-08-04",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-04": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 189,
+        "first_sale": "2026-08-04",
+        "last_sale": "2026-08-04",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-04": 1
+        }
+      }
+    },
+    {
+      "code": "910D8965NSZ",
+      "sku_shopify": "SPR_910D8965NSZ",
+      "product_id": "gid://shopify/Product/11196417835349",
+      "title": "Borsone Smeared Grunge Large",
+      "handle": "sprayground-smeared-grunge-large-duffle-china-spr910d8965nsz",
+      "product_type": "Borsoni e Valigie",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 72,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 179.55,
+        "first_sale": "2026-08-06",
+        "last_sale": "2026-08-06",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-06": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 179.55,
+        "first_sale": "2026-08-06",
+        "last_sale": "2026-08-06",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-06": 1
+        }
+      }
+    },
+    {
+      "code": "910B8007NSZ",
+      "sku_shopify": "SPR_910B8007NSZ",
+      "product_id": "gid://shopify/Product/10426422657365",
+      "title": "Midnight Chateau Monte Carlo",
+      "handle": "sprayground-midnight-chateau-monte-carlo-spr910b8007nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 86,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 229.89,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-07",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 229.89,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-07",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1
+        }
+      }
+    },
+    {
+      "code": "910B8744NSZ",
+      "sku_shopify": "SPR_910B8744NSZ",
+      "product_id": "gid://shopify/Product/11439777612117",
+      "title": "Zaino Sharks In Paris Pyramid Backpack",
+      "handle": "sprayground-sharks-in-paris-pyramid-backpack-china-spr-910b8744nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 61,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 159,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-07",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 159,
+        "first_sale": "2026-08-07",
+        "last_sale": "2026-08-07",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-07": 1
+        }
+      }
+    },
+    {
+      "code": "910B9560NSZ",
+      "sku_shopify": "SPR_910B9560NSZ",
+      "product_id": "gid://shopify/Product/11439782429013",
+      "title": "Money Banks Handbag",
+      "handle": "sprayground-money-banks-handbag-china-spr-910b9560nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-08-13",
+        "last_sale": "2026-08-13",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-13": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-08-13",
+        "last_sale": "2026-08-13",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-13": 1
+        }
+      }
+    },
+    {
+      "code": "910B9307NSZ",
+      "sku_shopify": "SPR_910B9307NSZ",
+      "product_id": "gid://shopify/Product/11439780299093",
+      "title": "Sharks In Paris Wtf Bubble Brown Check Crossover Clutch",
+      "handle": "sprayground-sharks-in-paris-wtf-bubble-brown-check-crossover-clutch-china-spr-910b9307nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 9,
+      "current_unit_cost": 28,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 71.25,
+        "first_sale": "2026-08-14",
+        "last_sale": "2026-08-14",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-14": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 71.25,
+        "first_sale": "2026-08-14",
+        "last_sale": "2026-08-14",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-14": 1
+        }
+      }
+    },
+    {
+      "code": "910B8904NSZ",
+      "sku_shopify": "SPR_910B8904NSZ",
+      "product_id": "gid://shopify/Product/11196419342677",
+      "title": "Astuccio Red Redemption",
+      "handle": "sprayground-red-redemption-pouch-china-spr910b8904nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 17,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 45,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-17",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 45,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-17",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1
+        }
+      }
+    },
+    {
+      "code": "910T9478NSZ",
+      "sku_shopify": "SPR_910T9478NSZ",
+      "product_id": "gid://shopify/Product/11439784067413",
+      "title": "2 Tone Gold Trinity Tote",
+      "handle": "sprayground-2-tone-gold-trinity-tote-china-spr-910t9478nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 84,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 208.05,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-17",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 208.05,
+        "first_sale": "2026-08-17",
+        "last_sale": "2026-08-17",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-17": 1
+        }
+      }
+    },
+    {
+      "code": "910B6921NSZ",
+      "sku_shopify": "SPR_910B6921NSZ",
+      "product_id": "gid://shopify/Product/10426298728789",
+      "title": "Marsupio Fur Graff",
+      "handle": "sprayground-marsupio-fur-graff-spr910b6921nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 40,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 105,
+        "first_sale": "2026-08-18",
+        "last_sale": "2026-08-18",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-18": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 105,
+        "first_sale": "2026-08-18",
+        "last_sale": "2026-08-18",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-18": 1
+        }
+      }
+    },
+    {
+      "code": "910B8968NSZ",
+      "sku_shopify": "SPR_910B8968NSZ",
+      "product_id": "gid://shopify/Product/11196425175381",
+      "title": "Beauty Case Smeared Grunge",
+      "handle": "sprayground-smeared-grunge-toiletry-brick-china-spr910b8968nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 28,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 71.25,
+        "first_sale": "2026-08-21",
+        "last_sale": "2026-08-21",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-21": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 71.25,
+        "first_sale": "2026-08-21",
+        "last_sale": "2026-08-21",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-21": 1
+        }
+      }
+    },
+    {
+      "code": "910B7840NSZ",
+      "sku_shopify": "SPR_910B7840NSZ",
+      "product_id": "gid://shopify/Product/10426286735701",
+      "title": "Sawtooth Sharks In Paris Toiletry Brick",
+      "handle": "sprayground-sawtooth-sharks-in-paris-toiletry-brick-spr910b7840nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 6,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 84.55,
+        "first_sale": "2026-08-21",
+        "last_sale": "2026-08-21",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-21": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 84.55,
+        "first_sale": "2026-08-21",
+        "last_sale": "2026-08-21",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-21": 1
+        }
+      }
+    },
+    {
+      "code": "910B9481NSZ",
+      "sku_shopify": "SPR_910B9481NSZ",
+      "product_id": "gid://shopify/Product/11439781577045",
+      "title": "2 Tone Gold Trinity Crossover Clutch",
+      "handle": "sprayground-2-tone-gold-trinity-crossover-clutch-china-spr-910b9481nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 113.05,
+        "first_sale": "2026-08-23",
+        "last_sale": "2026-08-23",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-23": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 113.05,
+        "first_sale": "2026-08-23",
+        "last_sale": "2026-08-23",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-23": 1
+        }
+      }
+    },
+    {
+      "code": "910B8880NSZ",
+      "sku_shopify": "SPR_910B8880NSZ",
+      "product_id": "gid://shopify/Product/11439778333013",
+      "title": "Zaino Marvel Wolverine Sharkmouth Tear Up Backpack",
+      "handle": "sprayground-marvel-wolverine-sharkmouth-tear-up-backpack-china-spr-910b8880nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 122.55,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 122.55,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 1
+        }
+      }
+    },
+    {
+      "code": "910B9349NSZ",
+      "sku_shopify": "SPR_910B9349NSZ",
+      "product_id": "gid://shopify/Product/11439781019989",
+      "title": "Center Rip Revealing Gray Check Messenger Sling",
+      "handle": "sprayground-center-rip-revealing-gray-check-messenger-sling-china-spr-910b9349nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 84.55,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 84.55,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 1
+        }
+      }
+    },
+    {
+      "code": "910B9177NSZ",
+      "sku_shopify": "SPR_910B9177NSZ",
+      "product_id": "gid://shopify/Product/11439779610965",
+      "title": "Zaino Looney Carrot Stash Backpack",
+      "handle": "sprayground-looney-carrot-stash-backpack-china-spr-910b9177nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 129,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 129,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B9079NSZ",
+      "sku_shopify": "SPR_910B9079NSZ",
+      "product_id": "gid://shopify/Product/11439778693461",
+      "title": "Zaino Inspector Gadget Gadget Hands Backpack",
+      "handle": "sprayground-inspector-gadget-gadget-hands-backpack-china-spr-910b9079nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 122.55,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 122.55,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B9323NSZ",
+      "sku_shopify": "SPR_910B9323NSZ",
+      "product_id": "gid://shopify/Product/11439780757845",
+      "title": "Pink New Check Faces Pouch",
+      "handle": "sprayground-pink-new-check-faces-pouch-china-spr-910b9323nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 9,
+      "current_unit_cost": 14,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 37.05,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 37.05,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910B8472NSZ",
+      "sku_shopify": "SPR_910B8472NSZ",
+      "product_id": "gid://shopify/Product/11439775744341",
+      "title": "Zaino Black Denim Tear Shark Backpack",
+      "handle": "sprayground-black-denim-tear-shark-backpack-china-spr-910b8472nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 57,
+      "ecommerce": {
+        "units": 1,
+        "revenue": 141.55,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 141.55,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      }
+    },
+    {
+      "code": "910W7868NSZ",
+      "sku_shopify": "SPR_910W7868NSZ",
+      "product_id": "gid://shopify/Product/10426350207317",
+      "title": "Daybreak Wallet",
+      "handle": "sprayground-daybreak-wallet-spr910w7868nsz",
+      "product_type": "Portafogli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 23,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 2,
+        "revenue": 130,
+        "first_sale": "2026-07-01",
+        "last_sale": "2026-07-06",
+        "sales_days": 2,
+        "july_01_15": 2,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-01": 1,
+          "2026-07-06": 1
+        }
+      }
+    },
+    {
+      "code": "910B8731NSZ",
+      "sku_shopify": "SPR_910B8731NSZ",
+      "product_id": "gid://shopify/Product/11196418163029",
+      "title": "Zaino Henny Harness Dlxsv",
+      "handle": "sprayground-henny-harness-dlxsv-backpack-china-spr910b8731nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 69,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 179,
+        "first_sale": "2026-07-02",
+        "last_sale": "2026-07-02",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-02": 1
+        }
+      }
+    },
+    {
+      "code": "910B7968NSZ",
+      "sku_shopify": "SPR_910B7968NSZ",
+      "product_id": "gid://shopify/Product/10426412826965",
+      "title": "Dripping Sharks In Paris Toiletry Brick",
+      "handle": "sprayground-dripping-sharks-in-paris-toiletry-brick-spr910b7968nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 89,
+        "first_sale": "2026-07-07",
+        "last_sale": "2026-07-07",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-07": 1
+        }
+      }
+    },
+    {
+      "code": "910B8571NSZ",
+      "sku_shopify": "SPR_910B8571NSZ",
+      "product_id": "gid://shopify/Product/11196417999189",
+      "title": "Zaino Red Redemption Dlxsv",
+      "handle": "sprayground-red-redemption-dlxsv-backpack-china-spr910b8571nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 57,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 149,
+        "first_sale": "2026-07-09",
+        "last_sale": "2026-07-09",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-09": 1
+        }
+      }
+    },
+    {
+      "code": "910B6875NSZ",
+      "sku_shopify": "SPR_910B6875NSZ",
+      "product_id": "gid://shopify/Product/10452552155477",
+      "title": "Marsupio Dreamscape",
+      "handle": "sprayground-marsupio-dreamscape-spr910b6875nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 40,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 105,
+        "first_sale": "2026-07-11",
+        "last_sale": "2026-07-11",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-11": 1
+        }
+      }
+    },
+    {
+      "code": "910B8984NSZ",
+      "sku_shopify": "SPR_910B8984NSZ",
+      "product_id": "gid://shopify/Product/11196420424021",
+      "title": "Pochette 3am Cream Crossbody",
+      "handle": "sprayground-3am-cream-crossbody-pouchette-china-spr910b8984nsz",
+      "product_type": "Pochette e Borselli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 89,
+        "first_sale": "2026-07-12",
+        "last_sale": "2026-07-12",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-12": 1
+        }
+      }
+    },
+    {
+      "code": "910W9046NSZ",
+      "sku_shopify": "SPR_910W9046NSZ",
+      "product_id": "gid://shopify/Product/11196426223957",
+      "title": "Portafoglio Gold Brick Lux",
+      "handle": "sprayground-gold-brick-lux-wallet-china-spr910w9046nsz",
+      "product_type": "Portafogli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 22.5,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 59,
+        "first_sale": "2026-07-13",
+        "last_sale": "2026-07-13",
+        "sales_days": 1,
+        "july_01_15": 1,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-13": 1
+        }
+      }
+    },
+    {
+      "code": "910B8790NSZ",
+      "sku_shopify": "SPR_910B8790NSZ",
+      "product_id": "gid://shopify/Product/11196021047637",
+      "title": "Zaino Pink Panther Drippy Diamonds Dlxsv",
+      "handle": "sprayground-zaino-pink-panther-drippy-diamonds-dlxsv-backpack-china-spr910b8790nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 48,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 125,
+        "first_sale": "2026-07-16",
+        "last_sale": "2026-07-16",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-16": 1
+        }
+      }
+    },
+    {
+      "code": "910B8735NSZ",
+      "sku_shopify": "SPR_910B8735NSZ",
+      "product_id": "gid://shopify/Product/11196020523349",
+      "title": "Zaino Missing Bag Flyer Dlxsv Backpack China",
+      "handle": "sprayground-zaino-missing-bag-flyer-dlxsv-backpack-china-spr910b8735nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-07-18",
+        "last_sale": "2026-07-18",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-18": 1
+        }
+      }
+    },
+    {
+      "code": "910T9015NSZ",
+      "sku_shopify": "SPR_910T9015NSZ",
+      "product_id": "gid://shopify/Product/11196020785493",
+      "title": "Tote Bag Pink Sip Patch Rosa",
+      "handle": "sprayground-tote-bag-pink-sip-patch-rosa-spr910t9015nsz",
+      "product_type": "Borse",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-07-19",
+        "last_sale": "2026-07-19",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-19": 1
+        }
+      }
+    },
+    {
+      "code": "910B8282NSZ",
+      "sku_shopify": "SPR_910B8282NSZ",
+      "product_id": "gid://shopify/Product/10426350862677",
+      "title": "Jetstream Brown Toiletry Bag",
+      "handle": "sprayground-jetstream-brown-toiletry-bag-spr910b8282nsz",
+      "product_type": "Beauty Case",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 34,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 89,
+        "first_sale": "2026-07-20",
+        "last_sale": "2026-07-20",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-20": 1
+        }
+      }
+    },
+    {
+      "code": "910B8908NSZ",
+      "sku_shopify": "SPR_910B8908NSZ",
+      "product_id": "gid://shopify/Product/11196424388949",
+      "title": "Zaino Gray Peeking Character Check Savage",
+      "handle": "sprayground-gray-peeking-character-check-savage-backpack-china-spr910b8908nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 3,
+      "current_unit_cost": 38,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 99,
+        "first_sale": "2026-07-31",
+        "last_sale": "2026-07-31",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-31": 1
+        }
+      }
+    },
+    {
+      "code": "910B8513NSZ",
+      "sku_shopify": "SPR_910B8513NSZ",
+      "product_id": "gid://shopify/Product/11196020392277",
+      "title": "Zaino Midnight Osaka Payload",
+      "handle": "sprayground-zaino-midnight-osaka-payload-backpack-china-spr910b8513nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 110,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 289,
+        "first_sale": "2026-07-31",
+        "last_sale": "2026-07-31",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 1,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-07-31": 1
+        }
+      }
+    },
+    {
+      "code": "910W9480NSZ",
+      "sku_shopify": "SPR_910W9480NSZ",
+      "product_id": "gid://shopify/Product/11439784264021",
+      "title": "Portafoglio 2 Tone Gold Trinity Single Fold Wallet",
+      "handle": "sprayground-2-tone-gold-trinity-single-fold-wallet-china-spr-910w9480nsz",
+      "product_type": "Portafogli",
+      "current_inventory_quantity": 2,
+      "current_unit_cost": 22.5,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 59,
+        "first_sale": "2026-08-03",
+        "last_sale": "2026-08-03",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-03": 1
+        }
+      }
+    },
+    {
+      "code": "910W9524NSZ",
+      "sku_shopify": "SPR_910W9524NSZ",
+      "product_id": "gid://shopify/Product/11439784427861",
+      "title": "Portafoglio Metallic Pink Metallic Drip Single Fold Wallet",
+      "handle": "sprayground-metallic-pink-metallic-drip-single-fold-wallet-china-spr-910w9524nsz",
+      "product_type": "Portafogli",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 28,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 75,
+        "first_sale": "2026-08-04",
+        "last_sale": "2026-08-04",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-04": 1
+        }
+      }
+    },
+    {
+      "code": "HANDLE:sprayground-camo-kawa-vice-swim-trunks-blue-sprsp755blue",
+      "sku_shopify": "SPR_SP755BLUE_M",
+      "product_id": "gid://shopify/Product/11426775531861",
+      "title": "Camo Kawa Vice Swim Trunks Blue",
+      "handle": "sprayground-camo-kawa-vice-swim-trunks-blue-sprsp755blue",
+      "product_type": "Costumi",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 37,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 95,
+        "first_sale": "2026-08-13",
+        "last_sale": "2026-08-13",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 1,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-13": 1
+        }
+      }
+    },
+    {
+      "code": "910CL285NSZ",
+      "sku_shopify": "SPR_910CL285NSZ",
+      "product_id": "gid://shopify/Product/10426319208789",
+      "title": "Check 2 Emboss Carry-on Luggage",
+      "handle": "sprayground-check-2-emboss-carry-on-luggage-spr910cl285nsz",
+      "product_type": "Borsoni e Valigie",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 130,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 339,
+        "first_sale": "2026-08-18",
+        "last_sale": "2026-08-18",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 1,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-18": 1
+        }
+      }
+    },
+    {
+      "code": "HANDLE:sprayground-camo-kawa-vice-swim-trunks-purple-sprsp755prpl",
+      "sku_shopify": "SPR_SP755PRPL_S",
+      "product_id": "gid://shopify/Product/11426775499093",
+      "title": "Camo Kawa Vice Swim Trunks Purple",
+      "handle": "sprayground-camo-kawa-vice-swim-trunks-purple-sprsp755prpl",
+      "product_type": "Costumi",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 37,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 95,
+        "first_sale": "2026-08-22",
+        "last_sale": "2026-08-22",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-22": 1
+        }
+      }
+    },
+    {
+      "code": "910B8690NSZ",
+      "sku_shopify": "SPR_910B8690NSZ",
+      "product_id": "gid://shopify/Product/11439776956757",
+      "title": "Zaino Diablo Sketchy Hoodie Backpack",
+      "handle": "sprayground-diablo-sketchy-hoodie-backpack-china-spr-910b8690nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 45.5,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 119,
+        "first_sale": "2026-08-24",
+        "last_sale": "2026-08-24",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-24": 1
+        }
+      }
+    },
+    {
+      "code": "910CL272NSZ",
+      "sku_shopify": "SPR_910CL272NSZ",
+      "product_id": "gid://shopify/Product/10426337231189",
+      "title": "Dose Of Check Deux Carry-On Luggage",
+      "handle": "sprayground-dose-of-check-deux-carry-on-luggage-spr910cl272nsz",
+      "product_type": "Borsoni e Valigie",
+      "current_inventory_quantity": 0,
+      "current_unit_cost": 115,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 299,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-25",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-25": 1
+        }
+      }
+    },
+    {
+      "code": "910B9071NSZ",
+      "sku_shopify": "SPR_910B9071NSZ",
+      "product_id": "gid://shopify/Product/11439778562389",
+      "title": "Zaino Looney Tunes Fight Cloud Backpack",
+      "handle": "sprayground-looney-tunes-fight-cloud-backpack-china-spr-910b9071nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 49.5,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 129,
+        "first_sale": "2026-08-25",
+        "last_sale": "2026-08-25",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-25": 1
+        }
+      }
+    },
+    {
+      "code": "910B8848NSZ",
+      "sku_shopify": "SPR_910B8848NSZ",
+      "product_id": "gid://shopify/Product/11196418490709",
+      "title": "Graff Embossed Cream Check Dlxsv Backpack",
+      "handle": "sprayground-graff-embossed-cream-check-dlxsv-backpack-china-spr910b8848nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 1,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 149,
+        "first_sale": "2026-08-26",
+        "last_sale": "2026-08-26",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 0,
+        "daily": {
+          "2026-08-26": 1
+        }
+      }
+    },
+    {
+      "code": "910B8793NSZ",
+      "sku_shopify": "SPR_910B8793NSZ",
+      "product_id": "gid://shopify/Product/11439777939797",
+      "title": "Zaino Money Banks Backpack",
+      "handle": "sprayground-money-banks-backpack-china-spr-910b8793nsz",
+      "product_type": "Zaini",
+      "current_inventory_quantity": 4,
+      "current_unit_cost": 52,
+      "ecommerce": {
+        "units": 0,
+        "revenue": 0,
+        "first_sale": null,
+        "last_sale": null,
+        "sales_days": 0,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 0,
+        "last_7d_21_27_aug": 0,
+        "last_3d_25_27_aug": 0,
+        "aug_27": 0,
+        "daily": {}
+      },
+      "all_valid_shopify": {
+        "units": 1,
+        "revenue": 135,
+        "first_sale": "2026-08-27",
+        "last_sale": "2026-08-27",
+        "sales_days": 1,
+        "july_01_15": 0,
+        "july_16_31": 0,
+        "august_01_15": 0,
+        "august_16_20": 0,
+        "august_21_27": 1,
+        "last_7d_21_27_aug": 1,
+        "last_3d_25_27_aug": 1,
+        "aug_27": 1,
+        "daily": {
+          "2026-08-27": 1
+        }
+      }
+    }
+  ]
+}
