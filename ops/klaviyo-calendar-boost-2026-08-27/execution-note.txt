@@ -1,0 +1,1 @@
+Issue #152 mirrors the user-approved operation for auditability. The issue itself is not proof of execution; live Klaviyo scheduling must still be performed and verified.
