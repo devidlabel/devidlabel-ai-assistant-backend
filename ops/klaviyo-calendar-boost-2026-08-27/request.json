@@ -1,0 +1,57 @@
+{
+  "requested_at": "2026-08-27T15:05:00+02:00",
+  "timezone": "Europe/Rome",
+  "approved_by_user": true,
+  "objective": "Schedule the confirmed Klaviyo campaign calendar boosts for late August and early September 2026, preserving already scheduled campaigns and using intent-based segmentation, Smart Sending, consent checks, and recent-buyer exclusions.",
+  "actions": [
+    {
+      "date": "2026-08-29",
+      "brand": "Sprayground",
+      "type": "high_intent_recovery",
+      "instruction": "Repurpose the prepared Sprayground High Intent Hot Window draft into a recovery campaign for 2026-08-29. Include recent Sprayground email clickers/viewers/ATC/checkout intent generated through the 2026-08-27 campaign where available; exclude recent Sprayground buyers; use Smart Sending and tracking; schedule at the best existing evening slot consistent with the campaign calendar."
+    },
+    {
+      "date": "2026-08-30",
+      "brand": "Devid Label",
+      "type": "end_month_new_season_bridge",
+      "instruction": "Schedule a Devid Label end-of-month campaign bridging final sale opportunities into new season/Back to Work. Target engaged or Devid Label-affinity profiles with marketing consent; avoid a generic full-list blast; use Smart Sending and tracking."
+    },
+    {
+      "date": "2026-09-02",
+      "brand": "K-Way",
+      "type": "fw26_new_season",
+      "instruction": "Create and schedule a K-Way FW26 new-season campaign focused on September transition, lightweight jackets/rainwear and early autumn. Audience: K-Way past buyers, K-Way affinity and recent engaged/clickers with consent; exclude very recent K-Way buyers; no aggressive discount framing; use Smart Sending and tracking."
+    },
+    {
+      "date": "2026-09-03",
+      "brand": "Sprayground",
+      "type": "bts_best_seller_ranking",
+      "instruction": "Schedule the existing Sprayground BTS Best Seller Ranking draft for 2026-09-03 18:30 Europe/Rome, preserving the ranking concept and using live BTS26 products in stock."
+    },
+    {
+      "date": "2026-09-05",
+      "brand": "Sprayground",
+      "type": "high_intent_recovery",
+      "instruction": "Schedule a targeted Sprayground recovery wave on 2026-09-05 (or 2026-09-06 only if frequency/Smart Sending makes 2026-09-05 inappropriate). Audience should prioritize recent viewer/ATC/checkout/email intent and exclude recent buyers; no broad blast; use Smart Sending and tracking."
+    },
+    {
+      "date": "2026-09-08",
+      "brand": "Multi-brand",
+      "type": "winback_reactivation",
+      "instruction": "Schedule the previously planned winback/reactivation wave for 2026-09-08 using a tightly segmented dormant-but-valuable audience with consent. Avoid profiles recently active or recently purchased; use Smart Sending and tracking."
+    }
+  ],
+  "preserve": [
+    "Sprayground 2026-08-27 18:30 scheduled campaign",
+    "Sneakers Donna 2026-09-01 10:30 scheduled campaign",
+    "Sneakers Uomo 2026-09-01 10:45 scheduled campaign",
+    "Sprayground Most Chosen 2026-09-10 18:30 scheduled campaign"
+  ],
+  "qa": [
+    "Verify every requested campaign ends in Scheduled state, not Draft, except if an API safety constraint prevents scheduling.",
+    "Read back audience IDs/counts and campaign IDs/status/send_at after writes.",
+    "Do not infer gender identity; use only behavioral product/category affinity for sneaker segmentation.",
+    "Do not send any campaign immediately; schedule only for the dates above.",
+    "Keep marketing consent filters, tracking params, and Smart Sending enabled unless the existing approved campaign design explicitly requires otherwise."
+  ]
+}
