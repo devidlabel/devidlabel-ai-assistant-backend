@@ -1,0 +1,12 @@
+{
+  "schema": "shopify_media_seo_request_v1",
+  "operation": "optimize_product_image_metadata",
+  "mode": "dry_run",
+  "policy": "devid_image_seo_v1",
+  "scope": {
+    "status": "ACTIVE",
+    "published_only": true,
+    "vendor": "Sprayground",
+    "max_products": 20
+  }
+}
