@@ -1,0 +1,1 @@
+This file intentionally records that no live Klaviyo trigger has yet been confirmed from this new operation folder. Execution must use an established controlled workflow/endpoint.
