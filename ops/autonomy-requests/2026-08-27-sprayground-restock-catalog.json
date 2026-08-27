@@ -1,0 +1,10 @@
+{
+  "schema": "mare_autonomy_request_v1",
+  "capability_id": "shopify.catalog.read",
+  "request": {
+    "query": "vendor:Sprayground",
+    "max_products": 300,
+    "inline_limit": 100,
+    "include_csv": true
+  }
+}
