@@ -1,4 +1,4 @@
-import { shopifyGraphQL, type Env as ShopifyBaseEnv } from "./index.js";
+import { shopifyGraphQL, resolveShopifyAdminAccessToken, type Env as ShopifyBaseEnv } from "./index.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -73,6 +73,9 @@ const FILE_UPDATE_BATCH_SIZE = 10;
 const MAX_PRODUCTS_HARD_LIMIT = 5000;
 const MAX_FILENAME_BASE = 180;
 const MAX_ALT_LENGTH = 180;
+const MEDIA_WRITE_TIMEOUT_MS = 30_000;
+const MEDIA_WRITE_MAX_ATTEMPTS = 3;
+const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
 const RETRYABLE_FETCH_STATUSES = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
 
 const PRODUCTS_QUERY = `
@@ -229,6 +232,59 @@ function resolveMasterSku(product: ShopifyProductNode): { value: string; source:
   ));
   if (uniqueVariantSkus.length === 1) return { value: cleanSingleVariantSku(uniqueVariantSkus[0]), source: "single_variant_sku" };
   return null;
+}
+
+async function shopifyMediaWriteGraphQL<T>(env: ShopifyMediaSeoEnv, query: string, variables: JsonObject): Promise<T> {
+  const shop = normalize(env.SHOPIFY_SHOP_DOMAIN).toLowerCase();
+  if (!shop || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) throw new Error("invalid_shopify_shop_domain");
+  const apiVersion = normalize(env.SHOPIFY_API_VERSION) || DEFAULT_SHOPIFY_API_VERSION;
+  const auth = await resolveShopifyAdminAccessToken(env);
+  const accessToken = normalize(auth.accessToken);
+  if (!accessToken) throw new Error("shopify_admin_access_token_unavailable");
+  const endpoint = `https://${shop}/admin/api/${apiVersion}/graphql.json`;
+  let lastError = "shopify_media_write_failed";
+
+  for (let attempt = 1; attempt <= MEDIA_WRITE_MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), MEDIA_WRITE_TIMEOUT_MS);
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
+      try { payload = JSON.parse(text) as typeof payload; } catch { throw new Error(`shopify_media_write_invalid_json_${response.status}`); }
+      if (!response.ok) {
+        lastError = `shopify_media_write_http_${response.status}`;
+        if (RETRYABLE_FETCH_STATUSES.has(response.status) && attempt < MEDIA_WRITE_MAX_ATTEMPTS) {
+          await sleep(500 * attempt);
+          continue;
+        }
+        throw new Error(lastError);
+      }
+      if (payload.errors?.length) throw new Error(`shopify_media_write_graphql:${payload.errors.map((item) => normalize(item.message)).filter(Boolean).join(" | ")}`);
+      if (!payload.data) throw new Error("shopify_media_write_missing_data");
+      return payload.data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "shopify_media_write_failed";
+      lastError = message === "The operation was aborted" || error instanceof DOMException && error.name === "AbortError"
+        ? "shopify_media_write_timeout"
+        : message;
+      const retryable = lastError === "shopify_media_write_timeout" || /shopify_media_write_http_(408|425|429|500|502|503|504)/.test(lastError);
+      if (!retryable || attempt >= MEDIA_WRITE_MAX_ATTEMPTS) throw new Error(lastError);
+      await sleep(500 * attempt);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new Error(lastError);
 }
 
 async function fetchRequestText(requestPath: string): Promise<string> {
@@ -434,7 +490,7 @@ async function applyUpdates(updates: DesiredMediaUpdate[], env: ShopifyMediaSeoE
   const errors: JsonObject[] = [];
   for (let offset = 0; offset < updates.length; offset += FILE_UPDATE_BATCH_SIZE) {
     const batch = updates.slice(offset, offset + FILE_UPDATE_BATCH_SIZE);
-    const result = await shopifyGraphQL<{
+    const result = await shopifyMediaWriteGraphQL<{
       fileUpdate?: {
         files?: Array<{ id?: string; alt?: string | null; fileStatus?: string | null; image?: { url?: string } | null }>;
         userErrors?: Array<{ field?: string[]; message?: string; code?: string }>;
