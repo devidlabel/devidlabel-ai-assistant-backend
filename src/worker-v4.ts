@@ -1,6 +1,7 @@
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { handleMareAutonomyMcpRequest, MareAutonomyRunner } from "./mare-autonomy-runner";
 import { handleGitHubAutonomyBridgeRequest } from "./mare-github-autonomy-bridge";
+import { handleShopifyMediaSeoBridgeRequest } from "./shopify-media-seo-bridge";
 import { handleMareKlaviyoCrmMcpRequest } from "./mare-business-klaviyo-crm-mcp";
 import { createYouTubeAuthorizationUrl, youtubeAuthorizationStatus } from "./mare-business-youtube";
 import { handleTikTokReportingRequest } from "./tiktok-reporting";
@@ -42,6 +43,9 @@ export default {
 
     const githubAutonomyBridgeResponse = await handleGitHubAutonomyBridgeRequest(request, env as any);
     if (githubAutonomyBridgeResponse) return githubAutonomyBridgeResponse;
+
+    const shopifyMediaSeoBridgeResponse = await handleShopifyMediaSeoBridgeRequest(request, env as any);
+    if (shopifyMediaSeoBridgeResponse) return shopifyMediaSeoBridgeResponse;
 
     const publicProductMediaResponse = await handlePublicProductMediaRequest(request, env as any);
     if (publicProductMediaResponse) return publicProductMediaResponse;
