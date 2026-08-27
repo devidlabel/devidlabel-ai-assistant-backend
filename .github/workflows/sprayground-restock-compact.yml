@@ -1,0 +1,47 @@
+name: Sprayground Restock Compact Export
+
+on:
+  push:
+    branches:
+      - codex/sprayground-jul-aug-restock-audit
+    paths:
+      - 'ops/sprayground-restock-audit/compact-request.json'
+
+permissions:
+  contents: write
+
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/sprayground-jul-aug-restock-audit
+      - name: Create compact tables
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const data=JSON.parse(fs.readFileSync('ops/sprayground-restock-audit/result.json','utf8'));
+          const rows=data.products.map(p=>({
+            code:p.code,title:p.title,product_type:p.product_type,current_stock:p.current_inventory_quantity,current_unit_cost:p.current_unit_cost,
+            ecom_units:p.ecommerce.units,all_shopify_units:p.all_valid_shopify.units,
+            first_sale:p.ecommerce.first_sale,last_sale:p.ecommerce.last_sale,sales_days:p.ecommerce.sales_days,
+            jul_01_15:p.ecommerce.july_01_15,jul_16_31:p.ecommerce.july_16_31,aug_01_15:p.ecommerce.august_01_15,
+            aug_16_20:p.ecommerce.august_16_20,aug_21_27:p.ecommerce.august_21_27,last3_aug25_27:p.ecommerce.last_3d_25_27_aug,aug27:p.ecommerce.aug_27
+          })).sort((a,b)=>b.ecom_units-a.ecom_units||b.all_shopify_units-a.all_shopify_units);
+          const headers=Object.keys(rows[0]);
+          const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+          fs.writeFileSync('ops/sprayground-restock-audit/compact.csv',[headers.join(','),...rows.map(r=>headers.map(h=>cell(r[h])).join(','))].join('\n')+'\n');
+          fs.writeFileSync('ops/sprayground-restock-audit/top40.json',JSON.stringify({generated_at:data.generated_at,period:data.period,products:rows.slice(0,40)},null,2));
+          NODE
+      - name: Commit compact outputs
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ops/sprayground-restock-audit/compact.csv ops/sprayground-restock-audit/top40.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add compact Sprayground restock audit outputs'
+            git push origin HEAD:codex/sprayground-jul-aug-restock-audit
+          fi
