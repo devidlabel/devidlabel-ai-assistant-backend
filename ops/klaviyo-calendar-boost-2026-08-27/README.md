@@ -1,0 +1,1 @@
+Execution request created from the user's explicit approval on 2026-08-27. This folder is an audit record only until routed through an existing controlled Klaviyo operation/workflow. Do not treat the presence of request.json alone as proof that campaigns are scheduled.
