@@ -31,6 +31,7 @@ type ShopifyProductNode = {
   publishedAt?: string | null;
   onlineStoreUrl?: string | null;
   masterSku?: { value?: string | null } | null;
+  variants?: { nodes?: Array<{ sku?: string | null }> } | null;
   media?: { nodes?: ShopifyMediaNode[] } | null;
 };
 
@@ -40,6 +41,7 @@ type DesiredMediaUpdate = {
   product_title: string;
   vendor: string;
   master_sku: string;
+  master_sku_source: "xphub.master_sku" | "single_variant_sku";
   position: number;
   current_alt: string | null;
   current_filename: string;
@@ -86,6 +88,7 @@ const PRODUCTS_QUERY = `
         publishedAt
         onlineStoreUrl
         masterSku: metafield(namespace: "xphub", key: "master_sku") { value }
+        variants(first: 100) { nodes { sku } }
         media(first: 100) {
           nodes {
             id
@@ -211,6 +214,19 @@ function buildShopifySearch(vendor: string): string {
   return parts.join(" ");
 }
 
+function resolveMasterSku(product: ShopifyProductNode): { value: string; source: "xphub.master_sku" | "single_variant_sku" } | null {
+  const metafieldValue = normalize(product.masterSku?.value);
+  if (metafieldValue) return { value: metafieldValue, source: "xphub.master_sku" };
+
+  const uniqueVariantSkus = Array.from(new Set(
+    (product.variants?.nodes || [])
+      .map((variant) => normalize(variant.sku))
+      .filter(Boolean),
+  ));
+  if (uniqueVariantSkus.length === 1) return { value: uniqueVariantSkus[0], source: "single_variant_sku" };
+  return null;
+}
+
 async function fetchRequestText(requestPath: string): Promise<string> {
   let lastStatus = 0;
   for (let attempt = 1; attempt <= 8; attempt += 1) {
@@ -273,6 +289,8 @@ async function collectDesiredUpdates(request: MediaSeoRequest, env: ShopifyMedia
   let eligibleProducts = 0;
   let skippedUnpublished = 0;
   let skippedMissingMasterSku = 0;
+  let masterSkuFromMetafield = 0;
+  let masterSkuFromSingleVariant = 0;
   let imagesSeen = 0;
   let imagesEligible = 0;
   let skippedNotReady = 0;
@@ -305,12 +323,15 @@ async function collectDesiredUpdates(request: MediaSeoRequest, env: ShopifyMedia
       const productId = normalize(product.id);
       const title = normalize(product.title);
       const productVendor = normalize(product.vendor);
-      const masterSku = normalize(product.masterSku?.value);
+      const resolvedMasterSku = resolveMasterSku(product);
       if (!productId || !title || !productVendor) continue;
-      if (!masterSku) {
+      if (!resolvedMasterSku) {
         skippedMissingMasterSku += 1;
         continue;
       }
+      if (resolvedMasterSku.source === "xphub.master_sku") masterSkuFromMetafield += 1;
+      else masterSkuFromSingleVariant += 1;
+      const masterSku = resolvedMasterSku.value;
       eligibleProducts += 1;
       const mediaNodes = product.media?.nodes || [];
       for (let index = 0; index < mediaNodes.length; index += 1) {
@@ -343,6 +364,7 @@ async function collectDesiredUpdates(request: MediaSeoRequest, env: ShopifyMedia
           product_title: title,
           vendor: productVendor,
           master_sku: masterSku,
+          master_sku_source: resolvedMasterSku.source,
           position,
           current_alt: media.alt ?? null,
           current_filename: currentFilename,
@@ -366,6 +388,7 @@ async function collectDesiredUpdates(request: MediaSeoRequest, env: ShopifyMedia
             product_title: title,
             vendor: productVendor,
             master_sku: masterSku,
+            master_sku_source: resolvedMasterSku.source,
             position,
             dimensions: media.image?.width && media.image?.height ? `${media.image.width}x${media.image.height}` : null,
             before: { filename: currentFilename, alt: media.alt ?? null },
@@ -388,6 +411,8 @@ async function collectDesiredUpdates(request: MediaSeoRequest, env: ShopifyMedia
       products_eligible: eligibleProducts,
       products_skipped_not_online_store: skippedUnpublished,
       products_skipped_missing_master_sku: skippedMissingMasterSku,
+      products_master_sku_from_metafield: masterSkuFromMetafield,
+      products_master_sku_from_single_variant: masterSkuFromSingleVariant,
       images_seen: imagesSeen,
       images_eligible: imagesEligible,
       images_already_compliant: alreadyCompliant,
