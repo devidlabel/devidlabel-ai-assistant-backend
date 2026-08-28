@@ -1,11 +1,11 @@
 {
-  "requested_at": "2026-08-27T09:27:00+02:00",
-  "title": "Daily Report Fallback 2026-08-26",
+  "requested_at": "2026-08-28T10:19:00+02:00",
+  "title": "Daily Report Fallback 2026-08-27",
   "periods": [
-    {"label":"yesterday_2026_08_26","start":"2026-08-26","end":"2026-08-26"},
-    {"label":"last_3d_24_26","start":"2026-08-24","end":"2026-08-26"},
-    {"label":"last_7d_20_26","start":"2026-08-20","end":"2026-08-26"},
-    {"label":"last_14d_13_26","start":"2026-08-13","end":"2026-08-26"},
-    {"label":"last_30d_28jul_26aug","start":"2026-07-28","end":"2026-08-26"}
+    {"label":"yesterday_2026_08_27","start":"2026-08-27","end":"2026-08-27"},
+    {"label":"last_3d_25_27","start":"2026-08-25","end":"2026-08-27"},
+    {"label":"last_7d_21_27","start":"2026-08-21","end":"2026-08-27"},
+    {"label":"last_14d_14_27","start":"2026-08-14","end":"2026-08-27"},
+    {"label":"last_30d_29jul_27aug","start":"2026-07-29","end":"2026-08-27"}
   ]
 }
