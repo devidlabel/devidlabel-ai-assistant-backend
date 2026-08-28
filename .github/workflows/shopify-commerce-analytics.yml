@@ -3,11 +3,10 @@ name: Shopify Commerce Analytics Snapshot
 on:
   workflow_dispatch:
   schedule:
-    # Target 07:05 Europe/Rome before the 08:00 ChatGPT business report.
-    # Two UTC slots cover CET/CEST; the freshness guard below makes the job
-    # idempotent and also provides a recovery slot when GitHub starts late.
-    - cron: '5 5 * * *'
-    - cron: '5 6 * * *'
+    # Redundant pre-report retries. GitHub scheduled runs can be delayed,
+    # so we start early and retry every 15 minutes across the CET/CEST window.
+    # The freshness guard makes these runs idempotent after the first success.
+    - cron: '0,15,30,45 4,5,6 * * *'
 
 concurrency:
   group: shopify-commerce-analytics-daily
@@ -62,13 +61,11 @@ jobs:
             exit 0
           fi
 
-          if [ "$HOUR" -ge 7 ] && [ "$HOUR" -le 8 ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "reason=scheduled_pre_report_window" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "reason=outside_pre_report_window" >> "$GITHUB_OUTPUT"
-          fi
+          # Do not skip a delayed GitHub schedule solely because it started late.
+          # If today's valid pointer does not exist yet, every scheduled retry is
+          # allowed to recover the snapshot.
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "reason=scheduled_recovery_until_fresh" >> "$GITHUB_OUTPUT"
 
       - name: Build Shopify commerce analytics bundle
         if: steps.window.outputs.run == 'true'
