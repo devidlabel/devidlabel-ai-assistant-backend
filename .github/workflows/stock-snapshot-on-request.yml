@@ -1,0 +1,43 @@
+name: One-off Sprayground live stock snapshot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/stock-requests/*.json'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch private live Sprayground stock
+        env:
+          SHOPIFY_REPORT_ACCESS_TOKEN: ${{ secrets.SHOPIFY_REPORT_ACCESS_TOKEN }}
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$SHOPIFY_REPORT_ACCESS_TOKEN"
+          if [ -z "$TOKEN" ]; then TOKEN="$DAILY_PULSE_ACCESS_TOKEN"; fi
+          test -n "$TOKEN"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $TOKEN" \
+            'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/shopify/sprayground-live-catalog' \
+            -o sprayground-live-stock.json
+          jq -e '.ok == true and (.products | type == "array")' sprayground-live-stock.json >/dev/null
+
+      - name: Upload private stock artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprayground-live-stock-${{ github.run_id }}
+          path: sprayground-live-stock.json
+          retention-days: 1
+          if-no-files-found: error
