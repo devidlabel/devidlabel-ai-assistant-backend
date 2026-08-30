@@ -83,7 +83,9 @@ export async function handleSpraygroundLiveCatalogRequest(request: Request, env:
   if (!isAuthorized(request, env)) return jsonResponse({ ok: false, error: "unauthorized" }, 401);
 
   try {
-    const data = await shopifyGraphQL<Data>(env, QUERY, { query: "vendor:Sprayground" });
+    const filter = normalize(url.searchParams.get("q"));
+    const shopifyQuery = ["vendor:Sprayground", filter].filter(Boolean).join(" ");
+    const data = await shopifyGraphQL<Data>(env, QUERY, { query: shopifyQuery });
     const products = data.products?.nodes || [];
     const compact = products.map((product) => {
       const variants = product.variants?.nodes || [];
@@ -123,9 +125,10 @@ export async function handleSpraygroundLiveCatalogRequest(request: Request, env:
       ok: true,
       service: "sprayground_live_catalog",
       generated_at: new Date().toISOString(),
+      query: shopifyQuery,
       product_count: compact.length,
       products: compact,
-      notes: ["Read-only single-query live Shopify catalog filtered to vendor Sprayground."],
+      notes: ["Read-only live Shopify catalog filtered to vendor Sprayground; optional q narrows the Shopify product query."],
     });
   } catch (error) {
     return jsonResponse({ ok: false, error: error instanceof Error ? error.message : "sprayground_live_catalog_failed" }, 502);
