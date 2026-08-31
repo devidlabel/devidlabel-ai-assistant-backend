@@ -1,11 +1,11 @@
 {
-  "requested_at": "2026-08-30T08:03:00+02:00",
-  "title": "Daily Report 2026-08-29",
+  "requested_at": "2026-08-31T08:04:00+02:00",
+  "title": "Daily Report 2026-08-30",
   "periods": [
-    {"label":"yesterday","start":"2026-08-29","end":"2026-08-29"},
-    {"label":"last_3_days","start":"2026-08-27","end":"2026-08-29"},
-    {"label":"last_7_days","start":"2026-08-23","end":"2026-08-29"},
-    {"label":"last_14_days","start":"2026-08-16","end":"2026-08-29"},
-    {"label":"last_30_days","start":"2026-07-31","end":"2026-08-29"}
+    {"label":"yesterday","start":"2026-08-30","end":"2026-08-30"},
+    {"label":"last_3_days","start":"2026-08-28","end":"2026-08-30"},
+    {"label":"last_7_days","start":"2026-08-24","end":"2026-08-30"},
+    {"label":"last_14_days","start":"2026-08-17","end":"2026-08-30"},
+    {"label":"last_30_days","start":"2026-08-01","end":"2026-08-30"}
   ]
 }
