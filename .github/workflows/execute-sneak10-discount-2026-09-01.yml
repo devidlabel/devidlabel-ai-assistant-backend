@@ -1,0 +1,84 @@
+name: Execute SNEAK10 Shopify Discount
+
+on:
+  push:
+    branches:
+      - ops/execute-sneak10-discount-2026-09-01
+    paths:
+      - 'ops/sneak10-discount-2026-09-01/execute.json'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  execute:
+    name: Preflight, create and verify SNEAK10
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout execution branch
+        uses: actions/checkout@v4
+
+      - name: Request GitHub OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-sneak10-discount-2026-09-01"
+          response="$(curl --fail --silent --show-error -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url")"
+          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.value)process.exit(2);process.stdout.write(j.value)})')"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for live preflight
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 18); do
+            status="$(curl --silent --show-error \
+              -H "Authorization: Bearer ${OIDC_TOKEN}" \
+              -o /tmp/preflight.json \
+              -w '%{http_code}' \
+              https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneak10-discount-2026-09-01 || true)"
+            echo "Attempt ${attempt}: HTTP ${status}"
+            if [ "$status" = "200" ]; then break; fi
+            sleep 5
+          done
+          cat /tmp/preflight.json
+          test "$status" = "200"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/preflight.json','utf8'));
+          if(d.ok!==true||d.mutation_performed!==false||d.write_discounts!==true) process.exit(2);
+          if(d.code!=="SNEAK10"||!Array.isArray(d.products)||d.products.length!==6) process.exit(3);
+          for(const p of d.products){ if(!p.id||p.fullPrice!==true||!(p.stock>0)) process.exit(4); }
+          NODE
+
+      - name: Create SNEAK10 and verify readback
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"approval":"CREATE SNEAK10 SEP01"}' \
+            -o /tmp/result.json \
+            -w '%{http_code}' \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneak10-discount-2026-09-01)"
+          echo "HTTP_STATUS=${status}"
+          cat /tmp/result.json
+          test "$status" = "200"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/result.json','utf8'));
+          if(d.ok!==true||d.code!=="SNEAK10"||d.code_exists!==true||!d.discount_node_id) process.exit(2);
+          if(d.percentage_off!==10||d.applies_once_per_customer!==true||d.combines_with_other_discounts!==false) process.exit(3);
+          if(!Array.isArray(d.products)||d.products.length!==6) process.exit(4);
+          NODE
