@@ -1,0 +1,58 @@
+{
+  "verified_at": "2026-09-01T16:13:22+02:00",
+  "status": "Scheduled",
+  "campaign": {
+    "id": "01M1EN0CZ9YD890S185EHKP4H5",
+    "message_id": "01M1EN0CZJD5TM3KZFMNWRP5K5",
+    "name": "DL | 2026-09-01 18:30 | Sneakers New Season | -10 SNEAK10 | Click90D Excl AM",
+    "send_at_rome": "2026-09-01T18:30:00+02:00",
+    "subject": "Nuova stagione, nuove sneakers. Per te -10% 👟",
+    "preview": "4B12, Puraai e Flower Mountain: scopri i nuovi modelli Uomo e Donna. Codice SNEAK10.",
+    "smart_sending": false,
+    "tracking_clicks": true,
+    "tracking_opens": true
+  },
+  "audience": {
+    "included": {
+      "id": "REVE8F",
+      "name": "DL | CLICKED EMAIL | 90D | CONSENT"
+    },
+    "excluded_morning_segments": [
+      {
+        "id": "VdLqZ8",
+        "campaign": "DL | 2026-09-01 10:30 | Sneakers Donna | New Season + Last Sale | Click90D"
+      },
+      {
+        "id": "XkHjTb",
+        "campaign": "DL | 2026-09-01 10:45 | Sneakers Uomo | New Season + Last Sale | Click90D"
+      }
+    ],
+    "exclusion_note": "Conservative exclusion: exclude the complete audience segments used by both morning sneaker campaigns. This guarantees exclusion of recipients and also excludes profiles in those morning target segments that Smart Sending may have skipped."
+  },
+  "promotion": {
+    "code": "SNEAK10",
+    "discount_percent": 10,
+    "valid_through": "2026-09-10",
+    "cta_auto_applies_code": true,
+    "shopify_code_creation": "manual_by_user"
+  },
+  "products": {
+    "uomo": [
+      "4B12 — Hyper U-3027 White/Black",
+      "Puraai — Sneaker 1.01 Vintage Eclipse",
+      "Flower Mountain — Sneaker Yamano 3 Man Suede/Nylon Cream-Brown-Taupe"
+    ],
+    "donna": [
+      "4B12 — PlayNew D-2045 White/Bronze",
+      "Puraai — Sneaker 6.01 Xs Ice Skating",
+      "Flower Mountain — Sneaker Yamabushi Woman Suede/Nylon Cognac-Taupe-Pink"
+    ]
+  },
+  "verification": {
+    "preflight": "passed",
+    "campaign_create": "passed",
+    "content_update": "draft_updated",
+    "schedule_job": "passed",
+    "final_readback": "Scheduled"
+  }
+}
