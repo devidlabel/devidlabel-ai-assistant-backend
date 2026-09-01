@@ -1,0 +1,99 @@
+name: Execute Sep 1 Sneakers New Season Klaviyo
+
+on:
+  push:
+    branches:
+      - ops/execute-sneakers-new-season-2026-09-01
+    paths:
+      - 'ops/klaviyo-sneakers-new-season-2026-09-01/execute.json'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  execute:
+    name: Preflight, schedule and verify Klaviyo campaign
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout execution branch
+        uses: actions/checkout@v4
+
+      - name: Request GitHub OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devidlabel-sneakers-new-season-2026-09-01"
+          response="$(curl --fail --silent --show-error -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url")"
+          token="$(printf '%s' "$response" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.value)process.exit(2);process.stdout.write(j.value)})')"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Run live preflight
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneakers-new-season-2026-09-01 \
+            -o /tmp/preflight.json
+          cat /tmp/preflight.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/preflight.json','utf8'));
+          if (data.ok !== true || data.mutation_performed !== false) process.exit(2);
+          if (!data.audience?.included?.id) process.exit(3);
+          if (!Array.isArray(data.audience?.excluded_ids) || data.audience.excluded_ids.length < 1) process.exit(4);
+          for (const gender of ['uomo','donna']) {
+            for (const brand of ['fourb','puraai','flower']) {
+              const p = data.merchandising?.[gender]?.[brand];
+              if (!p?.title || p.full_price !== true || !(p.stock > 0)) process.exit(5);
+            }
+          }
+          NODE
+
+      - name: Execute approved Klaviyo scheduling
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 2 \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"approval":"EXECUTE SNEAKERS NEW SEASON SEP01"}' \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneakers-new-season-2026-09-01 \
+            -o /tmp/result.json
+          cat /tmp/result.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/result.json','utf8'));
+          if (data.ok !== true) process.exit(2);
+          const status = String(data.campaign?.status || '').toLowerCase();
+          if (!(status === 'scheduled' || status.startsWith('queued') || status === 'sent')) process.exit(3);
+          NODE
+
+      - name: Store verified execution receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ops/klaviyo-sneakers-new-season-2026-09-01
+          cp /tmp/preflight.json ops/klaviyo-sneakers-new-season-2026-09-01/preflight.json
+          cp /tmp/result.json ops/klaviyo-sneakers-new-season-2026-09-01/result.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/klaviyo-sneakers-new-season-2026-09-01/preflight.json ops/klaviyo-sneakers-new-season-2026-09-01/result.json
+          if git diff --cached --quiet; then
+            echo "Receipt unchanged"
+          else
+            git commit -m "Record verified Sep 1 sneakers new-season Klaviyo scheduling"
+            git push origin HEAD
+          fi
