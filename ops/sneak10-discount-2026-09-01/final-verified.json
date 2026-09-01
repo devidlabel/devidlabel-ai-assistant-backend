@@ -1,0 +1,28 @@
+{
+  "verified_at": "2026-09-01T16:52:10+02:00",
+  "status": "created",
+  "code": "SNEAK10",
+  "discount_node_id": "gid://shopify/DiscountCodeNode/1828581736789",
+  "percentage_off": 10,
+  "starts_at_rome": "2026-09-01T16:45:00+02:00",
+  "ends_at_rome": "2026-09-10T23:59:59+02:00",
+  "applies_once_per_customer": true,
+  "combines_with_other_discounts": false,
+  "scope": "Only the six full-price, in-stock sneakers featured in the Sep 1 Klaviyo campaign",
+  "products": [
+    "4B12 — Hyper U-3027 White/Black",
+    "Puraai — Sneaker 1.01 Vintage Eclipse",
+    "Flower Mountain — Sneaker Yamano 3 Man Suede/Nylon Cream-Brown-Taupe",
+    "4B12 — PlayNew D-2045 White/Bronze",
+    "Puraai — Sneaker 6.01 Xs Ice Skating",
+    "Flower Mountain — Sneaker Yamabushi Woman Suede/Nylon Cognac-Taupe-Pink"
+  ],
+  "verification": {
+    "write_discounts_scope": true,
+    "preflight": "passed",
+    "all_products_full_price": true,
+    "all_products_in_stock": true,
+    "shopify_create": "passed",
+    "readback_code_exists": true
+  }
+}
