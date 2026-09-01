@@ -1,0 +1,10 @@
+{
+  "requested_at": "2026-09-01T16:52:00+02:00",
+  "approval": "CREATE SNEAK10 SEP01",
+  "code": "SNEAK10",
+  "discount_percent": 10,
+  "valid_through": "2026-09-10T23:59:59+02:00",
+  "scope": "Only the six full-price, in-stock New Season sneakers featured in the Sep 1 Klaviyo campaign: 4B12, Puraai and Flower Mountain, Uomo and Donna.",
+  "applies_once_per_customer": true,
+  "combines_with_other_discounts": false
+}
