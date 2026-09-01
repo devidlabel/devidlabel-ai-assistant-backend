@@ -39,12 +39,14 @@ jobs:
           OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 2 \
+          status="$(curl --silent --show-error \
             -H "Authorization: Bearer ${OIDC_TOKEN}" \
-            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneakers-new-season-2026-09-01 \
-            -o /tmp/preflight.json
+            -o /tmp/preflight.json \
+            -w '%{http_code}' \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneakers-new-season-2026-09-01)"
+          echo "HTTP_STATUS=${status}"
           cat /tmp/preflight.json
+          test "$status" = "200"
           node - <<'NODE'
           const fs = require('node:fs');
           const data = JSON.parse(fs.readFileSync('/tmp/preflight.json','utf8'));
@@ -65,14 +67,16 @@ jobs:
           OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
-            --retry 2 --retry-delay 2 \
+          status="$(curl --silent --show-error \
             -H "Authorization: Bearer ${OIDC_TOKEN}" \
             -H "Content-Type: application/json" \
             --data '{"approval":"EXECUTE SNEAKERS NEW SEASON SEP01"}' \
-            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneakers-new-season-2026-09-01 \
-            -o /tmp/result.json
+            -o /tmp/result.json \
+            -w '%{http_code}' \
+            https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/ops/sneakers-new-season-2026-09-01)"
+          echo "HTTP_STATUS=${status}"
           cat /tmp/result.json
+          test "$status" = "200"
           node - <<'NODE'
           const fs = require('node:fs');
           const data = JSON.parse(fs.readFileSync('/tmp/result.json','utf8'));
