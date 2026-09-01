@@ -9,6 +9,7 @@ on:
       - 'src/daily-pulse-organic.ts'
       - 'src/tiktok-reporting.ts'
       - 'src/youtube-reporting.ts'
+      - 'ops/daily-pulse/request.json'
   schedule:
     # Redundant pre-report retries. GitHub scheduled runs can be delayed,
     # so we start early and retry every 15 minutes across the CET/CEST window.
