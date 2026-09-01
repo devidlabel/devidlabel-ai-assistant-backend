@@ -15,6 +15,7 @@ import { handleSpraygroundLiveCatalogRequest } from "./sprayground-live-catalog"
 import { handleSpraygroundPeak240826 } from "./klaviyo-sprayground-peak-240826";
 import { handleKlaviyoCommerceMetricProbeRequest } from "./klaviyo-commerce-metric-probe";
 import { handleSneakersBtw250826 } from "./klaviyo-sneakers-btw-250826";
+import { handleSneakersNewSeason010926 } from "./klaviyo-sneakers-new-season-010926";
 import { handleGoogleAdsProductAuditRequest } from "./google-ads-product-audit";
 
 export { MarePlanCoordinator, MareAutonomyRunner };
@@ -62,6 +63,9 @@ export default {
 
     const sneakersBtwResponse = await handleSneakersBtw250826(request, env as any);
     if (sneakersBtwResponse) return sneakersBtwResponse;
+
+    const sneakersNewSeasonResponse = await handleSneakersNewSeason010926(request, env as any);
+    if (sneakersNewSeasonResponse) return sneakersNewSeasonResponse;
 
     const klaviyoCampaignInventoryResponse = await handleKlaviyoCampaignInventoryRequest(request, env as any);
     if (klaviyoCampaignInventoryResponse) return klaviyoCampaignInventoryResponse;
