@@ -1,11 +1,11 @@
 {
-  "requested_at": "2026-09-01T09:36:00+02:00",
-  "title": "Daily Report 2026-08-31 MER Focus",
+  "requested_at": "2026-09-05T08:05:00+02:00",
+  "title": "Daily Report 2026-09-04 MER and 3-7-14-30D comparison",
   "periods": [
-    {"label":"yesterday","start":"2026-08-31","end":"2026-08-31"},
-    {"label":"last_3_days","start":"2026-08-29","end":"2026-08-31"},
-    {"label":"last_7_days","start":"2026-08-25","end":"2026-08-31"},
-    {"label":"last_14_days","start":"2026-08-18","end":"2026-08-31"},
-    {"label":"last_30_days","start":"2026-08-02","end":"2026-08-31"}
+    {"label":"yesterday","start":"2026-09-04","end":"2026-09-04"},
+    {"label":"last_3_days","start":"2026-09-02","end":"2026-09-04"},
+    {"label":"last_7_days","start":"2026-08-29","end":"2026-09-04"},
+    {"label":"last_14_days","start":"2026-08-22","end":"2026-09-04"},
+    {"label":"last_30_days","start":"2026-08-06","end":"2026-09-04"}
   ]
 }
