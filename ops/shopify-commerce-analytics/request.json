@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-09-05T07:33:00+02:00",
-  "reason": "Force fresh Shopify Commerce Analytics for Daily Business Report 2026-09-05 covering yesterday 2026-09-04 Europe/Rome"
+  "requested_at": "2026-09-05T08:03:00+02:00",
+  "reason": "Recovery refresh for Daily Business Report 2026-09-05: Shopify bundle incomplete; require yesterday 2026-09-04 and 3/7/14/30D Europe/Rome"
 }
