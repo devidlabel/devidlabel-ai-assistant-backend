@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-09-16T07:32:00+02:00",
-  "reason": "Daily report preflight refresh for 2026-09-15"
+  "requested_at": "2026-09-16T07:58:00+02:00",
+  "reason": "Daily report recovery: latest run 35059894271 covers 2026-09-15 but bundle complete=false; refresh required"
 }
