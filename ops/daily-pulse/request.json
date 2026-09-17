@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-09-16T07:59:00+02:00",
-  "reason": "Daily report recovery refresh for 2026-09-15; verify all sources and latest windows"
+  "requested_at": "2026-09-17T07:30:00+02:00",
+  "reason": "Daily Report Preflight: force fresh Daily Pulse for 2026-09-16; previous pointer generated 2026-09-16"
 }
