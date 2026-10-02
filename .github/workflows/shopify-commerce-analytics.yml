@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
   schedule:
     # Redundant pre-report retries. GitHub scheduled runs can be delayed,
-    # so we start early and retry every 15 minutes across the CET/CEST window.
+    # so we finish before the 08:00 Europe/Rome report and retry every 15 minutes across the CET/CEST window.
     # The freshness guard makes these runs idempotent after the first success.
-    - cron: '0,15,30,45 4,5,6 * * *'
+    - cron: '0,15,30,45 3,4,5 * * *'
 
 concurrency:
   group: shopify-commerce-analytics-daily
