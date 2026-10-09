@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-10-09T17:10:28.674Z",
+  "read_only": true,
+  "http_status": 502,
+  "report_ok": false,
+  "reason": "report_read_failed",
+  "sections": [
+    {
+      "label": "channel",
+      "ok": false,
+      "reason": "provider_read_failed"
+    },
+    {
+      "label": "summary",
+      "ok": false,
+      "reason": "provider_read_failed"
+    },
+    {
+      "label": "videos",
+      "ok": false,
+      "reason": "provider_read_failed"
+    },
+    {
+      "label": "traffic_sources",
+      "ok": false,
+      "reason": "provider_read_failed"
+    },
+    {
+      "label": "search_terms",
+      "ok": false,
+      "reason": "provider_read_failed"
+    }
+  ],
+  "raw_secret_values_exposed": false
+}
