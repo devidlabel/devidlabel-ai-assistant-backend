@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-09T17:15:08.119Z",
+  "generated_at": "2026-10-09T17:16:56.204Z",
   "read_only": true,
   "http_status": 502,
   "report_ok": false,
@@ -8,27 +8,27 @@
     {
       "label": "channel",
       "ok": false,
-      "reason": "provider_read_failed"
+      "reason": "oauth_token_expired_or_revoked"
     },
     {
       "label": "summary",
       "ok": false,
-      "reason": "provider_read_failed"
+      "reason": "oauth_token_expired_or_revoked"
     },
     {
       "label": "videos",
       "ok": false,
-      "reason": "provider_read_failed"
+      "reason": "oauth_token_expired_or_revoked"
     },
     {
       "label": "traffic_sources",
       "ok": false,
-      "reason": "provider_read_failed"
+      "reason": "oauth_token_expired_or_revoked"
     },
     {
       "label": "search_terms",
       "ok": false,
-      "reason": "provider_read_failed"
+      "reason": "oauth_token_expired_or_revoked"
     }
   ],
   "raw_secret_values_exposed": false
