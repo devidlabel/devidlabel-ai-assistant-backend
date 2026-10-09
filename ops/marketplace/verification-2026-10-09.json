@@ -1,0 +1,129 @@
+{
+  "recorded_at": "2026-10-09T17:18:11.741Z",
+  "first_full_scan": {
+    "mode": "shadow",
+    "enabled": true,
+    "ready_for_marketplace_writes": false,
+    "healthy": true,
+    "stock_fresh": true,
+    "scan_in_progress": false,
+    "progress": null,
+    "last_completed_at": 1791565050090,
+    "oldest_observation_at": 1791564339398,
+    "last_page_at": 1791565050090,
+    "next_attempt_at": 1791566139398,
+    "failures": 0,
+    "last_error": null,
+    "products": 3994,
+    "variants": 10250,
+    "related_data_complete": true,
+    "blockers": [
+      "shadow_only",
+      "marketplace_orders_not_read",
+      "gpsr_not_mapped",
+      "marketplace_adapters_not_enabled",
+      "writer_is_channable"
+    ],
+    "ok": true
+  },
+  "duration_seconds": 711,
+  "second_scan_observed": {
+    "mode": "shadow",
+    "enabled": true,
+    "ready_for_marketplace_writes": false,
+    "healthy": true,
+    "stock_fresh": true,
+    "scan_in_progress": true,
+    "progress": {
+      "started_at": 1791566139399,
+      "pages": 16,
+      "products": 320,
+      "variants": 1177
+    },
+    "last_completed_at": 1791565050090,
+    "oldest_observation_at": 1791564339398,
+    "last_page_at": 1791566195575,
+    "next_attempt_at": 1791566197575,
+    "failures": 0,
+    "last_error": null,
+    "products": 3994,
+    "variants": 10250,
+    "related_data_complete": true,
+    "blockers": [
+      "shadow_only",
+      "marketplace_orders_not_read",
+      "gpsr_not_mapped",
+      "marketplace_adapters_not_enabled",
+      "writer_is_channable"
+    ],
+    "ok": true
+  },
+  "start_interval_seconds": 1800,
+  "two_complete_scans_verified": false,
+  "marketplace_publication_ready": false,
+  "youtube": {
+    "oauth_error": "invalid_grant",
+    "oauth_http_status": 400,
+    "report_http_status": 502,
+    "confirmed_by": "live_mare_read_and_sanitized_post_deploy_diagnosis",
+    "verification": {
+      "generated_at": "2026-10-09T17:16:56.204Z",
+      "read_only": true,
+      "http_status": 502,
+      "report_ok": false,
+      "reason": "report_read_failed",
+      "sections": [
+        {
+          "label": "channel",
+          "ok": false,
+          "reason": "oauth_token_expired_or_revoked"
+        },
+        {
+          "label": "summary",
+          "ok": false,
+          "reason": "oauth_token_expired_or_revoked"
+        },
+        {
+          "label": "videos",
+          "ok": false,
+          "reason": "oauth_token_expired_or_revoked"
+        },
+        {
+          "label": "traffic_sources",
+          "ok": false,
+          "reason": "oauth_token_expired_or_revoked"
+        },
+        {
+          "label": "search_terms",
+          "ok": false,
+          "reason": "oauth_token_expired_or_revoked"
+        }
+      ],
+      "raw_secret_values_exposed": false
+    }
+  },
+  "worker_version": "2a3884f8-d0fd-46cd-90fe-ede67ab7cb5e",
+  "deploy_receipt": {
+    "ok": false,
+    "generated_at": "2026-10-09T17:16:43.864Z",
+    "source_commit": "28ca20ad1a72a6470cc1a02feb4383486a060e43",
+    "workflow_run_id": 37964916678,
+    "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
+    "verification": {
+      "worker_deployed": "success",
+      "autonomy_discovery": "success",
+      "live_order_probe": "success",
+      "shopify_historical_orders": "success",
+      "youtube_read_only": "failure"
+    },
+    "shopify_existing_metafield_autonomy": true,
+    "shopify_missing_season_autonomy": true,
+    "autonomy_capabilities": [
+      "klaviyo.campaign.draft.create",
+      "klaviyo.campaign.draft.update",
+      "github.pull_request.create",
+      "shopify.metafields.update_existing",
+      "shopify.product.season.assign_missing"
+    ]
+  }
+}
