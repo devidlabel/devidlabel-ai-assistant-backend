@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-10-09T16:14:10.531Z",
+  "read_only": true,
+  "workers_plan": "unverified",
+  "reason": "billing_read_permission_unavailable",
+  "http_status": 403,
+  "can_enable_full_catalog_scans": false,
+  "raw_secret_values_exposed": false
+}
