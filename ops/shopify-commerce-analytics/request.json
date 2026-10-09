@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-10-08T08:12:42+02:00",
-  "reason": "Daily Report Watchdog recovery for yesterday 2026-10-07; Shopify analytics stale"
+  "requested_at": "2026-10-09T07:00:00+02:00",
+  "reason": "Daily Business Report preflight refresh for yesterday 2026-10-08; validate yesterday/3D/7D and prepare targeted fallbacks"
 }
