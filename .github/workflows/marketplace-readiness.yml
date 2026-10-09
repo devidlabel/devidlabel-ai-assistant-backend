@@ -1,0 +1,56 @@
+name: Marketplace Cloudflare readiness (read only)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/marketplace-readiness.yml"
+      - "integrations/marketplace/*cloudflare-readiness.mjs"
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/marketplace-readiness.yml'
+      - 'ops/marketplace/readiness-request.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: marketplace-readiness
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test safe plan classification
+        run: node integrations/marketplace/test-cloudflare-readiness.mjs
+      - name: Inspect existing Cloudflare account access
+        if: github.event_name != 'pull_request'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          mkdir -p /tmp/marketplace-readiness
+          node integrations/marketplace/cloudflare-readiness.mjs /tmp/marketplace-readiness/readiness.json
+      - name: Save sanitized readiness evidence
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git reset --hard origin/main
+          mkdir -p ops/marketplace
+          cp /tmp/marketplace-readiness/readiness.json ops/marketplace/readiness-latest.json
+          git add ops/marketplace/readiness-latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record read-only marketplace Cloudflare readiness'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
