@@ -1,0 +1,11 @@
+{
+  "observed_at": "2026-10-09T16:31:25Z",
+  "source": "owner_attached_cloudflare_checkout_confirmation",
+  "workers_plan": "paid",
+  "subscription_active": true,
+  "base_price_usd_per_month": 5,
+  "verification": "manual_screenshot",
+  "billing_api_verification": "unavailable_403_missing_permission",
+  "scope": "read_only_shadow_activation",
+  "marketplace_writes_enabled": false
+}

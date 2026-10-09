@@ -146,12 +146,14 @@ restano riferimenti di sviluppo; non sono il percorso di installazione operativo
 Shopify esistenti. Non serve una nuova app Shopify né copiare token in chat.
 Il runner `MareMarketplaceShadow` usa un nuovo Durable Object con backend SQLite,
 isolato dallo stato della chat. La chiusura della chat non influenza cron/allarmi
-DOPO il deploy e l'abilitazione. Questi passaggi non sono stati eseguiti.
+DOPO il deploy e l'abilitazione. Il primo deploy è verificato; l'abilitazione
+è proposta nel rilascio successivo e deve essere verificata sullo stato live.
 
 Configurazione in `wrangler.toml`:
 
-- `MARE_MARKETPLACE_SHADOW_ENABLED="false"`: nessuna scansione automatica al primo
-  deploy. Abilitare solo dopo controllo runtime e accessi.
+- `MARE_MARKETPLACE_SHADOW_ENABLED="true"`: abilita esclusivamente scansioni in
+  lettura nel rilascio proposto dopo conferma Workers Paid. Il primo deploy
+  usava false; la configurazione proposta non dimostra ancora attività live.
 - binding `MARE_MARKETPLACE_SHADOW`, classe `MareMarketplaceShadow`, migrazione
   `v3_mare_marketplace_shadow`; preservare le due migrazioni esistenti.
 - cron `*/5 * * * *` UTC: watchdog che ripristina l'allarme, non una scansione
@@ -190,7 +192,7 @@ false. Non usare la sola risposta HTTP 200 come prova di salute.
 Il limite orario è un obiettivo da misurare, non una garanzia già verificata:
 scansioni avviate ogni 30 minuti devono terminare entro 30 minuti sotto carico;
 allarmi/cron possono ritardare. Al superamento dell'ora il sistema dichiara stock
-non fresco. Nessuna pubblicazione si basa su dati vecchi. Prima dell'attivazione:
+non fresco. Nessuna pubblicazione si basa su dati vecchi. Prima dell'attivazione delle scritture marketplace:
 monitor indipendente con bearer server-side e allarme su healthy=false/heartbeat,
 misura latenza Shopify/ordini, test di recupero in produzione e durata di almeno
 due scansioni complete. Monitor/allarmi esterni, webhook, ledger ordini Cloudflare,
@@ -285,3 +287,24 @@ npx wrangler deploy --dry-run
 ```
 
 Nessuna modifica di ordini, offerte, tracking, credenziali o Channable.
+
+### Abilitazione shadow del 9 ottobre 2026
+
+La schermata del proprietario delle 18:31 (Europe/Rome) mostra Purchase complete,
+subscription active e Workers Paid Plan a 5 USD/mese. La prova manuale è registrata
+in `ops/marketplace/plan-evidence.json`. La diagnosi API precedente resta 403
+per permesso billing read assente: non viene riscritta come conferma API positiva.
+
+Il rilascio propone flag true e la capability autenticata read-only
+`marketplace.shadow.status`, tramite `mare_read` con richiesta vuota. Espone
+progress (inizio, pagine, prodotti, varianti), ultimo snapshot, errori e freschezza;
+non avvia scansioni e non espone segreti o catalogo. I deploy vengono serializzati
+con concurrency cloudflare-production e cancel-in-progress false.
+
+Verifica locale: typecheck, 16 test di recupero, reader/cursori, workerd con SQLite
+e riavvio persistente, contratti MARE e dry-run Wrangler riusciti. La versione
+precedente verificata è ec15e867-c930-49ab-b2a4-17a2092aeb8d. Dopo il deploy occorre
+verificare enabled=true e last_page_at/progress in aumento; una scansione completa
+e la frequenza oraria richiedono misurazioni live ulteriori. ready_for_marketplace_writes
+resta false. Il controllo YouTube 502 della pipeline precedente è ancora irrisolto;
+controllare ricevuta di deploy e stato live anche se il gate finale fallisce.

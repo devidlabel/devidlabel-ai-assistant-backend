@@ -47,7 +47,7 @@ function harness(reader) {
     readShopifyCatalogComplete: async (args, env) => { calls.push(args); return reader(args, env); },
   };
   vm.createContext(ctx);
-  vm.runInContext(js + ';globalThis.api={MareMarketplaceShadow,shadowHealth,handleMarketplaceShadowStatus,scheduleMarketplaceShadow};', ctx);
+  vm.runInContext(js + ';globalThis.api={MareMarketplaceShadow,shadowHealth,handleMarketplaceShadowStatus,readMarketplaceShadowStatus,scheduleMarketplaceShadow};', ctx);
   let runner = new ctx.api.MareMarketplaceShadow({ storage: store }, env);
   return {
     env, calls, api: ctx.api, get runner() { return runner; },
@@ -148,5 +148,20 @@ await test('status requires bearer and a missing binding returns unavailable', a
 });
 await test('watchdog fails observably for a missing binding', async () => {
   const h = harness(() => page()); await assert.rejects(h.api.scheduleMarketplaceShadow(h.env), /binding_missing/);
+});
+await test('status helper reads progress without scheduling a scan', async () => {
+  const h = harness(() => page('p1','next',true));
+  h.env.MARE_MARKETPLACE_SHADOW = {idFromName:n=>n,get:()=>({fetch:r=>h.runner.fetch(r)})};
+  const initial = await h.api.readMarketplaceShadowStatus(h.env);
+  assert.equal(initial.ok,true); assert.equal(initial.progress,null); assert.equal(h.calls.length,0);
+  await h.tick(); h.due(); await h.runner.alarm();
+  const running = await h.api.readMarketplaceShadowStatus(h.env);
+  assert.equal(running.progress.pages,1); assert.equal(running.progress.products,1);
+  assert.equal(running.ready_for_marketplace_writes,false); assert.equal(h.calls.length,1);
+});
+await test('read status with no binding reports unavailable', async () => {
+  const h = harness(() => page());
+  const result = await h.api.readMarketplaceShadowStatus(h.env);
+  assert.equal(result.ok,false); assert.equal(result.error,'binding_missing');
 });
 console.log(`${count} marketplace shadow recovery checks passed`);
