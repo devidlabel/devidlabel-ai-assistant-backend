@@ -113,7 +113,11 @@ async function exchangeToken(body: URLSearchParams): Promise<GoogleTokenResponse
   let payload: GoogleTokenResponse = {};
   try { payload = await response.json() as GoogleTokenResponse; } catch { payload = {}; }
   if (!response.ok || !normalize(payload.access_token)) {
-    throw new Error(normalize(payload.error_description) || normalize(payload.error) || `youtube_oauth_token_http_${response.status}`);
+    // Preserve the provider code: error_description may only say "Bad Request".
+    // Never forward raw descriptions, tokens or arbitrary provider payloads.
+    const allowed = ["invalid_grant", "invalid_client", "unauthorized_client", "invalid_request", "unsupported_grant_type", "temporarily_unavailable"];
+    const code = allowed.includes(normalize(payload.error)) ? normalize(payload.error) : "token_exchange_failed";
+    throw new Error(`youtube_oauth_${code}:http_${response.status}`);
   }
   return payload;
 }
@@ -378,3 +382,4 @@ export async function readYouTubeSearchTerms(input: JsonObject, env: MareBusines
   }, env);
   return { ok: true, provider: "youtube", range, search_terms: rows, video_count: videoIds.length, retrieved_at: new Date().toISOString() };
 }
+

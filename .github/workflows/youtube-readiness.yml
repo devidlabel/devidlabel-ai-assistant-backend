@@ -2,6 +2,9 @@ name: YouTube read-only diagnosis
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy Cloudflare Worker']
+    types: [completed]
   pull_request:
     branches: [main]
     paths:
@@ -22,6 +25,7 @@ concurrency:
 
 jobs:
   inspect:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
