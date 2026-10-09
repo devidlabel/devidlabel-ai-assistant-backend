@@ -114,6 +114,9 @@ jobs:
       - name: Test MARE Business OS unified foundation
         run: npm run test:mare-business-mcp
 
+      - name: Test YouTube OAuth error diagnostics
+        run: node scripts/test-youtube-oauth.mjs
+
       - name: Build Worker bundle without deployment
         run: npx wrangler deploy --dry-run
 
