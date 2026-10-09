@@ -1,0 +1,81 @@
+{
+  "recorded_at": "2026-10-09T16:47:31.647Z",
+  "release_pr": 155,
+  "source_commit": "84e3b384a2cd9ffa7c45961cc487a72fdb9b083d",
+  "worker_version": "dba7f976-fbf2-4518-9480-d94c6754517d",
+  "workflow_run_id": 37960978078,
+  "deploy_receipt": {
+    "ok": false,
+    "generated_at": "2026-10-09T16:43:16.776Z",
+    "source_commit": "84e3b384a2cd9ffa7c45961cc487a72fdb9b083d",
+    "workflow_run_id": 37960978078,
+    "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
+    "verification": {
+      "worker_deployed": "success",
+      "autonomy_discovery": "success",
+      "live_order_probe": "success",
+      "shopify_historical_orders": "success",
+      "youtube_read_only": "failure"
+    },
+    "shopify_existing_metafield_autonomy": true,
+    "shopify_missing_season_autonomy": true,
+    "autonomy_capabilities": [
+      "klaviyo.campaign.draft.create",
+      "klaviyo.campaign.draft.update",
+      "github.pull_request.create",
+      "shopify.metafields.update_existing",
+      "shopify.product.season.assign_missing"
+    ]
+  },
+  "workers_paid_evidence": "ops/marketplace/plan-evidence.json",
+  "autonomous_start_verified": true,
+  "progress_observations": [
+    {
+      "pages": 16,
+      "products": 320,
+      "variants": 1177,
+      "last_page_at": 1791564394117
+    },
+    {
+      "pages": 22,
+      "products": 440,
+      "variants": 1566,
+      "last_page_at": 1791564415219
+    }
+  ],
+  "live_status": {
+    "mode": "shadow",
+    "enabled": true,
+    "ready_for_marketplace_writes": false,
+    "healthy": false,
+    "stock_fresh": false,
+    "scan_in_progress": true,
+    "progress": {
+      "started_at": 1791564339398,
+      "pages": 22,
+      "products": 440,
+      "variants": 1566
+    },
+    "last_completed_at": null,
+    "oldest_observation_at": null,
+    "last_page_at": 1791564415219,
+    "next_attempt_at": 1791564417219,
+    "failures": 0,
+    "last_error": null,
+    "products": 0,
+    "variants": 0,
+    "related_data_complete": false,
+    "blockers": [
+      "shadow_only",
+      "marketplace_orders_not_read",
+      "gpsr_not_mapped",
+      "marketplace_adapters_not_enabled",
+      "writer_is_channable"
+    ],
+    "ok": true
+  },
+  "full_scan_verified": false,
+  "hourly_freshness_verified": false,
+  "marketplace_writes_enabled": false,
+  "existing_orders_modified": false
+}
