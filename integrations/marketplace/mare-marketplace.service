@@ -1,0 +1,24 @@
+[Unit]
+Description=MARE marketplace read-only reconciliation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mare-marketplace
+Group=mare-marketplace
+WorkingDirectory=/opt/mare/integrations/marketplace
+EnvironmentFile=/etc/mare/marketplace.env
+ExecStart=/usr/bin/python3 /opt/mare/integrations/marketplace/service.py --database /var/lib/mare-marketplace/ledger.sqlite
+Restart=on-failure
+RestartSec=15
+StateDirectory=mare-marketplace
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mare-marketplace
+
+[Install]
+WantedBy=multi-user.target
