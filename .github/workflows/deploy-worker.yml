@@ -42,7 +42,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
@@ -52,6 +52,12 @@ jobs:
 
       - name: Test conversation task router
         run: npm run test:conversation-router
+
+      - name: Test marketplace shadow recovery and catalog pagination
+        run: npm run test:marketplace-shadow
+
+      - name: Test marketplace Durable Object in local workerd
+        run: npm run test:marketplace-runtime
 
       - name: Test immediate marketplace routing
         run: npm run test:marketplace-routing
@@ -103,6 +109,9 @@ jobs:
 
       - name: Test MARE Business OS unified foundation
         run: npm run test:mare-business-mcp
+
+      - name: Build Worker bundle without deployment
+        run: npx wrangler deploy --dry-run
 
       - name: Probe current live order flow
         if: github.event_name == 'pull_request'
@@ -328,3 +337,4 @@ jobs:
           console.log(JSON.stringify(outcomes, null, 2));
           if (!Object.values(outcomes).every(value => value === 'success')) process.exit(1);
           NODE
+
