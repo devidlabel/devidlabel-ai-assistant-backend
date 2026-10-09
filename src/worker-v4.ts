@@ -1,3 +1,4 @@
+import { MareMarketplaceShadow, handleMarketplaceShadowStatus, scheduleMarketplaceShadow } from "./marketplace-shadow";
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { handleMareAutonomyMcpRequest, MareAutonomyRunner } from "./mare-autonomy-runner";
 import { handleGitHubAutonomyBridgeRequest } from "./mare-github-autonomy-bridge";
@@ -19,7 +20,7 @@ import { handleSneakersNewSeason010926 } from "./klaviyo-sneakers-new-season-010
 import { handleSneak10Discount010926 } from "./shopify-sneak10-once-010926";
 import { handleGoogleAdsProductAuditRequest } from "./google-ads-product-audit";
 
-export { MarePlanCoordinator, MareAutonomyRunner };
+export { MarePlanCoordinator, MareAutonomyRunner, MareMarketplaceShadow };
 
 type WorkerEnv = Parameters<typeof workerV3.fetch>[1];
 type WorkerExecutionContext = Parameters<typeof workerV3.fetch>[2];
@@ -37,7 +38,13 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 export default {
+  async scheduled(_controller: unknown, env: WorkerEnv): Promise<void> {
+    await scheduleMarketplaceShadow(env as any);
+  },
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const shadowStatus = await handleMarketplaceShadowStatus(request, env as any);
+    if (shadowStatus) return shadowStatus;
+
     const klaviyoCrmResponse = await handleMareKlaviyoCrmMcpRequest(request, env as any);
     if (klaviyoCrmResponse) return klaviyoCrmResponse;
 
@@ -119,3 +126,4 @@ export default {
     return workerV3.fetch(request, env, context);
   },
 };
+

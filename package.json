@@ -32,9 +32,13 @@
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
     "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
-    "probe:live-orders": "node scripts/probe-live-order-chat.mjs"
+    "probe:live-orders": "node scripts/probe-live-order-chat.mjs",
+    "test:marketplace-shadow": "node scripts/test-marketplace-shadow.mjs && node scripts/test-marketplace-catalog-resume.mjs",
+    "test:marketplace-runtime": "node scripts/test-marketplace-shadow-runtime.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.25.12",
+    "miniflare": "4.20260730.0",
     "typescript": "^5.8.3",
     "wrangler": "^4.20.5"
   }

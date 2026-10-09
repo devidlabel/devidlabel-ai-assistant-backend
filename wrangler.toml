@@ -2,6 +2,7 @@ name = "devidlabel-ai-assistant-backend"
 main = "src/worker-v4.ts"
 compatibility_date = "2026-06-25"
 [vars]
+MARE_MARKETPLACE_SHADOW_ENABLED = "false"
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
@@ -44,3 +45,20 @@ new_sqlite_classes = ["MarePlanCoordinator"]
 [[migrations]]
 tag = "v2_mare_autonomy_runner"
 new_sqlite_classes = ["MareAutonomyRunner"]
+
+
+# Watchdog only; the durable alarm performs resumable pages. Disabled by the flag above.
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[durable_objects.bindings]]
+name = "MARE_MARKETPLACE_SHADOW"
+class_name = "MareMarketplaceShadow"
+
+[[migrations]]
+tag = "v3_mare_marketplace_shadow"
+new_sqlite_classes = ["MareMarketplaceShadow"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1

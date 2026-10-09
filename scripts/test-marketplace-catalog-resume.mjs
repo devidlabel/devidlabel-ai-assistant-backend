@@ -19,6 +19,8 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(js+';globalThis.readCatalog=readShopifyCatalogComplete;',context);
+let artifacts = 0;
+context.storeBusinessArtifact = async (_env, artifact) => { artifacts++; return {...artifact,artifact_id:"mock",bytes:1,expires_at:"later"}; };
 const result = await context.readCatalog({after:'resume',max_products:1,include_csv:false},{});
 assert.equal(calls[0].variables.after,'resume');
 assert.equal(result.next_cursor,'next');
@@ -38,3 +40,18 @@ const unknown = await context.readCatalog({max_products:1,include_csv:false},{})
 assert.equal(unknown.complete_related_pagination,false);
 assert.equal(unknown.products[0].variants[0].inventory_levels_complete,false);
 console.log('PASS: cursor resume, truncation, complete related data, incomplete inventory, unknown pagination');
+
+
+queue = [{products:{pageInfo:{hasNextPage:false,endCursor:null},nodes:[]}}];
+const before = artifacts;
+const shadow = await context.readCatalog({max_products:1,include_csv:false,persist_artifacts:false,stable_order:true},{});
+assert.equal(artifacts,before);
+assert.equal(shadow.artifacts.json,null);
+assert.ok(calls.at(-1).query.includes("sortKey: ID, reverse: false"));
+console.log("PASS: stable ID order and no temporary artifacts in shadow scans");
+
+queue = [{products:{pageInfo:{hasNextPage:true,endCursor:null},nodes:[]}}];
+await assert.rejects(context.readCatalog({max_products:1,include_csv:false,persist_artifacts:false},{}), /catalog_cursor_invalid/);
+queue = [{products:{pageInfo:{hasNextPage:false,endCursor:null},nodes:[{id:"p4",variants:{nodes:[],pageInfo:{hasNextPage:true,endCursor:null}}}]}}];
+await assert.rejects(context.readCatalog({max_products:1,include_csv:false,persist_artifacts:false},{}), /variant_cursor_missing/);
+console.log("PASS: missing cursors fail visibly instead of claiming complete data");

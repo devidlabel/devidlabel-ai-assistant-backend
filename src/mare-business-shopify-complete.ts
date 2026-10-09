@@ -29,7 +29,7 @@ const MAX_PRODUCTS = 2500;
 const PRODUCT_PAGE_SIZE = 3;
 const VARIANT_PAGE_SIZE = 20;
 
-const PRODUCT_QUERY = `
+export const PRODUCT_QUERY = `
   query MareBusinessCatalogComplete($first: Int!, $after: String, $query: String) {
     products(first: $first, after: $after, query: $query, sortKey: UPDATED_AT, reverse: true) {
       pageInfo { hasNextPage endCursor }
@@ -92,7 +92,7 @@ const PRODUCT_QUERY = `
   }
 `;
 
-const VARIANT_PAGE_QUERY = `
+export const VARIANT_PAGE_QUERY = `
   query MareBusinessCatalogVariants($id: ID!, $first: Int!, $after: String) {
     product(id: $id) {
       variants(first: $first, after: $after) {
@@ -112,6 +112,7 @@ const VARIANT_PAGE_QUERY = `
             tracked
             unitCost { amount currencyCode }
             inventoryLevels(first: 10) {
+              pageInfo { hasNextPage endCursor }
               nodes {
                 id
                 location { id name }
@@ -155,7 +156,8 @@ function mapProduct(raw: ProductNode, completeVariants: VariantNode[]): JsonObje
 async function loadAllVariants(product: ProductNode, env: MareBusinessShopifyEnv): Promise<VariantNode[]> {
   const initial = (product.variants?.nodes || []) as VariantNode[]; const result = [...initial];
   let hasNextPage = Boolean(product.variants?.pageInfo?.hasNextPage); let after = normalize(product.variants?.pageInfo?.endCursor) || null; const productId = normalize(product.id); if (!productId) return result;
-  while (hasNextPage && after) { const data: VariantPageData = await shopifyGraphQL<VariantPageData>(env, VARIANT_PAGE_QUERY, { id: productId, first: VARIANT_PAGE_SIZE, after }); const connection = data.product?.variants; result.push(...(connection?.nodes || [])); hasNextPage = Boolean(connection?.pageInfo?.hasNextPage); after = normalize(connection?.pageInfo?.endCursor) || null; }
+  if (hasNextPage && !after) throw new Error("variant_cursor_missing");
+  while (hasNextPage && after) { const previousCursor = after; const data: VariantPageData = await shopifyGraphQL<VariantPageData>(env, VARIANT_PAGE_QUERY, { id: productId, first: VARIANT_PAGE_SIZE, after }); const connection = data.product?.variants; if (!connection || typeof connection.pageInfo?.hasNextPage !== "boolean" || !Array.isArray(connection.nodes)) throw new Error("variant_page_incomplete"); result.push(...(connection?.nodes || [])); hasNextPage = Boolean(connection?.pageInfo?.hasNextPage); after = normalize(connection?.pageInfo?.endCursor) || null; if (hasNextPage && (!after || after === previousCursor)) throw new Error("variant_cursor_invalid"); }
   return result;
 }
 
@@ -168,12 +170,13 @@ function buildCatalogCsv(products: JsonObject[]): string {
 
 export async function readShopifyCatalogComplete(args: JsonObject, env: MareBusinessShopifyEnv): Promise<JsonObject> {
   const query = normalize(args.query); const maxProducts = integer(args.max_products,1000,1,MAX_PRODUCTS); const inlineLimit = integer(args.inline_limit,25,0,100); const includeCsv = bool(args.include_csv,true); let after: string|null=normalize(args.after)||null; let hasNextPage=true; const products:JsonObject[]=[]; let paginatedVariantProducts=0;
-  while (hasNextPage && products.length < maxProducts) { const first=Math.min(PRODUCT_PAGE_SIZE,maxProducts-products.length); const data:ProductPageData=await shopifyGraphQL<ProductPageData>(env,PRODUCT_QUERY,{first,after,query:query||null}); const connection:Connection<ProductNode>=data.products||{}; for(const product of connection.nodes||[]){const completeVariants=await loadAllVariants(product,env); if(product.variants?.pageInfo?.hasNextPage) paginatedVariantProducts+=1; products.push(mapProduct(product,completeVariants));} hasNextPage=Boolean(connection.pageInfo?.hasNextPage); after=normalize(connection.pageInfo?.endCursor)||null; if(!after) hasNextPage=false; }
+  while (hasNextPage && products.length < maxProducts) { const first=Math.min(PRODUCT_PAGE_SIZE,maxProducts-products.length); const data:ProductPageData=await shopifyGraphQL<ProductPageData>(env,args.stable_order === true ? PRODUCT_QUERY.replace("sortKey: UPDATED_AT, reverse: true", "sortKey: ID, reverse: false") : PRODUCT_QUERY,{first,after,query:query||null}); const connection:Connection<ProductNode>=data.products||{}; if (!Array.isArray(connection.nodes) || typeof connection.pageInfo?.hasNextPage !== "boolean") throw new Error("catalog_page_incomplete"); const previousCursor = after; for(const product of connection.nodes||[]){const completeVariants=await loadAllVariants(product,env); if(product.variants?.pageInfo?.hasNextPage) paginatedVariantProducts+=1; products.push(mapProduct(product,completeVariants));} hasNextPage=Boolean(connection.pageInfo?.hasNextPage); after=normalize(connection.pageInfo?.endCursor)||null; if(hasNextPage && (!after || after === previousCursor)) throw new Error("catalog_cursor_invalid"); }
   const relatedComplete=products.every(p=>p.collections_complete===true && p.media_complete===true && (p.variants as JsonObject[]).every(v=>v.inventory_levels_complete===true));
   const generatedAt=new Date().toISOString(); const payload={generated_at:generatedAt,query:query||null,complete_variant_pagination:true,complete_related_pagination:relatedComplete,products};
-  const jsonArtifact=await storeBusinessArtifact(env,{kind:"shopify_catalog_complete_json",filename:`shopify-catalog-complete-${generatedAt.slice(0,10)}.json`,mime_type:"application/json",encoding:"utf-8",content:JSON.stringify(payload),metadata:{product_count:products.length,truncated:hasNextPage,complete_variant_pagination:true,complete_related_pagination:relatedComplete,paginated_variant_products:paginatedVariantProducts}});
-  const csvArtifact=includeCsv?await storeBusinessArtifact(env,{kind:"shopify_catalog_complete_csv",filename:`shopify-catalog-complete-${generatedAt.slice(0,10)}.csv`,mime_type:"text/csv",encoding:"utf-8",content:buildCatalogCsv(products),metadata:{product_count:products.length,truncated:hasNextPage,complete_variant_pagination:true,complete_related_pagination:relatedComplete,paginated_variant_products:paginatedVariantProducts}}):null;
+  const jsonArtifact=args.persist_artifacts === false ? null : await storeBusinessArtifact(env,{kind:"shopify_catalog_complete_json",filename:`shopify-catalog-complete-${generatedAt.slice(0,10)}.json`,mime_type:"application/json",encoding:"utf-8",content:JSON.stringify(payload),metadata:{product_count:products.length,truncated:hasNextPage,complete_variant_pagination:true,complete_related_pagination:relatedComplete,paginated_variant_products:paginatedVariantProducts}});
+  const csvArtifact=includeCsv && args.persist_artifacts !== false ?await storeBusinessArtifact(env,{kind:"shopify_catalog_complete_csv",filename:`shopify-catalog-complete-${generatedAt.slice(0,10)}.csv`,mime_type:"text/csv",encoding:"utf-8",content:buildCatalogCsv(products),metadata:{product_count:products.length,truncated:hasNextPage,complete_variant_pagination:true,complete_related_pagination:relatedComplete,paginated_variant_products:paginatedVariantProducts}}):null;
   const variantCount=products.reduce((sum,p)=>sum+Number(p.variant_count||0),0); const mediaCount=products.reduce((sum,p)=>sum+Number(p.media_count||0),0);
-  return {ok:true,source:"shopify_admin_graphql",complete_related_pagination:relatedComplete,query:query||null,product_count:products.length,variant_count:variantCount,media_count:mediaCount,truncated:hasNextPage,next_cursor:after,complete_variant_pagination:true,complete_related_pagination:relatedComplete,paginated_variant_products:paginatedVariantProducts,artifacts:{json:{artifact_id:jsonArtifact.artifact_id,filename:jsonArtifact.filename,bytes:jsonArtifact.bytes,expires_at:jsonArtifact.expires_at},csv:csvArtifact?{artifact_id:csvArtifact.artifact_id,filename:csvArtifact.filename,bytes:csvArtifact.bytes,expires_at:csvArtifact.expires_at}:null},products:products.slice(0,inlineLimit),inline_product_count:Math.min(products.length,inlineLimit)};
+  return {ok:true,source:"shopify_admin_graphql",query:query||null,product_count:products.length,variant_count:variantCount,media_count:mediaCount,truncated:hasNextPage,next_cursor:after,complete_variant_pagination:true,complete_related_pagination:relatedComplete,paginated_variant_products:paginatedVariantProducts,artifacts:{json:jsonArtifact?{artifact_id:jsonArtifact.artifact_id,filename:jsonArtifact.filename,bytes:jsonArtifact.bytes,expires_at:jsonArtifact.expires_at}:null,csv:csvArtifact?{artifact_id:csvArtifact.artifact_id,filename:csvArtifact.filename,bytes:csvArtifact.bytes,expires_at:csvArtifact.expires_at}:null},products:products.slice(0,inlineLimit),inline_product_count:Math.min(products.length,inlineLimit)};
 }
+
 

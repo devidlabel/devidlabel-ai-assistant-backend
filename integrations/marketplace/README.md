@@ -21,7 +21,7 @@ Linux né accesso amministrativo all'account Cloudflare.
 | Amazon via MARE | amazon_sp_api configured=false; listings.sync implemented=false | Nessuna chiamata SP-API autenticata possibile |
 | Spartoo via MARE | catalog.sync configured=false, implemented=false; SPARTOO_API_KEY mancante | Contratto webservice non verificato |
 | Channable | Nessuna capacità esposta dai connettori di questa sessione | Scritture e code non ispezionabili |
-| GitHub | File backend letti tramite il connettore | Deploy e credenziali runtime non disponibili |
+| GitHub | Backend, workflow e job letti; deploy storico confermato | Nessun deploy nuovo; valori secret non letti |
 
 Non dedurre l'assenza globale di credenziali Amazon dal solo stato del connettore:
 prima della configurazione verificare eventuali autorizzazioni già presenti nel
@@ -138,46 +138,82 @@ che contiene: un PUT completo può alterare stock o prezzi, quindi non è suffic
 avere ownership del solo catalogo. La configurazione futura deve verificare
 ownership di ogni campo/flusso interessato prima del dispatch.
 
-## Servizio sempre acceso
+## Esecuzione autonoma su Cloudflare
 
-Il template systemd `mare-marketplace.service` è pronto per un host Linux dedicato.
-Non è stato installato e la chat chiusa non avvierà questo codice. Python >=3.12,
-nessuna dipendenza esterna. Il polling legge una partizione ogni 15 secondi,
-con backoff fino a un'ora; completata la scansione, ne avvia un'altra dopo 24 ore.
-Non è ancora un cron di riconciliazione stock/offerte né un consumer webhook.
-Non condividere un database SQLite via filesystem di rete. Una sola istanza del
-scanner; coordinare futuri consumer attraverso il ledger. Backup consistente con
-SQLite backup API e ripristino provato prima dell'esercizio.
+La destinazione scelta è Cloudflare. Il template systemd e il daemon Python
+restano riferimenti di sviluppo; non sono il percorso di installazione operativo.
+`src/marketplace-shadow.ts` riutilizza il Worker `worker-v4.ts` e i suoi accessi
+Shopify esistenti. Non serve una nuova app Shopify né copiare token in chat.
+Il runner `MareMarketplaceShadow` usa un nuovo Durable Object con backend SQLite,
+isolato dallo stato della chat. La chiusura della chat non influenza cron/allarmi
+DOPO il deploy e l'abilitazione. Questi passaggi non sono stati eseguiti.
 
-Installare il codice in `/opt/mare/integrations/marketplace`, creare l'utente di
-servizio e la directory protetta `/etc/mare`. Configurare server-side, senza valori
-nel repository, `/etc/mare/marketplace.env` con:
+Configurazione in `wrangler.toml`:
 
-```
-MARE_READ_ENDPOINT=https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/mcp-business
-MARE_BUSINESS_ACCESS_TOKEN=<riferimento al segreto già esistente nel backend>
-```
+- `MARE_MARKETPLACE_SHADOW_ENABLED="false"`: nessuna scansione automatica al primo
+  deploy. Abilitare solo dopo controllo runtime e accessi.
+- binding `MARE_MARKETPLACE_SHADOW`, classe `MareMarketplaceShadow`, migrazione
+  `v3_mare_marketplace_shadow`; preservare le due migrazioni esistenti.
+- cron `*/5 * * * *` UTC: watchdog che ripristina l'allarme, non una scansione
+  completa ogni cinque minuti. Allarmi DO: una pagina di massimo 20 prodotti,
+  attesa minima 2 secondi; nuove scansioni ogni 30 minuti dalla partenza precedente.
+- osservabilità abilitata; log di errore limitati a codice, contatore e data del
+  prossimo tentativo. Nessun token, payload cliente o errore provider integrale.
 
-Il bearer esistente non è esposto alla sessione: usare l'accesso amministrativo
-all'host/secret store, non creare una nuova app Shopify. Per Amazon verificare in
-modo sicuro presenza e autorizzazione di AMAZON_SP_API_CLIENT_ID,
-AMAZON_SP_API_CLIENT_SECRET e AMAZON_SP_API_REFRESH_TOKEN; completare seller ID,
-marketplace IDs, regione e ruoli effettivi. Non configurarli prima di controllare
-eventuali accessi già esistenti. `AmazonReader` non viene chiamato dal daemon:
-serve un comando pilota dedicato dopo l'integrazione degli adapter mancanti.
+Checkpoint, fotografie e prossimo allarme sono aggiornati in transazione.
+Prima della lettura viene salvato un lease di 120 secondi con token; una risposta
+scaduta non può aggiornare una pagina riassegnata. Un errore lascia il cursore
+invariato; backoff da 5 secondi a 15 minuti con jitter, senza abbandonare il lavoro.
+La pulizia elimina il precedente snapshot in lotti da 100 chiavi, conservando
+quello completato più recente durante la scansione successiva. Gli SKU numerici
+sono `legacy_zero`; prefissi non classificati, incluso 4B12, sono `quarantine`.
+Ogni record ha quantità proposta zero: non esiste un sender marketplace nel runner.
+Il ledger prenotazioni Python NON è ancora portato nel runner Cloudflare.
 
-Installare l'unit systemd, poi `systemctl enable --now mare-marketplace` e
-verificare `systemctl status mare-marketplace` e journal. Il deploy richiede un
-host identificato e autorizzato; il repository da solo non fornisce tale servizio.
-Alternativa futura: un Worker dedicato con Queue + Durable Object/D1 + cron,
-riutilizzando OAuth Shopify server-side e budgetando le subrequest per task.
-Non aggiungere questo polling al thread della chat.
+Le scansioni usano ordine ID crescente e cursori validati; il comportamento
+UPDATED_AT preesistente rimane il default per gli altri utilizzatori del reader.
+Le scansioni shadow non generano migliaia di artefatti temporanei nel KV OAuth.
+Non sono snapshot atomici: prodotto e stock possono cambiare durante una passata.
+I flag di completezza restano falsi per media/collezioni/sedi troncate; GPSR non
+è letto. La versione API operativa rimane 2025-10; il toolkit ha rifiutato tale
+versione e le query aggiornate sono state validate contro 2026-10. Il precedente
+reader era già validato contro 2025-10. Verificare la versione supportata in
+produzione e pianificare l'aggiornamento prima dell'esercizio continuativo.
 
-Monitoraggio disponibile: audit SQLite, checkpoint last_success_at, contatori
-jobs per state e journal systemd. Da completare: endpoint health, allarmi esterni
-su heartbeat >10 minuti, ordini arretrati, issue di pubblicazione e stock divergente.
-I log non includono segreti o dati cliente. La loro visibilità fuori dal server
-non è stata configurata.
+`GET /internal/marketplace/status` richiede il bearer MARE già esistente.
+Risponde con scansione in corso, ultima scansione completata, data della più
+vecchia osservazione, contatori e prossimo tentativo. Non espone il catalogo.
+`healthy` richiede runner abilitato, dati correlati completi, assenza di errori e
+osservazioni entro un'ora dalla partenza; `ready_for_marketplace_writes` è SEMPRE
+false. Non usare la sola risposta HTTP 200 come prova di salute.
+
+Il limite orario è un obiettivo da misurare, non una garanzia già verificata:
+scansioni avviate ogni 30 minuti devono terminare entro 30 minuti sotto carico;
+allarmi/cron possono ritardare. Al superamento dell'ora il sistema dichiara stock
+non fresco. Nessuna pubblicazione si basa su dati vecchi. Prima dell'attivazione:
+monitor indipendente con bearer server-side e allarme su healthy=false/heartbeat,
+misura latenza Shopify/ordini, test di recupero in produzione e durata di almeno
+due scansioni complete. Monitor/allarmi esterni, webhook, ledger ordini Cloudflare,
+GPSR, adapter Amazon/Spartoo e tracking restano da completare.
+
+### Pipeline e rilascio
+
+Il deploy automatico ESISTE in `.github/workflows/deploy-worker.yml` tramite
+GitHub Actions + Wrangler; Cloudflare Builds non deve essere ricollegato.
+PR su main: solo controlli. Push su main per i percorsi rilevanti o dispatch:
+controlli, poi deploy con CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID già referenziati
+nei secret GitHub. Un deploy storico riuscito non dimostra validità attuale dei
+secret; non sono stati letti o modificati. Il primo controllo della PR #153 era
+fallito per campo duplicato nel reader, corretto in questo aggiornamento.
+
+La pipeline usa ora `npm ci` con lockfile, test di recupero/reader, prova locale
+workerd e dry-run del bundle prima del deploy. I controlli legacy POST-deploy
+possono fallire dopo una pubblicazione riuscita: la ricevuta del 01/09/2026 è
+ok=false nonostante worker_deployed=success. Non esiste rollback automatico
+verificato. Prima di un rilascio live servono baseline/versione di ritorno e prova
+compatibilità migrazioni. Per fermare il runner disabilitare il flag mantenendo
+classe/binding/migrazione; non cancellare il DO o riattivare Channable sullo stesso
+flusso mentre esistono invii MARE in volo. Il flag shadow non abilita alcuna scrittura.
 
 ## Spartoo e spedizioni: blocchi e contratto da acquisire
 
@@ -195,7 +231,7 @@ ignoto. Confermare spedizione solo dopo evento Shopify di fulfillment verificato
 deduplicando ordine/collo/tracking. Marketplace readback obbligatorio; resi e
 cancellazioni devono aggiornare le prenotazioni con stati verificati.
 
-## Test e limiti verificati
+## Test precedenti e limiti verificati
 
 Eseguiti localmente: 10 test Python (tutti passati) e test Node della ripresa del
 reader e dei flag di completezza (passato). Le due query GraphQL modificate sono
@@ -228,3 +264,24 @@ di usare i dati per pubblicare.
 - https://developer-docs.amazon.com/sp-api/docs/notification-type-values
 - https://shopify.dev/docs/api/admin-graphql/2026-10/queries/inventoryItem
 - https://www.spartoo.com/mp/documentation.php (accesso non riuscito)
+
+## Aggiornamento Cloudflare del 09/10/2026
+
+Typecheck completo passato. Tutti i controlli npm della pipeline sono stati
+eseguiti localmente (senza probe live degli ordini). 14 casi di recupero shadow
+passati, test del reader su cursori/completezza/ordine ID/assenza artefatti passati,
+10 test Python passati. La prova workerd con reader sintetico verifica auth,
+transazioni SQLite, allarme automatico, snapshot e persistenza dopo riavvio del
+runtime; non chiama Shopify/Amazon e non simula una regione Cloudflare in guasto.
+Bundle Wrangler dry-run riuscito, nessun deploy. Risultati dettagliati in
+`validation-cloudflare.json` e `graphql-validation.json`.
+
+```
+npm ci
+npm run typecheck
+npm run test:marketplace-shadow
+npm run test:marketplace-runtime
+npx wrangler deploy --dry-run
+```
+
+Nessuna modifica di ordini, offerte, tracking, credenziali o Channable.
