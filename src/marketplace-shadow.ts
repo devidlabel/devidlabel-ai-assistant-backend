@@ -46,6 +46,8 @@ export function shadowHealth(state: State | undefined, now: number, active: bool
     mode: "shadow", enabled: active, ready_for_marketplace_writes: false,
     healthy: active && fresh && completed?.related_complete === true && !state?.last_error && state?.failures === 0,
     stock_fresh: fresh, scan_in_progress: !!state?.scan,
+    progress: state?.scan ? { started_at: state.scan.started_at, pages: state.scan.pages,
+      products: state.scan.products, variants: state.scan.variants } : null,
     last_completed_at: completed?.completed_at ?? null,
     oldest_observation_at: completed?.started_at ?? null,
     last_page_at: state?.last_page_at ?? null,
@@ -202,9 +204,16 @@ export async function handleMarketplaceShadowStatus(request: Request, env: Shado
   if (new URL(request.url).pathname !== "/internal/marketplace/status") return null;
   if (!await authorized(request, env.MARE_BUSINESS_ACCESS_TOKEN)) return response({ error: "unauthorized" }, 401);
   if (request.method !== "GET") return response({ error: "method_not_allowed" }, 405);
-  if (!env.MARE_MARKETPLACE_SHADOW) return response({ error: "binding_missing", ready_for_marketplace_writes: false }, 503);
-  return env.MARE_MARKETPLACE_SHADOW.get(env.MARE_MARKETPLACE_SHADOW.idFromName("devidlabel:catalog:v1"))
+  const status = await readMarketplaceShadowStatus(env);
+  return response(status, status.ok === false ? 503 : 200);
+}
+
+export async function readMarketplaceShadowStatus(env: ShadowEnv): Promise<Row> {
+  if (!env.MARE_MARKETPLACE_SHADOW) return { ok: false, error: "binding_missing", ready_for_marketplace_writes: false };
+  const result = await env.MARE_MARKETPLACE_SHADOW.get(env.MARE_MARKETPLACE_SHADOW.idFromName("devidlabel:catalog:v1"))
     .fetch(new Request("https://shadow/status"));
+  if (!result.ok) throw new Error("marketplace_shadow_status_failed");
+  return { ...await result.json() as Row, ok: true };
 }
 
 export async function scheduleMarketplaceShadow(env: ShadowEnv): Promise<void> {
@@ -214,3 +223,4 @@ export async function scheduleMarketplaceShadow(env: ShadowEnv): Promise<void> {
     .fetch(new Request("https://shadow/tick", { method: "POST" }));
   if (!result.ok) throw new Error("marketplace_shadow_tick_failed");
 }
+

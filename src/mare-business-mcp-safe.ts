@@ -1,3 +1,4 @@
+import { readMarketplaceShadowStatus } from "./marketplace-shadow.js";
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
@@ -582,6 +583,9 @@ export async function handleMareBusinessMcpSafeRequest(
     if (toolName === "mare_read") {
       const capabilityId = normalize(args.capability_id);
       const requestPayload = object(args.request);
+      if (capabilityId === "marketplace.shadow.status") {
+        return rpcToolResponse(request, rpc.id, textToolResult(await readMarketplaceShadowStatus(env)));
+      }
       if (capabilityId === "shopify.catalog.read" || capabilityId === "shopify.catalog.export") {
         return rpcToolResponse(request, rpc.id, textToolResult(await readShopifyCatalogComplete(requestPayload, env)));
       }
@@ -653,3 +657,4 @@ export async function handleMareBusinessMcpSafeRequest(
 
   return handleMareBusinessMcpRequest(request, env as any);
 }
+

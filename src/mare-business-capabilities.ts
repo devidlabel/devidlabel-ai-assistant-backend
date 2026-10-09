@@ -17,6 +17,7 @@ export type MareBusinessCapability = {
 
 export type MareBusinessCapabilityEnv = {
   MARE_BUSINESS_ACCESS_TOKEN?: string;
+  MARE_MARKETPLACE_SHADOW?: unknown;
   MARE_MCP_ACCESS_TOKEN?: string;
   MARE_OPS_ACCESS_TOKEN?: string;
   MARE_PRODUCT_MEDIA_ACCESS_TOKEN?: string;
@@ -85,6 +86,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
 
   return [
     capability({ id: "system.status", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Unified health, permission and provider configuration status.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
+    capability({ id: "marketplace.shadow.status", provider: "mare", domain: "marketplace", operation: "read", risk: "read_only", implemented: true, configured: businessAuth && Boolean(env.MARE_MARKETPLACE_SHADOW), approval: "none", description: "Read Shopify shadow scan progress, freshness and errors. Does not start scans or publish marketplace data.", request_schema: schema(), requirements: [[Boolean(env.MARE_MARKETPLACE_SHADOW), "MARE_MARKETPLACE_SHADOW binding"]] }),
     capability({ id: "system.capabilities", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Dynamic capability registry used by every V2 agent.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
     capability({ id: "artifact.get", provider: "mare", domain: "artifact", operation: "artifact", risk: "read_only", implemented: true, configured: shopify, approval: "none", description: "Retrieve a stored report, feed, Matrixify file or image artifact.", request_schema: schema({ artifact_id: { type: "string" } }, ["artifact_id"]), requirements: [[shopify, "SHOPIFY_TOKENS_KV"]] }),
 
@@ -132,3 +134,4 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
 export function findCapability(id: string, env: MareBusinessCapabilityEnv): MareBusinessCapability | null {
   return buildMareBusinessCapabilities(env).find((item) => item.id === id) || null;
 }
+
