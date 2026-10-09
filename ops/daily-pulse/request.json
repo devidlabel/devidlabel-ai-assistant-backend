@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-10-08T07:00:34+02:00",
-  "reason": "Daily Business Report pre-flight refresh for yesterday 2026-10-07"
+  "requested_at": "2026-10-09T07:00:00+02:00",
+  "reason": "Daily Business Report preflight refresh for yesterday 2026-10-08; validate yesterday/3D/7D and prepare targeted fallbacks"
 }
