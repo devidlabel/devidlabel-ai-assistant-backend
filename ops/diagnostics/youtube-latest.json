@@ -1,34 +1,34 @@
 {
-  "generated_at": "2026-10-09T17:16:56.204Z",
+  "generated_at": "2026-10-11T09:57:11.085Z",
   "read_only": true,
-  "http_status": 502,
-  "report_ok": false,
-  "reason": "report_read_failed",
+  "http_status": 200,
+  "report_ok": true,
+  "reason": "report_read_success",
   "sections": [
     {
       "label": "channel",
-      "ok": false,
-      "reason": "oauth_token_expired_or_revoked"
+      "ok": true,
+      "reason": "read_success"
     },
     {
       "label": "summary",
-      "ok": false,
-      "reason": "oauth_token_expired_or_revoked"
+      "ok": true,
+      "reason": "read_success"
     },
     {
       "label": "videos",
-      "ok": false,
-      "reason": "oauth_token_expired_or_revoked"
+      "ok": true,
+      "reason": "read_success"
     },
     {
       "label": "traffic_sources",
-      "ok": false,
-      "reason": "oauth_token_expired_or_revoked"
+      "ok": true,
+      "reason": "read_success"
     },
     {
       "label": "search_terms",
-      "ok": false,
-      "reason": "oauth_token_expired_or_revoked"
+      "ok": true,
+      "reason": "read_success"
     }
   ],
   "raw_secret_values_exposed": false
