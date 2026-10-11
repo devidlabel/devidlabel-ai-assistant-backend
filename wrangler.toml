@@ -47,7 +47,8 @@ tag = "v2_mare_autonomy_runner"
 new_sqlite_classes = ["MareAutonomyRunner"]
 
 
-# Watchdog only; the durable alarm performs resumable pages. Disabled by the flag above.
+# Shared five-minute Cloudflare heartbeat: marketplace shadow watchdog and guarded daily ADV snapshots.
+# The ADV snapshot reuses SHOPIFY_TOKENS_KV and existing read-only Meta/Google Ads credentials.
 [triggers]
 crons = ["*/5 * * * *"]
 
