@@ -119,6 +119,10 @@ function compose(data: Data): { plain: string; html: string } {
   const google = asObject(day.sources?.google);
   const tiktok = asObject(day.sources?.tiktok_ads);
   const metrics = asObject(shopify.metrics);
+  const ql = asObject(data.shopify_sales?.yesterday?.data?.direct);
+  const reconciliation = asObject(data.reconciliation);
+  const qlOk = data.shopify_sales?.yesterday?.ok === true;
+  const reconciled = reconciliation.ok === true;
   const segments = asObject(shopify.segments);
   const metaSpend = optional(meta.totals?.spend);
   const googleSpend = optional(google.totals?.spend);
@@ -127,9 +131,11 @@ function compose(data: Data): { plain: string; html: string } {
   const spendMG = advComplete ? round(num(metaSpend) + num(googleSpend)) : null;
   const allComplete = advComplete && tiktok.ok === true;
   const spendAll = allComplete ? round(num(spendMG) + num(tiktokSpend)) : null;
-  const revenue = shopify.ok === true ? optional(metrics.net_merchandise_revenue) : null;
-  const merMG = revenue !== null && spendMG !== null && spendMG > 0 ? round(revenue / spendMG) : null;
-  const merAll = revenue !== null && spendAll !== null && spendAll > 0 ? round(revenue / spendAll) : null;
+  const adminRevenue = shopify.ok === true ? optional(metrics.net_merchandise_revenue) : null;
+  const qlRevenue = qlOk ? optional(ql.net_sales) : null;
+  const revenue = reconciled ? qlRevenue : null;
+  const merMG = reconciled && revenue !== null && spendMG !== null && spendMG > 0 ? round(revenue / spendMG) : null;
+  const merAll = reconciled && revenue !== null && spendAll !== null && spendAll > 0 ? round(revenue / spendAll) : null;
   const analytics = asObject(data.shopify_analytics?.yesterday);
   const human = asObject(analytics.totals?.human);
   const bot = asObject(analytics.totals?.bot);
@@ -147,7 +153,12 @@ function compose(data: Data): { plain: string; html: string } {
     "Generato: " + data.generated_at + " | Stato: " + (data.complete ? "COMPLETO" : "PARZIALE, controllare fonti N/D"),
     "",
     "VENDITE ECOMMERCE DIRETTO (Online Store + Shop, esclusi POS, Draft e marketplace)",
-    "Ordini: " + number(metrics.valid_orders ?? metrics.orders) + " | Netto merce: " + money(revenue) +
+    "Ordini ShopifyQL: " + (qlOk ? number(ql.orders) : "N/D") + " | Netto ShopifyQL: " + money(qlRevenue) +
+      " | Totale ShopifyQL: " + money(qlOk ? ql.total_sales : null),
+    "Controllo Admin: ordini " + (shopify.ok ? number(metrics.valid_orders) : "N/D") + " | netto " + money(adminRevenue) +
+      " | delta netto " + money(reconciliation.delta_net),
+    (reconciled ? "Riconciliazione ShopifyQL/Admin: OK" : "ATTENZIONE: ShopifyQL e Admin discordano o mancano. MER N/D fino alla riconciliazione."),
+    "Dettaglio Admin lordo merce (proxy): " +
       " | Lordo merce: " + money(metrics.gross_merchandise_revenue ?? metrics.gross_sales) +
       " | Sconti: " + money(metrics.discounts),
     "Canali separati: " + (shopify.ok ? JSON.stringify({
@@ -175,6 +186,7 @@ function compose(data: Data): { plain: string; html: string } {
     "SEARCH CONSOLE: " + (gsc.ok ? "Fonte disponibile (finestra di dati consolidati, non ieri)" : "N/D"),
     "",
     "QUALITA DATI: " + statusLine,
+    "RICONCILIAZIONE: " + (reconciled ? "OK" : "NON VERIFICATA — numeri fonte separati"),
     "Nota: COGS e profitto netto non sono dichiarati certi senza copertura storica dei costi; POS e marketplace esclusi dal MER.",
   ];
   const plain = lines.join("\n");
@@ -265,7 +277,7 @@ export async function buildDailyReport(env: Env, date: string, now = new Date())
     ga4_1d: { ok: windows.yesterday?.sources?.ga4?.ok === true },
     gsc_7d: { ok: pulseFresh && pulse.data?.search_console?.last_7_days?.ok === true },
   };
-  const required = ["pulse", "shopify_1d", "shopify_3d", "shopify_7d", "shopifyql_1d", "shopifyql_3d", "shopifyql_7d", "sales_1d", "sales_3d", "sales_7d", "ecommerce_reconciled", "meta_1d", "google_1d", "klaviyo_1d"];
+  const required = ["pulse", "shopify_1d", "shopify_3d", "shopify_7d", "shopifyql_1d", "shopifyql_3d", "shopifyql_7d", "sales_1d", "sales_3d", "sales_7d", "meta_1d", "google_1d", "klaviyo_1d"];
   const missing = required.filter(key => !core[key as keyof typeof core].ok);
   const report: Data = {
     ok: true, complete: missing.length === 0, missing_required_sources: missing, date,
