@@ -196,12 +196,15 @@ export async function buildDailyReport(env: Env, date: string, now = new Date())
   // MARE's existing protected Daily Pulse supplies commerce, Meta, Google, TikTok,
   // Klaviyo, GA4, Search Console and YouTube in the same provider-approved scopes.
   // ShopifyQL human/bot 1/3/7-day analytics are queried independently as a control.
-  const [pulse, commerce3, analytics1, analytics3, analytics7] = await Promise.all([
+  const [pulse, commerce3, analytics1, analytics3, analytics7, sales1, sales3, sales7] = await Promise.all([
     invoke(handleDailyPulseRequest, "/internal/daily-pulse/report", token, env),
     invoke(handleShopifyReportingRequest, "/internal/shopify/report?timeframe=custom&start=" + start3(date) + "&end=" + date, shopifyToken, shopifyEnv),
     invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=custom&start=" + date + "&end=" + date, shopifyToken, shopifyEnv),
     invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=custom&start=" + start3(date) + "&end=" + date, shopifyToken, shopifyEnv),
     invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=last_7_days", shopifyToken, shopifyEnv),
+    salesByChannel(shopifyEnv, date, date),
+    salesByChannel(shopifyEnv, start3(date), date),
+    salesByChannel(shopifyEnv, new Date(new Date(date + "T12:00:00Z").getTime() - 6 * 86400000).toISOString().slice(0,10), date),
   ]);
   const yesterdayWindow = asObject(pulse.data?.yesterday);
   const last7Window = asObject(pulse.data?.last_7_days);
@@ -226,6 +229,23 @@ export async function buildDailyReport(env: Env, date: string, now = new Date())
   const analytics7End = asObject(analytics7.data?.timeframe).end;
   const validatedAnalytics7 = analytics7.ok && analytics7End === date ? analytics7 :
     { ok: false, status: analytics7.status, error: "source_date_mismatch_or_unavailable", data: null };
+  const adminDirect = optional(shopify1.metrics?.net_merchandise_revenue);
+  const qlDirect = sales1.ok ? optional(sales1.data?.direct?.net_sales) : null;
+  const adminOrderCount = shopify1.ok ? num(shopify1.metrics?.valid_orders) : null;
+  const qlOrderCount = sales1.ok ? num(sales1.data?.direct?.orders) : null;
+  const reconciliationOk = shopify1.ok === true && sales1.ok &&
+    adminDirect !== null && qlDirect !== null &&
+    Math.abs(adminDirect - qlDirect) <= 0.5 && adminOrderCount === qlOrderCount;
+  const reconciliation: Data = {
+    ok: reconciliationOk,
+    admin_direct_net: adminDirect,
+    shopifyql_direct_net: qlDirect,
+    delta_net: adminDirect !== null && qlDirect !== null ? round(adminDirect - qlDirect) : null,
+    admin_direct_orders: adminOrderCount,
+    shopifyql_direct_orders: qlOrderCount,
+    note: reconciliationOk ? "Admin and ShopifyQL direct ecommerce reconcile" :
+      "Admin and ShopifyQL disagree or a source is missing: do not publish a certain MER.",
+  };
   const core = {
     pulse: { ok: pulseFresh, status: pulse.status, error: pulseFresh ? null : "pulse_unavailable_or_stale" },
     shopify_1d: { ok: shopify1.ok === true },
@@ -234,6 +254,10 @@ export async function buildDailyReport(env: Env, date: string, now = new Date())
     shopifyql_1d: sourceStatus(validatedAnalytics1),
     shopifyql_3d: sourceStatus(validatedAnalytics3),
     shopifyql_7d: sourceStatus(validatedAnalytics7),
+    sales_1d: sourceStatus(sales1),
+    sales_3d: sourceStatus(sales3),
+    sales_7d: sourceStatus(sales7),
+    ecommerce_reconciled: { ok: reconciliationOk },
     meta_1d: { ok: meta1.ok === true },
     google_1d: { ok: google1.ok === true },
     klaviyo_1d: { ok: klaviyo1.ok === true },
@@ -241,13 +265,15 @@ export async function buildDailyReport(env: Env, date: string, now = new Date())
     ga4_1d: { ok: windows.yesterday?.sources?.ga4?.ok === true },
     gsc_7d: { ok: pulseFresh && pulse.data?.search_console?.last_7_days?.ok === true },
   };
-  const required = ["pulse", "shopify_1d", "shopify_3d", "shopify_7d", "shopifyql_1d", "shopifyql_3d", "shopifyql_7d", "meta_1d", "google_1d", "klaviyo_1d"];
+  const required = ["pulse", "shopify_1d", "shopify_3d", "shopify_7d", "shopifyql_1d", "shopifyql_3d", "shopifyql_7d", "sales_1d", "sales_3d", "sales_7d", "ecommerce_reconciled", "meta_1d", "google_1d", "klaviyo_1d"];
   const missing = required.filter(key => !core[key as keyof typeof core].ok);
   const report: Data = {
     ok: true, complete: missing.length === 0, missing_required_sources: missing, date,
     generated_at: now.toISOString(), timezone: "Europe/Rome",
     delivery: { status: "not_sent_by_worker", reason: "Gmail delivery handled by connected ChatGPT Gmail tool; never infer send success from KV" },
     windows,
+    shopify_sales: { yesterday: sales1, last_3_days: sales3, last_7_days: sales7 },
+    reconciliation,
     shopify_commerce_3d: validatedCommerce3,
     shopify_analytics: {
       yesterday: validatedAnalytics1.ok ? validatedAnalytics1.data : { ok: false, error: validatedAnalytics1.error },
