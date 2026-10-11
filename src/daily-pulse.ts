@@ -249,26 +249,36 @@ function combinedKpis(sources: { shopify: JsonObject; meta: JsonObject; google: 
   const metaTotals = sources.meta.totals && typeof sources.meta.totals === "object" ? sources.meta.totals as JsonObject : {};
   const googleTotals = sources.google.totals && typeof sources.google.totals === "object" ? sources.google.totals as JsonObject : {};
 
+  const shopifyOk = sources.shopify.ok === true;
+  const metaOk = sources.meta.ok === true;
+  const googleOk = sources.google.ok === true;
+  const mediaComplete = metaOk && googleOk;
+  const missing = [!metaOk ? "meta" : "", !googleOk ? "google" : ""].filter(Boolean);
   const ecommerceRevenue = numberValue(shopifyMetrics.net_merchandise_revenue);
   const grossMarginBeforeAds = numberValue(shopifyMetrics.gross_margin_proxy_before_adv_fulfillment_and_fees)
     || numberValue(shopifyMetrics.contribution_margin_proxy_before_adv_and_fulfillment);
   const metaSpend = numberValue(metaTotals.spend);
   const googleSpend = numberValue(googleTotals.spend);
   const paidSpend = metaSpend + googleSpend;
-  const mer = paidSpend > 0 ? round(ecommerceRevenue / paidSpend, 4) : 0;
+  const afterAds = mediaComplete && shopifyOk ? round(grossMarginBeforeAds - paidSpend) : null;
+  const mer = mediaComplete && shopifyOk && paidSpend > 0 ? round(ecommerceRevenue / paidSpend, 4) : null;
+
   return {
-    shopify_ecommerce_net_merchandise_revenue: round(ecommerceRevenue),
-    shopify_net_merchandise_revenue: round(ecommerceRevenue),
+    shopify_ecommerce_net_merchandise_revenue: shopifyOk ? round(ecommerceRevenue) : null,
+    shopify_net_merchandise_revenue: shopifyOk ? round(ecommerceRevenue) : null,
     ecommerce_revenue_scope: "online_store_and_shop_only",
-    meta_spend: round(metaSpend),
-    google_spend: round(googleSpend),
-    paid_media_spend_meta_google: round(paidSpend),
+    meta_spend: metaOk ? round(metaSpend) : null,
+    google_spend: googleOk ? round(googleSpend) : null,
+    paid_media_complete: mediaComplete,
+    paid_media_complete_meta_google: mediaComplete,
+    paid_media_missing_sources: missing,
+    paid_media_spend_meta_google: mediaComplete ? round(paidSpend) : null,
     ecommerce_mer_meta_google: mer,
     mer_meta_google: mer,
-    gross_margin_proxy_before_adv_fulfillment_and_fees: round(grossMarginBeforeAds),
-    gross_margin_proxy_after_meta_google_before_fulfillment_and_fees: round(grossMarginBeforeAds - paidSpend),
-    contribution_proxy_before_adv_and_fulfillment: round(grossMarginBeforeAds),
-    contribution_proxy_after_meta_google_before_fulfillment: round(grossMarginBeforeAds - paidSpend),
+    gross_margin_proxy_before_adv_fulfillment_and_fees: shopifyOk ? round(grossMarginBeforeAds) : null,
+    gross_margin_proxy_after_meta_google_before_fulfillment_and_fees: afterAds,
+    contribution_proxy_before_adv_and_fulfillment: shopifyOk ? round(grossMarginBeforeAds) : null,
+    contribution_proxy_after_meta_google_before_fulfillment: afterAds,
   };
 }
 
