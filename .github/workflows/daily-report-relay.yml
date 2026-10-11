@@ -1,0 +1,107 @@
+name: Daily Business Report Relay
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/daily-report-relay.yml'
+      - 'ops/daily-report/request.json'
+  schedule:
+    - cron: '5,20,35,50 5,6,7 * * *'
+
+concurrency:
+  group: daily-report-relay
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Determine date and avoid duplicated complete artifact
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs=require('node:fs');
+          const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(Date.now()-86400000));
+          const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+          const date=[v.year,v.month,v.day].join('-');
+          let complete=false;
+          try {const old=JSON.parse(fs.readFileSync('ops/daily-report/latest.json','utf8'));complete=old.date===date&&old.complete===true;} catch {}
+          console.log('date='+date);
+          console.log('run='+(!complete || process.env.EVENT_NAME!=='schedule'));
+          NODE
+
+      - name: Read Cloudflare report or request a single rebuild
+        if: steps.plan.outputs.run == 'true'
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          REPORT_DATE: ${{ steps.plan.outputs.date }}
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          STATUS="$(curl -sS --retry 3 --retry-delay 5 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            -o report.json -w '%{http_code}' \
+            "$WORKER_URL/internal/daily-report/report?date=$REPORT_DATE")"
+          if [ "$STATUS" = "404" ]; then
+            echo "Report not ready. One Cloudflare backfill attempt."
+            curl -sS --retry 2 --retry-delay 4 -X POST \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              "$WORKER_URL/internal/daily-report/refresh?date=$REPORT_DATE" \
+              -o /tmp/refresh-status.json
+            STATUS="$(curl -sS --retry 2 --retry-delay 4 \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              -o report.json -w '%{http_code}' \
+              "$WORKER_URL/internal/daily-report/report?date=$REPORT_DATE")"
+          fi
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "206" ]; then
+            echo "::error::Cloudflare Daily Report status $STATUS"; exit 1
+          fi
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const x=JSON.parse(fs.readFileSync('report.json','utf8'));
+          if(x.ok!==true||x.date!==process.env.REPORT_DATE||typeof x.rendered?.plain!=='string') process.exit(2);
+          const status={date:x.date,complete:x.complete===true,generated_at:x.generated_at,missing_required_sources:x.missing_required_sources||[]};
+          fs.writeFileSync('/tmp/report-status.json',JSON.stringify(status,null,2));
+          console.log('Daily report source quality:',JSON.stringify(status));
+          NODE
+
+      - name: Upload authenticated report artifact
+        if: steps.plan.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-business-report-${{ github.run_id }}
+          path: report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish readiness pointer without sales or customer data
+        if: steps.plan.outputs.run == 'true'
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const x=JSON.parse(fs.readFileSync('/tmp/report-status.json','utf8'));
+          x.run_id=Number(process.env.GITHUB_RUN_ID);
+          x.artifact_name='daily-business-report-'+process.env.GITHUB_RUN_ID;
+          fs.mkdirSync('ops/daily-report',{recursive:true});
+          fs.writeFileSync('ops/daily-report/latest.json',JSON.stringify(x,null,2)+'\n');
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/daily-report/latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update Daily Business Report readiness pointer"
+          git pull --rebase origin main
+          git push origin HEAD:main
