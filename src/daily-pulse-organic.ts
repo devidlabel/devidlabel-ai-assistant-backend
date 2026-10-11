@@ -239,25 +239,33 @@ function attachGa4(windowValue: unknown, source: SourceResult): JsonObject {
 function combinedWithTikTok(windowValue: JsonObject, tiktok: JsonObject): JsonObject {
   const combined = asObject(windowValue.combined);
   const tiktokTotals = asObject(tiktok.totals);
-  const metaSpend = numberValue(combined.meta_spend);
-  const googleSpend = numberValue(combined.google_spend);
+  const metaGoogleOk = combined.paid_media_complete_meta_google === true;
+  const tiktokOk = tiktok.ok === true;
+  const complete = metaGoogleOk && tiktokOk;
+  const previousMissing = Array.isArray(combined.paid_media_missing_sources)
+    ? combined.paid_media_missing_sources.filter((name): name is string => typeof name === "string")
+    : [];
+  const missing = [...previousMissing, ...(!tiktokOk ? ["tiktok_ads"] : [])];
   const tiktokSpend = numberValue(tiktokTotals.spend);
-  const legacyPaidSpend = numberValue(combined.paid_media_spend_meta_google) || metaSpend + googleSpend;
-  const totalPaidSpend = legacyPaidSpend + tiktokSpend;
-  const ecommerceRevenue = numberValue(combined.shopify_ecommerce_net_merchandise_revenue)
-    || numberValue(combined.shopify_net_merchandise_revenue);
-  const grossMarginBeforeAds = numberValue(combined.gross_margin_proxy_before_adv_fulfillment_and_fees)
-    || numberValue(combined.contribution_proxy_before_adv_and_fulfillment);
-  const mer = totalPaidSpend > 0 ? round(ecommerceRevenue / totalPaidSpend, 4) : 0;
+  const paidSpend = numberValue(combined.paid_media_spend_meta_google);
+  const totalPaidSpend = paidSpend + tiktokSpend;
+  const ecommerceRevenue = numberValue(combined.shopify_ecommerce_net_merchandise_revenue);
+  const shopifyOk = combined.shopify_ecommerce_net_merchandise_revenue !== null
+    && combined.shopify_ecommerce_net_merchandise_revenue !== undefined;
+  const grossMarginBeforeAds = numberValue(combined.gross_margin_proxy_before_adv_fulfillment_and_fees);
+  const afterAds = complete && shopifyOk ? round(grossMarginBeforeAds - totalPaidSpend) : null;
+  const mer = complete && shopifyOk && totalPaidSpend > 0 ? round(ecommerceRevenue / totalPaidSpend, 4) : null;
   return {
     ...combined,
-    tiktok_spend: round(tiktokSpend),
-    paid_media_spend_meta_google_tiktok: round(totalPaidSpend),
+    tiktok_spend: tiktokOk ? round(tiktokSpend) : null,
+    paid_media_complete: complete,
+    paid_media_missing_sources: missing,
+    paid_media_spend_meta_google_tiktok: complete ? round(totalPaidSpend) : null,
     ecommerce_mer_meta_google_tiktok: mer,
     mer_meta_google_tiktok: mer,
-    gross_margin_proxy_after_paid_media_before_fulfillment_and_fees: round(grossMarginBeforeAds - totalPaidSpend),
-    gross_margin_proxy_after_meta_google_tiktok_before_fulfillment_and_fees: round(grossMarginBeforeAds - totalPaidSpend),
-    contribution_proxy_after_meta_google_tiktok_before_fulfillment: round(grossMarginBeforeAds - totalPaidSpend),
+    gross_margin_proxy_after_paid_media_before_fulfillment_and_fees: afterAds,
+    gross_margin_proxy_after_meta_google_tiktok_before_fulfillment_and_fees: afterAds,
+    contribution_proxy_after_meta_google_tiktok_before_fulfillment: afterAds,
     paid_media_primary_scope: "meta_google_tiktok",
   };
 }
