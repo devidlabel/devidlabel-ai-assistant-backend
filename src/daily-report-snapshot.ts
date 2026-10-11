@@ -148,6 +148,26 @@ function compose(data: Data): { plain: string; html: string } {
   const gsc = asObject(data.organic?.search_console);
   const status = asObject(data.source_status);
   const statusLine = Object.keys(status).sort().map(k => k + "=" + (status[k]?.ok ? "OK" : "N/D")).join(" | ");
+  const sale = asObject(data.shopify_sales);
+  const rows = Array.isArray(sale.yesterday?.data?.rows) ? sale.yesterday.data.rows as Data[] : [];
+  const ql3 = asObject(sale.last_3_days?.data?.direct);
+  const ql7 = asObject(sale.last_7_days?.data?.direct);
+  const humanSessions = analytics.ok ? num(human.sessions) : null;
+  const botSessions = analytics.ok ? num(bot.sessions) : null;
+  const humanConversion = analytics.ok ? num(human.conversion_rate) * 100 : null;
+  const trafficIssue = humanSessions !== null && botSessions !== null && botSessions > humanSessions * 0.4;
+  const klaviyoCampaigns = asObject(klaviyo.campaign_totals);
+  const klaviyoFlows = asObject(klaviyo.flow_totals);
+  const ga4Overview = asObject(ga4.overview);
+  const gscTotals = asObject(gsc.totals);
+  const gscTimeframe = asObject(gsc.timeframe);
+  const topCampaign = (source: Data): string => {
+    const all = Array.isArray(source.campaigns) ? source.campaigns as Data[] : [];
+    const top = all.map(x => ({ name: text(x.campaign_name), spend: num(x.metrics?.spend), value: num(x.metrics?.purchase_value ?? x.metrics?.conversion_value) }))
+      .sort((a,b) => b.spend-a.spend).slice(0,3);
+    return top.length ? top.map(x => x.name + ": spesa " + money(x.spend) + ", valore attribuito " + money(x.value)).join(" | ") : "N/D";
+  };
+
   const lines = [
     "DEVID LABEL — DAILY BUSINESS REPORT — " + date,
     "Generato: " + data.generated_at + " | Stato: " + (data.complete ? "COMPLETO" : "PARZIALE, controllare fonti N/D"),
@@ -158,14 +178,8 @@ function compose(data: Data): { plain: string; html: string } {
     "Controllo Admin: ordini " + (shopify.ok ? number(metrics.valid_orders) : "N/D") + " | netto " + money(adminRevenue) +
       " | delta netto " + money(reconciliation.delta_net),
     (reconciled ? "Riconciliazione ShopifyQL/Admin: OK" : "ATTENZIONE: ShopifyQL e Admin discordano o mancano. MER N/D fino alla riconciliazione."),
-    "Dettaglio Admin lordo merce (proxy): " +
-      " | Lordo merce: " + money(metrics.gross_merchandise_revenue ?? metrics.gross_sales) +
-      " | Sconti: " + money(metrics.discounts),
-    "Canali separati: " + (shopify.ok ? JSON.stringify({
-      pos: segments.point_of_sale?.metrics || segments.pos?.metrics || null,
-      draft: segments.draft_orders_store_proxy?.metrics || null,
-      marketplaces: segments.marketplaces?.metrics || null,
-    }) : "N/D"),
+    "Canali ShopifyQL ieri: " + (rows.length ? rows.map(x => text(x.sales_channel) + " " + number(x.orders) + " ordini, " + money(x.total_sales)).join(" | ") : "N/D"),
+    "N.B. POS, Draft e marketplace sono fuori dal fatturato ecommerce diretto e dal MER.",
     "",
     "ADV (spese effettive dai provider, non attribuzioni da sommare a Shopify)",
     "Meta: " + money(metaSpend) + " | Google: " + money(googleSpend) + " | TikTok: " + money(tiktokSpend),
@@ -176,14 +190,38 @@ function compose(data: Data): { plain: string; html: string } {
     "Sessioni umane 1D: " + (analytics.ok ? number(human.sessions) : "N/D") +
       " | Bot 1D: " + (analytics.ok ? number(bot.sessions) : "N/D"),
     "Conversioni sessioni umane 1D: " + (analytics.ok ? number(human.sessions_that_completed_checkout) : "N/D"),
+    "Traffico 1D: umano " + number(humanSessions) + " / bot " + number(botSessions) +
+      " | conversion rate umano: " + (humanConversion !== null ? round(humanConversion).toFixed(2) + "%" : "N/D"),
     "3D sessioni umane: " + (last3.ok ? number(last3.totals?.human?.sessions) : "N/D") +
       " | 7D: " + (last7.ok ? number(last7.totals?.human?.sessions) : "N/D"),
-    "Netto merce diretto 3D: " + (data.shopify_commerce_3d?.ok ? money(s3.net_merchandise_revenue) : "N/D") +
-      " | 7D: " + (data.windows?.last_7_days?.sources?.shopify?.ok ? money(s7.net_merchandise_revenue) : "N/D"),
+    (trafficIssue ? "ATTENZIONE: quota bot elevata: controllare fonti, sessioni Direct e falsi funnel." : "Traffico: nessuna anomalia bot oltre soglia interna."),
+    "Netto diretto ShopifyQL 3D: " + (sale.last_3_days?.ok ? money(ql3.net_sales) : "N/D") +
+      " (ordini " + (sale.last_3_days?.ok ? number(ql3.orders) : "N/D") + ") | 7D: " +
+      (sale.last_7_days?.ok ? money(ql7.net_sales) : "N/D") +
+      " (ordini " + (sale.last_7_days?.ok ? number(ql7.orders) : "N/D") + ")",
     "",
-    "KLAVIYO: " + (klaviyo.ok ? "Fonte disponibile; analizzare campagne, flow e ricavi attribuiti separatamente" : "N/D"),
-    "GA4: " + (ga4.ok ? "Fonte disponibile (dati di misurazione, non fatturato)" : "N/D"),
-    "SEARCH CONSOLE: " + (gsc.ok ? "Fonte disponibile (finestra di dati consolidati, non ieri)" : "N/D"),
+    "TOP CAMPAGNE ADV META: " + (meta.ok ? topCampaign(meta) : "N/D"),
+    "TOP CAMPAGNE ADV GOOGLE: " + (google.ok ? topCampaign(google) : "N/D"),
+    "",
+    "KLAVIYO (attribuzione separata, non sommare al fatturato)",
+    "Campagne: destinatari " + (klaviyo.ok ? number(klaviyoCampaigns.recipients) : "N/D") +
+      ", consegnate " + (klaviyo.ok ? number(klaviyoCampaigns.delivered) : "N/D") +
+      ", clic unici " + (klaviyo.ok ? number(klaviyoCampaigns.clicks_unique) : "N/D") +
+      ", conversioni " + (klaviyo.ok ? number(klaviyoCampaigns.conversions) : "N/D") +
+      ", ricavo attribuito " + (klaviyo.ok ? money(klaviyoCampaigns.conversion_value) : "N/D"),
+    "Flow: conversioni " + (klaviyo.ok ? number(klaviyoFlows.conversions) : "N/D") +
+      ", ricavo attribuito " + (klaviyo.ok ? money(klaviyoFlows.conversion_value) : "N/D"),
+    "",
+    "GA4 (solo confronto misurazione, non sostituire Shopify)",
+    "GA4 1D: sessioni " + (ga4.ok ? number(ga4Overview.sessions) : "N/D") +
+      " | acquisti " + (ga4.ok ? number(ga4Overview.ecommercePurchases) : "N/D") +
+      " | revenue attribuita " + (ga4.ok ? money(ga4Overview.purchaseRevenue) : "N/D"),
+    "",
+    "SEO — GOOGLE SEARCH CONSOLE",
+    "Periodo consolidato: " + text(gscTimeframe.since) + " / " + text(gscTimeframe.until) +
+      " | clic " + (gsc.ok ? number(gscTotals.clicks) : "N/D") +
+      " | impressioni " + (gsc.ok ? number(gscTotals.impressions) : "N/D") +
+      " | posizione " + (gsc.ok ? String(round(num(gscTotals.position))) : "N/D"),
     "",
     "QUALITA DATI: " + statusLine,
     "RICONCILIAZIONE: " + (reconciled ? "OK" : "NON VERIFICATA — numeri fonte separati"),

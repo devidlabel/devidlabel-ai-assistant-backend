@@ -7,7 +7,7 @@ on:
       - '.github/workflows/daily-report-relay.yml'
       - 'ops/daily-report/request.json'
   schedule:
-    - cron: '5,20,35,50 5,6,7 * * *'
+    - cron: '5,20,35,50 4,5,6,7 * * *'
 
 concurrency:
   group: daily-report-relay
@@ -38,10 +38,12 @@ jobs:
           const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(Date.now()-86400000));
           const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));
           const date=[v.year,v.month,v.day].join('-');
+          const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Rome',hour:'2-digit',hourCycle:'h23'}).format(new Date()));
           let complete=false;
           try {const old=JSON.parse(fs.readFileSync('ops/daily-report/latest.json','utf8'));complete=old.date===date&&old.complete===true;} catch {}
           console.log('date='+date);
-          console.log('run='+(!complete || process.env.EVENT_NAME!=='schedule'));
+          const scheduled=process.env.EVENT_NAME==='schedule';
+          console.log('run='+((!complete||!scheduled)&&(!scheduled||hour>=7)));
           NODE
 
       - name: Read Cloudflare report or request a single rebuild
@@ -73,7 +75,7 @@ jobs:
           const fs=require('node:fs');
           const x=JSON.parse(fs.readFileSync('report.json','utf8'));
           if(x.ok!==true||x.date!==process.env.REPORT_DATE||typeof x.rendered?.plain!=='string') process.exit(2);
-          const status={date:x.date,complete:x.complete===true,generated_at:x.generated_at,missing_required_sources:x.missing_required_sources||[]};
+          const status={date:x.date,complete:x.complete===true,generated_at:x.generated_at,missing_required_sources:x.missing_required_sources||[],commerce_reconciled:x.reconciliation?.ok===true};
           fs.writeFileSync('/tmp/report-status.json',JSON.stringify(status,null,2));
           console.log('Daily report source quality:',JSON.stringify(status));
           NODE
