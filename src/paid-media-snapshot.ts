@@ -139,7 +139,7 @@ function normalizedSource(result: { ok: boolean; status: number; body: DataRow }
     }
   }
   const rows = result.body.rows as DataRow[];
-  const campaigns = rows.map((row) => {
+  const campaigns: DataRow[] = rows.map((row) => {
     const m = row.metrics && typeof row.metrics === "object" ? row.metrics as DataRow : {};
     return {
       id: row.campaign_id || "",
