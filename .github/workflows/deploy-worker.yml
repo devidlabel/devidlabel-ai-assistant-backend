@@ -99,6 +99,9 @@ jobs:
       - name: Test Cloudflare daily paid-media snapshots
         run: node scripts/test-paid-media-snapshot.mjs
 
+      - name: Test Cloudflare Daily Business Report private snapshots
+        run: node scripts/test-daily-report-snapshot.mjs
+
       - name: Test Search Console reporting bridge
         run: npm run test:search-console-reporting
 
