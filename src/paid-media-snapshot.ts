@@ -129,7 +129,16 @@ function normalizedSource(result: { ok: boolean; status: number; body: DataRow }
     return sourceUnavailable(result.ok ? 502 : result.status, reason);
   }
 
-  const rows = Array.isArray(result.body.rows) ? result.body.rows as DataRow[] : [];
+  if (!Array.isArray(result.body.rows)) return sourceUnavailable(502, "report_rows_missing");
+  if (provider === "google") {
+    const totals = result.body.totals;
+    if (!totals || typeof totals !== "object" || Array.isArray(totals) ||
+        !Object.prototype.hasOwnProperty.call(totals, "spend") ||
+        !Number.isFinite(Number((totals as DataRow).spend))) {
+      return sourceUnavailable(502, "report_totals_invalid");
+    }
+  }
+  const rows = result.body.rows as DataRow[];
   const campaigns = rows.map((row) => {
     const m = row.metrics && typeof row.metrics === "object" ? row.metrics as DataRow : {};
     return {
