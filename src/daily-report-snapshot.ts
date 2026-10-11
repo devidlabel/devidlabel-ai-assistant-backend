@@ -49,7 +49,9 @@ function rome(now: Date): { date: string; hour: number; minute: number } {
 }
 function yesterday(now: Date): string { return rome(new Date(now.getTime() - 86400000)).date; }
 function validDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) && new Date(date + "T12:00:00Z").toISOString().slice(0, 10) === date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const parsed = new Date(date + "T12:00:00Z");
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
 }
 function start3(date: string): string {
   const dateObj = new Date(date + "T12:00:00Z");
@@ -155,21 +157,22 @@ export async function buildDailyReport(env: Env, date: string, now = new Date())
   if (!env.SHOPIFY_TOKENS_KV) throw new Error("daily_report_kv_missing");
   const token = normalize(env.DAILY_PULSE_ACCESS_TOKEN) || normalize(env.KLAVIYO_REPORT_ACCESS_TOKEN);
   const shopifyToken = normalize(env.SHOPIFY_REPORT_ACCESS_TOKEN) || normalize(env.KLAVIYO_REPORT_ACCESS_TOKEN);
+  const shopifyEnv = { ...env, SHOPIFY_REPORT_ACCESS_TOKEN: shopifyToken };
   // MARE's existing protected Daily Pulse supplies commerce, Meta, Google, TikTok,
   // Klaviyo, GA4, Search Console and YouTube in the same provider-approved scopes.
   // ShopifyQL human/bot 1/3/7-day analytics are queried independently as a control.
   const [pulse, commerce3, analytics1, analytics3, analytics7] = await Promise.all([
     invoke(handleDailyPulseRequest, "/internal/daily-pulse/report", token, env),
-    invoke(handleShopifyReportingRequest, "/internal/shopify/report?timeframe=custom&start=" + start3(date) + "&end=" + date, shopifyToken, env),
-    invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=custom&start=" + date + "&end=" + date, shopifyToken, env),
-    invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=custom&start=" + start3(date) + "&end=" + date, shopifyToken, env),
-    invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=last_7_days", shopifyToken, env),
+    invoke(handleShopifyReportingRequest, "/internal/shopify/report?timeframe=custom&start=" + start3(date) + "&end=" + date, shopifyToken, shopifyEnv),
+    invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=custom&start=" + date + "&end=" + date, shopifyToken, shopifyEnv),
+    invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=custom&start=" + start3(date) + "&end=" + date, shopifyToken, shopifyEnv),
+    invoke(handleShopifyAnalyticsReportingRequest, "/internal/shopify-analytics/report?timeframe=last_7_days", shopifyToken, shopifyEnv),
   ]);
   const yesterdayWindow = asObject(pulse.data?.yesterday);
   const last7Window = asObject(pulse.data?.last_7_days);
   const pulseFresh = pulse.ok && checkRange(yesterdayWindow, date) && checkRange(last7Window, date);
   // Never silently carry forward yesterday's otherwise successful pulse.
-  const windows = pulseFresh ? { yesterday: yesterdayWindow, last_7_days: last7Window } : {};
+  const windows: Data = pulseFresh ? { yesterday: yesterdayWindow, last_7_days: last7Window } : {};
   const shopify1 = asObject(windows.yesterday?.sources?.shopify);
   const meta1 = asObject(windows.yesterday?.sources?.meta);
   const google1 = asObject(windows.yesterday?.sources?.google);
