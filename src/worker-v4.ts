@@ -1,4 +1,5 @@
 import { MareMarketplaceShadow, handleMarketplaceShadowStatus, scheduleMarketplaceShadow } from "./marketplace-shadow";
+import { handlePaidMediaSnapshotRequest, schedulePaidMediaSnapshot } from "./paid-media-snapshot";
 import workerV3, { MarePlanCoordinator } from "./worker-v3";
 import { handleMareAutonomyMcpRequest, MareAutonomyRunner } from "./mare-autonomy-runner";
 import { handleGitHubAutonomyBridgeRequest } from "./mare-github-autonomy-bridge";
@@ -38,10 +39,19 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 export default {
-  async scheduled(_controller: unknown, env: WorkerEnv): Promise<void> {
-    await scheduleMarketplaceShadow(env as any);
+  async scheduled(controller: { scheduledTime?: number }, env: WorkerEnv): Promise<void> {
+    const results = await Promise.allSettled([
+      scheduleMarketplaceShadow(env as any),
+      schedulePaidMediaSnapshot(env as any, new Date(controller?.scheduledTime || Date.now())),
+    ]);
+    for (const [index, result] of results.entries()) {
+      if (result.status === "rejected") console.error(index === 0 ? "marketplace_shadow_cron_failed" : "paid_media_cron_failed");
+    }
   },
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const paidMediaSnapshotResponse = await handlePaidMediaSnapshotRequest(request, env as any);
+    if (paidMediaSnapshotResponse) return paidMediaSnapshotResponse;
+
     const shadowStatus = await handleMarketplaceShadowStatus(request, env as any);
     if (shadowStatus) return shadowStatus;
 
