@@ -1,4 +1,5 @@
 import { handleDailyPulseRequest } from "./daily-pulse-organic";
+import { shopifyGraphQL } from "./index";
 import { handleShopifyAnalyticsReportingRequest } from "./shopify-analytics-reporting";
 import { handleShopifyReportingRequest } from "./shopify-reporting";
 import { refreshPaidMediaSnapshot } from "./paid-media-snapshot";
@@ -70,6 +71,40 @@ async function invoke(handler: (request: Request, env: any) => Promise<Response 
   }
 }
 function sourceStatus(value: SourceResult): Data { return { ok: value.ok, status: value.status, error: value.error }; }
+
+async function salesByChannel(env: Env, start: string, end: string): Promise<SourceResult> {
+  const query = "FROM sales SHOW orders, gross_sales, discounts, sales_reversals, net_sales, shipping_charges, taxes, total_sales " +
+    "GROUP BY sales_channel SINCE " + start + " UNTIL " + end;
+  const operation = "query DailyReportSalesReconciliation($query: String!) { shopifyqlQuery(query: $query) { parseErrors tableData { rows } } }";
+  try {
+    const result = await shopifyGraphQL<{ shopifyqlQuery: { parseErrors: string[]; tableData: { rows: Data[] } | null } }>(
+      env as any, operation, { query });
+    const table = result.shopifyqlQuery?.tableData;
+    if (result.shopifyqlQuery?.parseErrors?.length || !table || !Array.isArray(table.rows)) {
+      return { ok: false, status: 502, error: "shopifyql_sales_invalid", data: null };
+    }
+    const rows = table.rows.map(row => ({
+      sales_channel: normalize(row.sales_channel),
+      orders: num(row.orders),
+      gross_sales: round(num(row.gross_sales)),
+      discounts: round(num(row.discounts)),
+      reversals: round(num(row.sales_reversals)),
+      net_sales: round(num(row.net_sales)),
+      total_sales: round(num(row.total_sales)),
+    }));
+    const direct = rows.filter(row => ["online store", "shop"].includes(row.sales_channel.toLowerCase()));
+    const sum = (items: typeof rows, key: keyof typeof rows[number]): number =>
+      round(items.reduce((total, row) => total + num(row[key]), 0));
+    return { ok: true, status: 200, error: null, data: {
+      ok: true, timeframe: { start, end, timezone: "Europe/Rome" }, rows,
+      direct: { orders: sum(direct, "orders"), net_sales: sum(direct, "net_sales"),
+        total_sales: sum(direct, "total_sales"), gross_sales: sum(direct, "gross_sales") },
+      marketplace: rows.filter(row => /channable|amazon|spartoo|tiktok/i.test(row.sales_channel)),
+      physical: rows.filter(row => /point of sale|draft/i.test(row.sales_channel)),
+    } };
+  } catch { return { ok: false, status: 503, error: "shopifyql_sales_unavailable", data: null }; }
+}
+
 function checkRange(window: unknown, end: string): boolean {
   const root = asObject(window);
   const range = asObject(root.range);
