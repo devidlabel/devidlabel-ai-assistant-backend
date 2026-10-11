@@ -1,0 +1,85 @@
+name: Verify Cloudflare Paid Media Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: "Europe/Rome report date (YYYY-MM-DD); empty for yesterday"
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/paid-media-snapshot-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WORKER_URL: https://devidlabel-ai-assistant-backend.devidlabel.workers.dev
+      DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+      REQUESTED_DATE: ${{ inputs.report_date }}
+    steps:
+      - name: Resolve report date (Europe/Rome)
+        id: date
+        shell: bash
+        run: |
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const input = (process.env.REQUESTED_DATE || '').trim();
+          const d = new Date(Date.now() - 86400000);
+          const parts = new Intl.DateTimeFormat('en-CA', {timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(d);
+          const v = Object.fromEntries(parts.map(p => [p.type, p.value]));
+          const date = input || [v.year, v.month, v.day].join('-');
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) process.exit(2);
+          console.log('date=' + date);
+          NODE
+      - name: Refresh authoritative Cloudflare snapshot
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 2 \
+            -X POST \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/paid-media/refresh?date=${{ steps.date.outputs.date }}" \
+            -o /tmp/paid-media-refreshed.json
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const d = JSON.parse(fs.readFileSync('/tmp/paid-media-refreshed.json', 'utf8'));
+          const summary = {
+            date: d.date,
+            complete: d.combined?.complete === true,
+            meta: {ok: d.source_status?.meta?.ok, status: d.source_status?.meta?.status, spend: d.sources?.meta?.spend, error: d.sources?.meta?.error},
+            google: {ok: d.source_status?.google?.ok, status: d.source_status?.google?.status, spend: d.sources?.google?.spend, error: d.sources?.google?.error},
+            total_spend: d.combined?.paid_media_spend_meta_google,
+            missing_sources: d.combined?.missing_sources,
+          };
+          console.log('Cloudflare ADV snapshot: ' + JSON.stringify(summary));
+          if (!summary.complete) process.exit(3);
+          NODE
+      - name: Verify persisted KV readback
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            "$WORKER_URL/internal/paid-media/snapshot?date=${{ steps.date.outputs.date }}" \
+            -o /tmp/paid-media-readback.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const written = JSON.parse(fs.readFileSync('/tmp/paid-media-refreshed.json', 'utf8'));
+          const readback = JSON.parse(fs.readFileSync('/tmp/paid-media-readback.json', 'utf8'));
+          if (readback.ok !== true ||
+            readback.date !== written.date ||
+            readback.collected_at !== written.collected_at ||
+            readback.combined?.paid_media_spend_meta_google !== written.combined?.paid_media_spend_meta_google) {
+            console.error('KV readback did not match the authoritative refreshed snapshot');
+            process.exit(4);
+          }
+          console.log('Cloudflare KV snapshot readback verified for ' + readback.date);
+          NODE
