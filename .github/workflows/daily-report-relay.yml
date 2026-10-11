@@ -53,6 +53,18 @@ jobs:
           REPORT_DATE: ${{ steps.plan.outputs.date }}
         run: |
           test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          # Manual and request-triggered runs must rebuild even when the previous
+          # snapshot exists; scheduled runs only read the cron-built Cloudflare KV.
+          if [ "$GITHUB_EVENT_NAME" != "schedule" ]; then
+            REFRESH_STATUS="$(curl -sS --retry 2 --retry-delay 4 -X POST \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              -o /tmp/refresh-status.json -w '%{http_code}' \
+              "$WORKER_URL/internal/daily-report/refresh?date=$REPORT_DATE")"
+            echo "Cloudflare refresh status: $REFRESH_STATUS"
+            if [ "$REFRESH_STATUS" != "200" ] && [ "$REFRESH_STATUS" != "206" ]; then
+              echo "::error::Cloudflare Daily Report refresh status $REFRESH_STATUS"; exit 1
+            fi
+          fi
           STATUS="$(curl -sS --retry 3 --retry-delay 5 \
             -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
             -o report.json -w '%{http_code}' \
