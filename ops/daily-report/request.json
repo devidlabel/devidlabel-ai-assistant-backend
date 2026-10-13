@@ -1,6 +1,6 @@
 {
-  "requested_at": "2026-10-11T12:40:00+02:00",
-  "reason": "Production post-deploy verification of enhanced KPI email, source reconciliation, 1D 3D 7D and archive readback",
-  "report_date": "2026-10-10",
+  "requested_at": "2026-10-13T07:51:15+02:00",
+  "reason": "07:50 Europe/Rome preflight: latest pointer stale; request single Cloudflare MARE relay refresh for previous day",
+  "report_date": "2026-10-12",
   "verify_render_version": "expanded_kpis"
 }
