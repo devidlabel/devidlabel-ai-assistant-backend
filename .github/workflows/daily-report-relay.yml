@@ -6,8 +6,11 @@ on:
     paths:
       - '.github/workflows/daily-report-relay.yml'
       - 'ops/daily-report/request.json'
+      # Run as soon as the validated Daily Pulse pointer is refreshed.
+      - 'ops/daily-pulse/latest.json'
   schedule:
-    - cron: '5,20,35,50 4,5,6,7 * * *'
+    # Recovery attempts; GitHub schedule can be delayed by hours.
+    - cron: '5,20,35,50 4,5,6,7,8,9,10,11,12 * * *'
 
 concurrency:
   group: daily-report-relay
@@ -40,7 +43,7 @@ jobs:
           const date=[v.year,v.month,v.day].join('-');
           const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Rome',hour:'2-digit',hourCycle:'h23'}).format(new Date()));
           let complete=false;
-          try {const old=JSON.parse(fs.readFileSync('ops/daily-report/latest.json','utf8'));complete=old.date===date&&old.complete===true;} catch {}
+          try {const old=JSON.parse(fs.readFileSync('ops/daily-report/latest.json','utf8'));complete=old.date===date&&old.complete===true&&Array.isArray(old.missing_required_sources)&&old.missing_required_sources.length===0;} catch {}
           console.log('date='+date);
           const scheduled=process.env.EVENT_NAME==='schedule';
           console.log('run='+((!complete||!scheduled)&&(!scheduled||hour>=7)));
