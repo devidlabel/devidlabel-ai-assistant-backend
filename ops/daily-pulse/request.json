@@ -1,4 +1,5 @@
 {
-  "requested_at": "2026-10-09T07:00:00+02:00",
-  "reason": "Daily Business Report preflight refresh for yesterday 2026-10-08; validate yesterday/3D/7D and prepare targeted fallbacks"
+  "requested_at": "2026-10-14T08:26:14+02:00",
+  "reason": "08:25 watchdog recovery: refresh stale ADV/GA4/GSC data for 2026-10-13",
+  "report_date": "2026-10-13"
 }
