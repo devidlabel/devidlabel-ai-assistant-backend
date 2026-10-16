@@ -1,6 +1,6 @@
 {
-  "report_date": "2026-10-14",
-  "requested_at": "2026-10-15T06:31:44.006Z",
-  "reason": "Daily Report preflight: pointer stale and no active relay; single recovery request for yesterday Europe/Rome",
+  "report_date": "2026-10-15",
+  "requested_at": "2026-10-16T07:00:28.939Z",
+  "reason": "Single D-1 recovery request: 2026-10-16 morning report pointer still stale; relay should refresh Cloudflare MARE",
   "verify_render_version": "expanded_kpis"
 }
