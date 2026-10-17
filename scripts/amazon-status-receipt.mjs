@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { summarizeAmazonReportStream } from "./amazon-stream-count.mjs";
 
 const token = process.env.DAILY_PULSE_ACCESS_TOKEN || "";
 const base = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev";
@@ -28,9 +29,9 @@ async function request(path) {
 }
 
 const report = {
-  schema_version: 2,
+  schema_version: 3,
   generated_at: new Date().toISOString(),
-  kind: "amazon_eu_readonly_listing_counts",
+  kind: "amazon_eu_stream_listing_counts",
   no_listing_writes: true,
   marketplaces: {},
   reports: {},
@@ -66,26 +67,7 @@ if (!token) {
       has_more_metadata: body.result?.has_more === true,
       error_code: allowedError(body.error)
     };
-    const summary = await request("/internal/amazon/listing-report-summary?marketplace=" + market);
-    const result = summary.body?.result || {};
-    const reportAvailable = result.report_available === true;
-    report.listing_summaries[market] = {
-      http_status: summary.status,
-      ok: summary.status === 200 && summary.body?.ok === true && summary.body?.read_only === true,
-      report_available: reportAvailable,
-      report_created_at: reportAvailable ? (result.report_created_at || null) : null,
-      report_age_hours: reportAvailable && Number.isFinite(result.report_age_hours) ? result.report_age_hours : null,
-      fresh_within_24h: result.fresh_within_24h === true,
-      snapshot_complete: result.snapshot_complete === true,
-      safe_for_missing_sku_classification: result.safe_for_missing_sku_classification === true,
-      rows: reportAvailable && Number.isFinite(result.rows) ? result.rows : null,
-      unique_skus: reportAvailable && Number.isFinite(result.unique_skus) ? result.unique_skus : null,
-      duplicate_sku_rows: reportAvailable && Number.isFinite(result.duplicate_sku_rows) ? result.duplicate_sku_rows : null,
-      active: reportAvailable && Number.isFinite(result.active) ? result.active : null,
-      inactive: reportAvailable && Number.isFinite(result.inactive) ? result.inactive : null,
-      status_unknown: reportAvailable && Number.isFinite(result.status_unknown) ? result.status_unknown : null,
-      error_code: allowedError(summary.body?.error)
-    };
+    report.listing_summaries[market] = await summarizeAmazonReportStream(market, token);
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
   report.complete = report.marketplaces.ok === true
