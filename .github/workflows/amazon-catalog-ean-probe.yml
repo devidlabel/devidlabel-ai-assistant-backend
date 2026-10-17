@@ -1,0 +1,52 @@
+name: Amazon EU Catalog EAN read-only live probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-catalog-ean-probe.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-catalog-ean-live-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Query one in-stock Shopify EAN across Amazon EU catalog
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          AMAZON_CATALOG_PROBE_RUN: "true"
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/amazon-catalog-ean-smoke.mjs
+      - name: Persist sanitized EAN pilot result
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-catalog-ean-pilot origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-catalog-ean-probe.json ops/amazon/catalog-ean-probe-latest.json
+            git add ops/amazon/catalog-ean-probe-latest.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Update read-only Amazon EU EAN catalog probe'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Enforce read-only Amazon catalog authorization
+        run: |
+          node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync('ops/amazon/catalog-ean-probe-latest.json')); if (!r.complete) process.exit(1);"
