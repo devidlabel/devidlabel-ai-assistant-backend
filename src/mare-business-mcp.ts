@@ -1,4 +1,5 @@
 import { handleMareMcpRequest } from "./mare-mcp.js";
+import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp.js";
@@ -405,6 +406,7 @@ async function systemStatus(env: MareBusinessEnv): Promise<JsonObject> {
 }
 
 async function executeRead(capabilityId: string, request: JsonObject, env: MareBusinessEnv): Promise<JsonObject> {
+  if(capabilityId==="amazon.seller.sku.status")return textToolResult(await readAmazonMerchantSkuStatuses(request,env));
   if (capabilityId === "amazon.catalog.exact.match") return textToolResult(await readAmazonExactMatchCandidates(request, env));
   if (capabilityId === "amazon.catalog.asin.details") return textToolResult(await readAmazonCatalogASINDetails(request,env));
   if (capabilityId === "shopify.catalog.read" || capabilityId === "shopify.catalog.export") return textToolResult(await readShopifyCatalog(request, env));
