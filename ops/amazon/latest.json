@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T15:13:25.124Z",
+  "kind": "amazon_eu_readonly_metadata",
+  "no_listing_writes": true,
+  "marketplaces": {
+    "http_status": 200,
+    "ok": true,
+    "account_marketplace_count": 10,
+    "target_marketplaces_present": {
+      "IT": true,
+      "DE": true,
+      "FR": true,
+      "ES": true
+    },
+    "error_code": null
+  },
+  "reports": {
+    "IT": {
+      "http_status": 200,
+      "ok": true,
+      "metadata_reports_found": 20,
+      "done_reports": 20,
+      "done_documents_available": 20,
+      "has_more_metadata": true,
+      "error_code": null
+    },
+    "DE": {
+      "http_status": 200,
+      "ok": true,
+      "metadata_reports_found": 20,
+      "done_reports": 20,
+      "done_documents_available": 20,
+      "has_more_metadata": true,
+      "error_code": null
+    },
+    "FR": {
+      "http_status": 200,
+      "ok": true,
+      "metadata_reports_found": 20,
+      "done_reports": 20,
+      "done_documents_available": 20,
+      "has_more_metadata": true,
+      "error_code": null
+    },
+    "ES": {
+      "http_status": 200,
+      "ok": true,
+      "metadata_reports_found": 20,
+      "done_reports": 20,
+      "done_documents_available": 20,
+      "has_more_metadata": true,
+      "error_code": null
+    }
+  },
+  "complete": true
+}
