@@ -6,7 +6,7 @@ const MARKETS = ["IT", "DE", "FR", "ES"];
 const MAX_PER_MARKET = 4;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function validEAN(ean) {
+export function validEAN(ean) {
   if (typeof ean !== "string" || !/^\d{13}$/.test(ean)) return false;
   const sum = [...ean.slice(0, 12)].reduce((n, digit, i) => n + Number(digit) * (i % 2 ? 3 : 1), 0);
   return (10 - sum % 10) % 10 === Number(ean[12]);
@@ -23,7 +23,7 @@ const STATES = [
   "LOOKUP_ERROR"
 ];
 function newCounts() { return Object.fromEntries(STATES.map(key => [key, 0])); }
-function sampleDiverseByVendor(rows, limit) {
+export function sampleDiverseByVendor(rows, limit) {
   const buckets = new Map();
   for (const item of rows) {
     const vendor = item.vendor || "Non specificato";

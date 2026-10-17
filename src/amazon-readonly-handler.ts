@@ -5,6 +5,7 @@ import { streamAmazonLatestListingsReport } from "./amazon-report-stream";
 import { redirectAmazonLatestListingReport } from "./amazon-report-link";
 import { readAmazonShopifyEligiblePage } from "./amazon-shopify-eligible-page";
 import { readAmazonCatalogByEAN } from "./amazon-catalog-ean";
+import { readAmazonCatalogByEANBatch } from "./amazon-catalog-ean-batch";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces";
 import type { AmazonCredentials } from "./amazon-auth";
 
@@ -20,7 +21,7 @@ function respond(body: unknown, status = 200): Response {
 }
 export async function handleAmazonReadonlyRequest(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
-  if (!["/internal/amazon/marketplaces", "/internal/amazon/listing-reports", "/internal/amazon/listing-report-summary", "/internal/amazon/report-stream", "/internal/amazon/report-link", "/internal/amazon/shopify-eligible-page", "/internal/amazon/catalog-ean"].includes(url.pathname)) return null;
+  if (!["/internal/amazon/marketplaces", "/internal/amazon/listing-reports", "/internal/amazon/listing-report-summary", "/internal/amazon/report-stream", "/internal/amazon/report-link", "/internal/amazon/shopify-eligible-page", "/internal/amazon/catalog-ean", "/internal/amazon/catalog-eans"].includes(url.pathname)) return null;
   if (request.method !== "GET") return respond({ ok: false, error: "method_not_allowed" }, 405);
   const header = request.headers.get("Authorization") || "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
@@ -32,6 +33,14 @@ export async function handleAmazonReadonlyRequest(request: Request, env: Env): P
     }
     const market = url.searchParams.get("marketplace") || "";
     if (url.pathname !== "/internal/amazon/marketplaces" && !Object.hasOwn(AMAZON_EU_MARKETPLACES, market)) return respond({ ok: false, error: "invalid_marketplace" }, 400);
+    if (url.pathname === "/internal/amazon/catalog-eans") {
+      const raw = url.searchParams.get("eans") || "";
+      if (!/^\d{13}(,\d{13}){0,19}$/.test(raw)) {
+        return respond({ ok: false, error: "invalid_eans" }, 400);
+      }
+      return respond({ ok: true, read_only: true,
+        result: await readAmazonCatalogByEANBatch(env, market as keyof typeof AMAZON_EU_MARKETPLACES, raw.split(",")) });
+    }
     if (url.pathname === "/internal/amazon/catalog-ean") {
       const ean = url.searchParams.get("ean") || "";
       if (!/^\d{13}$/.test(ean)) return respond({ ok: false, error: "invalid_ean" }, 400);
