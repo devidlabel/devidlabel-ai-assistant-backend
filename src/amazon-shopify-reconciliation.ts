@@ -61,7 +61,8 @@ export function reconcileShopifyAmazon(
     for (const variant of product.variants || []) {
       if (product.status !== "ACTIVE") { excluded.notActive++; continue; }
       if ((product.vendor || "").trim().toUpperCase() === "P448") { excluded.p448++; continue; }
-      if (!Number.isFinite(variant.inventory_quantity) || (variant.inventory_quantity || 0) <= 0) { excluded.noStock++; continue; }
+      const quantity = variant.inventory_quantity;
+      if (typeof quantity !== "number" || !Number.isFinite(quantity) || quantity <= 0) { excluded.noStock++; continue; }
       if (!variant.sku || !variant.sku.trim()) { excluded.blankSku++; continue; }
       eligible.push({
         sku: variant.sku,
@@ -69,7 +70,7 @@ export function reconcileShopifyAmazon(
         variantId: variant.id || null,
         vendor: product.vendor || "",
         productType: product.product_type || "",
-        inventoryQuantity: variant.inventory_quantity
+        inventoryQuantity: quantity
       });
     }
   }
