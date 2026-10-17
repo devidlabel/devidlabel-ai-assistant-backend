@@ -31,7 +31,8 @@ export async function handleAmazonReadonlyRequest(request: Request, env: Env): P
       : await readAmazonLatestListingReportSummary(env, market as keyof typeof AMAZON_EU_MARKETPLACES);
     return respond({ ok: true, service: "amazon_spapi", read_only: true, result });
   } catch (error) {
-    const code = error instanceof Error ? error.message : "amazon_read_failed";
+    const rawCode = error instanceof Error ? error.message : "amazon_read_failed";
+    const code = /^amazon_[a-z0-9_]+$/.test(rawCode) ? rawCode : "amazon_unclassified_error";
     return respond({ ok: false, error: code }, 502);
   }
 }
