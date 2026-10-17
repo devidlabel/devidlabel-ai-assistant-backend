@@ -62,7 +62,7 @@ assert.equal(result.results.markets.IT.DUPLICATE_SHOPIFY_SKU, 2);
 assert.equal(result.results.by_category.find(x => x.label === "Sneakers").eligible_variants, 3);
 assert.equal(pagesCalled, 2);
 const serialized = JSON.stringify(result);
-for (const secret of [bearer, "SN-001", "sn-001", "DUP"]) {
+for (const secret of [bearer, "SN-001", "sn-001", "\"DUP\""]) {
   assert(!serialized.includes(secret), "Never persist authentication or raw seller SKUs");
 }
 console.log("Amazon vs Shopify four-market aggregate reconciliation tests passed");
