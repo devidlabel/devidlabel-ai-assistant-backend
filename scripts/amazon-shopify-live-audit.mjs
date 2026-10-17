@@ -73,7 +73,8 @@ function summarizeSegments(rows, classifications, keys) {
 export async function auditShopifyAgainstAmazon({
   bearer,
   amazonReader = null,
-  shopifyFetch = fetch
+  shopifyFetch = fetch,
+  onPrivateSnapshot = null
 }) {
   const report = {
     schema_version: 1, generated_at: new Date().toISOString(),
@@ -136,7 +137,8 @@ export async function auditShopifyAgainstAmazon({
         rows.push({
           sku: item.sku, vendor: typeof item.vendor === "string" ? item.vendor : "",
           product_type: typeof item.product_type === "string" ? item.product_type : "",
-          product_id: item.product_id, variant_id: item.variant_id
+          product_id: item.product_id, variant_id: item.variant_id,
+          barcode: typeof item.barcode === "string" ? item.barcode : null
         });
       }
       hasMore = data.has_more;
@@ -195,5 +197,10 @@ export async function auditShopifyAgainstAmazon({
   report.complete = durationSeconds <= 3600 &&
     MARKETS.every(m => report.amazon[m].compare_ready === true);
   report.shopify.duration_within_hour = durationSeconds <= 3600;
+  // Only an explicitly trusted in-process callback sees raw seller SKUs/EANs.
+  // Never attach these to the serialized audit receipt.
+  if (report.complete && typeof onPrivateSnapshot === "function") {
+    onPrivateSnapshot({ rows, amazonIndexes });
+  }
   return report;
 }
