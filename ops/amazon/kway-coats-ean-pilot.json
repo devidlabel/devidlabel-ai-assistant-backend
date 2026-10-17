@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T17:40:03.420Z",
+  "type": "amazon_eu_kway_coats_ean_pilot",
+  "read_only": true,
+  "no_listing_writes": true,
+  "source": "complete_live_shopify_and_four_amazon_seller_reports",
+  "category": "Giacche e cappotti",
+  "vendor_filter": "K-Way",
+  "batch_size": 8,
+  "max_items_per_market": 16,
+  "sample_only": true,
+  "results_are_full_snapshot": false,
+  "audit_complete": true,
+  "overall_complete": true,
+  "markets": {
+    "IT": {
+      "missing_kway_coat_variants": 122,
+      "missing_with_valid_ean": 120,
+      "missing_without_valid_ean": 2,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 120,
+      "eligible_eans_to_search": 16,
+      "sampled_eans": 16,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 16,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "K-Way",
+          "searched": 16,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 16,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "DE": {
+      "missing_kway_coat_variants": 126,
+      "missing_with_valid_ean": 124,
+      "missing_without_valid_ean": 2,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 124,
+      "eligible_eans_to_search": 16,
+      "sampled_eans": 16,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 16,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "K-Way",
+          "searched": 16,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 16,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "FR": {
+      "missing_kway_coat_variants": 122,
+      "missing_with_valid_ean": 120,
+      "missing_without_valid_ean": 2,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 120,
+      "eligible_eans_to_search": 16,
+      "sampled_eans": 16,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 16,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "K-Way",
+          "searched": 16,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 16,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "ES": {
+      "missing_kway_coat_variants": 126,
+      "missing_with_valid_ean": 124,
+      "missing_without_valid_ean": 2,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 124,
+      "eligible_eans_to_search": 16,
+      "sampled_eans": 16,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 16,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "K-Way",
+          "searched": 16,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 16,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    }
+  },
+  "error_code": null,
+  "audit_generated_at": "2026-10-17T17:40:03.478Z",
+  "shopify_eligible_variants": 4283,
+  "kway_coat_eligible_nonduplicate_variants": 252,
+  "kway_coat_duplicate_sku_variants_quarantined": 0
+}
