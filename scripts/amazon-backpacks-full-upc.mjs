@@ -5,7 +5,7 @@ import { classifyShopifyBarcode } from "./amazon-backpack-barcode-quality.mjs";
 
 
 const WORKER="https://devidlabel-ai-assistant-backend.devidlabel.workers.dev";
-async function catalogUPCBatch({ market, selected, bearer, fetchImpl = fetch,
+export async function catalogUPCBatch({ market, selected, bearer, fetchImpl = fetch,
   endpointRetryMs = 5000 }) {
   const url=new URL(WORKER+"/internal/amazon/catalog-upcs");
   url.searchParams.set("marketplace",market);
