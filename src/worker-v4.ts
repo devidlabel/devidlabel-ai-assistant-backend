@@ -1,3 +1,4 @@
+import { handleAmazonReadonlyRequest } from "./amazon-readonly-handler";
 import { MareMarketplaceShadow, handleMarketplaceShadowStatus, scheduleMarketplaceShadow } from "./marketplace-shadow";
 import { handlePaidMediaSnapshotRequest, schedulePaidMediaSnapshot } from "./paid-media-snapshot";
 import { handleDailyReportRequest, scheduleDailyReport } from "./daily-report-snapshot";
@@ -51,6 +52,9 @@ export default {
     }
   },
   async fetch(request: Request, env: WorkerEnv, context: WorkerExecutionContext): Promise<Response> {
+    const amazonReadonlyResponse = await handleAmazonReadonlyRequest(request, env as any);
+    if (amazonReadonlyResponse) return amazonReadonlyResponse;
+
     const dailyReportResponse = await handleDailyReportRequest(request, env as any);
     if (dailyReportResponse) return dailyReportResponse;
 
