@@ -1,0 +1,51 @@
+name: Amazon EU read-only status receipt
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-status-receipt.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-eu-status-receipt
+  cancel-in-progress: false
+
+jobs:
+  verify-amazon-eu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Probe Amazon read-only and generate sanitized receipt
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          node scripts/amazon-status-receipt.mjs
+      - name: Save sanitized receipt to main for connector readback
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          published=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-status-receipt origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-eu-status-receipt.json ops/amazon/latest.json
+            git add ops/amazon/latest.json
+            if git diff --cached --quiet; then published=1; break; fi
+            git commit -m 'Update sanitized Amazon EU read-only probe receipt'
+            if git push origin HEAD:main; then published=1; break; fi
+            sleep 2
+          done
+          test "$published" -eq 1
+      - name: Enforce Amazon probe success
+        run: |
+          node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync('ops/amazon/latest.json')); if (!r.complete) process.exit(1);"
