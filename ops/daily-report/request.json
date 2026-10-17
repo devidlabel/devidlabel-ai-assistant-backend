@@ -1,6 +1,6 @@
 {
-  "report_date": "2026-10-15",
-  "requested_at": "2026-10-16T07:00:28.939Z",
-  "reason": "Single D-1 recovery request: 2026-10-16 morning report pointer still stale; relay should refresh Cloudflare MARE",
+  "report_date": "2026-10-16",
+  "requested_at": "2026-10-17T06:38:00Z",
+  "reason": "Single D-1 recovery request: 2026-10-17 morning Daily Pulse and Daily Report pointers stale; no relay in progress",
   "verify_render_version": "expanded_kpis"
 }
