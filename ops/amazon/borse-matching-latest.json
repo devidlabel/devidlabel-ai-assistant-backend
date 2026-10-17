@@ -1,0 +1,626 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T19:58:08.005Z",
+  "type": "amazon_eu_borse_ean_upc_matching",
+  "source": "complete_live_shopify_and_four_amazon_seller_reports",
+  "category": "Borse",
+  "identifier_types": [
+    "EAN",
+    "UPC"
+  ],
+  "batch_size": 8,
+  "read_only": true,
+  "no_listing_writes": true,
+  "audit_complete": true,
+  "overall_complete": true,
+  "results_are_full_snapshot": true,
+  "italy_season_activation_gate_required": true,
+  "markets": {
+    "IT": {
+      "missing_from_seller_report": 66,
+      "already_in_seller_report": 41,
+      "blank_or_invalid_gtin": 5,
+      "other_valid_gtin_format_not_queried": 0,
+      "duplicate_gtin_rows_quarantined": 0,
+      "identifier_groups": {
+        "EAN": {
+          "candidates": 58,
+          "searched": 58,
+          "groups_complete": 8,
+          "pages_read": 8,
+          "matching": {
+            "EXACT_ONE": 3,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 55,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        },
+        "UPC": {
+          "candidates": 3,
+          "searched": 3,
+          "groups_complete": 1,
+          "pages_read": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 3,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        }
+      },
+      "match_counts": {
+        "EXACT_ONE": 3,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 58,
+        "UNVERIFIED": 0
+      },
+      "vendor_breakdown": [
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 26,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 26,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 17,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 17,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 13,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 2,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 11,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 3,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 3,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 1,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Rains",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 1,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "DE": {
+      "missing_from_seller_report": 70,
+      "already_in_seller_report": 37,
+      "blank_or_invalid_gtin": 5,
+      "other_valid_gtin_format_not_queried": 0,
+      "duplicate_gtin_rows_quarantined": 0,
+      "identifier_groups": {
+        "EAN": {
+          "candidates": 61,
+          "searched": 61,
+          "groups_complete": 8,
+          "pages_read": 8,
+          "matching": {
+            "EXACT_ONE": 2,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 59,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        },
+        "UPC": {
+          "candidates": 4,
+          "searched": 4,
+          "groups_complete": 1,
+          "pages_read": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        }
+      },
+      "match_counts": {
+        "EXACT_ONE": 2,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 63,
+        "UNVERIFIED": 0
+      },
+      "vendor_breakdown": [
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 30,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 30,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 17,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 17,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 13,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 2,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 11,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 4,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 4,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 1,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "FR": {
+      "missing_from_seller_report": 68,
+      "already_in_seller_report": 39,
+      "blank_or_invalid_gtin": 5,
+      "other_valid_gtin_format_not_queried": 0,
+      "duplicate_gtin_rows_quarantined": 0,
+      "identifier_groups": {
+        "EAN": {
+          "candidates": 59,
+          "searched": 59,
+          "groups_complete": 8,
+          "pages_read": 8,
+          "matching": {
+            "EXACT_ONE": 3,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 56,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        },
+        "UPC": {
+          "candidates": 4,
+          "searched": 4,
+          "groups_complete": 1,
+          "pages_read": 1,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 3,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        }
+      },
+      "match_counts": {
+        "EXACT_ONE": 4,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 59,
+        "UNVERIFIED": 0
+      },
+      "vendor_breakdown": [
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 27,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 27,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 17,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 17,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 13,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 2,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 11,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 4,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 1,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 3,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 1,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Rains",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 1,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "ES": {
+      "missing_from_seller_report": 68,
+      "already_in_seller_report": 39,
+      "blank_or_invalid_gtin": 5,
+      "other_valid_gtin_format_not_queried": 0,
+      "duplicate_gtin_rows_quarantined": 0,
+      "identifier_groups": {
+        "EAN": {
+          "candidates": 59,
+          "searched": 59,
+          "groups_complete": 8,
+          "pages_read": 8,
+          "matching": {
+            "EXACT_ONE": 3,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 56,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        },
+        "UPC": {
+          "candidates": 4,
+          "searched": 4,
+          "groups_complete": 1,
+          "pages_read": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          },
+          "status": "COMPLETE",
+          "error_code": null
+        }
+      },
+      "match_counts": {
+        "EXACT_ONE": 3,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 60,
+        "UNVERIFIED": 0
+      },
+      "vendor_breakdown": [
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 27,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 27,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 17,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 17,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 13,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 2,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 11,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 4,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 4,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 1,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        },
+        {
+          "vendor": "Rains",
+          "searched": 1,
+          "by_identifier": {
+            "EAN": {
+              "EXACT_ONE": 1,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            },
+            "UPC": {
+              "EXACT_ONE": 0,
+              "EXACT_MULTIPLE": 0,
+              "NO_EXACT_MATCH": 0,
+              "UNVERIFIED": 0
+            }
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    }
+  },
+  "error_code": null,
+  "audit_generated_at": "2026-10-17T19:58:08.011Z",
+  "eligible_unique_sku_variants": 107,
+  "duplicate_sku_variants_quarantined": 0
+}
