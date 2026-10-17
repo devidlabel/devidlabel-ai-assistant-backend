@@ -19,7 +19,7 @@ type CatalogResponse = {
 const API = "https://sellingpartnerapi-eu.amazon.com/catalog/2022-04-01/items";
 const MAX_EANS = 20;
 const MAX_PAGES = 10;
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const THROTTLE_DELAYS_MS = [2500, 7000, 16000];
 
 function validEAN13(value: string): boolean {
