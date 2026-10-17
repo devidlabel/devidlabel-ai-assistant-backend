@@ -1,0 +1,70 @@
+name: Amazon Sneakers EU stage 4 - 24 EANs per market
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-sneakers-stage4.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-sneakers-stage4
+  cancel-in-progress: false
+
+jobs:
+  read-only-stage4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Confirm production multi-EAN endpoint is ready
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            status=$(curl --silent --show-error --max-time 25 -o /tmp/amazon-stage4-ready.json -w '%{http_code}' \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/amazon/catalog-eans?marketplace=IT&eans=INVALID') || status=000
+            if [ "$status" = "400" ] && node -e "try{const x=JSON.parse(require('fs').readFileSync('/tmp/amazon-stage4-ready.json','utf8'));process.exit(x.error==='invalid_eans'?0:1)}catch{process.exit(1)}"; then
+              ready=1
+              break
+            fi
+            echo "Multi-EAN Worker endpoint not ready, attempt $attempt (HTTP $status)"
+            sleep 15
+          done
+          test "$ready" -eq 1
+      - name: Run 24 new EAN checks per marketplace in three bounded groups
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          AMAZON_SNEAKERS_STAGE4_RUN: 'true'
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/amazon-sneakers-stage4.mjs
+      - name: Save sanitized four-market stage4 results
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-sneakers-stage4-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-sneakers-stage4.json ops/amazon/sneakers-stage4-latest.json
+            git add ops/amazon/sneakers-stage4-latest.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Record read-only 24-EAN Amazon Sneakers stage4 results'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Enforce all four markets complete and read-only
+        run: |
+          node -e "const fs=require('node:fs');const r=JSON.parse(fs.readFileSync('ops/amazon/sneakers-stage4-latest.json'));if (!r.overall_complete || !r.audit_complete || !r.read_only || !r.no_listing_writes)process.exit(1);"
