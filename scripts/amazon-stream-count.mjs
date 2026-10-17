@@ -30,7 +30,7 @@ async function readLimited(stream, limit) {
  * description columns cannot corrupt an otherwise exact seller-SKU match.
  * Never treat invalid seller-SKU bytes as verified identities.
  */
-function parseReport(data) {
+function parseReport(data, onSkuRow = null) {
   const utf8 = new TextDecoder("utf-8", { fatal: true });
   const permissive = new TextDecoder("utf-8", { fatal: false });
   const allText = permissive.decode(data);
@@ -100,6 +100,7 @@ function parseReport(data) {
     const statusCell = statusIdx >= 0 ? cols[statusIdx] : null;
     if (statusCell && !statusCell.valid) invalidStatusBytes++;
     const status = (statusCell?.decoded || "").trim().toUpperCase();
+    if (typeof onSkuRow === "function" && sku.valid && (!statusCell || statusCell.valid)) onSkuRow(sku.decoded, status);
     if (status === "ACTIVE") active++;
     else if (["INACTIVE", "INCOMPLETE", "SUPPRESSED"].includes(status)) inactive++;
     else unknown++;
@@ -119,7 +120,7 @@ function parseReport(data) {
 }
 
 /** Fetch authenticated report stream. Never persist or log SKU rows. */
-export async function summarizeAmazonReportStream(market, bearer, fetchImpl = fetch) {
+export async function summarizeAmazonReportStream(market, bearer, fetchImpl = fetch, onSkuRow = null) {
   const result = { marketplace: market, http_status: 0, ok: false, report_available: false,
     error_code: null, rows: null, unique_skus: null,
     duplicate_sku_rows: null, active: null, inactive: null, status_unknown: null,
@@ -172,7 +173,7 @@ export async function summarizeAmazonReportStream(market, bearer, fetchImpl = fe
       } else compressionVerified = false;
     } else if (compression !== "NONE") throw new Error("amazon_stream_unsupported_compression");
     if (decoded.length > MAX_DECODED) throw new Error("amazon_stream_decoded_too_large");
-    const counts = parseReport(decoded);
+    const counts = parseReport(decoded, onSkuRow);
     const date = handoff.headers.get("X-Amazon-Report-Created-At") || "";
     const parsedDate = date ? Date.parse(date) : NaN;
     const ageHours = Number.isFinite(parsedDate) ? (Date.now() - parsedDate) / 3600000 : null;
