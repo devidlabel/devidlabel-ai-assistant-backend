@@ -123,6 +123,9 @@ jobs:
       - name: Test YouTube OAuth error diagnostics
         run: node scripts/test-youtube-oauth.mjs
 
+      - name: Test Amazon SP-API read-only connector (mocked)
+        run: npm run test:amazon-readonly
+
       - name: Build Worker bundle without deployment
         run: npx wrangler deploy --dry-run
 
