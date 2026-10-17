@@ -7,12 +7,16 @@ const MAX_DOWNLOAD_BYTES = 16 * 1024 * 1024;
 const MAX_DECODED_BYTES = 32 * 1024 * 1024;
 
 async function getJson(url: string, token: string, label: string): Promise<any> {
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "x-amz-access-token": token, Accept: "application/json" }
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers: { "x-amz-access-token": token, Accept: "application/json" }
+    });
+  } catch { throw new Error("amazon_" + label + "_network_error"); }
   if (!response.ok) throw new Error("amazon_" + label + "_failed_" + response.status);
-  return response.json();
+  try { return await response.json(); }
+  catch { throw new Error("amazon_" + label + "_invalid_json"); }
 }
 
 async function boundedRead(stream: ReadableStream<Uint8Array>, limit: number): Promise<Uint8Array> {
@@ -90,26 +94,51 @@ export async function readAmazonLatestListingReportSummary(
     url?: string; compressionAlgorithm?: string;
   };
   if (!document.url) throw new Error("amazon_report_document_url_missing");
-  const signedUrl = new URL(document.url);
+  let signedUrl: URL;
+  try { signedUrl = new URL(document.url); }
+  catch { throw new Error("amazon_report_document_url_invalid"); }
   if (signedUrl.protocol !== "https:" || !signedUrl.hostname.endsWith(".amazonaws.com") || signedUrl.username || signedUrl.password) {
     throw new Error("amazon_report_document_host_invalid");
   }
-  const download = await fetch(signedUrl.toString(), { method: "GET", redirect: "error" });
+  let download: Response;
+  try { download = await fetch(signedUrl.toString(), { method: "GET", redirect: "error" }); }
+  catch { throw new Error("amazon_report_download_network_error"); }
   if (!download.ok || !download.body) throw new Error("amazon_report_download_failed_" + download.status);
   const length = Number(download.headers.get("content-length") || 0);
   if (length > MAX_DOWNLOAD_BYTES) throw new Error("amazon_report_too_large");
-  const bytes = await boundedRead(download.body, MAX_DOWNLOAD_BYTES);
+  let bytes: Uint8Array;
+  try { bytes = await boundedRead(download.body, MAX_DOWNLOAD_BYTES); }
+  catch (error) {
+    if (error instanceof Error && error.message === "amazon_report_too_large") throw error;
+    throw new Error("amazon_report_download_stream_error");
+  }
   let decoded = bytes;
   if (document.compressionAlgorithm === "GZIP") {
-    decoded = await boundedRead(
-      new Blob([bytes.buffer as ArrayBuffer]).stream().pipeThrough(new DecompressionStream("gzip")),
-      MAX_DECODED_BYTES
-    );
+    try {
+      decoded = await boundedRead(
+        new Blob([bytes.buffer as ArrayBuffer]).stream().pipeThrough(new DecompressionStream("gzip")),
+        MAX_DECODED_BYTES
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === "amazon_report_too_large") throw error;
+      throw new Error("amazon_report_decompression_error");
+    }
   } else if (document.compressionAlgorithm) {
     throw new Error("amazon_report_unknown_compression");
   }
   if (decoded.byteLength > MAX_DECODED_BYTES) throw new Error("amazon_report_too_large");
-  const content = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+  let content: string;
+  let encodingVerified = true;
+  try {
+    if (decoded[0] === 0xff && decoded[1] === 0xfe) {
+      content = new TextDecoder("utf-16le", { fatal: true }).decode(decoded);
+    } else if (decoded[0] === 0xfe && decoded[1] === 0xff) {
+      content = new TextDecoder("utf-16be", { fatal: true }).decode(decoded);
+    } else {
+      content = new TextDecoder("utf-8", { fatal: false }).decode(decoded);
+      encodingVerified = !content.includes("\uFFFD");
+    }
+  } catch { throw new Error("amazon_report_encoding_error"); }
   const counts = countSkuRows(content);
   const createdAt = selected.createdTime || null;
   const createdTime = createdAt ? Date.parse(createdAt) : NaN;
@@ -124,7 +153,8 @@ export async function readAmazonLatestListingReportSummary(
     report_age_hours: ageHours !== null ? Math.round(ageHours * 10) / 10 : null,
     fresh_within_24h: freshWithin24h,
     snapshot_complete: true,
-    safe_for_missing_sku_classification: freshWithin24h && counts.duplicate_sku_rows === 0,
+    encoding_verified: encodingVerified,
+    safe_for_missing_sku_classification: freshWithin24h && encodingVerified && counts.duplicate_sku_rows === 0,
     ...counts
   };
 }
