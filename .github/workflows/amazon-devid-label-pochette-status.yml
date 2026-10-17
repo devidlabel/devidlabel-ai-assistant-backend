@@ -1,0 +1,52 @@
+name: Amazon Devid Label Pochette first-offer status slots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-devid-label-pochette-status.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-devid-label-pochette-status
+  cancel-in-progress: false
+
+jobs:
+  read-only-seller-sku-slot-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Reconcile all three own-brand pochette SKU seller statuses
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          AMAZON_DL_POCHETTE_SKU_STATUS_RUN: 'true'
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/amazon-devid-label-pochette-seller-status.mjs
+      - name: Persist sanitized ordinal-only seller presence
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-dl-pochette-status-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-dl-pochette-sku-status.json ops/amazon/devid-label-pochette-seller-status-slots.json
+            git add ops/amazon/devid-label-pochette-seller-status-slots.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Record ordinal-only Amazon Devid Label Pochette seller status checkpoint'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Require clean status of all 3 slots and 4 markets
+        run: |
+          node -e "const x=JSON.parse(require('fs').readFileSync('ops/amazon/devid-label-pochette-seller-status-slots.json'));if(!x.overall_complete||!x.audit_complete||!x.no_listing_writes||x.slots.length!==3)process.exit(1)"
