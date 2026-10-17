@@ -9,6 +9,14 @@ try {
   globalThis.fetch = async (url, init) => {
     calls++;
     assert.equal(init.method, "GET");
+    if (String(url).startsWith("https://seller-reports.s3.amazonaws.com/")) {
+      assert.equal(init.headers.Authorization, undefined, "Never forward the Worker bearer to S3");
+      assert.equal(init.redirect, "error");
+      const market = new URL(String(url)).pathname.split("/")[1];
+      const data = ["seller-sku\tstatus", ...Array.from({ length: 125 }, (_, i) =>
+        "SKU-" + market + "-" + i + "\t" + (i < 120 ? "Active" : "Inactive")), ""].join("\n");
+      return new Response(data, { status: 200, headers: { "content-length": String(Buffer.byteLength(data)) } });
+    }
     assert.equal(init.headers.Authorization, "Bearer " + secret);
     if (String(url).endsWith("/marketplaces")) {
       return new Response(JSON.stringify({
@@ -16,16 +24,15 @@ try {
         result: { payload: ids.map(id => ({ marketplace: { id } })) }
       }), { status: 200 });
     }
-    if (String(url).includes("/report-stream?marketplace=")) {
+    if (String(url).includes("/report-link?marketplace=")) {
+      assert.equal(init.redirect, "manual");
       const market = new URL(String(url)).searchParams.get("marketplace");
-      const data = ["seller-sku\tstatus", ...Array.from({ length: 125 }, (_, i) =>
-        "SKU-" + market + "-" + i + "\t" + (i < 120 ? "Active" : "Inactive")), ""].join("\n");
-      return new Response(data, { status: 200, headers: {
+      return new Response(null, { status: 307, headers: {
+        Location: "https://seller-reports.s3.amazonaws.com/" + market + "/report?X-Amz-Signature=do-not-log",
         "X-Amazon-Report-Marketplace": market,
         "X-Amazon-Report-Type": "GET_MERCHANT_LISTINGS_ALL_DATA",
         "X-Amazon-Report-Compression": "NONE",
-        "X-Amazon-Report-Created-At": new Date().toISOString(),
-        "X-Amazon-Report-Raw-Length": String(Buffer.byteLength(data))
+        "X-Amazon-Report-Created-At": new Date().toISOString()
       } });
     }
     assert(String(url).includes("/listing-reports?marketplace="));
@@ -41,8 +48,7 @@ try {
   assert.equal(receipt.no_listing_writes, true);
   assert.equal(receipt.marketplaces.account_marketplace_count, 4);
   for (const market of ["IT", "DE", "FR", "ES"]) {
-    assert.equal(receipt.reports[market].ok, true);
-    assert.equal(receipt.reports[market].done_documents_available, 1);
+    assert.equal(receipt.reports[market].metadata_check_skipped, true);
     assert.equal(receipt.listing_summaries[market].unique_skus, 125);
     assert.equal(receipt.listing_summaries[market].active, 120);
     assert.equal(receipt.listing_summaries[market].safe_for_missing_sku_classification, true);

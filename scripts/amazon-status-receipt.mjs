@@ -29,9 +29,9 @@ async function request(path) {
 }
 
 const report = {
-  schema_version: 3,
+  schema_version: 4,
   generated_at: new Date().toISOString(),
-  kind: "amazon_eu_stream_listing_counts",
+  kind: "amazon_eu_direct_s3_listing_counts",
   no_listing_writes: true,
   marketplaces: {},
   reports: {},
@@ -55,24 +55,28 @@ if (!token) {
     error_code: allowedError(participation.body?.error)
   };
   for (const market of Object.keys(marketIds)) {
-    const data = await request("/internal/amazon/listing-reports?marketplace=" + market);
-    const body = data.body || {};
-    const list = Array.isArray(body.result?.reports) ? body.result.reports : [];
-    report.reports[market] = {
-      http_status: data.status,
-      ok: data.status === 200 && body.ok === true && body.read_only === true,
-      metadata_reports_found: list.length,
-      done_reports: list.filter(item => item.processingStatus === "DONE").length,
-      done_documents_available: list.filter(item => item.processingStatus === "DONE" && item.reportDocumentAvailable).length,
-      has_more_metadata: body.result?.has_more === true,
-      error_code: allowedError(body.error)
-    };
     report.listing_summaries[market] = await summarizeAmazonReportStream(market, token);
+    if (report.listing_summaries[market].ok === true) {
+      // Avoid redundant Reports API calls; the signed link already proves availability.
+      report.reports[market] = { metadata_check_skipped: true, reason: "reduce_amazon_api_throttling" };
+    } else {
+      const data = await request("/internal/amazon/listing-reports?marketplace=" + market);
+      const body = data.body || {};
+      const list = Array.isArray(body.result?.reports) ? body.result.reports : [];
+      report.reports[market] = {
+        http_status: data.status,
+        ok: data.status === 200 && body.ok === true && body.read_only === true,
+        metadata_reports_found: list.length,
+        done_reports: list.filter(item => item.processingStatus === "DONE").length,
+        done_documents_available: list.filter(item => item.processingStatus === "DONE" && item.reportDocumentAvailable).length,
+        has_more_metadata: body.result?.has_more === true,
+        error_code: allowedError(body.error)
+      };
+    }
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
   report.complete = report.marketplaces.ok === true
     && Object.values(report.marketplaces.target_marketplaces_present).every(Boolean)
-    && Object.values(report.reports).every(item => item.ok === true)
     && Object.values(report.listing_summaries).length === 4
     && Object.values(report.listing_summaries).every(item => item.ok === true);
 }

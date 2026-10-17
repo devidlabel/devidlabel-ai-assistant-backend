@@ -71,27 +71,41 @@ export async function summarizeAmazonReportStream(market, bearer, fetchImpl = fe
   try {
     if (!["IT", "DE", "FR", "ES"].includes(market)) throw new Error("amazon_stream_invalid_marketplace");
     if (!bearer) throw new Error("amazon_stream_bearer_missing");
-    const response = await fetchImpl(BASE + "/internal/amazon/report-stream?marketplace=" + market, {
-      method: "GET", headers: { Authorization: "Bearer " + bearer, Accept: "application/octet-stream" },
-      signal: AbortSignal.timeout(110000)
+    const handoff = await fetchImpl(BASE + "/internal/amazon/report-link?marketplace=" + market, {
+      method: "GET", headers: { Authorization: "Bearer " + bearer, Accept: "application/json" },
+      redirect: "manual", signal: AbortSignal.timeout(110000)
     });
-    result.http_status = response.status;
-    if (!response.ok) {
+    result.http_status = handoff.status;
+    if (handoff.status !== 307) {
       let body = {};
-      try { body = await response.json(); } catch {}
+      try { body = await handoff.json(); } catch {}
       result.error_code = safeError(body.error);
       return result;
     }
-    if (response.headers.get("X-Amazon-Report-Marketplace") !== market ||
-        response.headers.get("X-Amazon-Report-Type") !== "GET_MERCHANT_LISTINGS_ALL_DATA") {
+    if (handoff.headers.get("X-Amazon-Report-Marketplace") !== market ||
+        handoff.headers.get("X-Amazon-Report-Type") !== "GET_MERCHANT_LISTINGS_ALL_DATA") {
       throw new Error("amazon_stream_report_identity_mismatch");
     }
+    const signedLocation = handoff.headers.get("location");
+    if (!signedLocation) throw new Error("amazon_link_location_missing");
+    let signedUrl;
+    try { signedUrl = new URL(signedLocation); }
+    catch { throw new Error("amazon_link_location_invalid"); }
+    if (signedUrl.protocol !== "https:" || !signedUrl.hostname.endsWith(".amazonaws.com") ||
+        signedUrl.username || signedUrl.password) throw new Error("amazon_link_location_host_invalid");
+    // Never forward the backend bearer token to Amazon S3.
+    const response = await fetchImpl(signedUrl.toString(), {
+      method: "GET", headers: { Accept: "application/octet-stream" },
+      redirect: "error", signal: AbortSignal.timeout(110000)
+    });
+    result.http_status = response.status;
+    if (!response.ok) throw new Error("amazon_link_s3_http_" + response.status);
     const raw = await readLimited(response.body, MAX_RAW);
-    const rawDeclared = response.headers.get("X-Amazon-Report-Raw-Length");
+    const rawDeclared = response.headers.get("content-length");
     if (rawDeclared && /^\d+$/.test(rawDeclared) && Number(rawDeclared) !== raw.length) {
       throw new Error("amazon_stream_length_mismatch");
     }
-    const compression = response.headers.get("X-Amazon-Report-Compression") || "NONE";
+    const compression = handoff.headers.get("X-Amazon-Report-Compression") || "NONE";
     let decoded = raw;
     let compressionVerified = true;
     if (compression === "GZIP") {
@@ -102,7 +116,7 @@ export async function summarizeAmazonReportStream(market, bearer, fetchImpl = fe
     } else if (compression !== "NONE") throw new Error("amazon_stream_unsupported_compression");
     if (decoded.length > MAX_DECODED) throw new Error("amazon_stream_decoded_too_large");
     const counts = parseReport(decoded);
-    const date = response.headers.get("X-Amazon-Report-Created-At") || "";
+    const date = handoff.headers.get("X-Amazon-Report-Created-At") || "";
     const parsedDate = date ? Date.parse(date) : NaN;
     const ageHours = Number.isFinite(parsedDate) ? (Date.now() - parsedDate) / 3600000 : null;
     const recent = ageHours !== null && ageHours >= 0 && ageHours <= 24;
