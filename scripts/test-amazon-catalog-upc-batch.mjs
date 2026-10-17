@@ -13,7 +13,7 @@ function makeUpc(base) {
   const total = [...prefix].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0);
   return prefix + ((10 - total % 10) % 10);
 }
-const upcs = [makeEan(80516892173), makeEan(80516892174), makeEan(80516892175)];
+const upcs = [makeUpc(80516892173), makeUpc(80516892174), makeUpc(80516892175)];
 const root = "https://worker.test/internal/amazon/catalog-upcs?marketplace=IT&upcs=" + upcs.join(",");
 const headers = { Authorization: "Bearer private-admin" };
 const env = {
@@ -23,10 +23,10 @@ const env = {
 };
 let mode = "normal", pageFetches = 0;
 const original = globalThis.fetch;
-function item(asin, upc, mapToEan = true) {
+function item(asin, upc, mapToUpc = true) {
   return { asin, identifiers: [{
     marketplaceId: "APJ6JRA9NG5V4",
-    identifiers: mapToEan ? [{ identifierType: "UPC", identifier: upc }] : []
+    identifiers: mapToUpc ? [{ identifierType: "UPC", identifier: upc }] : []
   }] };
 }
 try {
@@ -83,6 +83,12 @@ try {
   assert.equal((await handleAmazonReadonlyRequest(
     new Request(root.replace(upcs.join(","), "INVALID"), { headers }), env
   )).status, 400);
+  assert.equal(pageFetches, 0);
+  const badChecksum = upcs[0].slice(0,11) + (upcs[0][11] === "0" ? "1" : "0");
+  const rejected = await handleAmazonReadonlyRequest(
+    new Request(root.replace(upcs[0], badChecksum), { headers }), env);
+  assert.equal(rejected.status, 502);
+  assert.equal((await rejected.json()).error, "amazon_catalog_batch_invalid_identifiers");
   assert.equal(pageFetches, 0);
 
   const response = await handleAmazonReadonlyRequest(new Request(root, { headers }), env);
