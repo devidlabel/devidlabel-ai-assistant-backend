@@ -42,7 +42,7 @@ try {
     assert.equal(url.searchParams.get("identifiersType"), "EAN");
     assert.equal(url.searchParams.get("identifiers"), eans.join(","));
     assert.equal(url.searchParams.get("marketplaceIds"), "APJ6JRA9NG5V4");
-    assert.equal(url.searchParams.get("pageSize"), "20");
+    assert.equal(url.searchParams.get("pageSize"), "10");
     pageFetches++;
     if (mode === "truncated") {
       return new Response(JSON.stringify({
