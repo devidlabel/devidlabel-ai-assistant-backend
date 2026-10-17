@@ -18,8 +18,8 @@ try {
     }
     if (String(url).includes("/report-stream?marketplace=")) {
       const market = new URL(String(url)).searchParams.get("marketplace");
-      const data = ["seller-sku\\tstatus", ...Array.from({ length: 125 }, (_, i) =>
-        "SKU-" + market + "-" + i + "\\t" + (i < 120 ? "Active" : "Inactive")), ""].join("\\n");
+      const data = ["seller-sku\tstatus", ...Array.from({ length: 125 }, (_, i) =>
+        "SKU-" + market + "-" + i + "\t" + (i < 120 ? "Active" : "Inactive")), ""].join("\n");
       return new Response(data, { status: 200, headers: {
         "X-Amazon-Report-Marketplace": market,
         "X-Amazon-Report-Type": "GET_MERCHANT_LISTINGS_ALL_DATA",
