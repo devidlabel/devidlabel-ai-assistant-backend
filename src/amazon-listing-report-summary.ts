@@ -102,7 +102,7 @@ export async function readAmazonLatestListingReportSummary(
   let decoded = bytes;
   if (document.compressionAlgorithm === "GZIP") {
     decoded = await boundedRead(
-      new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip")),
+      new Blob([bytes.buffer as ArrayBuffer]).stream().pipeThrough(new DecompressionStream("gzip")),
       MAX_DECODED_BYTES
     );
   } else if (document.compressionAlgorithm) {
