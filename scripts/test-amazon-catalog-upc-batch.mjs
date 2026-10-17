@@ -10,7 +10,7 @@ const { handleAmazonReadonlyRequest } = await import(
 );
 function makeUpc(base) {
   const prefix = String(base).padStart(11, "0");
-  const total = [...prefix].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0);
+  const total = [...prefix].reduce((s, d, i) => s + Number(d) * (i % 2 ? 1 : 3), 0);
   return prefix + ((10 - total % 10) % 10);
 }
 const upcs = [makeUpc(80516892173), makeUpc(80516892174), makeUpc(80516892175)];
