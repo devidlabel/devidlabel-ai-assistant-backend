@@ -1,0 +1,52 @@
+name: Amazon Shopify EU exact-SKU reconciliation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-shopify-audit.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-shopify-eu-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run safe real Shopify vs Amazon SKU reconciliation
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          # This is read-only, with the seller SKU data held only in process memory.
+          node scripts/run-amazon-shopify-audit.mjs
+      - name: Persist sanitized aggregate receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-shopify-audit-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-shopify-audit-receipt.json ops/amazon/shopify-audit-latest.json
+            git add ops/amazon/shopify-audit-latest.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Update sanitized Amazon Shopify four-market SKU audit'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Enforce complete reconciled snapshot
+        run: |
+          node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync('ops/amazon/shopify-audit-latest.json')); if (!r.shopify?.complete || !r.complete) process.exit(1);"
