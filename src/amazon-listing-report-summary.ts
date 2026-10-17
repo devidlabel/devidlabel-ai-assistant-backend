@@ -38,13 +38,15 @@ async function boundedRead(stream: ReadableStream<Uint8Array>, limit: number): P
   return output;
 }
 
-function countSkuRows(content: string): {
+function countSkuRows(content: string, selectedSkus: string[] | null = null): {
   rows: number;
   unique_skus: number;
   duplicate_sku_rows: number;
   active: number;
   inactive: number;
   status_unknown: number;
+  status_column_present?: boolean;
+  selected_sku_statuses?: Record<string,string>;
 } {
   const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
   const first = lines.shift() || "";
@@ -52,6 +54,8 @@ function countSkuRows(content: string): {
   const skuColumn = ["seller-sku", "seller_sku", "sku"].map(name => headers.indexOf(name)).find(index => index >= 0) ?? -1;
   if (skuColumn < 0) throw new Error("amazon_report_sku_header_missing");
   const statusColumn = ["status", "listing-status", "listing_status"].map(name => headers.indexOf(name)).find(index => index >= 0) ?? -1;
+  const chosen = selectedSkus === null ? null : new Set(selectedSkus);
+  const selectedStatuses: Record<string,string> = Object.create(null);
   let rows = 0, active = 0, inactive = 0, status_unknown = 0, duplicate_sku_rows = 0;
   const knownSkus = new Set<string>();
   for (const line of lines) {
@@ -62,18 +66,29 @@ function countSkuRows(content: string): {
     rows++;
     if (knownSkus.has(sku)) duplicate_sku_rows++;
     knownSkus.add(sku);
-    const status = (statusColumn >= 0 ? cells[statusColumn] : "").trim().toUpperCase();
+    const status = (statusColumn >= 0 ? cells[statusColumn] || "" : "").trim().toUpperCase();
+    if (chosen?.has(sku)) selectedStatuses[sku] = status || "UNKNOWN";
     if (status === "ACTIVE") active++;
     else if (status === "INACTIVE" || status === "INCOMPLETE" || status === "SUPPRESSED") inactive++;
     else status_unknown++;
   }
-  return { rows, unique_skus: knownSkus.size, duplicate_sku_rows, active, inactive, status_unknown };
+  if (chosen === null) {
+    return { rows, unique_skus: knownSkus.size, duplicate_sku_rows, active, inactive, status_unknown };
+  }
+  for (const sku of chosen) if (!Object.hasOwn(selectedStatuses, sku)) selectedStatuses[sku] = "MISSING";
+  return {
+    rows, unique_skus: knownSkus.size, duplicate_sku_rows,
+    active, inactive, status_unknown,
+    status_column_present: statusColumn >= 0,
+    selected_sku_statuses: selectedStatuses
+  };
 }
 
 /** One completed existing report only. Never creates reports or publishes offers. */
 export async function readAmazonLatestListingReportSummary(
   env: AmazonCredentials,
-  market: keyof typeof AMAZON_EU_MARKETPLACES
+  market: keyof typeof AMAZON_EU_MARKETPLACES,
+  selectedSkus: string[] | null = null
 ): Promise<unknown> {
   const id = AMAZON_EU_MARKETPLACES[market];
   if (!id) throw new Error("amazon_invalid_marketplace");
@@ -139,7 +154,7 @@ export async function readAmazonLatestListingReportSummary(
       encodingVerified = !content.includes("\uFFFD");
     }
   } catch { throw new Error("amazon_report_encoding_error"); }
-  const counts = countSkuRows(content);
+  const counts = countSkuRows(content, selectedSkus);
   const createdAt = selected.createdTime || null;
   const createdTime = createdAt ? Date.parse(createdAt) : NaN;
   const ageHours = Number.isFinite(createdTime) ? (Date.now() - createdTime) / 3600000 : null;

@@ -1,4 +1,5 @@
 import { readMarketplaceShadowStatus } from "./marketplace-shadow.js";
+import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
@@ -598,6 +599,13 @@ export async function handleMareBusinessMcpSafeRequest(
           toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id,
           textToolResult(await readAmazonExactMatchCandidates(requestPayload, env as any)));
+      }
+      if (capabilityId === "amazon.seller.sku.status") {
+        const cap=await resolveCapability(capabilityId,env);
+        if(!cap?.available)return rpcToolResponse(request,rpc.id,
+          toolFailure("capability_not_available",cap));
+        return rpcToolResponse(request,rpc.id,
+          textToolResult(await readAmazonMerchantSkuStatuses(requestPayload,env as any)));
       }
       if (capabilityId === "marketplace.shadow.status") {
         return rpcToolResponse(request, rpc.id, textToolResult(await readMarketplaceShadowStatus(env)));
