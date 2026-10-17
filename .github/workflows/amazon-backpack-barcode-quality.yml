@@ -1,0 +1,52 @@
+name: Amazon Zaini barcode quality read-only diagnosis
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-backpack-barcode-quality.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-backpack-barcode-quality
+  cancel-in-progress: false
+
+jobs:
+  audit-barcode-formats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Audit Shopify barcodes for seller-missing zaini
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          AMAZON_BACKPACK_BARCODE_QUALITY_RUN: 'true'
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/amazon-backpack-barcode-quality.mjs
+      - name: Store only aggregate counts by market and brand
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-backpack-barcodes-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-backpack-barcode-quality.json ops/amazon/backpacks-barcode-quality-latest.json
+            git add ops/amazon/backpacks-barcode-quality-latest.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Record sanitized EU backpack barcode quality diagnosis'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Enforce verified SKU-private snapshot
+        run: |
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('ops/amazon/backpacks-barcode-quality-latest.json'));if(!x.complete||!x.read_only||!x.no_listing_writes)process.exit(1)"
