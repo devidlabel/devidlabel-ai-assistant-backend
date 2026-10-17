@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T20:28:21.996Z",
+  "type": "amazon_eu_devid_label_pochette_merchant_sku_presence_slots",
+  "scope": "Devid Label | Pochette e Borselli",
+  "slot_key": "sorted_shopify_sku_localeCompare_order_1_based",
+  "read_only": true,
+  "no_listing_writes": true,
+  "audit_complete": true,
+  "overall_complete": true,
+  "shopify_expected_slots": 3,
+  "slots": [
+    {
+      "slot": 1,
+      "statuses": {
+        "IT": "MISSING",
+        "DE": "ACTIVE",
+        "FR": "ACTIVE",
+        "ES": "ACTIVE"
+      }
+    },
+    {
+      "slot": 2,
+      "statuses": {
+        "IT": "ACTIVE",
+        "DE": "ACTIVE",
+        "FR": "ACTIVE",
+        "ES": "ACTIVE"
+      }
+    },
+    {
+      "slot": 3,
+      "statuses": {
+        "IT": "MISSING",
+        "DE": "ACTIVE",
+        "FR": "ACTIVE",
+        "ES": "ACTIVE"
+      }
+    }
+  ],
+  "market_totals": {
+    "IT": {
+      "ACTIVE": 1,
+      "INACTIVE": 0,
+      "INCOMPLETE": 0,
+      "SUPPRESSED": 0,
+      "UNKNOWN": 0,
+      "MISSING": 2,
+      "UNVERIFIED": 0
+    },
+    "DE": {
+      "ACTIVE": 3,
+      "INACTIVE": 0,
+      "INCOMPLETE": 0,
+      "SUPPRESSED": 0,
+      "UNKNOWN": 0,
+      "MISSING": 0,
+      "UNVERIFIED": 0
+    },
+    "FR": {
+      "ACTIVE": 3,
+      "INACTIVE": 0,
+      "INCOMPLETE": 0,
+      "SUPPRESSED": 0,
+      "UNKNOWN": 0,
+      "MISSING": 0,
+      "UNVERIFIED": 0
+    },
+    "ES": {
+      "ACTIVE": 3,
+      "INACTIVE": 0,
+      "INCOMPLETE": 0,
+      "SUPPRESSED": 0,
+      "UNKNOWN": 0,
+      "MISSING": 0,
+      "UNVERIFIED": 0
+    }
+  },
+  "error_code": null,
+  "audit_generated_at": "2026-10-17T20:28:22.000Z"
+}
