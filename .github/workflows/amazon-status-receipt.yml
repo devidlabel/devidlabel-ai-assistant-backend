@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/amazon-status-receipt.yml'
+      - 'scripts/amazon-status-receipt.mjs'
 
 permissions:
   contents: write
