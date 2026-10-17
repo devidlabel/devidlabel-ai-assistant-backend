@@ -13,7 +13,7 @@ const moduleUrl = "data:text/javascript;base64," + Buffer.from(bundled.outputFil
 const { handleAmazonReadonlyRequest } = await import(moduleUrl);
 const originalFetch = globalThis.fetch;
 const env = {
-  ASSISTANT_ADMIN_TOKEN: "test-admin-token",
+  DAILY_PULSE_ACCESS_TOKEN: "test-admin-token",
   AMAZON_SP_API_CLIENT_ID: "test-client-id",
   AMAZON_SP_API_CLIENT_SECRET: "test-client-secret",
   AMAZON_SP_API_REFRESH_TOKEN: "test-refresh-token"
@@ -46,7 +46,7 @@ try {
   assert.equal(body.ok, true);
   assert.equal(body.read_only, true);
   assert.equal(calls, 2);
-  const missing = await handleAmazonReadonlyRequest(new Request(url, { headers: { Authorization: "Bearer test-admin-token" } }), { ASSISTANT_ADMIN_TOKEN: "test-admin-token" });
+  const missing = await handleAmazonReadonlyRequest(new Request(url, { headers: { Authorization: "Bearer test-admin-token" } }), { DAILY_PULSE_ACCESS_TOKEN: "test-admin-token" });
   assert.equal(missing.status, 502);
   assert.equal((await missing.json()).error, "amazon_credentials_missing");
   assert.equal(calls, 2);
