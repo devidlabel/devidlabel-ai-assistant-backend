@@ -100,6 +100,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       }, ["marketplace", "identifier_type", "identifiers"]),
       requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"], [amazon, "Amazon SP-API credentials"]]
     }),
+    capability({
+      id: "amazon.catalog.asin.details",
+      provider: "amazon", domain: "marketplace", operation: "read",
+      risk: "read_only", implemented: true, configured: businessAuth && amazon,
+      approval: "none",
+      description: "Merchant-private read-only Amazon Catalog Item summaries by ASIN and IT/DE/FR/ES. Returns brand, title, category and variant attributes; no offer changes.",
+      request_schema: schema({
+        marketplace: { type: "string", enum: ["IT", "DE", "FR", "ES"] },
+        asins: { type: "array", minItems: 1, maxItems: 3,
+          items: { type: "string", pattern: "^[A-Z0-9]{10}$" } }
+      }, ["marketplace", "asins"]),
+      requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"], [amazon, "Amazon SP-API credentials"]]
+    }),
     capability({ id: "marketplace.shadow.status", provider: "mare", domain: "marketplace", operation: "read", risk: "read_only", implemented: true, configured: businessAuth && Boolean(env.MARE_MARKETPLACE_SHADOW), approval: "none", description: "Read Shopify shadow scan progress, freshness and errors. Does not start scans or publish marketplace data.", request_schema: schema(), requirements: [[Boolean(env.MARE_MARKETPLACE_SHADOW), "MARE_MARKETPLACE_SHADOW binding"]] }),
     capability({ id: "system.capabilities", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Dynamic capability registry used by every V2 agent.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
     capability({ id: "artifact.get", provider: "mare", domain: "artifact", operation: "artifact", risk: "read_only", implemented: true, configured: shopify, approval: "none", description: "Retrieve a stored report, feed, Matrixify file or image artifact.", request_schema: schema({ artifact_id: { type: "string" } }, ["artifact_id"]), requirements: [[shopify, "SHOPIFY_TOKENS_KV"]] }),
