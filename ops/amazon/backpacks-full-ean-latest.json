@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T19:35:43.517Z",
+  "type": "amazon_eu_backpacks_full_ean_catalog_audit",
+  "read_only": true,
+  "no_listing_writes": true,
+  "source": "complete_live_shopify_and_four_amazon_seller_reports",
+  "category": "Zaini",
+  "batch_size": 8,
+  "results_are_full_snapshot": true,
+  "audit_complete": true,
+  "overall_complete": true,
+  "markets": {
+    "IT": {
+      "missing_backpack_variants": 39,
+      "missing_with_valid_ean": 13,
+      "missing_without_valid_ean": 26,
+      "duplicate_ean_rows_quarantined": 0,
+      "eligible_eans_to_search": 13,
+      "sampled_eans": 13,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 1,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 12,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 6,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 2,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 2,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Refrigiwear",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "DE": {
+      "missing_backpack_variants": 41,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 27,
+      "duplicate_ean_rows_quarantined": 0,
+      "eligible_eans_to_search": 14,
+      "sampled_eans": 14,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 2,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 12,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 6,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 2,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Refrigiwear",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "FR": {
+      "missing_backpack_variants": 42,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 28,
+      "duplicate_ean_rows_quarantined": 0,
+      "eligible_eans_to_search": 14,
+      "sampled_eans": 14,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 2,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 12,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 6,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 2,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Refrigiwear",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "ES": {
+      "missing_backpack_variants": 42,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 28,
+      "duplicate_ean_rows_quarantined": 0,
+      "eligible_eans_to_search": 14,
+      "sampled_eans": 14,
+      "groups_planned": 2,
+      "groups_completed": 2,
+      "total_catalog_pages": 2,
+      "http_status_counts": {
+        "200": 2
+      },
+      "matching": {
+        "EXACT_ONE": 2,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 12,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 6,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Manila Grace",
+          "searched": 2,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "MC2 Saint Barth",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Refrigiwear",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Sprayground",
+          "searched": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    }
+  },
+  "error_code": null,
+  "audit_generated_at": "2026-10-17T19:35:43.553Z",
+  "shopify_eligible_variants": 4282,
+  "backpack_eligible_nonduplicate_variants": 56,
+  "backpack_duplicate_sku_variants_quarantined": 0
+}
