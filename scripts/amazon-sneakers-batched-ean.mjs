@@ -12,7 +12,7 @@ const newStates = () => Object.fromEntries(STATES.map(s => [s, 0]));
 const publicError = value => typeof value === "string" && /^amazon_[a-z0-9_]+$/.test(value)
   ? value.slice(0, 100) : "amazon_batch_pilot_unclassified_error";
 
-async function catalogBatch({ market, selected, bearer, fetchImpl, endpointRetryMs = 5000 }) {
+export async function catalogBatch({ market, selected, bearer, fetchImpl, endpointRetryMs = 5000 }) {
   const url = new URL(BASE + "/internal/amazon/catalog-eans");
   url.searchParams.set("marketplace", market);
   url.searchParams.set("eans", selected.map(row => row.barcode).join(","));
