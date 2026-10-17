@@ -1,0 +1,47 @@
+name: Probe Amazon SP-API production read-only
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-spapi-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  amazon-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check Amazon marketplace participations (no mutations)
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          status=$(curl --silent --show-error --max-time 35 -o /tmp/amazon-probe.json -w '%{http_code}' \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            -H 'Accept: application/json' \
+            'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/amazon/marketplaces')
+          export AMAZON_HTTP_STATUS="$status"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const status = Number(process.env.AMAZON_HTTP_STATUS);
+          let body = {};
+          try { body = JSON.parse(fs.readFileSync('/tmp/amazon-probe.json','utf8')); } catch {}
+          const result = body.result || {};
+          const list = Array.isArray(result.payload) ? result.payload : [];
+          const ids = list.map(x => x.marketplace?.id).filter(Boolean);
+          console.log(JSON.stringify({
+            http_status: status,
+            ok: body.ok === true,
+            read_only: body.read_only === true,
+            error_code: typeof body.error === 'string' ? body.error.slice(0,100) : null,
+            marketplace_count: ids.length,
+            marketplace_ids: ids
+          }));
+          if (status !== 200 || body.ok !== true || !ids.length) process.exit(1);
+          NODE
