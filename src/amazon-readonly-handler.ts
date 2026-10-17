@@ -3,6 +3,7 @@ import { readAmazonListingReportMetadata } from "./amazon-listing-reports";
 import { readAmazonLatestListingReportSummary } from "./amazon-listing-report-summary";
 import { streamAmazonLatestListingsReport } from "./amazon-report-stream";
 import { redirectAmazonLatestListingReport } from "./amazon-report-link";
+import { readAmazonShopifyEligiblePage } from "./amazon-shopify-eligible-page";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces";
 import type { AmazonCredentials } from "./amazon-auth";
 
@@ -18,12 +19,16 @@ function respond(body: unknown, status = 200): Response {
 }
 export async function handleAmazonReadonlyRequest(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
-  if (!["/internal/amazon/marketplaces", "/internal/amazon/listing-reports", "/internal/amazon/listing-report-summary", "/internal/amazon/report-stream", "/internal/amazon/report-link"].includes(url.pathname)) return null;
+  if (!["/internal/amazon/marketplaces", "/internal/amazon/listing-reports", "/internal/amazon/listing-report-summary", "/internal/amazon/report-stream", "/internal/amazon/report-link", "/internal/amazon/shopify-eligible-page"].includes(url.pathname)) return null;
   if (request.method !== "GET") return respond({ ok: false, error: "method_not_allowed" }, 405);
   const header = request.headers.get("Authorization") || "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!equal(bearer, env.DAILY_PULSE_ACCESS_TOKEN || "")) return respond({ ok: false, error: "unauthorized" }, 401);
   try {
+    if (url.pathname === "/internal/amazon/shopify-eligible-page") {
+      const after = url.searchParams.get("after");
+      return respond(await readAmazonShopifyEligiblePage(env as any, after));
+    }
     const market = url.searchParams.get("marketplace") || "";
     if (url.pathname !== "/internal/amazon/marketplaces" && !Object.hasOwn(AMAZON_EU_MARKETPLACES, market)) return respond({ ok: false, error: "invalid_marketplace" }, 400);
     if (url.pathname === "/internal/amazon/report-link") return await redirectAmazonLatestListingReport(env, market as keyof typeof AMAZON_EU_MARKETPLACES);
