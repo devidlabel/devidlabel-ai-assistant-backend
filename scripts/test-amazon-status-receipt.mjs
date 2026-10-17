@@ -48,13 +48,12 @@ try {
   assert.equal(receipt.no_listing_writes, true);
   assert.equal(receipt.marketplaces.account_marketplace_count, 4);
   for (const market of ["IT", "DE", "FR", "ES"]) {
-    assert.equal(receipt.reports[market].ok, true);
-    assert.equal(receipt.reports[market].done_documents_available, 1);
+    assert.equal(receipt.reports[market].metadata_check_skipped, true);
     assert.equal(receipt.listing_summaries[market].unique_skus, 125);
     assert.equal(receipt.listing_summaries[market].active, 120);
     assert.equal(receipt.listing_summaries[market].safe_for_missing_sku_classification, true);
   }
-  assert.equal(calls, 13);
+  assert.equal(calls, 9);
   assert(!json.includes(secret), "Never leak the bearer token into receipt");
   console.log("Amazon sanitized status receipt tests passed");
 } finally {
