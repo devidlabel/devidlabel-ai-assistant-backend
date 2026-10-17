@@ -14,7 +14,7 @@ function sanitizedError(value) {
 }
 
 /** A bounded, read-only smoke test. Never saves the selected SKU or EAN. */
-export async function probeAmazonCatalogEAN({ token, fetchImpl = fetch }) {
+export async function probeAmazonCatalogEAN({ token, fetchImpl = fetch, delayMs = 1500 }) {
   const report = { generated_at: new Date().toISOString(),
     type: "amazon_catalog_ean_readonly_pilot", complete: false, read_only: true,
     source: "shopify_active_positive_stock_excluding_p448",
@@ -74,7 +74,7 @@ export async function probeAmazonCatalogEAN({ token, fetchImpl = fetch }) {
     } catch {
       report.markets[market] = { ok: false, http_status: 0, error_code: "amazon_probe_catalog_network_error" };
     }
-    await pause(1500);
+    await pause(delayMs);
   }
   report.complete = MARKETS.every(m => report.markets[m]?.ok === true);
   return report;
