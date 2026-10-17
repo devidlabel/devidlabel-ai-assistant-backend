@@ -1,7 +1,7 @@
 import { readAmazonMarketplaceParticipations } from "./amazon-readonly";
 import type { AmazonCredentials } from "./amazon-auth";
 
-type Env = AmazonCredentials & { ASSISTANT_ADMIN_TOKEN?: string };
+type Env = AmazonCredentials & { DAILY_PULSE_ACCESS_TOKEN?: string };
 function equal(a: string, b: string): boolean {
   if (!a || !b || a.length !== b.length) return false;
   let difference = 0;
@@ -17,7 +17,7 @@ export async function handleAmazonReadonlyRequest(request: Request, env: Env): P
   if (request.method !== "GET") return respond({ ok: false, error: "method_not_allowed" }, 405);
   const header = request.headers.get("Authorization") || "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!equal(bearer, env.ASSISTANT_ADMIN_TOKEN || "")) return respond({ ok: false, error: "unauthorized" }, 401);
+  if (!equal(bearer, env.DAILY_PULSE_ACCESS_TOKEN || "")) return respond({ ok: false, error: "unauthorized" }, 401);
   try {
     const result = await readAmazonMarketplaceParticipations(env);
     return respond({ ok: true, service: "amazon_spapi", read_only: true, result });
