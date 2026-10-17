@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-10-17T15:29:54.046Z",
+  "generated_at": "2026-10-17T15:34:45.480Z",
   "kind": "amazon_eu_readonly_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
@@ -35,13 +35,13 @@
       "error_code": null
     },
     "FR": {
-      "http_status": 502,
-      "ok": false,
-      "metadata_reports_found": 0,
-      "done_reports": 0,
-      "done_documents_available": 0,
-      "has_more_metadata": false,
-      "error_code": "amazon_reports_read_failed_429"
+      "http_status": 200,
+      "ok": true,
+      "metadata_reports_found": 20,
+      "done_reports": 20,
+      "done_documents_available": 20,
+      "has_more_metadata": true,
+      "error_code": null
     },
     "ES": {
       "http_status": 502,
@@ -103,7 +103,7 @@
       "active": null,
       "inactive": null,
       "status_unknown": null,
-      "error_code": "amazon_reports_read_failed_429"
+      "error_code": "amazon_report_download_network_error"
     },
     "ES": {
       "http_status": 502,
