@@ -46,7 +46,7 @@ try {
   };
   assert.equal((await handleAmazonReadonlyRequest(new Request(url), env)).status, 401);
   assert.equal(calls, 0);
-  assert.equal((await handleAmazonReadonlyRequest(new Request(url.replace("=IT", "=XX"), env && { headers: { Authorization: "Bearer admin" } }), env)).status, 400);
+  assert.equal((await handleAmazonReadonlyRequest(new Request(url.replace("=IT", "=XX"), { headers: { Authorization: "Bearer admin" } }), env)).status, 400);
   assert.equal(calls, 0);
   const result = await handleAmazonReadonlyRequest(new Request(url, { headers: { Authorization: "Bearer admin" } }), env);
   assert.equal(result.status, 200);
