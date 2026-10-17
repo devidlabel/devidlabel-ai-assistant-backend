@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-10-17T16:43:27.291Z",
+  "type": "amazon_catalog_ean_readonly_pilot",
+  "complete": true,
+  "read_only": true,
+  "source": "shopify_active_positive_stock_excluding_p448",
+  "sample_category": "Sneakers",
+  "sample_vendor": "Devid Label",
+  "valid_ean_checksum": true,
+  "markets": {
+    "IT": {
+      "http_status": 200,
+      "ok": true,
+      "catalog_candidates": 1,
+      "exact_ean_matches": 1,
+      "error_code": null
+    },
+    "DE": {
+      "http_status": 200,
+      "ok": true,
+      "catalog_candidates": 1,
+      "exact_ean_matches": 1,
+      "error_code": null
+    },
+    "FR": {
+      "http_status": 200,
+      "ok": true,
+      "catalog_candidates": 1,
+      "exact_ean_matches": 1,
+      "error_code": null
+    },
+    "ES": {
+      "http_status": 200,
+      "ok": true,
+      "catalog_candidates": 1,
+      "exact_ean_matches": 1,
+      "error_code": null
+    }
+  },
+  "errors": []
+}
