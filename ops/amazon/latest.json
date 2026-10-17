@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-10-17T15:22:30.644Z",
+  "generated_at": "2026-10-17T15:27:58.564Z",
   "kind": "amazon_eu_readonly_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
@@ -29,8 +29,8 @@
       "http_status": 200,
       "ok": true,
       "metadata_reports_found": 20,
-      "done_reports": 19,
-      "done_documents_available": 19,
+      "done_reports": 20,
+      "done_documents_available": 20,
       "has_more_metadata": true,
       "error_code": null
     },
@@ -38,8 +38,8 @@
       "http_status": 200,
       "ok": true,
       "metadata_reports_found": 20,
-      "done_reports": 19,
-      "done_documents_available": 19,
+      "done_reports": 20,
+      "done_documents_available": 20,
       "has_more_metadata": true,
       "error_code": null
     },
