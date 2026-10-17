@@ -1,5 +1,6 @@
 import { readMarketplaceShadowStatus } from "./marketplace-shadow.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
+import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
@@ -584,6 +585,13 @@ export async function handleMareBusinessMcpSafeRequest(
     if (toolName === "mare_read") {
       const capabilityId = normalize(args.capability_id);
       const requestPayload = object(args.request);
+      if (capabilityId === "amazon.catalog.asin.details") {
+        const capability=await resolveCapability(capabilityId,env);
+        if(!capability?.available) return rpcToolResponse(request,rpc.id,
+          toolFailure("capability_not_available",capability));
+        return rpcToolResponse(request,rpc.id,
+          textToolResult(await readAmazonCatalogASINDetails(requestPayload,env as any)));
+      }
       if (capabilityId === "amazon.catalog.exact.match") {
         const capability = await resolveCapability(capabilityId, env);
         if (!capability?.available) return rpcToolResponse(request, rpc.id,
