@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
-  "generated_at": "2026-10-17T15:13:25.124Z",
-  "kind": "amazon_eu_readonly_metadata",
+  "schema_version": 2,
+  "generated_at": "2026-10-17T15:22:30.644Z",
+  "kind": "amazon_eu_readonly_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
     "http_status": 200,
@@ -29,8 +29,8 @@
       "http_status": 200,
       "ok": true,
       "metadata_reports_found": 20,
-      "done_reports": 20,
-      "done_documents_available": 20,
+      "done_reports": 19,
+      "done_documents_available": 19,
       "has_more_metadata": true,
       "error_code": null
     },
@@ -38,8 +38,8 @@
       "http_status": 200,
       "ok": true,
       "metadata_reports_found": 20,
-      "done_reports": 20,
-      "done_documents_available": 20,
+      "done_reports": 19,
+      "done_documents_available": 19,
       "has_more_metadata": true,
       "error_code": null
     },
@@ -53,5 +53,75 @@
       "error_code": null
     }
   },
-  "complete": true
+  "listing_summaries": {
+    "IT": {
+      "http_status": 502,
+      "ok": false,
+      "report_available": false,
+      "report_created_at": null,
+      "report_age_hours": null,
+      "fresh_within_24h": false,
+      "snapshot_complete": false,
+      "safe_for_missing_sku_classification": false,
+      "rows": null,
+      "unique_skus": null,
+      "duplicate_sku_rows": null,
+      "active": null,
+      "inactive": null,
+      "status_unknown": null,
+      "error_code": null
+    },
+    "DE": {
+      "http_status": 502,
+      "ok": false,
+      "report_available": false,
+      "report_created_at": null,
+      "report_age_hours": null,
+      "fresh_within_24h": false,
+      "snapshot_complete": false,
+      "safe_for_missing_sku_classification": false,
+      "rows": null,
+      "unique_skus": null,
+      "duplicate_sku_rows": null,
+      "active": null,
+      "inactive": null,
+      "status_unknown": null,
+      "error_code": null
+    },
+    "FR": {
+      "http_status": 502,
+      "ok": false,
+      "report_available": false,
+      "report_created_at": null,
+      "report_age_hours": null,
+      "fresh_within_24h": false,
+      "snapshot_complete": false,
+      "safe_for_missing_sku_classification": false,
+      "rows": null,
+      "unique_skus": null,
+      "duplicate_sku_rows": null,
+      "active": null,
+      "inactive": null,
+      "status_unknown": null,
+      "error_code": null
+    },
+    "ES": {
+      "http_status": 502,
+      "ok": false,
+      "report_available": false,
+      "report_created_at": null,
+      "report_age_hours": null,
+      "fresh_within_24h": false,
+      "snapshot_complete": false,
+      "safe_for_missing_sku_classification": false,
+      "rows": null,
+      "unique_skus": null,
+      "duplicate_sku_rows": null,
+      "active": null,
+      "inactive": null,
+      "status_unknown": null,
+      "error_code": null
+    }
+  },
+  "complete": false
 }
