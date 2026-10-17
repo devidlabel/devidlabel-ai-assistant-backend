@@ -6,15 +6,24 @@ const bearer = "mock-secret-never-in-report";
 const raw = "seller-sku\tstatus\nA-1\tActive\nA-2\tInactive\n";
 function mock(data, compression, old = false) {
   return async (url, init) => {
-    assert(String(url).endsWith("/report-stream?marketplace=IT"));
+    if (String(url).endsWith("/report-link?marketplace=IT")) {
+      assert.equal(init.method, "GET");
+      assert.equal(init.redirect, "manual");
+      assert.equal(init.headers.Authorization, "Bearer " + bearer);
+      return new Response(null, { status: 307, headers: {
+        Location: "https://trusted-bucket.s3.amazonaws.com/reports/file?X-Amz-Signature=private",
+        "X-Amazon-Report-Marketplace": "IT",
+        "X-Amazon-Report-Type": "GET_MERCHANT_LISTINGS_ALL_DATA",
+        "X-Amazon-Report-Compression": compression,
+        "X-Amazon-Report-Created-At": new Date(Date.now() - (old ? 72 : 1) * 3600000).toISOString()
+      } });
+    }
+    assert(String(url).startsWith("https://trusted-bucket.s3.amazonaws.com/reports/file"));
     assert.equal(init.method, "GET");
-    assert.equal(init.headers.Authorization, "Bearer " + bearer);
+    assert.equal(init.redirect, "error");
+    assert.equal(init.headers.Authorization, undefined, "Worker bearer must never reach S3");
     return new Response(data, { status: 200, headers: {
-      "X-Amazon-Report-Marketplace": "IT",
-      "X-Amazon-Report-Type": "GET_MERCHANT_LISTINGS_ALL_DATA",
-      "X-Amazon-Report-Compression": compression,
-      "X-Amazon-Report-Raw-Length": String(data.byteLength ?? Buffer.byteLength(data)),
-      "X-Amazon-Report-Created-At": new Date(Date.now() - (old ? 72 : 1) * 3600000).toISOString()
+      "content-length": String(data.byteLength ?? Buffer.byteLength(data))
     } });
   };
 }
