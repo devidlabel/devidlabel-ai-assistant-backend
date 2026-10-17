@@ -12,17 +12,28 @@ const newStates = () => Object.fromEntries(STATES.map(s => [s, 0]));
 const publicError = value => typeof value === "string" && /^amazon_[a-z0-9_]+$/.test(value)
   ? value.slice(0, 100) : "amazon_batch_pilot_unclassified_error";
 
-async function catalogBatch({ market, selected, bearer, fetchImpl }) {
+async function catalogBatch({ market, selected, bearer, fetchImpl, endpointRetryMs = 5000 }) {
   const url = new URL(BASE + "/internal/amazon/catalog-eans");
   url.searchParams.set("marketplace", market);
   url.searchParams.set("eans", selected.map(row => row.barcode).join(","));
-  const response = await fetchImpl(url.toString(), {
-    method: "GET",
-    headers: { Authorization: "Bearer " + bearer, Accept: "application/json" },
-    signal: AbortSignal.timeout(90000)
-  });
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetchImpl(url.toString(), {
+      method: "GET",
+      headers: { Authorization: "Bearer " + bearer, Accept: "application/json" },
+      signal: AbortSignal.timeout(90000)
+    });
+    // Newly deployed Cloudflare routes can briefly return the old 404.
+    // Never interpret that response as "EAN missing" from Amazon.
+    if (response.status !== 404 || attempt === 2) break;
+    if (endpointRetryMs > 0) await pause(endpointRetryMs * (attempt + 1));
+  }
   let body = {};
   try { body = await response.json(); } catch {}
+  if (response.status === 404) {
+    return { ok: false, http_status: 404,
+      error_code: "amazon_batch_pilot_endpoint_not_ready" };
+  }
   if (response.status !== 200 || body?.ok !== true || body?.read_only !== true) {
     return { ok: false, http_status: response.status, error_code: publicError(body?.error) };
   }
@@ -61,7 +72,8 @@ async function catalogBatch({ market, selected, bearer, fetchImpl }) {
  */
 export async function runSneakerBatchedEANPilot({
   bearer, auditFn = auditShopifyAgainstAmazon, fetchImpl = fetch,
-  delayMs = 3000, sampleOffset = SAMPLE_OFFSET, batchSize = MAX_EANS_PER_MARKET
+  delayMs = 3000, sampleOffset = SAMPLE_OFFSET, batchSize = MAX_EANS_PER_MARKET,
+  endpointRetryMs = 5000
 }) {
   const receipt = {
     schema_version: 1, generated_at: new Date().toISOString(),
@@ -134,7 +146,7 @@ export async function runSneakerBatchedEANPilot({
       continue;
     }
     let outcome;
-    try { outcome = await catalogBatch({ market, selected, bearer, fetchImpl }); }
+    try { outcome = await catalogBatch({ market, selected, bearer, fetchImpl, endpointRetryMs }); }
     catch { outcome = { ok: false, http_status: 0, error_code: "amazon_batch_pilot_network_error" }; }
     summary.http_status = outcome.http_status;
     if (!outcome.ok) {

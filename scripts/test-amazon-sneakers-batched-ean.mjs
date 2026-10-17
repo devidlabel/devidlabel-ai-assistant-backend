@@ -27,7 +27,7 @@ async function auditFn({ bearer: pass, onPrivateSnapshot }) {
       FR: { compare_ready: true }, ES: { compare_ready: true } }
   };
 }
-let calls = 0, failed = false;
+let calls = 0, failed = false, temporarilyUnavailable = 0;
 async function fetchImpl(url, opts) {
   calls++;
   const parsed = new URL(String(url));
@@ -41,6 +41,10 @@ async function fetchImpl(url, opts) {
   assert.equal(new Set(eans).size, 8);
   const previous = sampleDiverseByVendor(rows, 8).map(item => item.barcode);
   assert(eans.every(ean => !previous.includes(ean)), "Do not recheck first 8 sample EANs");
+  if (temporarilyUnavailable > 0) {
+    temporarilyUnavailable--;
+    return new Response("Old Worker route not found", { status: 404 });
+  }
   if (failed) return new Response(JSON.stringify({
     ok: false, error: "amazon_catalog_batch_http_429"
   }), { status: 502 });
@@ -83,6 +87,26 @@ const text = JSON.stringify(report);
 for (const secret of [bearer, ...rows.map(r=>r.sku), ...rows.map(r=>r.barcode), "B000000001"]) {
   assert(!text.includes(secret), "No SKU/EAN/ASIN or token may be logged or persisted");
 }
+temporarilyUnavailable = 2;
+calls = 0;
+const recovered = await runSneakerBatchedEANPilot({
+  bearer, auditFn, fetchImpl, delayMs: 0, endpointRetryMs: 0,
+  sampleOffset: 8, batchSize: 8
+});
+assert.equal(recovered.overall_complete, true);
+assert.equal(recovered.markets.IT.status, "SAMPLE_COMPLETE");
+assert.equal(calls, 6, "Exactly two transient 404 responses should be retried");
+temporarilyUnavailable = 30;
+calls = 0;
+const notDeployed = await runSneakerBatchedEANPilot({
+  bearer, auditFn, fetchImpl, delayMs: 0, endpointRetryMs: 0
+});
+assert.equal(notDeployed.overall_complete, false);
+assert.equal(notDeployed.markets.IT.http_status, 404);
+assert.equal(notDeployed.markets.IT.error_code, "amazon_batch_pilot_endpoint_not_ready");
+assert.equal(notDeployed.markets.IT.sampled, 0);
+assert.equal(notDeployed.markets.IT.matching.NO_EXACT_MATCH, 0);
+temporarilyUnavailable = 0;
 failed = true;
 calls = 0;
 const throttled = await runSneakerBatchedEANPilot({
