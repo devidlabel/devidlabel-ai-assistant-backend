@@ -9,11 +9,11 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const states = ["EXACT_ONE","EXACT_MULTIPLE","NO_EXACT_MATCH","UNVERIFIED"];
 const newCounts = () => Object.fromEntries(states.map(state => [state, 0]));
 const safeError = value => typeof value === "string" && /^amazon_[a-z0-9_]+$/.test(value)
-  ? value.slice(0, 100) : "amazon_sneakers_full_scan_unclassified_error";
+  ? value.slice(0, 100) : "amazon_kway_coat_pilot_unclassified_error";
 
 /**
- * Full, single-snapshot reconciliation of ALL valid EAN-13 seller-missing
- * sneakers, avoiding snapshot drift across earlier pilot batches.
+ * Single-snapshot read-only pilot for up to 16 missing K-Way coats per country.
+ * The pilot reports a subset only, never the full jacket catalogue.
  * Never persist seller SKUs, GTINs, ASINs or signed report URLs.
  */
 export async function runKWayCoatsPilot({
@@ -31,7 +31,7 @@ export async function runKWayCoatsPilot({
     overall_complete: false, markets: {}, error_code: null
   };
   if (!bearer) {
-    receipt.error_code = "amazon_sneakers_full_scan_bearer_missing";
+    receipt.error_code = "amazon_kway_coat_pilot_bearer_missing";
     return receipt;
   }
 
@@ -40,7 +40,7 @@ export async function runKWayCoatsPilot({
   try {
     audit = await auditFn({ bearer, onPrivateSnapshot: data => { privateSnapshot = data; } });
   } catch {
-    receipt.error_code = "amazon_sneakers_full_scan_audit_failed";
+    receipt.error_code = "amazon_kway_coat_pilot_audit_failed";
     return receipt;
   }
   receipt.audit_complete = audit?.complete === true && audit?.shopify?.complete === true &&
@@ -50,7 +50,7 @@ export async function runKWayCoatsPilot({
     ? audit.shopify.eligible_variants : null;
   if (!receipt.audit_complete || !privateSnapshot || !Array.isArray(privateSnapshot.rows) ||
       !MARKETS.every(m => privateSnapshot.amazonIndexes?.[m] instanceof Map)) {
-    receipt.error_code = "amazon_sneakers_full_scan_incomplete_sources";
+    receipt.error_code = "amazon_kway_coat_pilot_incomplete_sources";
     return receipt;
   }
 
@@ -62,11 +62,11 @@ export async function runKWayCoatsPilot({
       eanCounts.set(row.barcode, (eanCounts.get(row.barcode) || 0) + 1);
     }
   }
-  const sneakerEligible = rows.filter(row =>
+  const coatEligible = rows.filter(row =>
     row.product_type?.trim().toLowerCase() === "giacche e cappotti" &&
     row.vendor?.trim().toLowerCase() === "k-way" &&
     skuCounts.get(row.sku) === 1);
-  receipt.kway_coat_eligible_nonduplicate_variants = sneakerEligible.length;
+  receipt.kway_coat_eligible_nonduplicate_variants = coatEligible.length;
   receipt.kway_coat_duplicate_sku_variants_quarantined = rows.filter(row =>
     row.product_type?.trim().toLowerCase() === "giacche e cappotti" &&
     row.vendor?.trim().toLowerCase() === "k-way" &&
@@ -74,14 +74,14 @@ export async function runKWayCoatsPilot({
 
   let stoppedForThrottle = false;
   for (const market of MARKETS) {
-    const missing = sneakerEligible.filter(row => !amazonIndexes[market].has(row.sku));
+    const missing = coatEligible.filter(row => !amazonIndexes[market].has(row.sku));
     const valid = missing.filter(row => validEAN(row.barcode));
     const safeAll = valid.filter(row => eanCounts.get(row.barcode) === 1);
     // Bounded pilot: never present these counts as the whole K-Way collection.
     safeAll.sort((a,b) => a.sku.localeCompare(b.sku));
     const safe = safeAll.slice(0,16);
     const summary = {
-      missing_sneaker_variants: missing.length,
+      missing_kway_coat_variants: missing.length,
       missing_with_valid_ean: valid.length,
       missing_without_valid_ean: missing.length - valid.length,
       duplicate_ean_rows_quarantined: valid.length - safeAll.length,
@@ -112,7 +112,7 @@ export async function runKWayCoatsPilot({
         });
       } catch {
         response = { ok: false, http_status: 0,
-          error_code: "amazon_sneakers_full_scan_network_error" };
+          error_code: "amazon_kway_coat_pilot_network_error" };
       }
       const status = String(response.http_status ?? 0);
       summary.http_status_counts[status] = (summary.http_status_counts[status] || 0) + 1;
@@ -125,13 +125,13 @@ export async function runKWayCoatsPilot({
       }
       if (!Array.isArray(response.entries) || response.entries.length !== batch.length ||
           !Number.isInteger(response.pages_read) || response.pages_read < 1) {
-        summary.error_code = "amazon_sneakers_full_scan_invalid_response";
+        summary.error_code = "amazon_kway_coat_pilot_invalid_response";
         break;
       }
       const index = new Map(response.entries.map(entry => [entry.ean, entry.state]));
       if (index.size !== batch.length ||
           batch.some(row => !states.includes(index.get(row.barcode)))) {
-        summary.error_code = "amazon_sneakers_full_scan_identity_mismatch";
+        summary.error_code = "amazon_kway_coat_pilot_identity_mismatch";
         break;
       }
       // Only write group counts after the complete batch has been validated.
@@ -159,7 +159,7 @@ export async function runKWayCoatsPilot({
   receipt.overall_complete = MARKETS.every(m => receipt.markets[m]?.status === "COMPLETE");
   receipt.results_are_full_snapshot = false;
   if (!receipt.overall_complete) receipt.error_code = stoppedForThrottle
-    ? "amazon_sneakers_full_scan_throttled" : "amazon_sneakers_full_scan_partial";
+    ? "amazon_kway_coat_pilot_throttled" : "amazon_kway_coat_pilot_partial";
   return receipt;
 }
 
