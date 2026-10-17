@@ -36,7 +36,8 @@ const report = {
   marketplaces: {},
   reports: {},
   listing_summaries: {},
-  complete: false
+  complete: false,
+  safe_for_sku_comparison: false
 };
 if (!token) {
   report.error = "probe_bearer_missing";
@@ -79,6 +80,8 @@ if (!token) {
     && Object.values(report.marketplaces.target_marketplaces_present).every(Boolean)
     && Object.values(report.listing_summaries).length === 4
     && Object.values(report.listing_summaries).every(item => item.ok === true);
+  report.safe_for_sku_comparison = report.complete
+    && Object.values(report.listing_summaries).every(item => item.safe_for_missing_sku_classification === true);
 }
 fs.writeFileSync("/tmp/amazon-eu-status-receipt.json", JSON.stringify(report, null, 2) + "\n");
 console.log(JSON.stringify(report, null, 2));
