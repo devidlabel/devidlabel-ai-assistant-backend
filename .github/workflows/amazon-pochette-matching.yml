@@ -1,0 +1,80 @@
+name: Amazon EU Pochette e Borselli EAN and UPC matching
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-pochette-matching.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-pochette-matching
+  cancel-in-progress: false
+
+jobs:
+  reconcile-all-pochette:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Check protected multi-UPC API is live
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            status=$(curl --silent --show-error --max-time 25 -o /tmp/amazon-full-ready.json -w '%{http_code}' \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/amazon/catalog-upcs?marketplace=IT&upcs=INVALID') || status=000
+            if [ "$status" = "400" ] && node -e "try{const j=JSON.parse(require('fs').readFileSync('/tmp/amazon-full-ready.json','utf8'));process.exit(j.error==='invalid_upcs'?0:1)}catch{process.exit(1)}"; then
+              ready=1
+              break
+            fi
+            echo "Protected Amazon batch route not ready (HTTP $status); attempt $attempt"
+            sleep 15
+          done
+          test "$ready" -eq 1
+      - name: Check EAN batch endpoint is live too
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --max-time 25 -o /tmp/amazon-borse-ean-ready.json -w '%{http_code}' \
+            -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+            'https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/amazon/catalog-eans?marketplace=IT&eans=INVALID')
+          test "$status" = "400"
+          node -e "const j=JSON.parse(require('fs').readFileSync('/tmp/amazon-borse-ean-ready.json'));if(j.error!=='invalid_eans')process.exit(1)"
+      - name: Find existing ASINs for stock-positive Pochette e Borselli by valid UPC and EAN in IT DE FR ES
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          AMAZON_POCHETTE_MATCHING_RUN: 'true'
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/amazon-pochette-matching.mjs
+      - name: Publish sanitized SKU-independent audit receipt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-pochette-matching-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-pochette-matching.json ops/amazon/pochette-matching-latest.json
+            git add ops/amazon/pochette-matching-latest.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Record sanitized Amazon EU Pochette EAN+UPC catalog match counts'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Enforce complete verified all-market snapshot
+        run: |
+          node -e "const fs=require('node:fs');const x=JSON.parse(fs.readFileSync('ops/amazon/pochette-matching-latest.json'));if (!x.overall_complete || !x.audit_complete || !x.results_are_full_snapshot || !x.no_listing_writes)process.exit(1);"
