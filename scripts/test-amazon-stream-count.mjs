@@ -44,6 +44,21 @@ assert.equal(stale.safe_for_missing_sku_classification, false);
 const duplicates = await summarizeAmazonReportStream("IT", bearer, mock("seller-sku\tstatus\nA-1\tActive\nA-1\tInactive\n", "NONE"));
 assert.equal(duplicates.duplicate_sku_rows, 1);
 assert.equal(duplicates.safe_for_missing_sku_classification, false);
+// Non-UTF8 titles do not invalidate exact SKU matching.
+const legacyTitleRaw = Buffer.concat([Buffer.from("seller-sku\tstatus\titem-name\nA-1\tActive\tCaff"),Buffer.from([0xe8]),Buffer.from("\nA-2\tInactive\tPlain\n")]);
+const legacyTitle = await summarizeAmazonReportStream("IT", bearer, mock(legacyTitleRaw, "NONE"));
+assert.equal(legacyTitle.ok, true);
+assert.equal(legacyTitle.unique_skus, 2);
+assert.equal(legacyTitle.document_utf8_verified, false);
+assert.equal(legacyTitle.sku_encoding_verified, true);
+assert.equal(legacyTitle.safe_for_missing_sku_classification, true);
+// Non-UTF8 seller-SKU bytes are never safe to compare.
+const badSkuRaw = Buffer.concat([Buffer.from("seller-sku\tstatus\nLEG"),Buffer.from([0xe8]),Buffer.from("\tActive\n")]);
+const malformedSku = await summarizeAmazonReportStream("IT", bearer, mock(badSkuRaw, "NONE"));
+assert.equal(malformedSku.ok, true);
+assert.equal(malformedSku.sku_encoding_verified, false);
+assert.equal(malformedSku.invalid_sku_encoding_rows, 1);
+assert.equal(malformedSku.safe_for_missing_sku_classification, false);
 const invalid = await summarizeAmazonReportStream("XX", bearer, mock(raw, "NONE"));
 assert.equal(invalid.ok, false);
 assert.equal(invalid.error_code, "amazon_stream_invalid_marketplace");
@@ -52,7 +67,7 @@ const networkFailure = await summarizeAmazonReportStream("IT", bearer, async () 
 });
 assert.equal(networkFailure.ok, false);
 assert.equal(networkFailure.error_code, "amazon_stream_analysis_error");
-for (const item of [plain, gzip, stale, duplicates, invalid, networkFailure]) {
+for (const item of [plain, gzip, stale, duplicates, legacyTitle, malformedSku, invalid, networkFailure]) {
   assert(!JSON.stringify(item).includes(bearer));
   assert(!JSON.stringify(item).includes("X-Amz-Signature"));
   assert(!JSON.stringify(item).includes("A-1"));
