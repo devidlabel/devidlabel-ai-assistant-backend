@@ -25,40 +25,97 @@ async function readLimited(stream, limit) {
   return Buffer.concat(chunks, total);
 }
 
+/**
+ * Parse TSV at byte level so non-UTF8 characters in human-readable title and
+ * description columns cannot corrupt an otherwise exact seller-SKU match.
+ * Never treat invalid seller-SKU bytes as verified identities.
+ */
 function parseReport(data) {
-  let encodingVerified = true;
-  let text;
-  if (data[0] === 0xff && data[1] === 0xfe) {
-    text = new TextDecoder("utf-16le", { fatal: true }).decode(data);
-  } else if (data[0] === 0xfe && data[1] === 0xff) {
-    text = new TextDecoder("utf-16be", { fatal: true }).decode(data);
+  const utf8 = new TextDecoder("utf-8", { fatal: true });
+  const permissive = new TextDecoder("utf-8", { fatal: false });
+  const allText = permissive.decode(data);
+  const documentUtf8Verified = !allText.includes("\uFFFD");
+  const utf16le = data[0] === 0xff && data[1] === 0xfe;
+  const utf16be = data[0] === 0xfe && data[1] === 0xff;
+  let lines;
+  let allCells;
+  if (utf16le || utf16be) {
+    let text;
+    try {
+      text = new TextDecoder(utf16le ? "utf-16le" : "utf-16be", { fatal: true }).decode(data);
+    } catch {
+      throw new Error("amazon_stream_utf16_decode_failed");
+    }
+    lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+    allCells = lines.map(line => line.split("\t").map(cell => ({ decoded: cell, valid: true })));
   } else {
-    text = new TextDecoder("utf-8", { fatal: false }).decode(data);
-    encodingVerified = !text.includes("\uFFFD");
+    // 0x09 TAB and 0x0A LF are never UTF-8 continuation bytes.
+    // Read only identifying columns with a strict decoder.
+    const readCells = line => {
+      const result = [];
+      let offset = 0;
+      while (offset <= line.length) {
+        const next = line.indexOf(0x09, offset);
+        const part = line.subarray(offset, next < 0 ? line.length : next);
+        let decoded;
+        let valid = true;
+        try { decoded = utf8.decode(part); }
+        catch {
+          valid = false;
+          // Legacy report bytes are retained as non-identifying placeholders,
+          // never declared comparable with Shopify.
+          decoded = "NON_UTF8_" + part.toString("hex");
+        }
+        result.push({ decoded, valid });
+        if (next < 0) break;
+        offset = next + 1;
+      }
+      return result;
+    };
+    const rawLines = [];
+    let pos = 0;
+    for (let i = 0; i <= data.length; i++) {
+      if (i !== data.length && data[i] !== 0x0a) continue;
+      let part = data.subarray(pos, i);
+      if (part.length && part[part.length - 1] === 0x0d) part = part.subarray(0, part.length - 1);
+      if (part.length) rawLines.push(part);
+      pos = i + 1;
+    }
+    allCells = rawLines.map(readCells);
   }
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
-  const header = (lines.shift() || "").split("\t").map(item => item.trim().toLowerCase());
-  const skuIdx = ["seller-sku", "seller_sku", "sku"].map(s => header.indexOf(s)).find(n => n >= 0) ?? -1;
+  const headings = (allCells.shift() || []).map(x => x.decoded.replace(/^\uFEFF/, "").trim().toLowerCase());
+  const skuIdx = ["seller-sku", "seller_sku", "sku"].map(s => headings.indexOf(s)).find(i => i >= 0) ?? -1;
   if (skuIdx < 0) throw new Error("amazon_stream_sku_header_missing");
-  const statusIdx = ["status", "listing-status", "listing_status"].map(s => header.indexOf(s)).find(n => n >= 0) ?? -1;
+  const statusIdx = ["status", "listing-status", "listing_status"].map(s => headings.indexOf(s)).find(i => i >= 0) ?? -1;
   const seen = new Set();
   let rows = 0, duplicates = 0, active = 0, inactive = 0, unknown = 0;
-  for (const line of lines) {
-    if (!line) continue;
-    const columns = line.split("\t");
-    const sku = columns[skuIdx];
-    if (typeof sku !== "string" || !sku.length) throw new Error("amazon_stream_blank_sku");
+  let invalidSkuBytes = 0, invalidStatusBytes = 0;
+  for (const cols of allCells) {
+    const sku = cols[skuIdx];
+    if (!sku || !sku.decoded) throw new Error("amazon_stream_blank_sku");
     rows++;
-    if (seen.has(sku)) duplicates++;
-    seen.add(sku);
-    const status = (statusIdx < 0 ? "" : columns[statusIdx] || "").trim().toUpperCase();
+    if (!sku.valid) invalidSkuBytes++;
+    if (seen.has(sku.decoded)) duplicates++;
+    seen.add(sku.decoded);
+    const statusCell = statusIdx >= 0 ? cols[statusIdx] : null;
+    if (statusCell && !statusCell.valid) invalidStatusBytes++;
+    const status = (statusCell?.decoded || "").trim().toUpperCase();
     if (status === "ACTIVE") active++;
     else if (["INACTIVE", "INCOMPLETE", "SUPPRESSED"].includes(status)) inactive++;
     else unknown++;
   }
-  return { rows, unique_skus: seen.size, duplicate_sku_rows: duplicates,
-    active, inactive, status_unknown: unknown, encoding_verified: encodingVerified,
-    status_column_present: statusIdx >= 0 };
+  const skuEncodingVerified = invalidSkuBytes === 0;
+  const statusEncodingVerified = invalidStatusBytes === 0;
+  return {
+    rows, unique_skus: seen.size, duplicate_sku_rows: duplicates,
+    active, inactive, status_unknown: unknown,
+    encoding_verified: skuEncodingVerified && statusEncodingVerified,
+    document_utf8_verified: utf16le || utf16be ? null : documentUtf8Verified,
+    sku_encoding_verified: skuEncodingVerified,
+    invalid_sku_encoding_rows: invalidSkuBytes,
+    invalid_status_encoding_rows: invalidStatusBytes,
+    status_column_present: statusIdx >= 0
+  };
 }
 
 /** Fetch authenticated report stream. Never persist or log SKU rows. */
@@ -125,6 +182,10 @@ export async function summarizeAmazonReportStream(market, bearer, fetchImpl = fe
       duplicate_sku_rows: counts.duplicate_sku_rows, active: counts.active,
       inactive: counts.inactive, status_unknown: counts.status_unknown,
       encoding_verified: counts.encoding_verified,
+      document_utf8_verified: counts.document_utf8_verified,
+      sku_encoding_verified: counts.sku_encoding_verified,
+      invalid_sku_encoding_rows: counts.invalid_sku_encoding_rows,
+      invalid_status_encoding_rows: counts.invalid_status_encoding_rows,
       status_column_present: counts.status_column_present,
       compression_verified: compressionVerified,
       report_created_at: Number.isFinite(parsedDate) ? new Date(parsedDate).toISOString() : null,
