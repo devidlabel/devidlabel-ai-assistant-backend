@@ -1,0 +1,392 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T17:19:03.673Z",
+  "type": "amazon_sneakers_ean_bulk_stage4",
+  "read_only": true,
+  "no_listing_writes": true,
+  "category": "Sneakers",
+  "start_offset": 16,
+  "batch_size": 8,
+  "groups_per_market": 3,
+  "target_per_market": 24,
+  "counts_are_subset_only": true,
+  "audit_complete": true,
+  "overall_complete": true,
+  "markets": {
+    "IT": {
+      "missing_sneaker_variants": 115,
+      "missing_with_valid_ean": 95,
+      "missing_without_valid_ean": 20,
+      "duplicate_shopify_ean_blocked": 0,
+      "candidates_for_matching": 95,
+      "planned": 24,
+      "sampled": 24,
+      "groups_completed": 3,
+      "groups_planned": 3,
+      "http_status_counts": {
+        "200": 3
+      },
+      "catalog_pages_read": 3,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 24,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Mou",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Pro-Keds",
+          "sampled": 6,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 6,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Puraai",
+          "sampled": 6,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 6,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "4B12",
+          "sampled": 5,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Back70",
+          "sampled": 5,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Flower Mountain",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "error_code": null,
+      "status": "COMPLETE"
+    },
+    "DE": {
+      "missing_sneaker_variants": 131,
+      "missing_with_valid_ean": 111,
+      "missing_without_valid_ean": 20,
+      "duplicate_shopify_ean_blocked": 0,
+      "candidates_for_matching": 111,
+      "planned": 24,
+      "sampled": 24,
+      "groups_completed": 3,
+      "groups_planned": 3,
+      "http_status_counts": {
+        "200": 3
+      },
+      "catalog_pages_read": 3,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 24,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Fessura",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Flower Mountain",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Mou",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Pro-Keds",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Puraai",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "4B12",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Back70",
+          "sampled": 3,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 3,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "error_code": null,
+      "status": "COMPLETE"
+    },
+    "FR": {
+      "missing_sneaker_variants": 129,
+      "missing_with_valid_ean": 109,
+      "missing_without_valid_ean": 20,
+      "duplicate_shopify_ean_blocked": 0,
+      "candidates_for_matching": 109,
+      "planned": 24,
+      "sampled": 24,
+      "groups_completed": 3,
+      "groups_planned": 3,
+      "http_status_counts": {
+        "200": 3
+      },
+      "catalog_pages_read": 3,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 24,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Fessura",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Flower Mountain",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Mou",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Pro-Keds",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Puraai",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "4B12",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Back70",
+          "sampled": 3,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 3,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "error_code": null,
+      "status": "COMPLETE"
+    },
+    "ES": {
+      "missing_sneaker_variants": 128,
+      "missing_with_valid_ean": 108,
+      "missing_without_valid_ean": 20,
+      "duplicate_shopify_ean_blocked": 0,
+      "candidates_for_matching": 108,
+      "planned": 24,
+      "sampled": 24,
+      "groups_completed": 3,
+      "groups_planned": 3,
+      "http_status_counts": {
+        "200": 3
+      },
+      "catalog_pages_read": 3,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 24,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Fessura",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Flower Mountain",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Mou",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Pro-Keds",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Puraai",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "4B12",
+          "sampled": 4,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 4,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Back70",
+          "sampled": 3,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 3,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "error_code": null,
+      "status": "COMPLETE"
+    }
+  },
+  "error_code": null,
+  "audit_generated_at": "2026-10-17T17:19:03.678Z",
+  "shopify_eligible_variants": 4284,
+  "sneaker_eligible_nonduplicate_variants": 268,
+  "sneaker_sku_duplicates_quarantined": 0
+}
