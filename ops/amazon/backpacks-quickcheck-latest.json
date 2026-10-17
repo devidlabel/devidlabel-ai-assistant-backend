@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T17:53:06.213Z",
+  "type": "amazon_eu_backpacks_ean_quickcheck",
+  "read_only": true,
+  "no_listing_writes": true,
+  "source": "complete_live_shopify_and_four_amazon_seller_reports",
+  "category": "Zaini",
+  "batch_size": 8,
+  "max_items_per_market": 8,
+  "sample_only": true,
+  "results_are_full_snapshot": false,
+  "audit_complete": true,
+  "overall_complete": true,
+  "markets": {
+    "IT": {
+      "missing_backpack_variants": 40,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 26,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 14,
+      "eligible_eans_to_search": 8,
+      "sampled_eans": 8,
+      "groups_planned": 1,
+      "groups_completed": 1,
+      "total_catalog_pages": 1,
+      "http_status_counts": {
+        "200": 1
+      },
+      "matching": {
+        "EXACT_ONE": 1,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 7,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 5,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "DE": {
+      "missing_backpack_variants": 41,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 27,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 14,
+      "eligible_eans_to_search": 8,
+      "sampled_eans": 8,
+      "groups_planned": 1,
+      "groups_completed": 1,
+      "total_catalog_pages": 1,
+      "http_status_counts": {
+        "200": 1
+      },
+      "matching": {
+        "EXACT_ONE": 1,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 7,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 5,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "FR": {
+      "missing_backpack_variants": 42,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 28,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 14,
+      "eligible_eans_to_search": 8,
+      "sampled_eans": 8,
+      "groups_planned": 1,
+      "groups_completed": 1,
+      "total_catalog_pages": 1,
+      "http_status_counts": {
+        "200": 1
+      },
+      "matching": {
+        "EXACT_ONE": 1,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 7,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 5,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    },
+    "ES": {
+      "missing_backpack_variants": 42,
+      "missing_with_valid_ean": 14,
+      "missing_without_valid_ean": 28,
+      "duplicate_ean_rows_quarantined": 0,
+      "all_safe_ean_candidates": 14,
+      "eligible_eans_to_search": 8,
+      "sampled_eans": 8,
+      "groups_planned": 1,
+      "groups_completed": 1,
+      "total_catalog_pages": 1,
+      "http_status_counts": {
+        "200": 1
+      },
+      "matching": {
+        "EXACT_ONE": 1,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 7,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Marcelo Burlon - County Of Milan",
+          "searched": 5,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 5,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "K-Way",
+          "searched": 3,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "COMPLETE",
+      "error_code": null
+    }
+  },
+  "error_code": null,
+  "audit_generated_at": "2026-10-17T17:53:06.220Z",
+  "shopify_eligible_variants": 4283,
+  "backpack_eligible_nonduplicate_variants": 56,
+  "backpack_duplicate_sku_variants_quarantined": 0
+}
