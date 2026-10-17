@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-17T17:08:59.376Z",
+  "source": "shopify_live_missing_sneakers_amazon_catalog_ean_batched",
+  "read_only": true,
+  "no_listing_writes": true,
+  "sample_offset": 8,
+  "max_eans_per_market": 8,
+  "samples_are_not_catalog_total": true,
+  "audit_complete": true,
+  "overall_complete": false,
+  "markets": {
+    "IT": {
+      "missing_sneaker_variants": 115,
+      "missing_with_valid_ean": 95,
+      "missing_without_valid_ean": 20,
+      "missing_with_shared_ean": 0,
+      "candidates_for_safe_lookup": 95,
+      "selected": 8,
+      "sampled": 0,
+      "http_status": 404,
+      "catalog_pages_read": 0,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 0,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [],
+      "status": "LOOKUP_UNVERIFIED",
+      "error_code": "amazon_batch_pilot_unclassified_error"
+    },
+    "DE": {
+      "missing_sneaker_variants": 131,
+      "missing_with_valid_ean": 111,
+      "missing_without_valid_ean": 20,
+      "missing_with_shared_ean": 0,
+      "candidates_for_safe_lookup": 111,
+      "selected": 8,
+      "sampled": 0,
+      "http_status": 404,
+      "catalog_pages_read": 0,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 0,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [],
+      "status": "LOOKUP_UNVERIFIED",
+      "error_code": "amazon_batch_pilot_unclassified_error"
+    },
+    "FR": {
+      "missing_sneaker_variants": 129,
+      "missing_with_valid_ean": 109,
+      "missing_without_valid_ean": 20,
+      "missing_with_shared_ean": 0,
+      "candidates_for_safe_lookup": 109,
+      "selected": 8,
+      "sampled": 0,
+      "http_status": 404,
+      "catalog_pages_read": 0,
+      "matching": {
+        "EXACT_ONE": 0,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 0,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [],
+      "status": "LOOKUP_UNVERIFIED",
+      "error_code": "amazon_batch_pilot_unclassified_error"
+    },
+    "ES": {
+      "missing_sneaker_variants": 128,
+      "missing_with_valid_ean": 108,
+      "missing_without_valid_ean": 20,
+      "missing_with_shared_ean": 0,
+      "candidates_for_safe_lookup": 108,
+      "selected": 8,
+      "sampled": 8,
+      "http_status": 200,
+      "catalog_pages_read": 1,
+      "matching": {
+        "EXACT_ONE": 1,
+        "EXACT_MULTIPLE": 0,
+        "NO_EXACT_MATCH": 7,
+        "UNVERIFIED": 0
+      },
+      "by_vendor": [
+        {
+          "vendor": "Back70",
+          "sampled": 2,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 2,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Fessura",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Flower Mountain",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 1,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 0,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Mou",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Pro-Keds",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "Puraai",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        },
+        {
+          "vendor": "4B12",
+          "sampled": 1,
+          "matching": {
+            "EXACT_ONE": 0,
+            "EXACT_MULTIPLE": 0,
+            "NO_EXACT_MATCH": 1,
+            "UNVERIFIED": 0
+          }
+        }
+      ],
+      "status": "SAMPLE_COMPLETE",
+      "error_code": null
+    }
+  },
+  "error_code": "amazon_batch_pilot_partial_or_unverified",
+  "shopify_eligible_variants": 4284,
+  "audit_generated_at": "2026-10-17T17:08:59.386Z",
+  "sneaker_eligible_nonduplicate_variants": 268
+}
