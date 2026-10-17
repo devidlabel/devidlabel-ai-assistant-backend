@@ -13,7 +13,7 @@ const safeError = value => typeof value === "string" && /^amazon_[a-z0-9_]+$/.te
 
 /**
  * Single-snapshot read-only pilot for up to 8 missing backpacks per country.
- * The pilot reports a subset only, never the full jacket catalogue.
+ * The pilot reports a subset only, never the full backpack catalogue.
  * Never persist seller SKUs, GTINs, ASINs or signed report URLs.
  */
 export async function runBackpacksQuickCheck({
@@ -63,11 +63,11 @@ export async function runBackpacksQuickCheck({
     }
   }
   const backpackEligible = rows.filter(row =>
-    row.product_type?.trim().toLowerCase() === "giacche e cappotti" &&
+    row.product_type?.trim().toLowerCase() === "zaini" &&
     skuCounts.get(row.sku) === 1);
   receipt.backpack_eligible_nonduplicate_variants = backpackEligible.length;
   receipt.backpack_duplicate_sku_variants_quarantined = rows.filter(row =>
-    row.product_type?.trim().toLowerCase() === "giacche e cappotti" &&
+    row.product_type?.trim().toLowerCase() === "zaini" &&
     skuCounts.get(row.sku) !== 1).length;
 
   let stoppedForThrottle = false;
