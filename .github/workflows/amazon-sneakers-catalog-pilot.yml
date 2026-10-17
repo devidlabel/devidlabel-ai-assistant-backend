@@ -1,0 +1,52 @@
+name: Amazon Sneakers EU EAN matching pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-sneakers-catalog-pilot.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-sneakers-eu-catalog-pilot
+  cancel-in-progress: false
+
+jobs:
+  sneakers-read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Reconcile Shopify sneakers and test bounded EAN catalog matching
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+          AMAZON_SNEAKERS_PILOT_RUN: "true"
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/amazon-sneakers-catalog-pilot.mjs
+      - name: Persist sanitized category and vendor aggregates
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-sneaker-pilot-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-sneakers-catalog-pilot.json ops/amazon/sneakers-catalog-pilot-latest.json
+            git add ops/amazon/sneakers-catalog-pilot-latest.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Update sanitized Amazon Sneakers EAN matching pilot'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Enforce verified and complete four-market pilot
+        run: |
+          node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync('ops/amazon/sneakers-catalog-pilot-latest.json')); if (!r.read_only || !r.audit_complete || !r.overall_complete) process.exit(1);"
