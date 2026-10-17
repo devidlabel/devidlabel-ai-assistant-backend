@@ -11,7 +11,7 @@ const eans = Array.from({ length: 9 }, (_, i) => makeEan(805168921731 + i));
 const rows = [
   { sku: "SNEAKER-A", barcode: eans[0], vendor: "Alpha", product_type: "Sneakers" },
   { sku: "SNEAKER-B", barcode: eans[1], vendor: "Beta", product_type: "Sneakers" },
-  { sku: "SNEAKER-C", barcode: eans[2], vendor: "Gamma", product_type: "Sneakers" },
+  { sku: "SNEAKER-C", barcode: eans[2], vendor: "Charlie", product_type: "Sneakers" },
   { sku: "SNEAKER-D", barcode: eans[3], vendor: "Delta", product_type: "Sneakers" },
   { sku: "SNEAKER-E", barcode: eans[4], vendor: "Epsilon", product_type: "Sneakers" },
   { sku: "SNEAKER-BAD-EAN", barcode: "invalid", vendor: "Zeta", product_type: "Sneakers" },
