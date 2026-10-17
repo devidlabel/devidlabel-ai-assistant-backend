@@ -1,7 +1,7 @@
 {
-  "schema_version": 3,
-  "generated_at": "2026-10-17T15:39:26.375Z",
-  "kind": "amazon_eu_stream_listing_counts",
+  "schema_version": 4,
+  "generated_at": "2026-10-17T16:05:29.449Z",
+  "kind": "amazon_eu_direct_s3_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
     "http_status": 200,
@@ -44,22 +44,22 @@
       "error_code": null
     },
     "ES": {
-      "http_status": 502,
-      "ok": false,
-      "metadata_reports_found": 0,
-      "done_reports": 0,
-      "done_documents_available": 0,
-      "has_more_metadata": false,
-      "error_code": "amazon_reports_read_failed_429"
+      "http_status": 200,
+      "ok": true,
+      "metadata_reports_found": 20,
+      "done_reports": 20,
+      "done_documents_available": 20,
+      "has_more_metadata": true,
+      "error_code": null
     }
   },
   "listing_summaries": {
     "IT": {
       "marketplace": "IT",
-      "http_status": 502,
+      "http_status": 404,
       "ok": false,
       "report_available": false,
-      "error_code": "amazon_stream_download_network_error",
+      "error_code": "amazon_stream_analysis_error",
       "rows": null,
       "unique_skus": null,
       "duplicate_sku_rows": null,
@@ -74,10 +74,10 @@
     },
     "DE": {
       "marketplace": "DE",
-      "http_status": 502,
+      "http_status": 404,
       "ok": false,
       "report_available": false,
-      "error_code": "amazon_stream_reports_http_429",
+      "error_code": "amazon_stream_analysis_error",
       "rows": null,
       "unique_skus": null,
       "duplicate_sku_rows": null,
@@ -92,10 +92,10 @@
     },
     "FR": {
       "marketplace": "FR",
-      "http_status": 502,
+      "http_status": 404,
       "ok": false,
       "report_available": false,
-      "error_code": "amazon_stream_reports_http_429",
+      "error_code": "amazon_stream_analysis_error",
       "rows": null,
       "unique_skus": null,
       "duplicate_sku_rows": null,
@@ -110,10 +110,10 @@
     },
     "ES": {
       "marketplace": "ES",
-      "http_status": 502,
+      "http_status": 404,
       "ok": false,
       "report_available": false,
-      "error_code": "amazon_stream_download_network_error",
+      "error_code": "amazon_stream_analysis_error",
       "rows": null,
       "unique_skus": null,
       "duplicate_sku_rows": null,
