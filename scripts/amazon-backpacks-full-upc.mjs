@@ -141,7 +141,7 @@ export async function runFullBackpacksUPC({
       continue;
     }
     if (!safe.length) {
-      summary.status = "NO_VALID_EANS";
+      summary.status = "NO_VALID_UPCS";
       continue;
     }
     const byVendor = new Map();
