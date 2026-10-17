@@ -34,7 +34,7 @@ export async function handleAmazonReadonlyRequest(request: Request, env: Env): P
     if (url.pathname !== "/internal/amazon/marketplaces" && !Object.hasOwn(AMAZON_EU_MARKETPLACES, market)) return respond({ ok: false, error: "invalid_marketplace" }, 400);
     if (url.pathname === "/internal/amazon/catalog-ean") {
       const ean = url.searchParams.get("ean") || "";
-      if (!/^\\d{13}$/.test(ean)) return respond({ ok: false, error: "invalid_ean" }, 400);
+      if (!/^\d{13}$/.test(ean)) return respond({ ok: false, error: "invalid_ean" }, 400);
       return respond({ ok: true, read_only: true, result: await readAmazonCatalogByEAN(env, market as keyof typeof AMAZON_EU_MARKETPLACES, ean) });
     }
     if (url.pathname === "/internal/amazon/report-link") return await redirectAmazonLatestListingReport(env, market as keyof typeof AMAZON_EU_MARKETPLACES);
