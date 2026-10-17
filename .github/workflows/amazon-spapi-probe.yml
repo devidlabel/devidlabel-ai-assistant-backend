@@ -45,3 +45,45 @@ jobs:
           }));
           if (status !== 200 || body.ok !== true || !ids.length) process.exit(1);
           NODE
+
+      - name: Check existing Amazon listing report metadata for IT DE FR ES
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          failures=0
+          for market in IT DE FR ES; do
+            status=$(curl --silent --show-error --max-time 40 -o /tmp/amazon-reports-response.json -w '%{http_code}' \
+              -H "Authorization: Bearer $DAILY_PULSE_ACCESS_TOKEN" \
+              -H 'Accept: application/json' \
+              "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/internal/amazon/listing-reports?marketplace=$market") || status=000
+            export AMAZON_HTTP_STATUS="$status"
+            export AMAZON_MARKET="$market"
+            if ! node <<'NODE'
+          const fs = require('node:fs');
+          const status = Number(process.env.AMAZON_HTTP_STATUS);
+          let body = {};
+          try { body = JSON.parse(fs.readFileSync('/tmp/amazon-reports-response.json', 'utf8')); } catch {}
+          const reports = Array.isArray(body.result?.reports) ? body.result.reports : [];
+          const data = {
+            marketplace: process.env.AMAZON_MARKET,
+            http_status: status,
+            ok: body.ok === true,
+            read_only: body.read_only === true,
+            error_code: typeof body.error === 'string' ? body.error.replace(/[^a-zA-Z0-9_]/g, '').slice(0,80) : null,
+            reports_found: reports.length,
+            reports_completed: reports.filter(r => r.processingStatus === 'DONE').length,
+            completed_documents_available: reports.filter(r => r.processingStatus === 'DONE' && r.reportDocumentAvailable).length
+          };
+          console.log(JSON.stringify(data));
+          if (status !== 200 || body.ok !== true || body.read_only !== true) process.exit(1);
+          NODE
+            then failures=$((failures+1)); fi
+            sleep 2
+          done
+          if [ "$failures" -ne 0 ]; then
+            echo "::error::Amazon report metadata probe failed for $failures market(s)"
+            exit 1
+          fi
