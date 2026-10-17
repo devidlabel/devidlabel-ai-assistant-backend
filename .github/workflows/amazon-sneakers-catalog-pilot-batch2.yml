@@ -1,0 +1,51 @@
+name: Amazon Sneakers EU catalog EAN pilot batch 2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/amazon-sneakers-catalog-pilot-batch2.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: amazon-sneakers-eu-catalog-pilot
+  cancel-in-progress: false
+
+jobs:
+  sneakers-read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify Shopify and four Amazon reports then lookup new EANs
+        env:
+          DAILY_PULSE_ACCESS_TOKEN: ${{ secrets.DAILY_PULSE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$DAILY_PULSE_ACCESS_TOKEN"
+          node scripts/run-amazon-sneakers-catalog-batch2.mjs
+      - name: Save batch 2 aggregates without SKU or EAN disclosure
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          saved=0
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout -B amazon-sneaker-batch2-write origin/main
+            mkdir -p ops/amazon
+            cp /tmp/amazon-sneakers-catalog-batch2.json ops/amazon/sneakers-catalog-pilot-batch2.json
+            git add ops/amazon/sneakers-catalog-pilot-batch2.json
+            if git diff --cached --quiet; then saved=1; break; fi
+            git commit -m 'Record sanitized Amazon Sneakers catalog pilot batch 2'
+            if git push origin HEAD:main; then saved=1; break; fi
+            sleep 3
+          done
+          test "$saved" -eq 1
+      - name: Validate complete second sample
+        run: |
+          node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync('ops/amazon/sneakers-catalog-pilot-batch2.json')); if (!r.read_only || !r.overall_complete || r.sample_offset !== 4) process.exit(1);"

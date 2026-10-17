@@ -67,19 +67,24 @@ export async function runSneakerCatalogPilot({
   auditFn = auditShopifyAgainstAmazon,
   fetchImpl = fetch,
   delayMs = 2200,
-  limitPerMarket = MAX_PER_MARKET
+  limitPerMarket = MAX_PER_MARKET,
+  sampleOffset = 0
 }) {
   const receipt = {
     schema_version: 1, generated_at: new Date().toISOString(),
     source: "live_shopify_missing_sneakers_vs_amazon_catalog_ean",
     read_only: true, no_listing_writes: true,
     collection: "Sneakers", cap_per_market: Math.min(Math.max(1, limitPerMarket), MAX_PER_MARKET),
+    sample_offset: sampleOffset,
     audit_complete: false, amazon_reports_complete: false,
     overall_complete: false,
     counts_are_sample_only: true,
     markets: {}, error_code: null
   };
   if (!bearer) { receipt.error_code = "amazon_pilot_bearer_missing"; return receipt; }
+  if (!Number.isInteger(sampleOffset) || sampleOffset < 0 || sampleOffset > 50) {
+    receipt.error_code = "amazon_pilot_invalid_offset"; return receipt;
+  }
   let privateData = null;
   let audit;
   try {
@@ -130,7 +135,8 @@ export async function runSneakerCatalogPilot({
       ready.push(item);
     }
     info.candidates_for_safe_lookup = ready.length;
-    const selected = sampleDiverseByVendor(ready, receipt.cap_per_market);
+    const selected = sampleDiverseByVendor(ready, sampleOffset + receipt.cap_per_market)
+      .slice(sampleOffset);
     info.status = selected.length ? "PARTIAL_SAMPLE" : "NO_SAFE_EAN_CANDIDATES";
     const byVendor = new Map();
     for (const item of selected) {

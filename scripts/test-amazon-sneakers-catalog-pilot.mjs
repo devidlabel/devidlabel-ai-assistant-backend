@@ -23,6 +23,7 @@ const rows = [
   { sku: "COAT-A", barcode: eans[8], vendor: "K-Way", product_type: "Giacche e cappotti" }
 ];
 let auditCalls = 0, catalogCalls = 0, responseError = false, throttle = false;
+const seenEanQueries = [];
 async function auditFn({ bearer, onPrivateSnapshot }) {
   assert.equal(bearer, token);
   auditCalls++;
@@ -46,6 +47,7 @@ async function fetchImpl(url, options) {
   assert.equal(parsed.pathname, "/internal/amazon/catalog-ean");
   const ean = parsed.searchParams.get("ean");
   const market = parsed.searchParams.get("marketplace");
+  seenEanQueries.push({ market, ean });
   assert(["IT", "DE", "FR", "ES"].includes(market));
   assert(eans.includes(ean));
   if (throttle) return new Response(JSON.stringify({ ok: false, error: "amazon_catalog_http_429" }), { status: 502 });
@@ -79,6 +81,21 @@ const payload = JSON.stringify(report);
 for (const raw of [token, "SNEAKER-A", "SNEAKER-D", "COAT-A", ...eans]) {
   assert(!payload.includes(raw), "Pilot output must contain aggregates only");
 }
+const firstBatchEans = new Set(seenEanQueries.filter(row => row.market === "IT").map(row => row.ean));
+const nextBatch = await runSneakerCatalogPilot({ bearer: token, auditFn, fetchImpl, delayMs: 0,
+  limitPerMarket: 4, sampleOffset: 4 });
+assert.equal(nextBatch.sample_offset, 4);
+assert.equal(nextBatch.overall_complete, true);
+assert.equal(nextBatch.markets.IT.sampled, 1);
+assert.equal(nextBatch.markets.DE.sampled, 1);
+assert.equal(nextBatch.markets.FR.sampled, 1);
+assert.equal(nextBatch.markets.ES.sampled, 1);
+assert.equal(nextBatch.markets.IT.cases.ONE_EXACT_EAN_ASIN_MATCH, 1);
+assert.equal(catalogCalls, 20);
+const additionalEans = seenEanQueries.filter(row => row.market === "IT").slice(4).map(row => row.ean);
+assert.equal(additionalEans.length, 1);
+assert(additionalEans.every(ean => !firstBatchEans.has(ean)), "Batch 2 must not repeat batch 1 EANs");
+assert(!JSON.stringify(nextBatch).includes(token));
 throttle = true;
 catalogCalls = 0;
 const throttled = await runSneakerCatalogPilot({ bearer: token, auditFn, fetchImpl, delayMs: 0 });
