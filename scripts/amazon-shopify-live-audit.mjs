@@ -6,6 +6,7 @@ const MAX_SHOPIFY_PAGES = 400;
 const SHOPIFY_RETRIES_MS = [2000, 5000, 10000, 20000];
 
 function safeCode(value) {
+  if (value === null || value === undefined || value === "") return null;
   return typeof value === "string" && /^(amazon|shopify|http)_[a-z0-9_]+$/.test(value)
     ? value.slice(0, 90) : "amazon_audit_unclassified_failure";
 }
