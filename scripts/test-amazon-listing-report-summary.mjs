@@ -19,6 +19,8 @@ const base = "https://worker.example/internal/amazon/listing-report-summary?mark
 let calls = 0;
 let stale = false;
 let duplicate = false;
+let brokenEncoding = false;
+let networkFailure = false;
 try {
   globalThis.fetch = async (input, init = {}) => {
     calls++;
@@ -48,6 +50,7 @@ try {
       }), { status: 200 });
     }
     assert(url.startsWith("https://seller-reports.s3.amazonaws.com/real-report"));
+    if (networkFailure) throw new TypeError("Fetch error with X-Amz-Signature=private-value");
     assert(!init.headers?.Authorization, "No worker bearer token sent to S3");
     assert(!init.headers?.["x-amz-access-token"], "No Amazon token sent to S3");
     const lines = [
@@ -57,7 +60,8 @@ try {
       (duplicate ? "SN-001" : "SN-003") + "\tActive\tB0003",
       ""
     ].join("\n");
-    return new Response(lines, { status: 200 });
+    const file = brokenEncoding ? Buffer.concat([Buffer.from(lines.slice(0, 18)), Buffer.from([0xff]), Buffer.from(lines.slice(18))]) : lines;
+    return new Response(file, { status: 200 });
   };
   const denied = await handleAmazonReadonlyRequest(new Request(base + "IT"), env);
   assert.equal(denied.status, 401);
@@ -86,5 +90,19 @@ try {
   duplicate = true;
   const duplicateReport = await handleAmazonReadonlyRequest(new Request(base + "IT", { headers }), env);
   assert.equal((await duplicateReport.json()).result.safe_for_missing_sku_classification, false);
+  duplicate = false;
+  brokenEncoding = true;
+  const badEncoding = await handleAmazonReadonlyRequest(new Request(base + "IT", { headers }), env);
+  assert.equal(badEncoding.status, 200);
+  const encodedBody = await badEncoding.json();
+  assert.equal(encodedBody.result.encoding_verified, false);
+  assert.equal(encodedBody.result.safe_for_missing_sku_classification, false);
+  brokenEncoding = false;
+  networkFailure = true;
+  const failedDownload = await handleAmazonReadonlyRequest(new Request(base + "IT", { headers }), env);
+  assert.equal(failedDownload.status, 502);
+  const errorBody = await failedDownload.json();
+  assert.equal(errorBody.error, "amazon_report_download_network_error");
+  assert(!JSON.stringify(errorBody).includes("private-value"));
   console.log("Amazon full listing report summary read-only tests passed");
 } finally { globalThis.fetch = originalFetch; }
