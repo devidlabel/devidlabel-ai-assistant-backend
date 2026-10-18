@@ -11,6 +11,8 @@ type Json = Record<string, unknown>;
 type Store = {
   get<T>(key: string): Promise<T | undefined>;
   put(key: string, value: unknown): Promise<void>;
+  delete(key: string): Promise<boolean>;
+  list<T>(options: {prefix:string;limit:number;startAfter?:string}): Promise<Map<string,T>>;
   transaction<T>(fn: (tx: Store) => Promise<T>): Promise<T>;
 };
 type Event = {
@@ -37,6 +39,22 @@ type Intent = {
   owner_epoch: number;
 };
 
+type ManagedDraft = Intent & {
+  state: "DRAFT"|"REVIEW_LEASED"|"SIMULATED_DISPATCHING"|"REVIEW_REQUIRED"|"RECONCILIATION_REQUIRED";
+  event_ref: string;
+  created_at: number;
+  updated_at: number;
+  lease?: {token:string;until:number};
+  reason?: string;
+};
+type InboxWork = {event:Event;intent:Intent};
+type ReconciliationNote = {
+  command_id: string;
+  evidence_ref: string;
+  observation: "FOUND"|"NOT_FOUND"|"UNKNOWN";
+  observation_hash: string;
+};
+const REVIEW_LEASE_MS=30_000;
 const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9.:_/-]{0,179}$/;
 const SHA256_RE = /^[a-f0-9]{64}$/i;
 function valid(value: unknown): value is string {
@@ -80,7 +98,7 @@ function intentArgs(item: Intent): void {
  * The ledger stores identities and fingerprints, never raw customer/order payloads.
  */
 export class MarketplaceCoreLedger {
-  constructor(private readonly store: Store, private readonly tenant: string) {
+  constructor(private readonly store: Store, private readonly tenant: string, private readonly clock:()=>number = Date.now) {
     assertTenant(tenant);
   }
   private async key(kind: string, fields: string[]): Promise<string> {
@@ -154,7 +172,244 @@ export class MarketplaceCoreLedger {
     return item ? {...item} : null;
   }
 
-  /** No MarkReflected/Authorize/Dispatch endpoints exist in R1. */
+  /**
+   * R1.2 atomic INBOX + local OUTBOX. Caller must authenticate the provider event
+   * BEFORE using this class; no customer payload, API mutation or seller secret is stored.
+   * Crash before transaction commit persists neither event nor draft.
+   * Crash after commit leaves BOTH event dedup and pending draft safely recoverable.
+   */
+  async recordInboxAndDraft(work: InboxWork): Promise<{status:"RECORDED"|"DUPLICATE";command_id:string}> {
+    eventArgs(work.event);
+    intentArgs(work.intent);
+    const eventKey=await this.key("event",[
+      work.event.provider,work.event.account,work.event.event_id]);
+    const intentKey=await this.key("intent",[work.intent.command_id]);
+    const pendingKey=await this.key("pending",[work.intent.command_id]);
+    return this.store.transaction(async tx=>{
+      const event=await tx.get<{payload_hash:string;command_id?:string}>(eventKey);
+      const prior=await tx.get<ManagedDraft>(intentKey);
+      if (event) {
+        if (event.payload_hash!==work.event.payload_hash)
+          throw new Error("ledger_event_payload_conflict");
+        if (event.command_id!==work.intent.command_id ||
+            !prior || prior.event_ref!==eventKey || !this.sameIntent(prior,work.intent))
+          throw new Error("ledger_event_replay_conflict");
+        return {status:"DUPLICATE" as const,command_id:work.intent.command_id};
+      }
+      if (prior) throw new Error("ledger_command_reused_by_different_event");
+      const now=this.clock();
+      await tx.put(eventKey,{
+        payload_hash:work.event.payload_hash,command_id:work.intent.command_id,observed_at:now
+      });
+      await tx.put(intentKey,{
+        ...work.intent,event_ref:eventKey,state:"DRAFT",created_at:now,updated_at:now
+      } satisfies ManagedDraft);
+      await tx.put(pendingKey,{command_id:work.intent.command_id});
+      return {status:"RECORDED" as const,command_id:work.intent.command_id};
+    });
+  }
+
+  private sameIntent(stored: Intent, requested: Intent): boolean {
+    return stored.command_id===requested.command_id &&
+      stored.payload_hash===requested.payload_hash &&
+      stored.surface===requested.surface &&
+      stored.flow===requested.flow &&
+      stored.policy_ref===requested.policy_ref &&
+      stored.owner_epoch===requested.owner_epoch;
+  }
+
+  /** Small bounded index scan; a future alarm runner must persist and resume its cursor.
+   * A pending draft is NOT authorized for provider dispatch.
+   */
+  async listPendingDrafts(options: {limit?:number;cursor?:string} = {}): Promise<{
+    command_ids:string[];next_cursor:string|null;read_only:true
+  }> {
+    const limit=options.limit??20;
+    const prefix="core:v1:"+this.tenant+":pending:";
+    if (!Number.isSafeInteger(limit)||limit<1||limit>50 ||
+        (options.cursor!==undefined &&
+        (typeof options.cursor!=="string"||!options.cursor.startsWith(prefix))))
+      throw new Error("ledger_queue_page_invalid");
+    const items=await this.store.list<{command_id:string}>({
+      prefix,limit,...(options.cursor?{startAfter:options.cursor}:{})
+    });
+    const keys=[...items.keys()];
+    const command_ids=[...items.values()].map(v=>v.command_id);
+    if (!command_ids.every(valid)) throw new Error("ledger_queue_corrupt");
+    return {command_ids,next_cursor:keys.length===limit?keys[keys.length-1]:null,read_only:true};
+  }
+
+  /** Local review lease only. This is NOT a dispatch authorization or provider lock.
+   * A concurrent claimant must lose, even across process restarts.
+   */
+  async leaseDraftForReview(commandId:string):Promise<{
+    state:"REVIEW_LEASED";lease_token:string;lease_until:number
+  }> {
+    if (!valid(commandId)) throw new Error("ledger_command_invalid");
+    const key=await this.key("intent",[commandId]);
+    const pending=await this.key("pending",[commandId]);
+    const leased=await this.key("leased",[commandId]);
+    return this.store.transaction(async tx=>{
+      const prior=await tx.get<ManagedDraft>(key);
+      if (!prior || !prior.event_ref) throw new Error("ledger_work_not_staged");
+      if (prior.state==="REVIEW_LEASED")
+        throw new Error("ledger_review_lease_held");
+      if (prior.state!=="DRAFT") throw new Error("ledger_work_not_replayable");
+      const now=this.clock(), token=crypto.randomUUID();
+      const until=now+REVIEW_LEASE_MS;
+      await tx.put(key,{...prior,state:"REVIEW_LEASED",lease:{token,until},updated_at:now});
+      await tx.delete(pending);
+      await tx.put(leased,{command_id:commandId,lease_until:until});
+      return {state:"REVIEW_LEASED" as const,lease_token:token,lease_until:until};
+    });
+  }
+
+  private assertLease(prior:ManagedDraft|undefined,token:string,allowDispatchBoundary=false):asserts prior is ManagedDraft {
+    if (!prior || !prior.lease || typeof token!=="string" ||
+        !token || prior.lease.token!==token ||
+        prior.lease.until<=this.clock() ||
+        (prior.state!=="REVIEW_LEASED" &&
+         !(allowDispatchBoundary&&prior.state==="SIMULATED_DISPATCHING")))
+      throw new Error("ledger_review_lease_stale_or_invalid");
+  }
+
+  /** Offline test boundary only. This method performs NO remote request.
+   * Once the boundary is recorded, expiry may only lead to reconciliation;
+   * it must NEVER return the work to the pending queue.
+   */
+  async simulateAmbiguousDispatchBoundary(commandId:string,token:string):Promise<{state:"SIMULATED_DISPATCHING"}> {
+    if (!valid(commandId))throw new Error("ledger_command_invalid");
+    const key=await this.key("intent",[commandId]);
+    return this.store.transaction(async tx=>{
+      const prior=await tx.get<ManagedDraft>(key);
+      this.assertLease(prior,token);
+      await tx.put(key,{...prior,state:"SIMULATED_DISPATCHING",updated_at:this.clock()});
+      return {state:"SIMULATED_DISPATCHING" as const};
+    });
+  }
+
+  /** This intentionally records uncertainty rather than trusting a fake success.
+   * No VERIFIED transition is available in R1.2.
+   */
+  async flagUnknown(commandId:string,token:string,reason:"TIMEOUT"|"NETWORK_INTERRUPTED"|"PROVIDER_UNVERIFIED"):Promise<{state:"RECONCILIATION_REQUIRED"}> {
+    if (!valid(commandId) || !["TIMEOUT","NETWORK_INTERRUPTED","PROVIDER_UNVERIFIED"].includes(reason))
+      throw new Error("ledger_unknown_request_invalid");
+    const key=await this.key("intent",[commandId]);
+    const leased=await this.key("leased",[commandId]);
+    const reconcile=await this.key("reconcile",[commandId]);
+    return this.store.transaction(async tx=>{
+      const prior=await tx.get<ManagedDraft>(key);
+      this.assertLease(prior,token,true);
+      const updated:ManagedDraft={...prior,state:"RECONCILIATION_REQUIRED",
+        reason,lease:undefined,updated_at:this.clock()};
+      await tx.put(key,updated);
+      await tx.delete(leased);
+      await tx.put(reconcile,{command_id:commandId});
+      return {state:"RECONCILIATION_REQUIRED" as const};
+    });
+  }
+
+  /** Negative/needs-review outcome only. No approved/success/verified state. */
+  async finishLocalReview(commandId:string,token:string,reason:string):Promise<{state:"REVIEW_REQUIRED"}> {
+    if (!valid(commandId)||!valid(reason))throw new Error("ledger_review_request_invalid");
+    const key=await this.key("intent",[commandId]);
+    const leased=await this.key("leased",[commandId]);
+    return this.store.transaction(async tx=>{
+      const prior=await tx.get<ManagedDraft>(key);
+      this.assertLease(prior,token);
+      await tx.put(key,{...prior,state:"REVIEW_REQUIRED",reason,lease:undefined,updated_at:this.clock()});
+      await tx.delete(leased);
+      return {state:"REVIEW_REQUIRED" as const};
+    });
+  }
+
+  /** Recover only review leases that have never crossed a simulated dispatch
+   * boundary. An expired attempt with possible effects becomes UNKNOWN.
+   */
+  async recoverExpiredLease(commandId:string):Promise<{
+    state:string;recovered:boolean
+  }> {
+    if (!valid(commandId))throw new Error("ledger_command_invalid");
+    const key=await this.key("intent",[commandId]);
+    const pending=await this.key("pending",[commandId]);
+    const leased=await this.key("leased",[commandId]);
+    const reconcile=await this.key("reconcile",[commandId]);
+    return this.store.transaction(async tx=>{
+      const prior=await tx.get<ManagedDraft>(key);
+      if (!prior) throw new Error("ledger_command_not_found");
+      if (!prior.lease || !["REVIEW_LEASED","SIMULATED_DISPATCHING"].includes(prior.state) ||
+          prior.lease.until>this.clock())
+        return {state:prior.state,recovered:false};
+      const afterBoundary=prior.state==="SIMULATED_DISPATCHING";
+      const state=afterBoundary?"RECONCILIATION_REQUIRED":"DRAFT";
+      await tx.put(key,{...prior,state,updated_at:this.clock(),lease:undefined,
+        ...(afterBoundary?{reason:"EXPIRED_AFTER_AMBIGUOUS_BOUNDARY"}:{})});
+      await tx.delete(leased);
+      if (afterBoundary)await tx.put(reconcile,{command_id:commandId});
+      else await tx.put(pending,{command_id:commandId});
+      return {state,recovered:true};
+    });
+  }
+
+  /** Local, resumable lease sweeper: a future durable alarm can invoke this
+   * with a persisted cursor. It does not dispatch any provider requests.
+   */
+  async scanExpiredLeases(options:{limit?:number;cursor?:string} = {}):Promise<{
+    examined:number;recovered:number;next_cursor:string|null
+  }> {
+    const limit=options.limit??20;
+    const prefix="core:v1:"+this.tenant+":leased:";
+    if (!Number.isSafeInteger(limit)||limit<1||limit>50 ||
+        (options.cursor!==undefined &&
+         (typeof options.cursor!=="string"||!options.cursor.startsWith(prefix))))
+      throw new Error("ledger_lease_page_invalid");
+    const rows=await this.store.list<{command_id:string;lease_until:number}>({
+      prefix,limit,...(options.cursor?{startAfter:options.cursor}:{})
+    });
+    const keys=[...rows.keys()];
+    let recovered=0;
+    for (const row of rows.values()){
+      if (!valid(row.command_id) || !Number.isSafeInteger(row.lease_until))
+        throw new Error("ledger_lease_index_corrupt");
+      if (row.lease_until<=this.clock()) {
+        const result=await this.recoverExpiredLease(row.command_id);
+        if (result.recovered) recovered++;
+      }
+    }
+    return {examined:rows.size,recovered,
+      next_cursor:keys.length===limit?keys[keys.length-1]:null};
+  }
+
+  /** Observation remains untrusted until the provider adapter verifies it.
+   * It is diagnostic only; it cannot change RECONCILIATION_REQUIRED to VERIFIED.
+   */
+  async recordReconciliationNote(note:ReconciliationNote):Promise<{status:"RECORDED"|"DUPLICATE";still_blocked:true}> {
+    if (!valid(note.command_id)||!valid(note.evidence_ref)||
+        !["FOUND","NOT_FOUND","UNKNOWN"].includes(note.observation)||
+        typeof note.observation_hash!=="string"||!SHA256_RE.test(note.observation_hash))
+      throw new Error("ledger_reconciliation_note_invalid");
+    const key=await this.key("intent",[note.command_id]);
+    const noteKey=await this.key("reconcile_note",[note.command_id,note.evidence_ref]);
+    return this.store.transaction(async tx=>{
+      const command=await tx.get<ManagedDraft>(key);
+      if (!command || command.state!=="RECONCILIATION_REQUIRED")
+        throw new Error("ledger_reconciliation_not_required");
+      const before=await tx.get<ReconciliationNote>(noteKey);
+      if (before) {
+        if (before.observation!==note.observation||
+            before.observation_hash!==note.observation_hash)
+          throw new Error("ledger_reconciliation_evidence_conflict");
+        return {status:"DUPLICATE" as const,still_blocked:true as const};
+      }
+      await tx.put(noteKey,{...note,observed_at:this.clock()});
+      return {status:"RECORDED" as const,still_blocked:true as const};
+    });
+  }
+
+  /** R1.2 has NO live adapter, owner handoff, Shopify stock reflection,
+   * authorization, webhook ingress, or provider write path.
+   */
+
 }
 
 /** Conservative risk estimator, NOT a remote inventory write authorization.
