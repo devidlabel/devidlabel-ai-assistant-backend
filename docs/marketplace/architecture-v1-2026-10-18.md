@@ -1,5 +1,7 @@
 # M.A.R.E. Marketplace Core — architettura v1
 
+> **Decisione aggiornata 18/10/2026 — ADR-07:** il progetto Channable `DL-Shopify` resta *incumbent operativo* per catalogo/offerte, quantità/prezzi, ordini, corrieri e tracking, ma viene sostituito progressivamente da M.A.R.E. API per Amazon e poi Spartoo. TikTok Shop resta con l'app Shopify dedicata. La creazione di nuove offerte Amazon passa al nuovo adapter; preservare tutte le funzioni legacy finché la sostituzione non è verificata. Leggere [`adr-07-channable-exit-2026-10-18.md`](./adr-07-channable-exit-2026-10-18.md) prima di ogni cutover. Questo documento non autorizza doppi writer né disconnessioni immediate.
+
 **Revisione:** 18 ottobre 2026. **Stato:** baseline proposta per implementazione, NON autorizzazione al go-live. **Ambito:** Amazon IT/DE/FR/ES, successivamente Spartoo. **Responsabile delle decisioni commerciali:** titolare M.A.R.E.; il software applica policy approvate, non le inventa.
 
 Questa revisione sostituisce la sequenza «prima pubblichiamo, poi pensiamo agli ordini» con uno sviluppo per dipendenze. La validazione di un'offerta può arrivare presto; la prima quantità positiva richiede anche un percorso ordini, stock e spedizioni effettivamente funzionante, proprio o temporaneamente delegato e verificato.
