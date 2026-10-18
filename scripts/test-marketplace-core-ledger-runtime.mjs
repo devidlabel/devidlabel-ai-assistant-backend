@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /** R1 local workerd test; no Shopify/Amazon/Spartoo network or customer data. */
-const fixture = String.raw\`
+const fixture = String.raw`
   import {DurableObject} from "cloudflare:workers";
   import {MarketplaceCoreLedger,simulateExposureBudget} from "./src/marketplace-core-ledger.ts";
   function json(o,status=200){return new Response(JSON.stringify(o),{
@@ -35,7 +35,7 @@ const fixture = String.raw\`
       return env.MARE_CORE_LEDGER.get(id).fetch(req);
     }
   };
-\`.replace(/\\\`/g,"\`");
+`;
 
 const built=await build({stdin:{
   contents:fixture,resolveDir:process.cwd(),sourcefile:"ledger-fixture.ts",loader:"ts"
