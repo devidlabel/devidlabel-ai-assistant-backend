@@ -8,13 +8,14 @@
  * deliberately absent in this increment.
  */
 type Json = Record<string, unknown>;
-type Store = {
+export type MarketplaceLedgerStore = {
   get<T>(key: string): Promise<T | undefined>;
   put(key: string, value: unknown): Promise<void>;
   delete(key: string): Promise<boolean>;
   list<T>(options: {prefix:string;limit:number;startAfter?:string}): Promise<Map<string,T>>;
-  transaction<T>(fn: (tx: Store) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (tx: MarketplaceLedgerStore) => Promise<T>): Promise<T>;
 };
+type Store = MarketplaceLedgerStore;
 type Event = {
   provider: "amazon" | "spartoo" | "shopify";
   account: string;
@@ -61,7 +62,7 @@ type OrderLineSnapshot = {
   quantity_ordered: number;
   quantity_fulfilled: number | null;
 };
-type OrderSnapshot = {
+export type OrderSnapshot = {
   provider: "amazon" | "spartoo";
   account: string;
   order_id: string;
@@ -83,12 +84,16 @@ function exactKeys(value:Record<string,unknown>,allowed:readonly string[]):boole
   return Object.keys(value).every(key=>allowed.includes(key));
 }
 function orderTimestamp(value:string):{milliseconds:number;normalized:string} {
-  if (!ORDER_ISO_RE.test(value))throw new Error("ledger_order_time_invalid");
+  if (typeof value!=="string"||!ORDER_ISO_RE.test(value))throw new Error("ledger_order_time_invalid");
+  // Never silently collapse two source revisions with sub-millisecond precision.
+  // Existing storage versions are milliseconds. Unsupported precision is blocked.
+  const fraction=/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(value)?.[1]??"";
+  if (/[1-9]/.test(fraction.slice(3)))throw new Error("ledger_order_time_precision_unsupported");
   const ms=Date.parse(value);
   if (!Number.isFinite(ms))throw new Error("ledger_order_time_invalid");
   return {milliseconds:ms,normalized:new Date(ms).toISOString()};
 }
-function validateOrderSnapshot(input:OrderSnapshot):OrderSnapshot {
+export function validateOrderSnapshot(input:OrderSnapshot):OrderSnapshot {
   if (!input||typeof input!=="object"||Array.isArray(input)||
       !exactKeys(input as unknown as Json,["provider","account","order_id","marketplace_id","source_updated_at","fulfillment_status","fulfillment_owner","items"])||
       !["amazon","spartoo"].includes(input.provider)||
@@ -107,7 +112,7 @@ function validateOrderSnapshot(input:OrderSnapshot):OrderSnapshot {
         (line.seller_sku!==null&&
           (typeof line.seller_sku!=="string"||line.seller_sku.length<1||
            line.seller_sku.length>200||/[\u0000-\u001f\u007f]/.test(line.seller_sku)))||
-        !Number.isSafeInteger(line.quantity_ordered)||line.quantity_ordered<1||
+        !Number.isSafeInteger(line.quantity_ordered)||line.quantity_ordered<0||
         (line.quantity_fulfilled!==null&&
           (!safeQty(line.quantity_fulfilled)||line.quantity_fulfilled>line.quantity_ordered)))
       throw new Error("ledger_order_line_invalid");
@@ -486,6 +491,8 @@ export class MarketplaceCoreLedger {
    * Spartoo identity conservatively includes marketplace until adapter verifies
    * the contractual uniqueness scope. No customer PII or raw provider response.
    * Every revision, including obsolete observations, is locally deduplicated.
+   * Zero quantities are retained as SHADOW_ONLY observations; this method
+   * NEVER calls reservation/reflection methods or infers stock release.
    */
   async observeMarketplaceOrder(input:OrderSnapshot):Promise<{
     status:"RECORDED"|"DUPLICATE"|"STALE";
