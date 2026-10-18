@@ -17,7 +17,7 @@ type Market = keyof typeof AMAZON_EU_MARKETPLACES;
 const HOST = "https://sellingpartnerapi-eu.amazon.com";
 const ENDPOINT = "/orders/2026-01-01/orders";
 const SELLER_RE = /^[A-Z0-9]{8,30}$/;
-const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 const MAX_PAGES = 5;
 const PAGE_SIZE = 100;
 const MAX_RESPONSE_BYTES = 4_000_000;
@@ -158,6 +158,9 @@ export async function readAmazonOrdersPilot(
       throw new Error("amazon_orders_invalid_page");
     for (const rawOrder of page.orders){
       const item=normalizeOrder(rawOrder,sellerId,allowed);
+      if (Date.parse(String(item.last_updated_at))<since ||
+          Date.parse(String(item.last_updated_at))>until)
+        throw new Error("amazon_orders_out_of_window");
       const key=String(item.order_key);
       if (orders.has(key)) {
         if (JSON.stringify(orders.get(key))!==JSON.stringify(item))
@@ -168,8 +171,8 @@ export async function readAmazonOrdersPilot(
     }
     pages++;
     const pagination=dict(page.pagination);
-    if (page.pagination!==undefined &&
-        (!next && page.pagination!==null && typeof page.pagination!=="object"))
+    if (page.pagination!==undefined && page.pagination!==null &&
+        (typeof page.pagination!=="object" || Array.isArray(page.pagination)))
       throw new Error("amazon_orders_invalid_pagination");
     const nextRaw=pagination.nextToken;
     if (nextRaw===undefined || nextRaw===null) break;
