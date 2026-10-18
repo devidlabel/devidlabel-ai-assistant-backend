@@ -55,7 +55,8 @@ async function call(path,body,extraHeaders={}){
   const response=await mf.dispatchFetch("https://fixture"+path,{method:"POST",
     headers:{"content-type":"application/json",...auth,...extraHeaders},
     body:JSON.stringify(body)});
-  return {status:response.status,...await response.json()};
+  const data=await response.json();
+  return data===null ? null : {status:response.status,...data};
 }
 const hash="a".repeat(64);
 const event={provider:"amazon",account:"ACCOUNT_DEMO",event_id:"EVENT_001",payload_hash:hash};
