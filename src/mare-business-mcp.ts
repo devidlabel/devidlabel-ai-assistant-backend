@@ -3,6 +3,7 @@ import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
+import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest } from "./mare-business-amazon-offer-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
@@ -467,6 +468,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
 async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv): Promise<JsonObject> {
   const request = { ...plan.request };
   if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
+  if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
   const deterministicIdempotency = `mare-${plan.plan_id}`.replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 128);
 
   if (plan.capability_id === "marketplace.feed.generate") return textToolResult(await generateMarketplaceFeed(request, env));
@@ -534,6 +536,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
 async function prepareCapability(capability: MareBusinessCapability, request: JsonObject, env: MareBusinessEnv): Promise<JsonObject> {
   // Reject caller-supplied observations before even persisting a local plan.
   if (capability.id === "marketplace.order.evidence.capture") request = validateOrderEvidenceCaptureRequest(request);
+  if (capability.id === "amazon.offer.validation.preview") request = validateAmazonOfferPreviewRequest(request);
   assertRequestSafe(request);
   if (!capability.implemented) throw new Error("capability_not_implemented");
   if (!capability.available) throw new Error(`capability_not_available:${capability.missing.join(",")}`);

@@ -5,6 +5,8 @@ compatibility_date = "2026-06-25"
 MARE_MARKETPLACE_SHADOW_ENABLED = "true"
 # Explicit local evidence capture only; no cron, provider writer, or importer.
 MARE_ORDER_JOURNAL_ENABLED = "true"
+# Amazon remote validation only: fixed preview mode and zero submitted quantity.
+AMAZON_OFFER_PREVIEW_ENABLED = "true"
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
