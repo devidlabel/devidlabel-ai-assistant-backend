@@ -6,6 +6,28 @@ const modules=await Promise.all(paths.map(async p=>{const b=await build({entryPo
 const {readAmazonOrdersPilot}=modules[0];
 const {stageAmazonOrdersReadOnly}=modules[1];
 const {MarketplaceCoreLedger}=modules[2];
+const scoped=await build({entryPoints:["src/marketplace-shopify-scope-readiness.ts"],
+  bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"});
+const {readMarketplaceShopifyPermissionReadiness}=await import("data:text/javascript;base64,"+
+  Buffer.from(scoped.outputFiles[0].text).toString("base64"));
+const oauthMeta={
+  shop:"synthetic-store.myshopify.com",scope:"read_products,read_inventory,read_orders",
+  encrypted_access_token:"TOKEN_CIPHER_CANARY_NOT_FOR_OUTPUT",
+  iv:"TOKEN_IV_CANARY_NOT_FOR_OUTPUT",created_at:"2026-01-01T00:00:00Z"
+};
+const readiness=await readMarketplaceShopifyPermissionReadiness({
+  SHOPIFY_SHOP_DOMAIN:"synthetic-store.myshopify.com",
+  SHOPIFY_TOKENS_KV:{get:async()=>JSON.stringify(oauthMeta)}
+});
+assert.equal(readiness.ok,true);
+assert.equal(readiness.order_create_scope_present,false);
+assert.deepEqual(readiness.required_scope_gaps.order_create,["write_orders"]);
+assert.equal(readiness.can_import_orders,false);
+assert(!JSON.stringify(readiness).includes("CANARY"));
+assert.equal((await readMarketplaceShopifyPermissionReadiness({
+  SHOPIFY_SHOP_DOMAIN:"synthetic-store.myshopify.com",
+  SHOPIFY_TOKENS_KV:{get:async()=>null}
+})).status,"BLOCKED_NO_INSTALLATION");
 const capabilityModule=await build({
   entryPoints:["src/mare-business-capabilities.ts"],
   bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"
