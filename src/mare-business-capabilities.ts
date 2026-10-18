@@ -141,6 +141,21 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.seller.asin.direct",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Search seller ASIN via Listings Items GET to detect existing offers under OTHER seller SKUs. Empty search is not a publish permit. Read-only, bounded pages.",
+      request_schema:schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        asins:{type:"array",minItems:1,maxItems:4,
+          items:{type:"string",pattern:"^[A-Z0-9]{10}$"}}
+      },["marketplace","asins"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.offer.preflight",provider:"amazon",domain:"marketplace",
       operation:"read",risk:"read_only",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
