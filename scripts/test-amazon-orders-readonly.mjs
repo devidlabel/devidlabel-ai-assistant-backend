@@ -6,7 +6,7 @@ const compiled=await build({
   entryPoints:["src/marketplace-amazon-orders-readonly.ts"],
   bundle:true,platform:"neutral",format:"esm",write:false,logLevel:"silent"
 });
-const {readAmazonOrdersPilot}=await import("data:text/javascript;base64,"+
+const {readAmazonOrdersPilot,amazonOrderLineGuardReason}=await import("data:text/javascript;base64,"+
   Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 const env={
   AMAZON_SP_API_CLIENT_ID:"synthetic-client",
@@ -145,7 +145,55 @@ try{
   assert.equal(none.order_count,0);
   assert.equal(none.complete_pagination,true);
   assert.equal(none.can_advance_checkpoint,false);
-  console.log("PASS read-only Amazon Orders v2026-01-01: bounded pagination, stable account order identity, SKU preservation, PII exclusion and no writes");
+
+  // Audit F01: observe the actual failing guard, never guess from optional SKU.
+  const validLine={orderItemId:"PRIVATE_IDENTIFIER_CANARY",quantityOrdered:1,
+    product:{sellerSku:"PRIVATE_SKU_CANARY"}};
+  const cases=[
+    [null,"line_not_object"],
+    [[],"line_not_object"],
+    [{...validLine,orderItemId:undefined},"line_id_missing"],
+    [{...validLine,orderItemId:null},"line_id_null"],
+    [{...validLine,orderItemId:123},"line_id_type"],
+    [{...validLine,orderItemId:""},"line_id_format"],
+    [{...validLine,orderItemId:"x".repeat(129)},"line_id_format"],
+    [{...validLine,quantityOrdered:undefined},"quantity_missing"],
+    [{...validLine,quantityOrdered:null},"quantity_null"],
+    [{...validLine,quantityOrdered:"PRIVATE_QUANTITY_CANARY"},"quantity_type_string"],
+    [{...validLine,quantityOrdered:true},"quantity_type_boolean"],
+    [{...validLine,quantityOrdered:{}},"quantity_type_other"],
+    [{...validLine,quantityOrdered:1.5},"quantity_noninteger"],
+    [{...validLine,quantityOrdered:Number.MAX_SAFE_INTEGER+1},"quantity_unsafe_integer"],
+    [{...validLine,quantityOrdered:-1},"quantity_negative"],
+    [{...validLine,quantityOrdered:0},"quantity_zero"]
+  ];
+  for(const [line,reason] of cases){
+    assert.equal(amazonOrderLineGuardReason(line,new Set()),reason);
+    globalThis.fetch=async(url,init={})=>{
+      if(new URL(String(url)).hostname==="api.amazon.com")
+        return json({access_token:"synthetic-token"});
+      assert.equal(init.method,"GET");
+      assert.equal(init.redirect,"manual");
+      return json({orders:[{...a,orderItems:[line]}]});
+    };
+    await assert.rejects(()=>readAmazonOrdersPilot(input,env,clock),error=>{
+      assert.equal(error.message,"amazon_orders_invalid_line:"+reason);
+      assert(!error.message.includes("PRIVATE_"));
+      return true;
+    });
+  }
+  assert.equal(amazonOrderLineGuardReason({...validLine,quantityOrdered:NaN},new Set()),"quantity_nonfinite");
+  assert.equal(amazonOrderLineGuardReason(validLine,new Set([validLine.orderItemId])),"duplicate_line_id");
+  assert.equal(amazonOrderLineGuardReason({...validLine,product:{}},new Set()),null);
+  globalThis.fetch=async(url,init={})=>{
+    if(new URL(String(url)).hostname==="api.amazon.com")
+      return json({access_token:"synthetic-token"});
+    assert.equal(init.method,"GET");
+    return json({orders:[{...a,orderItems:[validLine,validLine]}]});
+  };
+  await assert.rejects(()=>readAmazonOrdersPilot(input,env,clock),
+    error=>error.message==="amazon_orders_invalid_line:duplicate_line_id");
+  console.log("PASS Orders reader plus F01: 16 malformed-line transport cases, duplicate/nonfinite guards, optional SKU preserved, no PII or writes");
 } finally {
   globalThis.fetch=original;
 }

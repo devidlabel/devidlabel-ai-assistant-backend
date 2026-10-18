@@ -41,6 +41,35 @@ function qty(value:unknown):number|null {
   return typeof value==="number"&&Number.isSafeInteger(value)&&value>=0
     ? value : null;
 }
+
+/** Fixed diagnostic codes only: never include a raw field, ID, SKU or error body.
+ * The accepted inputs remain exactly the same as the original line guard.
+ * Missing sellerSku is deliberately NOT part of this guard.
+ */
+export function amazonOrderLineGuardReason(raw:unknown, seen:ReadonlySet<string>):string|null {
+  if(raw===null||typeof raw!=="object"||Array.isArray(raw)) return "line_not_object";
+  const item=raw as Row;
+  if(item.orderItemId===undefined) return "line_id_missing";
+  if(item.orderItemId===null) return "line_id_null";
+  if(typeof item.orderItemId!=="string") return "line_id_type";
+  if(!id(item.orderItemId,128)) return "line_id_format";
+  if(seen.has(item.orderItemId)) return "duplicate_line_id";
+  const value=item.quantityOrdered;
+  if(value===undefined) return "quantity_missing";
+  if(value===null) return "quantity_null";
+  if(typeof value!=="number") {
+    if(typeof value==="string") return "quantity_type_string";
+    if(typeof value==="boolean") return "quantity_type_boolean";
+    return "quantity_type_other";
+  }
+  if(!Number.isFinite(value)) return "quantity_nonfinite";
+  if(!Number.isInteger(value)) return "quantity_noninteger";
+  if(!Number.isSafeInteger(value)) return "quantity_unsafe_integer";
+  if(value<0) return "quantity_negative";
+  if(value===0) return "quantity_zero";
+  return null;
+}
+
 function normalizeOrder(raw:unknown, sellerId:string, allowed:Set<string>):Row {
   const order=dict(raw);
   const orderId=id(order.orderId,128);
@@ -58,11 +87,11 @@ function normalizeOrder(raw:unknown, sellerId:string, allowed:Set<string>):Row {
   const items:Row[]=[];
   const unique=new Set<string>();
   for (const rawItem of order.orderItems) {
+    const reason=amazonOrderLineGuardReason(rawItem,unique);
+    if(reason!==null) throw new Error("amazon_orders_invalid_line:"+reason);
     const item=dict(rawItem);
     const lineId=id(item.orderItemId,128);
-    const ordered=qty(item.quantityOrdered);
-    if (!lineId||unique.has(lineId)||ordered===null||ordered<=0)
-      throw new Error("amazon_orders_invalid_line");
+    const ordered=qty(item.quantityOrdered)!;
     unique.add(lineId);
     const product=dict(item.product);
     const sku=id(product.sellerSku,200) || null; // opaque, never trim/normalize
