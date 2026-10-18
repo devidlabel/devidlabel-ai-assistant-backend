@@ -8,7 +8,7 @@ const {stageAmazonOrdersReadOnly}=modules[1];
 const {MarketplaceCoreLedger}=modules[2];
 const scoped=await build({entryPoints:["src/marketplace-shopify-scope-readiness.ts"],
   bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"});
-const {readMarketplaceShopifyPermissionReadiness}=await import("data:text/javascript;base64,"+
+const {readMarketplaceShopifyCachedScopes:readMarketplaceShopifyPermissionReadiness}=await import("data:text/javascript;base64,"+
   Buffer.from(scoped.outputFiles[0].text).toString("base64"));
 const oauthMeta={
   shop:"synthetic-store.myshopify.com",scope:"read_products,read_inventory,read_orders",
@@ -142,3 +142,4 @@ try {
 }finally{
  globalThis.fetch=original;
 }
+await import("./test-marketplace-live-scopes.mjs");
