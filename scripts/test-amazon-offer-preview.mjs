@@ -18,6 +18,8 @@ const preflight=async()=>({
   ok:true,status:"REVIEW_REQUIRED",
   ...input,exact_ean_asin:true,
   seller_listing_absence_result:"NOT_FOUND_VERIFIED_BY_LISTINGS_API",
+  seller_asin_search_result:"NO_SELLER_ASIN_IN_BOUNDED_SEARCH",
+  seller_asin_search_is_not_final_absence_proof:true,
   schema_product_type:"PRODUCT",schema_requirements:"LISTING_OFFER_ONLY",
   schema_version:"synthetic-version",schema_checksum:"c3ludGhldGljLXRlc3QxMg==",
   shopify_currency:"EUR",shopify_price_minor:2599
@@ -70,7 +72,8 @@ try {
     {input,env:{...env,AMAZON_SP_API_SELLER_ID:""},preflight},
     {input,env,preflight:async()=>({...await preflight(),status:"BLOCKED_CATALOG_ATTRIBUTES"})},
     {input,env,preflight:async()=>({...await preflight(),shopify_price_minor:0})},
-    {input,env,preflight:async()=>({...await preflight(),schema_checksum:"NO"})}
+    {input,env,preflight:async()=>({...await preflight(),schema_checksum:"NO"})},
+    {input,env,preflight:async()=>({...await preflight(),seller_asin_search_result:"UNKNOWN"})}
   ]){
     const result=await previewAmazonOfferOnlyZeroQuantity(blocked.input,blocked.env,blocked.preflight);
     assert.equal(result.status,"BLOCKED_PREVIEW");
