@@ -26,6 +26,7 @@ const ids=[
   "amazon.catalog.exact.match",
   "amazon.catalog.asin.details",
   "amazon.seller.listings.direct",
+  "amazon.seller.asin.direct",
   "amazon.offer.preflight",
   "amazon.orders.observe.readonly",
   "shopify.marketplace.scopes.readonly",
@@ -43,7 +44,7 @@ for(const id of ids){
 const withoutSeller=buildMareBusinessCapabilities({
   ...cfg,AMAZON_SP_API_SELLER_ID:""
 });
-for(const id of ["amazon.seller.listings.direct","amazon.offer.preflight",
+for(const id of ["amazon.seller.listings.direct","amazon.seller.asin.direct","amazon.offer.preflight",
                  "amazon.orders.observe.readonly"]) {
   const c=withoutSeller.find(x=>x.id===id);
   assert.equal(c.available,false);
