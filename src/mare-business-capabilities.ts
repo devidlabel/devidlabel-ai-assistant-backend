@@ -45,6 +45,7 @@ export type MareBusinessCapabilityEnv = {
   AMAZON_SP_API_REFRESH_TOKEN?: string;
   AMAZON_SP_API_CLIENT_ID?: string;
   AMAZON_SP_API_CLIENT_SECRET?: string;
+  AMAZON_SP_API_SELLER_ID?: string;
   SPARTOO_API_KEY?: string;
   MIINTO_API_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
@@ -83,6 +84,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
   const tiktokAuthorized = configured(env.TIKTOK_ACCESS_TOKEN, env.TIKTOK_ADVERTISER_ID);
   const merchant = configured(env.GOOGLE_MERCHANT_ACCOUNT_ID) && configured(env.GOOGLE_MERCHANT_SERVICE_ACCOUNT_JSON || env.GOOGLE_MERCHANT_REFRESH_TOKEN);
   const amazon = configured(env.AMAZON_SP_API_REFRESH_TOKEN, env.AMAZON_SP_API_CLIENT_ID, env.AMAZON_SP_API_CLIENT_SECRET);
+  const amazonSeller = configured(env.AMAZON_SP_API_SELLER_ID);
 
   return [
     capability({ id: "system.status", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Unified health, permission and provider configuration status.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
@@ -127,14 +129,14 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
     capability({
       id:"amazon.offer.preflight",provider:"amazon",domain:"marketplace",
       operation:"read",risk:"read_only",implemented:true,
-      configured:businessAuth&&amazon,approval:"none",
+      configured:businessAuth&&amazon&&amazonSeller&&shopify,approval:"none",
       description:"Fail-closed Amazon EU Offer Only preflight: verifies live Shopify SKU, exact EAN-to-ASIN, seller listing absence, listing restrictions and product-type metadata; NEVER creates or changes an offer.",
       request_schema:schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         sku:{type:"string"},ean:{type:"string",pattern:"^[0-9]{13}$"},
         asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
       },["marketplace","sku","ean","asin"]),
-      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],[amazonSeller,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV"]]
     }),
     capability({ id: "marketplace.shadow.status", provider: "mare", domain: "marketplace", operation: "read", risk: "read_only", implemented: true, configured: businessAuth && Boolean(env.MARE_MARKETPLACE_SHADOW), approval: "none", description: "Read Shopify shadow scan progress, freshness and errors. Does not start scans or publish marketplace data.", request_schema: schema(), requirements: [[Boolean(env.MARE_MARKETPLACE_SHADOW), "MARE_MARKETPLACE_SHADOW binding"]] }),
     capability({ id: "system.capabilities", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Dynamic capability registry used by every V2 agent.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
