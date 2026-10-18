@@ -33,7 +33,37 @@ type Entry={
   statuses?:string[];
   reported_offer_count?:number;
   listing_issues_count?:number;
+  issue_signals?:Array<{code:string;severity:string;categories:string[];attribute_names:string[]}>;
+  issue_signals_truncated?:boolean;
 };
+/**
+ * Merchant-safe diagnostics: Amazon issue messages can contain product or
+ * account data. Expose only bounded, grammar-restricted codes/categories,
+ * severities and attribute paths. Do not return raw issue messages.
+ */
+function safeIssues(raw:unknown,marketplaceId:string):{
+  issues:Array<{code:string;severity:string;categories:string[];attribute_names:string[]}>;
+  count:number;truncated:boolean;
+}{
+  if(!Array.isArray(raw))return {issues:[],count:0,truncated:false};
+  const issues=raw.map(dict).filter(x=>
+    !x.marketplaceId||x.marketplaceId===marketplaceId);
+  const atom=(v:unknown,len:number):string=>
+    typeof v==="string"&&v.length<=len&&
+    /^[A-Za-z0-9_./:-]+$/.test(v)?v:"UNVERIFIED";
+  const many=(v:unknown,len:number):string[]=>
+    Array.isArray(v)?v.slice(0,8).map(x=>atom(x,len)):[];
+  return {
+    issues:issues.slice(0,32).map(issue=>({
+      code:atom(issue.code,72),
+      severity:atom(issue.severity,24),
+      categories:many(issue.categories,72),
+      attribute_names:many(issue.attributeNames,120)
+    })),
+    count:issues.length,
+    truncated:issues.length>32
+  };
+}
 function classify(
   sku:string, marketplaceId:string, status:number,
   body:Row|null,reqId:string|null,jsonValid:boolean
@@ -58,6 +88,7 @@ function classify(
   const statuses=Array.isArray(items?.status)?
     items.status.filter(s=>typeof s==="string"&&s.length<90) as string[]:[];
   const prices=Array.isArray(body.offers)?body.offers.map(dict).filter(x=>x.marketplaceId===marketplaceId):[];
+  const issueData=safeIssues(body.issues,marketplaceId);
   return {
     sku,
     state:items?"PRESENT":"PRESENT_ATTRIBUTES_UNKNOWN",
@@ -67,7 +98,9 @@ function classify(
     product_type:typeof items?.productType==="string"?items.productType:null,
     statuses,
     reported_offer_count:prices.length,
-    listing_issues_count:Array.isArray(body.issues)?body.issues.length:0
+    listing_issues_count:issueData.count,
+    issue_signals:issueData.issues,
+    issue_signals_truncated:issueData.truncated
   };
 }
 
