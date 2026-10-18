@@ -8,7 +8,7 @@ import {join} from "node:path";
 // Synthetic fixtures only. The actual Core, intake and journal are bundled.
 // The additional inspect/fault paths belong to this test fixture, not production.
 const fixture=`
- import {MareMarketplaceOrderJournal,captureAmazonOrderBatch} from "./src/marketplace-order-journal.ts";
+ import {MareMarketplaceOrderJournal,captureAmazonOrderBatch,journalAmazonRead} from "./src/marketplace-order-journal.ts";
  import {MarketplaceCoreLedger} from "./src/marketplace-core-ledger.ts";
  const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:{"Content-Type":"application/json"}});
  export class FixtureJournal extends MareMarketplaceOrderJournal {
@@ -19,7 +19,7 @@ const fixture=`
     const body=await req.json(),rows=[];
     for(const id of body.ids)rows.push(await ledger.readMarketplaceOrder({
       provider:"amazon",account:this.env.AMAZON_SP_API_SELLER_ID,order_id:id}));
-    const proofs=await this.ctx.storage.list({prefix:"proof:v1:",limit:100});
+    const proofs=await this.ctx.storage.list({prefix:"proof:v2:",limit:100});
     const reservations=await this.ctx.storage.list({prefix:"core:v1:"+this.env.COMMERCE_TENANT_ID+":reservation:",limit:100});
     return json({rows,proof_count:proofs.size,reservation_count:reservations.size});
    }
@@ -36,7 +36,61 @@ const fixture=`
  }
  export default {async fetch(req,env){
   const object=req.headers.get("x-test-object")||"primary";
-  return env.TEST_JOURNAL.get(env.TEST_JOURNAL.idFromName(object)).fetch(req);
+  const target=env.TEST_JOURNAL.get(env.TEST_JOURNAL.idFromName(object));
+  if(new URL(req.url).pathname==="/client"){
+   const mutation=req.headers.get("x-test-receipt-mutation")||"";
+   const binding={idFromName:name=>name,get:id=>({fetch:async request=>{
+    const response=await target.fetch(request);
+    if(!response.ok)return response;
+    if(mutation==="invalid_json")return new Response('{"SYNTHETIC_PRIVATE_VALUE":', {status:200});
+    if(mutation==="null")return json(null);
+    if(mutation==="array")return json([]);
+    const proof=await response.json();
+    const changes={
+     receipt:p=>{p.receipt_id="f".repeat(64);},
+     schema:p=>{p.schema=1;},
+     tenant:p=>{p.tenant_id="OTHER_TENANT";},
+     account:p=>{p.account_id="A987654321";},
+     marketplaces:p=>{p.selected_marketplaces=["DE"];},
+     after:p=>{p.last_updated_after="2026-10-18T06:00:00.000Z";},
+     before:p=>{p.last_updated_before="2026-10-18T10:00:00.000Z";},
+     order_count:p=>{p.order_count++;},
+     zero_count:p=>{p.zero_quantity_line_count++;},
+     review_count:p=>{p.review_required_order_count++;},
+     status:p=>{p.status="PUBLISHED";},
+     recorded_negative:p=>{p.recorded=-1;},
+     duplicate_fraction:p=>{p.duplicate=0.5;},
+     stale_string:p=>{p.stale="0";},
+     sum:p=>{p.recorded=0;p.duplicate=0;p.stale=0;},
+     readbacks_overflow:p=>{p.current_snapshot_readbacks=p.order_count+1;},
+     readbacks_stale:p=>{p.recorded=0;p.duplicate=p.order_count-1;p.stale=1;p.current_snapshot_readbacks=p.order_count;},
+     ok:p=>{p.ok=false;},
+     persistence:p=>{p.local_persistence_verified=false;},
+     mutations:p=>{p.provider_mutations=1;},
+     import_state:p=>{p.import_state="READY";},
+     source:p=>{p.source="OTHER_SOURCE";},
+     shopify_evidence:p=>{p.shopify_reconciliation_not_persisted=false;},
+     importer:p=>{p.importer_enabled=true;},
+     stock:p=>{p.stock_effects=true;},
+     reservations:p=>{p.reservations_unchanged=false;},
+     checkpoint:p=>{p.can_advance_checkpoint=true;},
+     create:p=>{p.can_create_order=true;},
+     publish:p=>{p.can_publish_offer=true;},
+     tracking:p=>{p.can_send_tracking=true;},
+     scheduling:p=>{p.scheduling_enabled=true;},
+     missing:p=>{delete p.receipt_id;},
+     extra:p=>{p.unexpected="SYNTHETIC_PRIVATE_VALUE";}
+    };
+    if(mutation){
+     if(!changes[mutation])throw Error("UNKNOWN_SYNTHETIC_MUTATION");
+     changes[mutation](proof);
+    }
+    return json(proof);
+   }})};
+   try{return json(await journalAmazonRead(await req.json(),{...env,MARE_ORDER_JOURNAL:binding}));}
+   catch(error){return json({ok:false,error:error.message,can_advance_checkpoint:false},409);}
+  }
+  return target.fetch(req);
  }};
 `;
 const built=await build({stdin:{contents:fixture,resolveDir:process.cwd(),sourcefile:"journal-fixture.ts",loader:"ts"},
@@ -66,9 +120,11 @@ const batch={ok:true,read_only:true,source:"amazon_spapi_orders_2026_01_01",
  customer_personal_data_requested:false,importer_enabled:false,tracking_enabled:false,
  quantity_mutations_enabled:false,can_advance_checkpoint:false};
 let mf;let checks=0;
-async function call(path,body=batch,object="primary",withAuth=true){
+async function call(path,body=batch,object="primary",withAuth=true,receiptMutation=""){
  const response=await mf.dispatchFetch("https://fixture"+path,{method:"POST",
-  headers:{"Content-Type":"application/json","x-test-object":object,...(withAuth?{Authorization:"Bearer "+token}:{})},
+  headers:{"Content-Type":"application/json","x-test-object":object,
+   ...(receiptMutation?{"x-test-receipt-mutation":receiptMutation}:{}),
+   ...(withAuth?{Authorization:"Bearer "+token}:{})},
   body:JSON.stringify(body)});
  return {http:response.status,...await response.json()};
 }
@@ -78,6 +134,12 @@ try{
  const first=await call("/capture");
  assert.equal(first.status,"CAPTURED");checks++;
  assert.equal(first.recorded,5);checks++;
+ assert.equal(first.schema,2);checks++;
+ assert.equal(first.tenant_id,tenant);checks++;
+ assert.equal(first.account_id,account);checks++;
+ assert.deepEqual(first.selected_marketplaces,["IT"]);checks++;
+ assert.equal(first.last_updated_after,"2026-10-18T07:00:00.000Z");checks++;
+ assert.equal(first.last_updated_before,"2026-10-18T09:00:00.000Z");checks++;
  assert.equal(first.zero_quantity_line_count,2);checks++;
  assert.equal(first.review_required_order_count,2);checks++;
  assert.equal(first.current_snapshot_readbacks,5);checks++;
@@ -155,5 +217,67 @@ try{
  assert.equal(concurrent.reduce((n,x)=>n+x.recorded,0),5);checks++;
  assert.equal(concurrent.filter(x=>x.status==="CAPTURED").length,1);checks++;
  assert.equal((await call("/inspect",{ids},"concurrent")).proof_count,1);checks++;
- console.log("PASS order journal SQLite runtime: "+checks+" checks, zero-line retention, complete-input validation, restart/replay, partial-failure recovery, no provider writes or checkpoint advancement");
+
+ // Review requirements are part of receipt identity, without rewriting orders.
+ const enrichmentBaseline=await call("/capture",batch,"enrichment");
+ const enriched=structuredClone(batch);
+ enriched.orders[2].needs_enrichment=true;
+ const enrichmentChange=await call("/capture",enriched,"enrichment");
+ assert.equal(enrichmentChange.http,200);checks++;
+ assert.equal(enrichmentChange.status,"CAPTURED");checks++;
+ assert.notEqual(enrichmentChange.receipt_id,enrichmentBaseline.receipt_id);checks++;
+ assert.equal(enrichmentChange.review_required_order_count,3);checks++;
+ assert.equal(enrichmentChange.recorded,0);checks++;
+ assert.equal(enrichmentChange.duplicate,5);checks++;
+ const enrichmentReplay=await call("/capture",enriched,"enrichment");
+ assert.equal(enrichmentReplay.status,"ALREADY_CAPTURED");checks++;
+ assert.equal(enrichmentReplay.receipt_id,enrichmentChange.receipt_id);checks++;
+ const reordered=structuredClone(enriched);reordered.orders.reverse();
+ assert.equal((await call("/capture",reordered,"enrichment")).receipt_id,enrichmentChange.receipt_id);checks++;
+ const impliedReview=structuredClone(batch);impliedReview.orders[0].needs_enrichment=false;
+ assert.equal((await call("/capture",impliedReview,"enrichment")).receipt_id,enrichmentBaseline.receipt_id);checks++;
+ const enrichmentState=await call("/inspect",{ids},"enrichment");
+ assert.equal(enrichmentState.proof_count,2);checks++;
+ assert.equal(enrichmentState.rows.every(x=>x.revision===1),true);checks++;
+ assert.equal(enrichmentState.reservation_count,0);checks++;
+
+ // Exercise the actual binding client in workerd, then falsify one receipt
+ // dimension at a time. A successful actor HTTP response alone is insufficient.
+ const clientFirst=await call("/client",batch,"client");
+ assert.equal(clientFirst.http,200);checks++;
+ assert.equal(clientFirst.local_journal.status,"CAPTURED");checks++;
+ assert.equal(clientFirst.local_journal.receipt_id,first.receipt_id);checks++;
+ const clientReplay=await call("/client",batch,"client");
+ assert.equal(clientReplay.local_journal.status,"ALREADY_CAPTURED");checks++;
+ assert.equal(clientReplay.local_journal.recorded,0);checks++;
+ assert.equal(clientReplay.local_journal.duplicate,5);checks++;
+ const clientEnriched=await call("/client",enriched,"client");
+ assert.equal(clientEnriched.local_journal.receipt_id,enrichmentChange.receipt_id);checks++;
+ for(const mutation of [
+  "receipt","schema","tenant","account","marketplaces","after","before",
+  "order_count","zero_count","review_count","status","recorded_negative",
+  "duplicate_fraction","stale_string","sum","readbacks_overflow","readbacks_stale",
+  "ok","persistence","mutations","import_state","source","shopify_evidence",
+  "importer","stock","reservations","checkpoint","create","publish","tracking",
+  "scheduling","missing","extra","null","array","invalid_json"
+ ]){
+  const rejected=await call("/client",batch,"client",true,mutation);
+  assert.equal(rejected.http,409,"must reject forged receipt: "+mutation);checks++;
+  assert.equal(rejected.error,"order_journal_response_invalid",mutation);checks++;
+  assert.equal(rejected.can_advance_checkpoint,false,mutation);checks++;
+  assert(!JSON.stringify(rejected).includes("SYNTHETIC_PRIVATE_VALUE"),mutation);checks++;
+ }
+ const concurrentClients=await Promise.all([
+  call("/client",batch,"concurrent-clients"),call("/client",batch,"concurrent-clients")
+ ]);
+ assert.equal(concurrentClients.every(x=>x.http===200),true);checks++;
+ assert.equal(concurrentClients.reduce((n,x)=>n+x.local_journal.recorded,0),5);checks++;
+ assert.equal(concurrentClients.filter(x=>x.local_journal.status==="CAPTURED").length,1);checks++;
+ await mf.dispose();mf=new Miniflare(options);
+ const clientRestarted=await call("/client",enriched,"client");
+ assert.equal(clientRestarted.http,200);checks++;
+ assert.equal(clientRestarted.local_journal.status,"ALREADY_CAPTURED");checks++;
+ assert.equal(clientRestarted.local_journal.receipt_id,enrichmentChange.receipt_id);checks++;
+ assert.equal(clientRestarted.local_journal.duplicate,5);checks++;
+ console.log("PASS order journal SQLite runtime: "+checks+" checks, zero-line retention, complete-input validation, restart/replay, partial-failure recovery, enrichment-bound fingerprints, exact request/receipt correlation, no provider writes or checkpoint advancement");
 }finally{await mf?.dispose();await rm(directory,{recursive:true,force:true});}
