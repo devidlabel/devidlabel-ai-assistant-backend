@@ -61,8 +61,8 @@ assert.equal(result.found[1].shopify_order_gid,"gid://shopify/Order/1002");
 assert.equal(result.unverified[0].reason,"unexpected_importing_app_or_source");
 assert(!JSON.stringify(result).includes("PII_CANARY"));
 assert.equal(visits.length,2);
-assert(visits.every(x=>x.query.includes("created_at:>=2026-10-16T00:00:00Z")));
-assert(visits.every(x=>x.query.includes("created_at:<=2026-10-18T00:00:00Z")));
+assert(visits.every(x=>x.query.includes("created_at:>=2026-10-15T00:00:00Z")));
+assert(visits.every(x=>x.query.includes("created_at:<=2026-10-19T00:00:00Z")));
 assert(visits.every(x=>!x.query.includes(".000Z")),
   "Shopify search rejects millisecond-precision filter timestamps");
 let fractionalSearch="";
@@ -74,8 +74,8 @@ const fractional=await run(async(_env,_query,vars)=>{
   created_before:"2026-10-18T00:00:00.250Z"
 });
 assert.equal(fractional.found_count,1);
-assert(fractionalSearch.includes("created_at:>=2026-10-16T00:00:00Z"));
-assert(fractionalSearch.includes("created_at:<=2026-10-18T00:00:01Z"));
+assert(fractionalSearch.includes("created_at:>=2026-10-15T00:00:00Z"));
+assert(fractionalSearch.includes("created_at:<=2026-10-19T00:00:01Z"));
 assert(!fractionalSearch.includes(".000Z"));
 
 const malformed=[
@@ -99,13 +99,23 @@ for(const [rows,err] of [
   [[a,candidate("1009",ids.a)],/shopify_adoption_duplicate_external_order/],
   [[a,candidate("1001",ids.b)],/shopify_adoption_order_reference_changed/],
   [[{...a,sourceIdentifier:"OTHER"}],/shopify_adoption_conflicting_source_identifier/],
-  [[{...a,id:"invalid"}],/shopify_adoption_order_id_invalid/],
-  [[{...a,createdAt:"2026-10-20T00:00:00Z"}],/shopify_adoption_outside_window/]
+  [[{...a,id:"invalid"}],/shopify_adoption_order_id_invalid/]
 ]){
   await assert.rejects(()=>run(async()=>({orders:{
     nodes:rows,pageInfo:{hasNextPage:false,endCursor:null}
   }})),err);
 }
+// The upstream Shopify search may include UTC-adjacent rows because of shop
+// timezone conversion. Such rows are dropped, never used as adoption proof.
+const adjacent=await run(async()=>({orders:{
+  nodes:[{...a,createdAt:"2026-10-15T22:19:04Z"},b],
+  pageInfo:{hasNextPage:false,endCursor:null}
+}}));
+assert.equal(adjacent.outside_requested_utc_window_ignored,1);
+assert.equal(adjacent.found_count,1);
+assert.equal(adjacent.shopify_orders_scanned,1);
+assert.equal(adjacent.safe_to_create_shopify_order,false);
+assert.equal(adjacent.search_boundaries_padded_for_shop_timezone,true);
 for(const [page,err] of [
   [{nodes:[a],pageInfo:{hasNextPage:true,endCursor:null}},/shopify_adoption_invalid_cursor/],
   [{nodes:[a],pageInfo:{hasNextPage:true,endCursor:"x"}},/shopify_adoption_incomplete_pagination/]
