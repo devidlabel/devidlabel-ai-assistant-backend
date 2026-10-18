@@ -275,6 +275,8 @@ export async function readAmazonOfferOnlyPreflight(
     schema_version: metadata.version,
     schema_checksum: metadata.checksum,
     shopify_stock_observed: stock,
+    shopify_price_minor: Number(price.split(".")[0])*100 + Number((price.split(".")[1] || "").padEnd(2,"0")),
+    shopify_currency: "EUR",
     product_variant_id: variant.id,
     review_required: [
       "seller_identity_and_listing_known_positive_control",
