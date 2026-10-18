@@ -46,6 +46,7 @@ export type MareBusinessCapabilityEnv = {
   AMAZON_SP_API_CLIENT_ID?: string;
   AMAZON_SP_API_CLIENT_SECRET?: string;
   AMAZON_SP_API_SELLER_ID?: string;
+  AMAZON_OFFER_PREVIEW_ENABLED?: string;
   SPARTOO_API_KEY?: string;
   MIINTO_API_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
@@ -171,6 +172,21 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazon,"Amazon SP-API credentials"],
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
         [shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
+      id:"amazon.offer.validation.preview",provider:"amazon",domain:"marketplace",
+      operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Run one server-built Amazon OFFER_ONLY validation preview after fresh Shopify and Amazon preflight. Fixed PUT mode=VALIDATION_PREVIEW and quantity=0; no listing, stock, price or order mutation. Returns bounded issue codes and attribute names. The private MARE plan is stored for 24 hours; VALID never means published or authorized for live writes.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        ean:{type:"string",pattern:"^[0-9]{13}$"},
+        asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+      },["marketplace","sku","ean","asin"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and private plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
       id:"amazon.orders.observe.readonly",
