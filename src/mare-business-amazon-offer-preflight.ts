@@ -2,6 +2,7 @@ import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
+import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
@@ -129,7 +130,8 @@ export async function readAmazonOfferOnlyPreflight(
   input: Row, env: Env,
   shopifyReader: ShopifyReader = readShopifyCatalogComplete,
   matchReader: MatchReader = readAmazonExactMatchCandidates,
-  detailReader: DetailReader = readAmazonCatalogASINDetails
+  detailReader: DetailReader = readAmazonCatalogASINDetails,
+  sellerAsinReader: typeof readAmazonSellerAsinListings = readAmazonSellerAsinListings
 ): Promise<Row> {
   const market = string(input.marketplace);
   const sku = string(input.sku);
@@ -251,6 +253,36 @@ export async function readAmazonOfferOnlyPreflight(
       "seller_sku_absence_not_verified");
   }
 
+  // A missing seller SKU is not enough: Channable may already own the same
+  // ASIN with a different SKU. Search the SELLER's complete ASIN listing
+  // before any preview readiness classification. No non-absence is presumed.
+  const sellerAsin = obj(await sellerAsinReader({
+    marketplace,asins:[asin]
+  },env));
+  const sellerAsinRows=Array.isArray(sellerAsin.results)?sellerAsin.results:[];
+  const sellerAsinItem=obj(sellerAsinRows[0]);
+  if(sellerAsin.ok!==true||
+      sellerAsin.source!=="amazon_sp_api_search_listings_items_by_asin"||
+      sellerAsin.marketplace!==marketplace||
+      sellerAsin.read_only!==true||
+      sellerAsinRows.length!==1||
+      sellerAsinItem.asin!==asin||
+      sellerAsinItem.query_complete!==true||
+      sellerAsin.can_create_offer!==false||
+      sellerAsin.no_provider_writes!==true) {
+    return blocked(marketplace,sku,asin,"BLOCKED_LISTING_STATUS_UNKNOWN",
+      "seller_asin_search_incomplete_or_unverified");
+  }
+  if(sellerAsinItem.state==="SELLER_ASIN_LISTING_FOUND") {
+    return blocked(marketplace,sku,asin,"BLOCKED_EXISTING_OFFER",
+      "seller_has_asin_under_other_sku");
+  }
+  if(sellerAsinItem.state!=="NO_SELLER_ASIN_IN_BOUNDED_SEARCH"||
+      !Array.isArray(sellerAsinItem.skus)||sellerAsinItem.skus.length!==0) {
+    return blocked(marketplace,sku,asin,"BLOCKED_LISTING_STATUS_UNKNOWN",
+      "seller_asin_absence_not_supported_by_search");
+  }
+
   const restrictionsQuery = new URLSearchParams({
     asin, sellerId, marketplaceIds: marketplaceId, conditionType: "new_new"
   });
@@ -284,6 +316,8 @@ export async function readAmazonOfferOnlyPreflight(
     status: "REVIEW_REQUIRED",
     exact_ean_asin: true,
     seller_listing_absence_result: "NOT_FOUND_VERIFIED_BY_LISTINGS_API",
+    seller_asin_search_result: "NO_SELLER_ASIN_IN_BOUNDED_SEARCH",
+    seller_asin_search_is_not_final_absence_proof: true,
     listing_request_id: listing.requestId,
     restriction_count: 0,
     schema_requirements: "LISTING_OFFER_ONLY",
@@ -296,6 +330,7 @@ export async function readAmazonOfferOnlyPreflight(
     product_variant_id: variant.id,
     review_required: [
       "seller_identity_and_listing_known_positive_control",
+      "seller_asin_independent_absence_and_channable_writer_proof",
       "catalog_color_size_model_and_child_asin",
       "offer_attributes_gpsr_product_type_schema",
       "live_order_stock_budget",
