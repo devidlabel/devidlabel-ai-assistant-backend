@@ -43,3 +43,14 @@ Nel negozio DevidLabel, 18/10/2026, è stata letta una finestra di ordini Shopif
 - Sviluppare adapter Shopify Spartoo sul contratto dell'API ufficiale, usando l'evidenza `Spartoo Order ID` come guida di sola lettura.
 
 **Il campione è reale, ma tutto il codice R2.2/R2.3 è ancora testato in ambiente simulato, senza chiamate live integrate e senza deployment.**
+
+
+## R2.4 — Controllo righe ordine Shopify già importato
+
+Il nuovo modulo `src/marketplace-shopify-channable-amazon-lines.ts` legge **soltanto** ID ordine, `sourceName`, app, `Amazon Order ID` e `lineItems` con SKU, quantità, `currentQuantity` e ID variante. Non legge destinatari, indirizzi, clienti, note o dati pagamento. Il contratto GraphQL è stato verificato sulla Shopify API reale, e un ordine Channable di campione espone una riga con SKU e variant GID; nessun valore identificativo reale viene salvato in questo repository.
+
+La funzione pura `compareAmazonOrderWithChannableShopifyLines` confronta le quantità aggregate per SKU esatto, gestendo più righe con lo stesso SKU. Una corrispondenza produce `REFERENCE_AND_QUANTITIES_MATCHED_NEEDS_FULFILLMENT_REVIEW`: **non** dimostra che lo stock fisico sia stato riservato, né che tracking e conferme di spedizione siano stati sincronizzati. Se quantità o SKU differiscono, se mancano righe/varianti o se la quantità corrente Shopify è cambiata rispetto all'originale, l'esito è `LINE_RECONCILIATION_REQUIRED`. In tutti i casi `may_create_shopify_order=false` e `may_release_reservations=false`.
+
+Il lettore pagina tutte le righe (fino al limite difensivo) e blocca ordini non provenienti da Channable, attributi `Amazon Order ID` errati, riferimenti Shopify incongruenti, duplicati e paginazione incompleta. Capability privata di sola lettura (ancora **non distribuita**): `shopify.marketplace.amazon_order_lines.readonly`.
+
+Suite sintetica: `scripts/test-marketplace-shopify-amazon-lines.mjs`; inclusa nella CI `test:marketplace-runtime`. Prima del vero passaggio ordini servono convalida prezzo/tasse, ubicazione magazzino, fulfillment per collo e tracking, oltre alla prova di arresto del writer importatore Channable.
