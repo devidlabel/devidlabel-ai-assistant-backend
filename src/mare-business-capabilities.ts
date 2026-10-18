@@ -127,6 +127,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
     capability({
+      id:"amazon.seller.listings.direct",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSeller,
+      approval:"none",
+      description:"Merchant-private seller listing GET via Amazon Listings Items, independent of seller report downloads. Returns PRESENT, VERIFIED_ABSENT or UNKNOWN per SKU; no Amazon listing write.",
+      request_schema:schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        skus:{type:"array",minItems:1,maxItems:8,items:{type:"string"}}
+      },["marketplace","skus"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSeller,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.offer.preflight",provider:"amazon",domain:"marketplace",
       operation:"read",risk:"read_only",implemented:true,
       configured:businessAuth&&amazon&&amazonSeller&&shopify,approval:"none",
