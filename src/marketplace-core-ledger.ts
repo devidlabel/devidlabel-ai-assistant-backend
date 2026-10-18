@@ -54,6 +54,79 @@ type ReconciliationNote = {
   observation: "FOUND"|"NOT_FOUND"|"UNKNOWN";
   observation_hash: string;
 };
+
+type OrderLineSnapshot = {
+  line_id: string;
+  seller_sku: string | null;
+  quantity_ordered: number;
+  quantity_fulfilled: number | null;
+};
+type OrderSnapshot = {
+  provider: "amazon" | "spartoo";
+  account: string;
+  order_id: string;
+  marketplace_id: string;
+  source_updated_at: string;
+  fulfillment_status: string | null;
+  fulfillment_owner: "MERCHANT" | "UNVERIFIED";
+  items: OrderLineSnapshot[];
+};
+type StoredOrderObservation = OrderSnapshot & {
+  snapshot_hash: string;
+  updated_ms: number;
+  observed_at: number;
+  revision: number;
+  import_state: "SHADOW_ONLY";
+};
+const ORDER_ISO_RE=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+function exactKeys(value:Record<string,unknown>,allowed:readonly string[]):boolean {
+  return Object.keys(value).every(key=>allowed.includes(key));
+}
+function orderTimestamp(value:string):{milliseconds:number;normalized:string} {
+  if (!ORDER_ISO_RE.test(value))throw new Error("ledger_order_time_invalid");
+  const ms=Date.parse(value);
+  if (!Number.isFinite(ms))throw new Error("ledger_order_time_invalid");
+  return {milliseconds:ms,normalized:new Date(ms).toISOString()};
+}
+function validateOrderSnapshot(input:OrderSnapshot):OrderSnapshot {
+  if (!input||typeof input!=="object"||Array.isArray(input)||
+      !exactKeys(input as unknown as Json,["provider","account","order_id","marketplace_id","source_updated_at","fulfillment_status","fulfillment_owner","items"])||
+      !["amazon","spartoo"].includes(input.provider)||
+      !valid(input.account)||!valid(input.order_id)||!valid(input.marketplace_id)||
+      input.fulfillment_owner!=="MERCHANT"&&input.fulfillment_owner!=="UNVERIFIED"||
+      (input.fulfillment_status!==null&&!valid(input.fulfillment_status))||
+      !Array.isArray(input.items)||input.items.length<1||input.items.length>200)
+    throw new Error("ledger_order_invalid");
+  const normalizedAt=orderTimestamp(input.source_updated_at).normalized;
+  const lines:OrderLineSnapshot[]=[];
+  const ids=new Set<string>();
+  for(const line of input.items) {
+    if (!line||typeof line!=="object"||Array.isArray(line)||
+        !exactKeys(line as unknown as Json,["line_id","seller_sku","quantity_ordered","quantity_fulfilled"])||
+        !valid(line.line_id)||ids.has(line.line_id)||
+        (line.seller_sku!==null&&
+          (typeof line.seller_sku!=="string"||line.seller_sku.length<1||
+           line.seller_sku.length>200||/[\u0000-\u001f\u007f]/.test(line.seller_sku)))||
+        !Number.isSafeInteger(line.quantity_ordered)||line.quantity_ordered<1||
+        (line.quantity_fulfilled!==null&&
+          (!safeQty(line.quantity_fulfilled)||line.quantity_fulfilled>line.quantity_ordered)))
+      throw new Error("ledger_order_line_invalid");
+    ids.add(line.line_id);
+    lines.push({
+      line_id:line.line_id,seller_sku:line.seller_sku,
+      quantity_ordered:line.quantity_ordered,
+      quantity_fulfilled:line.quantity_fulfilled
+    });
+  }
+  lines.sort((a,b)=>a.line_id<b.line_id?-1:a.line_id>b.line_id?1:0);
+  return {
+    provider:input.provider,account:input.account,order_id:input.order_id,
+    marketplace_id:input.marketplace_id,source_updated_at:normalizedAt,
+    fulfillment_owner:input.fulfillment_owner,
+    fulfillment_status:input.fulfillment_status,items:lines
+  };
+}
+
 const REVIEW_LEASE_MS=30_000;
 const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9.:_/-]{0,179}$/;
 const SHA256_RE = /^[a-f0-9]{64}$/i;
@@ -404,6 +477,81 @@ export class MarketplaceCoreLedger {
       await tx.put(noteKey,{...note,observed_at:this.clock()});
       return {status:"RECORDED" as const,still_blocked:true as const};
     });
+  }
+
+
+  /**
+   * R1.3: atomic observation of a complete marketplace order, NOT import.
+   * Identity is account+orderId for Amazon (regardless of country).
+   * Spartoo identity conservatively includes marketplace until adapter verifies
+   * the contractual uniqueness scope. No customer PII or raw provider response.
+   * Every revision, including obsolete observations, is locally deduplicated.
+   */
+  async observeMarketplaceOrder(input:OrderSnapshot):Promise<{
+    status:"RECORDED"|"DUPLICATE"|"STALE";
+    revision:number;import_state:"SHADOW_ONLY";requires_adoption_check:true
+  }> {
+    const item=validateOrderSnapshot(input);
+    const identity=item.provider==="amazon"
+      ? [item.provider,item.account,item.order_id]
+      : [item.provider,item.account,item.marketplace_id,item.order_id];
+    const rowKey=await this.key("order",identity);
+    const auditKey=await this.key("order_version",[...identity,item.source_updated_at]);
+    const snapshotHash=await digest(JSON.stringify(item));
+    const updatedMs=Date.parse(item.source_updated_at);
+    return this.store.transaction(async tx=>{
+      const current=await tx.get<StoredOrderObservation>(rowKey);
+      const audit=await tx.get<{snapshot_hash:string}>(auditKey);
+      if (audit && audit.snapshot_hash!==snapshotHash)
+        throw new Error("ledger_order_same_version_conflict");
+      if (current) {
+        if (current.marketplace_id!==item.marketplace_id)
+          throw new Error("ledger_order_marketplace_conflict");
+        if (updatedMs<current.updated_ms) {
+          // Historical versions must never revert newer snapshots.
+          if (!audit)await tx.put(auditKey,{snapshot_hash:snapshotHash,observed_at:this.clock()});
+          return {
+            status:"STALE" as const,revision:current.revision,
+            import_state:"SHADOW_ONLY" as const,requires_adoption_check:true as const
+          };
+        }
+        if (updatedMs===current.updated_ms) {
+          if (current.snapshot_hash!==snapshotHash)
+            throw new Error("ledger_order_same_version_conflict");
+          return {
+            status:"DUPLICATE" as const,revision:current.revision,
+            import_state:"SHADOW_ONLY" as const,requires_adoption_check:true as const
+          };
+        }
+      }
+      const revision=(current?.revision??0)+1;
+      const observedAt=this.clock();
+      await tx.put(auditKey,{snapshot_hash:snapshotHash,observed_at:observedAt});
+      await tx.put(rowKey,{
+        ...item,snapshot_hash:snapshotHash,updated_ms:updatedMs,
+        observed_at:observedAt,revision,import_state:"SHADOW_ONLY"
+      } satisfies StoredOrderObservation);
+      return {
+        status:"RECORDED" as const,revision,
+        import_state:"SHADOW_ONLY" as const,requires_adoption_check:true as const
+      };
+    });
+  }
+
+  /** Diagnostic read only. No state transition can authorize Shopify orderCreate. */
+  async readMarketplaceOrder(key:{
+    provider:"amazon"|"spartoo";account:string;order_id:string;marketplace_id?:string
+  }):Promise<StoredOrderObservation|null> {
+    if (!key||!["amazon","spartoo"].includes(key.provider)||
+        !valid(key.account)||!valid(key.order_id)||
+        (key.provider==="spartoo"&&!valid(key.marketplace_id)))
+      throw new Error("ledger_order_lookup_invalid");
+    const identity=key.provider==="amazon"
+      ? [key.provider,key.account,key.order_id]
+      : [key.provider,key.account,key.marketplace_id!,key.order_id];
+    const rowKey=await this.key("order",identity);
+    const stored=await this.store.get<StoredOrderObservation>(rowKey);
+    return stored?{...stored,items:stored.items.map(x=>({...x}))}:null;
   }
 
   /** R1.2 has NO live adapter, owner handoff, Shopify stock reflection,
