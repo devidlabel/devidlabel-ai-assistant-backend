@@ -5,6 +5,7 @@ const mcpSource = readFileSync("src/mare-product-media-mcp.ts", "utf8");
 const imageSource = readFileSync("src/mare-product-media-image.ts", "utf8");
 const shopifySource = readFileSync("src/mare-product-media-shopify.ts", "utf8");
 const workerSource = readFileSync("src/worker-v3.ts", "utf8");
+const shopifyConfigSource = readFileSync("src/shopify-app-config.ts", "utf8");
 const wranglerSource = readFileSync("wrangler.toml", "utf8");
 
 for (const fragment of [
@@ -44,9 +45,11 @@ for (const fragment of [
 
 for (const fragment of [
   'handleMareProductMediaMcpRequest',
-  '"write_products"',
+  'import { SHOPIFY_OAUTH_SCOPES } from "./shopify-app-config.js"',
+  'authorizeUrl.searchParams.set("scope", SHOPIFY_OAUTH_SCOPES)',
   'MARE_PRODUCT_MEDIA_ACCESS_TOKEN',
 ]) assert.ok(workerSource.includes(fragment), `Missing Worker integration fragment: ${fragment}`);
+assert.ok(shopifyConfigSource.includes('"write_products"'), "Shared OAuth configuration must preserve the product-media write scope");
 
 for (const fragment of [
   '[images]',
