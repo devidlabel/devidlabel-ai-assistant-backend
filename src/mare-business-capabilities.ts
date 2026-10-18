@@ -192,6 +192,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       ]
     }),
     capability({
+      id:"marketplace.amazon.shipment_reconciliation.readonly",
+      provider:"mare",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
+      description:"Read one Amazon order's packages and current Channable Shopify fulfillments server-side. Compare exact tracking and line quantities; return aggregate evidence only. Missing or ambiguous records require review. No shipment confirmation, customer fields, raw identifiers, tracking values, inventory change or Channable handoff.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        shopify_order_gid:{type:"string",pattern:"^gid://shopify/Order/[0-9]+$"},
+        amazon_order_id:{type:"string",pattern:"^[0-9]{3}-[0-9]{7}-[0-9]{7}$"}
+      },["marketplace","shopify_order_gid","amazon_order_id"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV (read_orders)"]]
+    }),
+    capability({
       id:"marketplace.order.evidence.capture",provider:"mare",domain:"marketplace",
       operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
       configured:orderEvidence&&amazon&&shopify,

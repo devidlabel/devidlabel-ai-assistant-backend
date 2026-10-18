@@ -6,6 +6,7 @@ import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-prefl
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
+import { readShopifyAmazonShipmentReconciliation } from "./marketplace-shopify-amazon-shipments.js";
 import { captureLiveMarketplaceOrderEvidence, readStoredMarketplaceOrderEvidence, validateOrderEvidenceCaptureRequest } from "./marketplace-order-evidence-client.js";
 import { readMarketplaceShopifyPermissionReadiness } from "./marketplace-shopify-scope-readiness.js";
 import { readMarketplaceShopifyApiReadiness } from "./marketplace-shopify-api-readiness.js";
@@ -423,6 +424,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
+  if (capabilityId === "marketplace.amazon.shipment_reconciliation.readonly") return textToolResult(await readShopifyAmazonShipmentReconciliation(request, env));
   if (capabilityId === "marketplace.order.evidence.read") return textToolResult(await readStoredMarketplaceOrderEvidence(request, env));
   if (capabilityId === "shopify.marketplace.scopes.readonly") return textToolResult(await readMarketplaceShopifyPermissionReadiness(env));
   if (capabilityId === "shopify.marketplace.api_readiness.readonly") {
