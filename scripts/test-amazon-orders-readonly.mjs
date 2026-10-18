@@ -76,6 +76,8 @@ function install(){
     ]}]});
     if(mode==="wrongMarket")return json({orders:[order("SYNTH_ORDER_Z","INVALID_MARKET")]});
     if(mode==="repeatToken")return json({orders:[],pagination:{nextToken:"repeating"}});
+    if(mode==="outOfWindow")return json({orders:[{...a,lastUpdatedTime:"2026-10-18T10:50:00Z"}]});
+    if(mode==="badPagination")return json({orders:[a],pagination:[]});
     if(mode==="empty")return json({orders:[]});
     if(mode==="conflict"){
       return pagination?json({orders:[{...a,lastUpdatedTime:"2026-10-18T09:12:00Z"}]}):
@@ -122,6 +124,8 @@ try{
     ["nonMerchant","amazon_orders_wrong_fulfillment_route"],
     ["badLine","amazon_orders_invalid_line"],
     ["wrongMarket","amazon_orders_invalid_order_identity"],
+    ["outOfWindow","amazon_orders_out_of_window"],
+    ["badPagination","amazon_orders_invalid_pagination"],
     ["conflict","amazon_orders_inconsistent_duplicate"],
     ["repeatToken","amazon_orders_invalid_pagination"],
     ["http403","amazon_orders_http_403"],
