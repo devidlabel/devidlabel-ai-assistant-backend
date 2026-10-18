@@ -2,6 +2,8 @@ import { handleMareMcpRequest } from "./mare-mcp.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
+import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
+import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp.js";
 import { handleMareProductMediaMcpRequest } from "./mare-product-media-mcp.js";
 import {
@@ -409,6 +411,8 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if(capabilityId==="amazon.seller.sku.status")return textToolResult(await readAmazonMerchantSkuStatuses(request,env));
   if (capabilityId === "amazon.catalog.exact.match") return textToolResult(await readAmazonExactMatchCandidates(request, env));
   if (capabilityId === "amazon.catalog.asin.details") return textToolResult(await readAmazonCatalogASINDetails(request,env));
+  if (capabilityId === "amazon.offer.preflight") return textToolResult(await readAmazonOfferOnlyPreflight(request, env));
+  if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "shopify.catalog.read" || capabilityId === "shopify.catalog.export") return textToolResult(await readShopifyCatalog(request, env));
   if (capabilityId === "artifact.get") return textToolResult(await getBusinessArtifact(request, env));
   if (capabilityId === "tiktok.authorization.status") return textToolResult(await tiktokAuthorizationStatus(env));
