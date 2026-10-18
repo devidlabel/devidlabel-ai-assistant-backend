@@ -146,7 +146,7 @@ try{
   assert.equal(none.complete_pagination,true);
   assert.equal(none.can_advance_checkpoint,false);
 
-  // Audit F01: observe the actual failing guard, never guess from optional SKU.
+  // Audit F01: fixed diagnostics for invalid inputs; zero is retained for review.
   const validLine={orderItemId:"PRIVATE_IDENTIFIER_CANARY",quantityOrdered:1,
     product:{sellerSku:"PRIVATE_SKU_CANARY"}};
   const cases=[
@@ -176,11 +176,25 @@ try{
       assert.equal(init.redirect,"manual");
       return json({orders:[{...a,orderItems:[line]}]});
     };
-    await assert.rejects(()=>readAmazonOrdersPilot(input,env,clock),error=>{
-      assert.equal(error.message,"amazon_orders_invalid_line:"+reason);
-      assert(!error.message.includes("PRIVATE_"));
-      return true;
-    });
+    if(reason==="quantity_zero") {
+      const zero=await readAmazonOrdersPilot(input,env,clock);
+      assert.equal(zero.order_count,1);
+      assert.equal(zero.orders[0].items.length,1);
+      assert.equal(zero.orders[0].items[0].quantity_ordered,0);
+      assert.equal(zero.orders[0].needs_enrichment,true);
+      assert.equal(zero.orders[0].fulfillment_status,"UNSHIPPED");
+      assert.equal(zero.zero_quantity_line_count,1);
+      assert.equal(zero.quantity_reconciliation_required,true);
+      assert.equal(zero.zero_quantity_does_not_authorize_cancellation_or_restock,true);
+      assert.equal(zero.importer_enabled,false);
+      assert.equal(zero.can_advance_checkpoint,false);
+    } else {
+      await assert.rejects(()=>readAmazonOrdersPilot(input,env,clock),error=>{
+        assert.equal(error.message,"amazon_orders_invalid_line:"+reason);
+        assert(!error.message.includes("PRIVATE_"));
+        return true;
+      });
+    }
   }
   assert.equal(amazonOrderLineGuardReason({...validLine,quantityOrdered:NaN},new Set()),"quantity_nonfinite");
   assert.equal(amazonOrderLineGuardReason(validLine,new Set([validLine.orderItemId])),"duplicate_line_id");
@@ -193,7 +207,23 @@ try{
   };
   await assert.rejects(()=>readAmazonOrdersPilot(input,env,clock),
     error=>error.message==="amazon_orders_invalid_line:duplicate_line_id");
-  console.log("PASS Orders reader plus F01: 16 malformed-line transport cases, duplicate/nonfinite guards, optional SKU preserved, no PII or writes");
+
+  // A zero row beside normal rows must not be dropped or changed to 1.
+  globalThis.fetch=async(url,init={})=>{
+    if(new URL(String(url)).hostname==="api.amazon.com")return json({access_token:"synthetic-token"});
+    assert.equal(init.method,"GET");
+    return json({orders:[{...a,orderItems:[
+      {...a.orderItems[0],quantityOrdered:0},a.orderItems[1]
+    ]},b]});
+  };
+  const mixed=await readAmazonOrdersPilot(input,env,clock);
+  assert.equal(mixed.order_count,2);
+  assert.equal(mixed.orders[0].line_count,2);
+  assert.deepEqual(mixed.orders[0].items.map(x=>x.quantity_ordered),[0,1]);
+  assert.equal(mixed.zero_quantity_line_count,1);
+  assert.equal(mixed.can_advance_checkpoint,false);
+  assert.equal(mixed.quantity_mutations_enabled,false);
+  console.log("PASS Orders zero-observation: all rows retained, no coercion/cancellation/restock, invalid types rejected, no checkpoint authority");
 } finally {
   globalThis.fetch=original;
 }

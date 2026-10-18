@@ -43,8 +43,8 @@ function qty(value:unknown):number|null {
 }
 
 /** Fixed diagnostic codes only: never include a raw field, ID, SKU or error body.
- * The accepted inputs remain exactly the same as the original line guard.
- * Missing sellerSku is deliberately NOT part of this guard.
+ * A zero is identifiable, not automatically a cancellation or stock release.
+ * Missing sellerSku is deliberately NOT part of this structural guard.
  */
 export function amazonOrderLineGuardReason(raw:unknown, seen:ReadonlySet<string>):string|null {
   if(raw===null||typeof raw!=="object"||Array.isArray(raw)) return "line_not_object";
@@ -88,7 +88,12 @@ function normalizeOrder(raw:unknown, sellerId:string, allowed:Set<string>):Row {
   const unique=new Set<string>();
   for (const rawItem of order.orderItems) {
     const reason=amazonOrderLineGuardReason(rawItem,unique);
-    if(reason!==null) throw new Error("amazon_orders_invalid_line:"+reason);
+    // Live F01 proof: Amazon can return numeric quantityOrdered=0.
+    // Preserve the row verbatim in this read-only observation and flag its
+    // order for reconciliation. Do not turn zero into 1, drop it, infer a
+    // cancellation, change stock, or advance any durable checkpoint.
+    if(reason!==null&&reason!=="quantity_zero")
+      throw new Error("amazon_orders_invalid_line:"+reason);
     const item=dict(rawItem);
     const lineId=id(item.orderItemId,128);
     const ordered=qty(item.quantityOrdered)!;
@@ -121,8 +126,8 @@ function normalizeOrder(raw:unknown, sellerId:string, allowed:Set<string>):Row {
     fulfillment_status:fulfillmentStatus,
     line_count:items.length,items,
     order_import_authorized:false,
-    needs_enrichment:items.length===0||items.some(item=>item.seller_sku===null)||
-      fulfillmentStatus===null,
+    needs_enrichment:items.length===0||items.some(item=>
+      item.seller_sku===null||item.quantity_ordered===0)||fulfillmentStatus===null,
     contains_customer_data:false
   };
 }
@@ -216,6 +221,8 @@ export async function readAmazonOrdersPilot(
     seenTokens.add(nextRaw);
     next=nextRaw;
   }
+  const zeroQuantityLines=[...orders.values()].reduce((sum,order)=>
+    sum+(order.items as Row[]).filter(item=>item.quantity_ordered===0).length,0);
   return {
     ok:true,read_only:true,source:"amazon_spapi_orders_2026_01_01",
     account_id:sellerId,identity_scope:"SELLER_ACCOUNT_PLUS_ORDER_ID",
@@ -223,6 +230,9 @@ export async function readAmazonOrdersPilot(
     last_updated_after:after,last_updated_before:before,
     pages_read:pages,order_count:orders.size,complete_pagination:true,
     orders:[...orders.values()],
+    zero_quantity_line_count:zeroQuantityLines,
+    quantity_reconciliation_required:zeroQuantityLines>0,
+    zero_quantity_does_not_authorize_cancellation_or_restock:true,
     customer_personal_data_requested:false,
     importer_enabled:false,tracking_enabled:false,quantity_mutations_enabled:false,
     can_advance_checkpoint:false,
