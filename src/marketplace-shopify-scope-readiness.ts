@@ -1,8 +1,7 @@
 import {shopifyGraphQL, type Env as ShopifyEnv} from "./index.js";
 
-/** Read-only permissions evidence. No token, encrypted credential, customer
- * data, mutation, OAuth reinstallation or permission expansion is returned.
- * Cached installation metadata is retained only for diagnostic compatibility.
+/** Read-only permission evidence for the current M.A.R.E. Shopify app.
+ * No token, customer data, mutation or permission expansion is returned.
  */
 type Env=ShopifyEnv;
 type Row=Record<string,unknown>;
@@ -20,9 +19,9 @@ function checkedScopes(values:unknown[]):string[]{
 }
 function scopeReport(scopes:string[]):Row{
   const granted=new Set(scopes);
-  // Shopify write scopes include reads of the SAME resource. Marketplace-only
-  // orders do not grant access to Channable orders; read_all_orders alone is
-  // not read_orders. Never infer missing unrelated scopes from a write prefix.
+  // A write scope includes reads of the SAME resource only. Marketplace-only
+  // orders do not grant access to orders imported by Channable, and
+  // read_all_orders alone is not a substitute for read_orders.
   const hasOrderRead=granted.has("read_orders")||granted.has("write_orders");
   const hasStockRead=granted.has("read_inventory")||granted.has("write_inventory");
   return {
@@ -46,10 +45,10 @@ function scopeReport(scopes:string[]):Row{
   };
 }
 
-/** Legacy diagnostic of cached installation metadata, not current permission
- * proof. Production capability routing uses the live reader below instead.
+/** Cached metadata is diagnostic only. It is no longer used by the current
+ * public capability, and is never a fallback when a live scope probe fails.
  */
-export async function readMarketplaceShopifyPermissionReadiness(env:Env):Promise<Row>{
+export async function readMarketplaceShopifyCachedScopes(env:Env):Promise<Row>{
   const shop=typeof env.SHOPIFY_SHOP_DOMAIN==="string"?
     env.SHOPIFY_SHOP_DOMAIN.trim().toLowerCase():"";
   if(!SHOP_RE.test(shop)||!env.SHOPIFY_TOKENS_KV)
@@ -80,12 +79,11 @@ export async function readMarketplaceShopifyPermissionReadiness(env:Env):Promise
   };
 }
 
-/** currentAppInstallation is resolved by Shopify for the token used by the
- * existing M.A.R.E. GraphQL client. No separate connector/app is consulted.
- * Provider/auth errors must not fall back to cached permission claims.
- * A granted scope is a permission observation, never an execution approval.
+/** The existing capability now calls Shopify with its own GraphQL client.
+ * No separate connector/app is consulted. Provider errors never fall back to
+ * cached claims. A granted scope is evidence, not an execution approval.
  */
-export async function readMarketplaceShopifyLiveScopes(
+export async function readMarketplaceShopifyPermissionReadiness(
   env:Env,reader:typeof shopifyGraphQL=shopifyGraphQL
 ):Promise<Row>{
   const shop=typeof env.SHOPIFY_SHOP_DOMAIN==="string"?
