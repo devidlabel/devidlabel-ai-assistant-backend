@@ -54,3 +54,21 @@ La funzione pura `compareAmazonOrderWithChannableShopifyLines` confronta le quan
 Il lettore pagina tutte le righe (fino al limite difensivo) e blocca ordini non provenienti da Channable, attributi `Amazon Order ID` errati, riferimenti Shopify incongruenti, duplicati e paginazione incompleta. Capability privata di sola lettura (ancora **non distribuita**): `shopify.marketplace.amazon_order_lines.readonly`.
 
 Suite sintetica: `scripts/test-marketplace-shopify-amazon-lines.mjs`; inclusa nella CI `test:marketplace-runtime`. Prima del vero passaggio ordini servono convalida prezzo/tasse, ubicazione magazzino, fulfillment per collo e tracking, oltre alla prova di arresto del writer importatore Channable.
+
+
+## R2.5 — Fulfillment e corrieri Shopify, evidence 18/10
+
+Ho ampliato la lettura Shopify GraphQL read-only senza richiedere indirizzi, nomi, email o numeri/URL tracking. Campione di ordini creati dall'11 ottobre 2026:
+
+| Origine | Ordini campione | Fulfilled | Unfulfilled | Fulfillment con trackingInfo | Corrieri presenti |
+|---|---:|---:|---:|---:|---|
+| Amazon | 50 | 46 | 4 | 46 | BRT 45, FedEx 1 |
+| Spartoo | 11 | 11 | 0 | 11 | BRT 10, UPS 1 |
+
+Tutti i 61 ordini esaminati risultano creati dall'app Channable; il campione dei fulfillment non dimostra che Channable sia l'operatore che genera etichette, né che Amazon/Spartoo abbiano ricevuto l'esito della spedizione. Una voce in `trackingInfo` **non** prova la presenza o la validità del numero tracking, perché questo campo non è stato richiesto.
+
+Modulo `src/marketplace-shopify-channable-fulfillments.ts`: lettore privacy-minimal per Amazon e Spartoo, con verifica `Amazon Order ID` / `Spartoo Order ID`, source `amazon`/`spartoo`, app Channable, fulfillment ID, status, corriere, SKU esatto e quantità dei fulfillment line items. Limiti rigidi su colli, informazioni tracking e righe: pagine incomplete, ordini misti sconosciuti, codici esterni conflittuali o quantità errate fermano il lettore. Il risultato non contiene tracking number o URL e non permette invii.
+
+La funzione pura `compareChannableFulfillmentCoverage` confronta le quantità spedite per Shopify line-item ID con l'ordine già adottato, distinguendo assenza, parziale o copertura completa lato Shopify. Anche una copertura completa **non** autorizza invio tracking ad Amazon: mancano prova del numero, corriere normalizzato, mappatura parcel→Amazon orderItemId, stato dell'ordine e provider readback. Nessuna prenotazione stock viene liberata.
+
+Capability di sola lettura aggiunta nel codice della PR #204: `shopify.marketplace.fulfillment_metadata.readonly`. Test sintetici `scripts/test-marketplace-channable-fulfillments.mjs`; non distribuita, nessun effetto sugli ordini correnti.
