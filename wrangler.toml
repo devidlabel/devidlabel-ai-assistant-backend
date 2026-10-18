@@ -3,6 +3,8 @@ main = "src/worker-v4.ts"
 compatibility_date = "2026-06-25"
 [vars]
 MARE_MARKETPLACE_SHADOW_ENABLED = "true"
+# Explicit local evidence capture only; no cron, provider writer, or importer.
+MARE_ORDER_JOURNAL_ENABLED = "true"
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
@@ -63,4 +65,13 @@ new_sqlite_classes = ["MareMarketplaceShadow"]
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+[[durable_objects.bindings]]
+name = "MARE_ORDER_JOURNAL"
+class_name = "MareMarketplaceOrderJournal"
+
+[[migrations]]
+tag = "v4_mare_order_evidence"
+new_sqlite_classes = ["MareMarketplaceOrderJournal"]
+
 

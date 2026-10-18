@@ -6,6 +6,7 @@ import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-prefl
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
+import { captureLiveMarketplaceOrderEvidence, readStoredMarketplaceOrderEvidence, validateOrderEvidenceCaptureRequest } from "./marketplace-order-evidence-client.js";
 import { readMarketplaceShopifyPermissionReadiness } from "./marketplace-shopify-scope-readiness.js";
 import { readShopifyChannableAmazonAdoptionIndex } from "./marketplace-shopify-channable-amazon-adoption.js";
 import { readShopifyChannableAmazonOrderLines } from "./marketplace-shopify-channable-amazon-lines.js";
@@ -421,6 +422,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
+  if (capabilityId === "marketplace.order.evidence.read") return textToolResult(await readStoredMarketplaceOrderEvidence(request, env));
   if (capabilityId === "shopify.marketplace.scopes.readonly") return textToolResult(await readMarketplaceShopifyPermissionReadiness(env));
   if (capabilityId === "shopify.marketplace.amazon_order_adoption.readonly") return textToolResult(await readShopifyChannableAmazonAdoptionIndex(request,env));
   if (capabilityId === "shopify.marketplace.amazon_order_lines.readonly") return textToolResult(await readShopifyChannableAmazonOrderLines(request,env));
@@ -456,6 +458,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
 
 async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv): Promise<JsonObject> {
   const request = { ...plan.request };
+  if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
   const deterministicIdempotency = `mare-${plan.plan_id}`.replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 128);
 
   if (plan.capability_id === "marketplace.feed.generate") return textToolResult(await generateMarketplaceFeed(request, env));
@@ -521,6 +524,8 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
 }
 
 async function prepareCapability(capability: MareBusinessCapability, request: JsonObject, env: MareBusinessEnv): Promise<JsonObject> {
+  // Reject caller-supplied observations before even persisting a local plan.
+  if (capability.id === "marketplace.order.evidence.capture") request = validateOrderEvidenceCaptureRequest(request);
   assertRequestSafe(request);
   if (!capability.implemented) throw new Error("capability_not_implemented");
   if (!capability.available) throw new Error(`capability_not_available:${capability.missing.join(",")}`);
@@ -705,3 +710,4 @@ export async function handleMareBusinessMcpRequest(request: Request, env: MareBu
   }
   return rpcError(rpc.id, -32601, "Method not found", 200, { method }, version);
 }
+
