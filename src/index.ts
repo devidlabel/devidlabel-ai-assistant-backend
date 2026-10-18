@@ -1,3 +1,5 @@
+import { DEFAULT_SHOPIFY_API_VERSION, SHOPIFY_OAUTH_SCOPES } from "./shopify-app-config.js";
+
 type ExecutionContext = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
 type KVNamespace = {
@@ -124,13 +126,11 @@ type SanitizedPayload = {
 const DEFAULT_ALLOWED_ORIGINS = ["https://devidlabel.com", "https://www.devidlabel.com"];
 const ALLOWED_KEYS = new Set(["query", "message", "locale", "language", "country", "path", "page_context", "cart_context", "knowledge_version", "messages", "conversation_state"]);
 const ASSISTANT_TYPES: AssistantResponseType[] = ["product_advice", "faq", "order_help", "fallback"];
-const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
 const DEFAULT_RECOMMENDATION_CACHE_TTL_SECONDS = 3600;
 const SHOPIFY_TIMEOUT_MS = 4500;
 const SHOPIFY_TOKEN_FALLBACK_TTL_SECONDS = 23 * 60 * 60;
 const SHOPIFY_TOKEN_REFRESH_SKEW_SECONDS = 5 * 60;
 const OPENAI_TIMEOUT_MS = 7000;
-const SHOPIFY_OAUTH_SCOPES = "read_products,read_inventory,read_orders";
 const SHOPIFY_OAUTH_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback";
 const SHOPIFY_OAUTH_STATE_TTL_SECONDS = 600;
 type ShopifyAuthTokenSource = "oauth_kv" | "legacy_secret" | "none";
@@ -2133,7 +2133,16 @@ async function getShopifyAdminAccessToken(env: Env): Promise<string> {
   return (await resolveShopifyAdminAccessToken(env)).accessToken;
 }
 
-async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+export type ShopifyGraphQLResult<T> = {
+  data: T;
+  requested_api_version: string;
+  served_api_version: string | null;
+};
+
+// This is the same request/token/error path used by every existing caller.
+// The metadata is observed from Shopify's response, never inferred from a
+// successful request (retired versions can silently fall forward).
+export async function shopifyGraphQLWithMetadata<T>(env: Env, query: string, variables: Record<string, unknown> = {}): Promise<ShopifyGraphQLResult<T>> {
   assertShopifyConfigured(env);
   const token = await getShopifyAdminAccessToken(env);
   const domain = normalizeShopifyShopDomain(env);
@@ -2155,8 +2164,16 @@ async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<stri
       throw new Error(`shopify_lookup_query_error:${payload.errors.map((item) => item.message || "graphql_error").join(" | ").slice(0, 240)}`);
     }
     if (!payload.data) throw new Error("shopify_empty_data");
-    return payload.data;
+    return {
+      data: payload.data,
+      requested_api_version: version,
+      served_api_version: response.headers.get("X-Shopify-API-Version"),
+    };
   } finally { clearTimeout(timeout); }
+}
+
+async function shopifyGraphQL<T>(env: Env, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  return (await shopifyGraphQLWithMetadata<T>(env, query, variables)).data;
 }
 
 async function fetchSalesRankLast30Days(env: Env, candidateIntent: CandidateIntent): Promise<Map<string, SalesStats>> {

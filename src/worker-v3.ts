@@ -1,4 +1,5 @@
 import assistantWorker from "./worker-v2";
+import { SHOPIFY_OAUTH_SCOPES } from "./shopify-app-config.js";
 import { handleDailyPulseRequest } from "./daily-pulse-organic";
 import { handleGa4ReportingRequest } from "./ga4-reporting";
 import { handleGoogleAdsReportingRequest } from "./google-ads-reporting";
@@ -78,37 +79,6 @@ type WorkerEnv = Parameters<typeof assistantWorker.fetch>[1] & {
 };
 type WorkerExecutionContext = Parameters<typeof assistantWorker.fetch>[2];
 
-const SHOPIFY_OAUTH_SCOPES = [
-  "read_all_orders",
-  "read_customers",
-  "read_discounts",
-  "write_discounts",
-  "read_files",
-  "write_files",
-  "read_inventory",
-  "write_inventory",
-  "read_locales",
-  "read_locations",
-  "read_markets",
-  "read_online_store_navigation",
-  "write_online_store_navigation",
-  "read_online_store_pages",
-  "read_orders",
-  "read_products",
-  "write_products",
-  "read_reports",
-  "read_returns",
-  "read_shopify_payments_payouts",
-  "read_content",
-  "write_content",
-  "read_metaobject_definitions",
-  "write_metaobject_definitions",
-  "read_metaobjects",
-  "write_metaobjects",
-  "read_translations",
-  "write_translations",
-  "write_publications",
-].join(",");
 const SHOPIFY_OAUTH_REDIRECT_URI = "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev/auth/callback";
 const SHOPIFY_OAUTH_STATE_TTL_SECONDS = 600;
 

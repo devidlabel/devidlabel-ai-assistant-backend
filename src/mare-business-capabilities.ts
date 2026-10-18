@@ -252,7 +252,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       id:"shopify.marketplace.fulfillment_metadata.readonly",
       provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&shopify,approval:"none",
-      description:"Read-only Channable Amazon/Spartoo fulfillment line quantities and carrier names on Shopify. Does not access tracking numbers, recipients or addresses; cannot send shipment confirmations.",
+      description:"Read-only Channable Amazon/Spartoo fulfillment quantities, carrier names and tracking-number presence on Shopify. Tracking numbers are reduced to counts in memory; no raw tracking numbers, URLs, recipients or addresses are returned. Cannot send shipment confirmations.",
       request_schema:schema({
         provider:{type:"string",enum:["amazon","spartoo"]},
         shopify_order_gid:{type:"string"},
@@ -261,6 +261,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
         [shopify,"Shopify OAuth/KV (read_orders)"]]
     }),
+    capability({
+      id:"shopify.marketplace.amazon_fulfillment_review.readonly",
+      provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify,approval:"none",
+      description:"Read current Channable-imported Amazon order lines and Shopify fulfillments server-side; compare SUCCESS quantities, line identity and tracking-number presence. No caller-supplied evidence, raw tracking values, provider mutations or importer handoff.",
+      request_schema:schema({
+        shopify_order_gid:{type:"string",pattern:"^gid://shopify/Order/[0-9]+$"},
+        amazon_order_id:{type:"string",pattern:"^[0-9]{3}-[0-9]{7}-[0-9]{7}$"}
+      },["shopify_order_gid","amazon_order_id"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [shopify,"Shopify OAuth/KV (read_orders)"]]
+    }),
+    capability({ id:"shopify.marketplace.api_readiness.readonly",provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",implemented:true,configured:businessAuth&&shopify,approval:"none",description:"Observe the configured and actual X-Shopify-API-Version using the same authenticated M.A.R.E. Shopify client. Report fall-forward, missing headers or unverified support without exposing credentials or authorizing marketplace writes.",request_schema:schema(),requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"]] }),
     capability({ id:"shopify.marketplace.scopes.readonly",provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",implemented:true,configured:businessAuth&&shopify,approval:"none",description:"Read currentAppInstallation access scopes using the same M.A.R.E. Shopify client; distinguish implied read access from cached metadata. No credentials returned and no order, inventory or tracking write authorization.",request_schema:schema(),requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"]] }),
     capability({ id: "shopify.catalog.read", provider: "shopify", domain: "catalog", operation: "read", risk: "read_only", implemented: true, configured: shopify, approval: "none", description: "Read the complete Shopify catalog with products, variants, SKU, prices, compare-at prices, costs, stock by location, collections and media.", request_schema: schema({ query: { type: "string" }, max_products: { type: "integer", minimum: 1, maximum: 2500 }, inline_limit: { type: "integer", minimum: 0, maximum: 100 }, include_csv: { type: "boolean" } }), requirements: [[shopify, "Shopify OAuth/KV"]] }),
     capability({ id: "shopify.catalog.export", provider: "shopify", domain: "catalog", operation: "artifact", risk: "artifact_only", implemented: true, configured: shopify, approval: "none", description: "Export the canonical Shopify catalog as JSON and CSV artifacts.", request_schema: schema({ query: { type: "string" }, max_products: { type: "integer" }, include_csv: { type: "boolean" } }), requirements: [[shopify, "Shopify OAuth/KV"]] }),

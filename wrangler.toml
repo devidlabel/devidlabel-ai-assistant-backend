@@ -8,7 +8,7 @@ MARE_ORDER_JOURNAL_ENABLED = "true"
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
-SHOPIFY_API_VERSION = "2025-10"
+SHOPIFY_API_VERSION = "2026-01"
 SHOPIFY_RECOMMENDATION_CACHE_TTL_SECONDS = "3600"
 COMMERCE_TENANT_ID = "devid_multibrand"
 PRODUCT_IMAGE_MODEL = "gpt-image-2"

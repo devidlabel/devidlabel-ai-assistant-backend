@@ -7,6 +7,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 const out = mkdtempSync(join(tmpdir(), 'shopify-oauth-'));
 execFileSync('npx', ['tsc', '--outDir', out, '--noEmit', 'false', '--module', 'ESNext', '--target', 'ES2022', '--moduleResolution', 'Bundler'], { stdio: 'inherit' });
 const mod = await import(`file://${out}/index.js`);
+const { SHOPIFY_OAUTH_SCOPES } = await import(`file://${out}/shopify-app-config.js`);
 const { handleRequest, getShopifyAdminAccessToken, persistShopifyOAuthToken, encryptShopifyToken, decryptShopifyToken } = mod;
 const assert = (condition, message) => { if (!condition) { console.error(message); process.exit(1); } };
 
@@ -25,7 +26,8 @@ let env = baseEnv();
 let res = await install(env);
 assert(res.status === 302, 'install should redirect');
 let redirect = new URL(res.headers.get('location'));
-assert(redirect.searchParams.get('scope') === 'read_products,read_inventory,read_orders', 'install scope mismatch');
+assert(redirect.searchParams.get('scope') === SHOPIFY_OAUTH_SCOPES, 'install scope mismatch');
+assert(redirect.searchParams.get('scope').split(',').includes('write_orders'), 'install must request the planned order scope');
 assert(!redirect.href.includes('grant_options'), 'install must not request per-user token');
 let state = redirect.searchParams.get('state');
 assert(state && env.SHOPIFY_TOKENS_KV.puts[0].key === `shopify:oauth_state:${state}` && env.SHOPIFY_TOKENS_KV.puts[0].options.expirationTtl === 600, 'install should save state with TTL');
@@ -67,7 +69,7 @@ assert(await getShopifyAdminAccessToken(tokenEnv) === 'shpat_kv_token', 'get tok
 const legacyEnv = baseEnv(); legacyEnv.SHOPIFY_TOKENS_KV = new MemoryKV(); legacyEnv.SHOPIFY_ADMIN_ACCESS_TOKEN = 'shpat_legacy';
 assert(await getShopifyAdminAccessToken(legacyEnv) === 'shpat_legacy', 'get token should fallback to legacy secret');
 let missingFailed = false;
-try { await getShopifyAdminAccessToken({ SHOPIFY_SHOP_DOMAIN: 'devid-label.myshopify.com' }); } catch (e) { missingFailed = /shopify_admin_token_missing/.test(e.message); }
+try { await getShopifyAdminAccessToken({ SHOPIFY_SHOP_DOMAIN: 'devid-label.myshopify.com' }); } catch (e) { missingFailed = e.message === 'shopify_token_missing'; }
 assert(missingFailed, 'get token should fail controlled when no token exists');
 
 const encrypted = await encryptShopifyToken(baseEnv(), 'roundtrip_secret');

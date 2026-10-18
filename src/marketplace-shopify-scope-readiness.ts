@@ -33,9 +33,11 @@ function scopeReport(scopes:string[]):Row{
     required_scope_gaps:{
       order_read:hasOrderRead?[]:["read_orders"],
       order_create:granted.has("write_orders")?[]:["write_orders"],
+      fulfillment_tracking_read:hasOrderRead?[]:["read_orders"],
       stock_read:hasStockRead?[]:["read_inventory"]
     },
     order_create_scope_present:granted.has("write_orders"),
+    fulfillment_tracking_read_scope_present:hasOrderRead,
     inventory_write_scope_present:granted.has("write_inventory"),
     fulfillment_scope_candidates:scopes.filter(x=>
       /^(read|write)_(merchant_managed_fulfillment_orders|assigned_fulfillment_orders|third_party_fulfillment_orders|fulfillments)$/.test(x)),
