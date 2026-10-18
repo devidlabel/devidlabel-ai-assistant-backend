@@ -31,7 +31,9 @@ const ids=[
   "amazon.orders.observe.readonly",
   "shopify.marketplace.scopes.readonly",
   "shopify.marketplace.amazon_order_adoption.readonly",
-  "shopify.marketplace.amazon_order_lines.readonly"
+  "shopify.marketplace.amazon_order_lines.readonly",
+  "shopify.marketplace.fulfillment_metadata.readonly",
+  "shopify.marketplace.fulfillment_metadata.readonly"
 ];
 for(const id of ids){
   const c=capabilities.find(x=>x.id===id);
