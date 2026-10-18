@@ -4,6 +4,7 @@ import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
 import { readMarketplaceShopifyPermissionReadiness } from "./marketplace-shopify-scope-readiness.js";
+import { readShopifyChannableAmazonAdoptionIndex } from "./marketplace-shopify-channable-amazon-adoption.js";
 import { handleMareOperationsMcpRequest } from "./mare-operations-mcp.js";
 import { handleMareProductMediaMcpRequest } from "./mare-product-media-mcp.js";
 import {
@@ -413,6 +414,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.catalog.asin.details") return textToolResult(await readAmazonCatalogASINDetails(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
   if (capabilityId === "shopify.marketplace.scopes.readonly") return textToolResult(await readMarketplaceShopifyPermissionReadiness(env));
+  if (capabilityId === "shopify.marketplace.amazon_order_adoption.readonly") return textToolResult(await readShopifyChannableAmazonAdoptionIndex(request,env));
   if (capabilityId === "shopify.catalog.read" || capabilityId === "shopify.catalog.export") return textToolResult(await readShopifyCatalog(request, env));
   if (capabilityId === "artifact.get") return textToolResult(await getBusinessArtifact(request, env));
   if (capabilityId === "tiktok.authorization.status") return textToolResult(await tiktokAuthorizationStatus(env));
