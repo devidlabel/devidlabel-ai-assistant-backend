@@ -51,8 +51,8 @@ function authorized(request: Request, env: CompatEnv): boolean {
 
 /**
  * Shopify Admin API versions before 2026-01 don't expose bulkOperation(id:).
- * The store currently uses 2025-10, where currentBulkOperation(type: QUERY)
- * is the supported polling query. The caller still supplies the expected ID;
+ * currentBulkOperation(type: QUERY) preserves the established compatible
+ * polling path. The caller still supplies the expected ID;
  * we reject a mismatch instead of accidentally returning another operation.
  */
 export async function handleShopifyBulkStatusCompat(request: Request, env: CompatEnv): Promise<Response | null> {

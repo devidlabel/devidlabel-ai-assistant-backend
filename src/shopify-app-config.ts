@@ -1,0 +1,36 @@
+// Keep the shared Admin client and both OAuth entry points on one reviewed
+// configuration. Granting a scope does not enable any marketplace writer.
+export const DEFAULT_SHOPIFY_API_VERSION = "2026-01";
+
+export const SHOPIFY_OAUTH_SCOPES = [
+  "read_all_orders",
+  "read_customers",
+  "read_discounts",
+  "write_discounts",
+  "read_files",
+  "write_files",
+  "read_inventory",
+  "write_inventory",
+  "read_locales",
+  "read_locations",
+  "read_markets",
+  "read_online_store_navigation",
+  "write_online_store_navigation",
+  "read_online_store_pages",
+  "read_orders",
+  "write_orders",
+  "read_products",
+  "write_products",
+  "read_reports",
+  "read_returns",
+  "read_shopify_payments_payouts",
+  "read_content",
+  "write_content",
+  "read_metaobject_definitions",
+  "write_metaobject_definitions",
+  "read_metaobjects",
+  "write_metaobjects",
+  "read_translations",
+  "write_translations",
+  "write_publications",
+].join(",");

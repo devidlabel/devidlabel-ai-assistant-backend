@@ -16,6 +16,7 @@ const safeTikTokSource = readFileSync("src/mare-business-tiktok-safe.ts", "utf8"
 const finalTikTokSource = readFileSync("src/mare-business-tiktok-final.ts", "utf8");
 const coordinatorSource = readFileSync("src/mare-plan-coordinator.ts", "utf8");
 const workerSource = readFileSync("src/worker-v3.ts", "utf8");
+const shopifyConfigSource = readFileSync("src/shopify-app-config.ts", "utf8");
 const wranglerSource = readFileSync("wrangler.toml", "utf8");
 
 const stableTools = [
@@ -113,8 +114,13 @@ for (const fragment of [
 
 for (const fragment of [
   'handleMareBusinessMcpFinalRequest', 'handleTikTokOAuthFinalCallbackRequest', 'export { MarePlanCoordinator }',
-  '"write_inventory"', '"write_files"', '"write_discounts"', '"write_content"', '"write_metaobjects"', '"write_translations"', '"write_publications"',
+  'import { SHOPIFY_OAUTH_SCOPES } from "./shopify-app-config.js"',
+  'authorizeUrl.searchParams.set("scope", SHOPIFY_OAUTH_SCOPES)',
 ]) assert.ok(workerSource.includes(fragment), `Missing final Worker route or Shopify scope: ${fragment}`);
+
+for (const fragment of [
+  '"write_inventory"', '"write_files"', '"write_discounts"', '"write_content"', '"write_metaobjects"', '"write_translations"', '"write_publications"', '"write_orders"',
+]) assert.ok(shopifyConfigSource.includes(fragment), `Missing shared Shopify scope: ${fragment}`);
 
 for (const fragment of [
   'name = "MARE_PLAN_COORDINATOR"', 'class_name = "MarePlanCoordinator"', 'new_sqlite_classes = ["MarePlanCoordinator"]',
@@ -122,6 +128,7 @@ for (const fragment of [
 
 assert.equal(workerSource.includes('handleTikTokOAuthRequest(request'), false, "Insecure public TikTok OAuth start handler must not be routed");
 assert.equal(workerSource.includes('"write_themes"'), false, "Theme writes must remain GitHub/PR-based, not direct Shopify writes");
+assert.equal(shopifyConfigSource.includes('"write_themes"'), false, "Shared configuration must not request direct theme writes");
 assert.equal(finalMcpSource.includes('MATRIXIFY_ALLOWED_OPERATIONS = new Set(["MERGE", "UPDATE"])'), true, "Matrixify must not emit destructive DELETE commands");
 
 console.log(JSON.stringify({

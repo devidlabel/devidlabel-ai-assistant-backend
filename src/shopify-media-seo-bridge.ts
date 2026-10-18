@@ -1,4 +1,5 @@
 import { shopifyGraphQL, resolveShopifyAdminAccessToken, type Env as ShopifyBaseEnv } from "./index.js";
+import { DEFAULT_SHOPIFY_API_VERSION } from "./shopify-app-config.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -75,7 +76,6 @@ const MAX_FILENAME_BASE = 180;
 const MAX_ALT_LENGTH = 180;
 const MEDIA_WRITE_TIMEOUT_MS = 30_000;
 const MEDIA_WRITE_MAX_ATTEMPTS = 3;
-const DEFAULT_SHOPIFY_API_VERSION = "2025-10";
 const RETRYABLE_FETCH_STATUSES = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
 
 const PRODUCTS_QUERY = `
