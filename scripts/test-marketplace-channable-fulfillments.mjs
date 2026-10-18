@@ -99,4 +99,42 @@ for(const altered of [
 await assert.rejects(()=>readShopifyChannableFulfillmentMetadata({
  ...input,confirm:true
 },env,fake),/invalid_request/);
-console.log("PASS Channable Amazon/Spartoo fulfillment metadata: carriers and lines without tracking numbers, package coverage, no marketplace writes");
+
+// Audit F05: failed/cancelled/pending records cannot stand in for SUCCESS.
+for(const status of ["CANCELLED","ERROR","FAILURE","OPEN","PENDING"]){
+ const observed=await readShopifyChannableFulfillmentMetadata(input,env,
+  async()=>({order:record("amazon",amazonId,[{...ship1,status}])}));
+ const coverage=compareChannableFulfillmentCoverage(orderLines,observed);
+ assert.equal(coverage.fulfillment_line_units,0);
+ assert.equal(coverage.successful_fulfillments,0);
+ assert.equal(coverage.excluded_non_success_fulfillments,1);
+ assert.equal(coverage.coverage,["OPEN","PENDING"].includes(status)?
+   "PENDING_FULFILLMENT_REVIEW":"NO_SUCCESSFUL_FULFILLMENTS");
+ assert.equal(coverage.may_confirm_marketplace_shipment,false);
+ assert.equal(coverage.may_release_reservations,false);
+}
+const successful=r.shipments[0];
+const replacement=compareChannableFulfillmentCoverage(orderLines,{
+ ...r,shipments:[{...successful,fulfillment_gid:"gid://shopify/Fulfillment/99",
+ status:"CANCELLED"},successful]
+});
+assert.equal(replacement.fulfillment_line_units,1);
+assert.equal(replacement.coverage,"SHOPIFY_FULFILLMENT_LINES_COMPLETE");
+assert.equal(replacement.excluded_non_success_fulfillments,1);
+const successPlusPending=compareChannableFulfillmentCoverage(orderLines,{
+ ...r,shipments:[successful,{...successful,
+ fulfillment_gid:"gid://shopify/Fulfillment/98",status:"PENDING"}]
+});
+assert.equal(successPlusPending.coverage,"PENDING_FULFILLMENT_REVIEW");
+assert.equal(successPlusPending.fulfillment_line_units,1);
+assert.throws(()=>compareChannableFulfillmentCoverage(orderLines,{
+ ...r,shipments:[successful,successful]
+}),/shipment_identity_conflict/);
+assert.throws(()=>compareChannableFulfillmentCoverage(orderLines,{
+ ...r,shipments:[{...successful,status:"NEW_UNRECOGNIZED_PROVIDER_STATE"}]
+}),/unknown_status/);
+assert.throws(()=>compareChannableFulfillmentCoverage({
+ ...orderLines,lines:[{...orderLines.lines[0],ordered_quantity:2}]
+},{...r,shipments:[{...successful,lines:[successful.lines[0],successful.lines[0]]}]}),
+ /duplicate_line/);
+console.log("PASS F05 fulfillment coverage: only SUCCESS counted, five non-success states excluded, pending ambiguity and duplicates blocked; no external writes");
