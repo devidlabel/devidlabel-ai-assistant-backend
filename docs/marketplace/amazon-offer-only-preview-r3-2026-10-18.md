@@ -37,3 +37,12 @@ Il modulo `src/mare-business-amazon-listings-direct.ts` aggiunge la capability p
 I test sintetici in `scripts/test-amazon-seller-listings-direct.mjs` coprono 200, 404 verificato, 404 ambiguo, 429, errore di rete, mismatch SKU e input sospetti. La capability non ha operazioni di scrittura e **non risolve da sola la proprietà del writer Channable** né la conformità del prodotto.
 
 **La presenza del Seller ID sul server, i ruoli SP-API e una prova live su offerte note devono ancora essere dimostrati.** Questa PR non è ancora distribuita.
+
+
+## R3.2 — Compatibilità categoria prima della preview
+
+Nel controllo read-only sul catalogo reale è emerso un caso con EAN→ASIN univoco ma categoria Shopify riconducibile a pochette/borse e `productType` Amazon `LABEL`. Un match del codice a barre, da solo, **non dimostra** che la pagina ASIN sia quella corretta per pubblicare un'offerta.
+
+Il preflight ora rifiuta esplicitamente poche categorie Amazon **evidentemente incompatibili** (`LABEL`, `STICKER`, `GIFT_CARD`, `SHIPPING_LABEL`) quando la categoria Shopify dichiara borse, pochette, zaini o portafogli. Questo caso è coperto da un test automatico che conferma il blocco **prima** di qualunque controllo Listings Item e senza pubblicare nulla.
+
+L'elenco di incompatibilità è un **filtro minimo**, non una tassonomia definitiva: ogni altro product type e gli attributi di variante richiedono comunque verifica prima del primo `VALIDATION_PREVIEW` e del successivo invio. Il primo canary deve utilizzare un candidato con categoria coerente e assenza offerta seller verificata, non il primo EAN disponibile.
