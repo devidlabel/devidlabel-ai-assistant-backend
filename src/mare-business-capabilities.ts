@@ -45,6 +45,7 @@ export type MareBusinessCapabilityEnv = {
   AMAZON_SP_API_REFRESH_TOKEN?: string;
   AMAZON_SP_API_CLIENT_ID?: string;
   AMAZON_SP_API_CLIENT_SECRET?: string;
+  AMAZON_SP_API_SELLER_ID?: string;
   SPARTOO_API_KEY?: string;
   MIINTO_API_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
@@ -83,6 +84,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
   const tiktokAuthorized = configured(env.TIKTOK_ACCESS_TOKEN, env.TIKTOK_ADVERTISER_ID);
   const merchant = configured(env.GOOGLE_MERCHANT_ACCOUNT_ID) && configured(env.GOOGLE_MERCHANT_SERVICE_ACCOUNT_JSON || env.GOOGLE_MERCHANT_REFRESH_TOKEN);
   const amazon = configured(env.AMAZON_SP_API_REFRESH_TOKEN, env.AMAZON_SP_API_CLIENT_ID, env.AMAZON_SP_API_CLIENT_SECRET);
+  const amazonSellerId = configured(env.AMAZON_SP_API_SELLER_ID);
 
   return [
     capability({ id: "system.status", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Unified health, permission and provider configuration status.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
@@ -124,10 +126,54 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       },["marketplace","skus"]),
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
+    capability({
+      id:"amazon.orders.observe.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Privacy-minimal Amazon Orders v2026-01-01 search with bounded complete pagination and no buyer/address/payments datasets. Observes FBM orders only; NEVER imports Shopify orders, updates inventory, or changes tracking.",
+      request_schema:schema({
+        marketplaces:{type:"array",minItems:1,maxItems:4,
+          items:{type:"string",enum:["IT","DE","FR","ES"]}},
+        last_updated_after:{type:"string"},
+        last_updated_before:{type:"string"},
+        max_pages:{type:"integer",minimum:1,maximum:5}
+      },["marketplaces","last_updated_after","last_updated_before"]),
+      requirements:[
+        [businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]
+      ]
+    }),
     capability({ id: "marketplace.shadow.status", provider: "mare", domain: "marketplace", operation: "read", risk: "read_only", implemented: true, configured: businessAuth && Boolean(env.MARE_MARKETPLACE_SHADOW), approval: "none", description: "Read Shopify shadow scan progress, freshness and errors. Does not start scans or publish marketplace data.", request_schema: schema(), requirements: [[Boolean(env.MARE_MARKETPLACE_SHADOW), "MARE_MARKETPLACE_SHADOW binding"]] }),
     capability({ id: "system.capabilities", provider: "mare", domain: "system", operation: "read", risk: "read_only", implemented: true, configured: businessAuth, approval: "none", description: "Dynamic capability registry used by every V2 agent.", request_schema: schema(), requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"]] }),
     capability({ id: "artifact.get", provider: "mare", domain: "artifact", operation: "artifact", risk: "read_only", implemented: true, configured: shopify, approval: "none", description: "Retrieve a stored report, feed, Matrixify file or image artifact.", request_schema: schema({ artifact_id: { type: "string" } }, ["artifact_id"]), requirements: [[shopify, "SHOPIFY_TOKENS_KV"]] }),
 
+    capability({
+      id:"shopify.marketplace.amazon_order_adoption.readonly",
+      provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify,approval:"none",
+      description:"Scan Channable-imported Shopify Amazon orders for Amazon Order ID custom attributes; detect duplicates and missing metadata. Does not prove absence and NEVER creates orders.",
+      request_schema:schema({
+        created_after:{type:"string"},
+        created_before:{type:"string"},
+        max_pages:{type:"integer",minimum:1,maximum:10}
+      },["created_after","created_before"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [shopify,"Shopify OAuth/KV (read_orders)"]]
+    }),
+    capability({
+      id:"shopify.marketplace.amazon_order_lines.readonly",
+      provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify,approval:"none",
+      description:"Read Shopify line SKU and quantities for one Channable-imported Amazon order after verifying its Amazon Order ID. No buyer data, inventory mutation, fulfillment or order import.",
+      request_schema:schema({
+        shopify_order_gid:{type:"string"},
+        amazon_order_id:{type:"string",pattern:"^[0-9]{3}-[0-9]{7}-[0-9]{7}$"}
+      },["shopify_order_gid","amazon_order_id"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV (read_orders)"]]
+    }),
+    capability({ id:"shopify.marketplace.scopes.readonly",provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",implemented:true,configured:businessAuth&&shopify,approval:"none",description:"Read installed Shopify OAuth scope names from KV metadata without disclosing the access token. NEVER approves order creation, inventory updates, or tracking.",request_schema:schema(),requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"]] }),
     capability({ id: "shopify.catalog.read", provider: "shopify", domain: "catalog", operation: "read", risk: "read_only", implemented: true, configured: shopify, approval: "none", description: "Read the complete Shopify catalog with products, variants, SKU, prices, compare-at prices, costs, stock by location, collections and media.", request_schema: schema({ query: { type: "string" }, max_products: { type: "integer", minimum: 1, maximum: 2500 }, inline_limit: { type: "integer", minimum: 0, maximum: 100 }, include_csv: { type: "boolean" } }), requirements: [[shopify, "Shopify OAuth/KV"]] }),
     capability({ id: "shopify.catalog.export", provider: "shopify", domain: "catalog", operation: "artifact", risk: "artifact_only", implemented: true, configured: shopify, approval: "none", description: "Export the canonical Shopify catalog as JSON and CSV artifacts.", request_schema: schema({ query: { type: "string" }, max_products: { type: "integer" }, include_csv: { type: "boolean" } }), requirements: [[shopify, "Shopify OAuth/KV"]] }),
     capability({ id: "shopify.media.find", provider: "shopify", domain: "media", operation: "read", risk: "read_only", implemented: true, configured: media, approval: "none", description: "Find product media by vendor and inclusive title range.", request_schema: schema({ vendor: { type: "string" }, start_title: { type: "string" }, end_title: { type: "string" }, max_products: { type: "integer" } }, ["vendor"]), requirements: [[media, "MARE_PRODUCT_MEDIA_ACCESS_TOKEN"]] }),
