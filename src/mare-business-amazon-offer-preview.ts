@@ -53,6 +53,8 @@ export async function previewAmazonOfferOnlyZeroQuantity(
       pre.marketplace!==marketplace||pre.sku!==sku||pre.asin!==asin||
       pre.ean!==input.ean||pre.exact_ean_asin!==true||
       pre.seller_listing_absence_result!=="NOT_FOUND_VERIFIED_BY_LISTINGS_API"||
+      pre.seller_asin_search_result!=="NO_SELLER_ASIN_IN_BOUNDED_SEARCH"||
+      pre.seller_asin_search_is_not_final_absence_proof!==true||
       pre.schema_product_type!=="PRODUCT"||
       pre.schema_requirements!=="LISTING_OFFER_ONLY"||
       typeof pre.schema_version!=="string"||!pre.schema_version||
