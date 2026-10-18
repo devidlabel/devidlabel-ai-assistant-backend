@@ -21,6 +21,9 @@ const ISO_RE=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\
 const MAX_PAGES=10;
 const PAGE_SIZE=50;
 const MAX_WINDOW_MS=14*24*60*60*1000;
+// Shopify search interprets some date boundaries in shop timezone, not UTC.
+// Add a conservative 24h margin; the local UTC check below is authoritative.
+const SEARCH_BOUNDARY_PAD_MS=24*60*60*1000;
 const SOURCE_QUERY=[
   'query MareChannableAmazonOrderIndex($first: Int!, $after: String, $query: String!) {',
   '  orders(first: $first, after: $after, query: $query, sortKey: CREATED_AT, reverse: false) {',
@@ -79,14 +82,14 @@ export async function readShopifyChannableAmazonAdoptionIndex(
     throw new Error("shopify_adoption_invalid_pages");
   // Shopify source_name is a performance filter; not evidence that orders
   // outside this source or date window do not exist.
-  const filter="source_name:amazon created_at:>="+shopifySearchSecond(since,"floor")+
-    " created_at:<="+shopifySearchSecond(until,"ceil");
+  const filter="source_name:amazon created_at:>="+shopifySearchSecond(since-SEARCH_BOUNDARY_PAD_MS,"floor")+
+    " created_at:<="+shopifySearchSecond(until+SEARCH_BOUNDARY_PAD_MS,"ceil");
   const found=new Map<string,Imported>();
   const gidToExternal=new Map<string,string>();
   const unverified:Unverified[]=[];
   let cursor:string|null=null;
   const seenCursors=new Set<string>();
-  let pages=0,scanned=0;
+  let pages=0,scanned=0,ignoredOutsideWindow=0;
   while(true){
     if(pages>=maxPages)throw new Error("shopify_adoption_incomplete_pagination");
     const response:ShopifyOrderData=await reader<ShopifyOrderData>(
@@ -102,8 +105,12 @@ export async function readShopifyChannableAmazonAdoptionIndex(
       const gid=value(order.id);
       if(!GID_RE.test(gid))throw new Error("shopify_adoption_order_id_invalid");
       const created=iso(order.createdAt);
-      if(Date.parse(created)<since||Date.parse(created)>until)
-        throw new Error("shopify_adoption_outside_window");
+      // Search returns a deliberately padded window; only original precise
+      // UTC boundaries are eligible for a positive adoption reference.
+      if(Date.parse(created)<since||Date.parse(created)>until){
+        ignoredOutsideWindow++;
+        continue;
+      }
       scanned++;
       // Never fetch recipient, address, buyer or payment data for this job.
       if(order.sourceName!=="amazon"||value(object(order.app).name)!=="Channable"){
@@ -150,6 +157,8 @@ export async function readShopifyChannableAmazonAdoptionIndex(
     ok:true,source:"shopify_channable_amazon_order_signature",
     read_only:true,created_after:after,created_before:before,
     pages_read:pages,shopify_orders_scanned:scanned,
+    outside_requested_utc_window_ignored:ignoredOutsideWindow,
+    search_boundaries_padded_for_shop_timezone:true,
     found_count:found.size,unverified_count:unverified.length,
     found:[...found.values()],unverified,
     pagination_complete:true,
