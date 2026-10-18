@@ -6,6 +6,25 @@ const modules=await Promise.all(paths.map(async p=>{const b=await build({entryPo
 const {readAmazonOrdersPilot}=modules[0];
 const {stageAmazonOrdersReadOnly}=modules[1];
 const {MarketplaceCoreLedger}=modules[2];
+const capabilityModule=await build({
+  entryPoints:["src/mare-business-capabilities.ts"],
+  bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"
+});
+const {buildMareBusinessCapabilities}=await import("data:text/javascript;base64,"+
+  Buffer.from(capabilityModule.outputFiles[0].text).toString("base64"));
+const capConfig={
+  MARE_BUSINESS_ACCESS_TOKEN:"synthetic-business-key",
+  AMAZON_SP_API_CLIENT_ID:"synthetic-client",
+  AMAZON_SP_API_CLIENT_SECRET:"synthetic-secret",
+  AMAZON_SP_API_REFRESH_TOKEN:"synthetic-refresh",
+  AMAZON_SP_API_SELLER_ID:"A123456789"
+};
+const findOrders=(e)=>buildMareBusinessCapabilities(e).find(x=>x.id==="amazon.orders.observe.readonly");
+assert.equal(findOrders(capConfig).available,true);
+assert.equal(findOrders({...capConfig,AMAZON_SP_API_SELLER_ID:""}).available,false);
+assert(findOrders({...capConfig,AMAZON_SP_API_SELLER_ID:""}).missing.includes("AMAZON_SP_API_SELLER_ID"));
+assert.equal(findOrders({...capConfig,AMAZON_SP_API_REFRESH_TOKEN:""}).available,false);
+assert.equal(findOrders(capConfig).risk,"read_only");
 
 const ids={IT:"APJ6JRA9NG5V4",FR:"A13V1IB3VIYZZH"},seller="A123456789";
 const env={AMAZON_SP_API_CLIENT_ID:"synthetic-client",AMAZON_SP_API_CLIENT_SECRET:"synthetic-secret",
