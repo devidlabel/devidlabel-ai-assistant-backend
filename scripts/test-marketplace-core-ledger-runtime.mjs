@@ -26,6 +26,8 @@ const fixture = String.raw`
         if(p==="/draft")return json(await ledger.registerDraft(body));
         if(p==="/draft/read")return json(await ledger.readDraft(String(body.command_id)));
         if(p==="/simulate")return json(simulateExposureBudget(body));
+        if(p==="/order/observe")return json(await ledger.observeMarketplaceOrder(body));
+        if(p==="/order/read")return json(await ledger.readMarketplaceOrder(body));
         if(p==="/ingest")return json(await ledger.recordInboxAndDraft(body));
         if(p==="/pending")return json(await ledger.listPendingDrafts(body));
         if(p==="/lease")return json(await ledger.leaseDraftForReview(body.command_id));
@@ -233,6 +235,7 @@ try{
     observation:"NOT_FOUND",observation_hash:"c".repeat(64)};
   assert.equal((await call("/note",note)).still_blocked,true);assertions++;
   assert.equal((await call("/note",note)).status,"DUPLICATE");assertions++;
+  assert.equal((await call("/order/read",{provider:"amazon",account:"SELLER_01",order_id:"SYNTH_111"})).revision,2);assertions++;
   assert.equal((await call("/note",{...note,observation:"FOUND"})).error,
     "ledger_reconciliation_evidence_conflict");assertions++;
   assert.equal((await call("/draft/read",{command_id:unknownWork.intent.command_id})).state,
@@ -256,6 +259,72 @@ try{
   assert.equal(secondPage.command_ids.length,1);assertions++;
   assert.notEqual(secondPage.command_ids[0],firstPage.command_ids[0]);assertions++;
   assert.equal((await call("/pending",{limit:100})).error,"ledger_queue_page_invalid");assertions++;
+
+  // R1.3 whole-order observations: order identity belongs to the seller account,
+  // not to the SKU or separate Amazon country. No importer is enabled.
+  const observed={
+    provider:"amazon",account:"SELLER_01",
+    order_id:"SYNTH_111",marketplace_id:"APJ6JRA9NG5V4",
+    source_updated_at:"2026-10-18T09:00:00Z",
+    fulfillment_status:"UNSHIPPED",fulfillment_owner:"MERCHANT",
+    items:[
+      {line_id:"LINE_B",seller_sku:"SYNTH SKU_B ",quantity_ordered:1,quantity_fulfilled:0},
+      {line_id:"LINE_A",seller_sku:"00SYNTH_A",quantity_ordered:2,quantity_fulfilled:null}
+    ]
+  };
+  const concurrent=await Promise.all([
+    call("/order/observe",observed),call("/order/observe",{
+      ...observed,items:[...observed.items].reverse()
+    })
+  ]);
+  assert.deepEqual(concurrent.map(x=>x.status).sort(),
+    ["DUPLICATE","RECORDED"]);assertions++;
+  assert.equal(concurrent[0].requires_adoption_check,true);assertions++;
+  let seen=await call("/order/read",{provider:"amazon",account:"SELLER_01",
+    order_id:"SYNTH_111"});
+  assert.equal(seen.revision,1);assertions++;
+  assert.equal(seen.items[1].seller_sku,"SYNTH SKU_B ");assertions++;
+  assert.equal(seen.import_state,"SHADOW_ONLY");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,source_updated_at:"2026-10-18T09:01:00Z",
+    fulfillment_status:"PARTIALLY_SHIPPED",
+    items:[{...observed.items[0],quantity_fulfilled:1},observed.items[1]]
+  })).revision,2);assertions++;
+  assert.equal((await call("/order/observe",observed)).status,"STALE");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,source_updated_at:"2026-10-18T09:01:00Z",
+    fulfillment_status:"CANCELLED"
+  })).error,"ledger_order_same_version_conflict");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,marketplace_id:"A13V1IB3VIYZZH",
+    source_updated_at:"2026-10-18T09:02:00Z"
+  })).error,"ledger_order_marketplace_conflict");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,account:"SELLER_02"
+  })).status,"RECORDED");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,provider:"spartoo",order_id:"SYNTH_SPARTOO",
+    marketplace_id:"IT"
+  })).status,"RECORDED");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,provider:"spartoo",order_id:"SYNTH_SPARTOO",
+    marketplace_id:"FR"
+  })).status,"RECORDED");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,items:[...observed.items,{line_id:"LINE_A",
+      seller_sku:"OTHER",quantity_ordered:1,quantity_fulfilled:0}]
+  })).error,"ledger_order_line_invalid");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,items:[{line_id:"BAD",seller_sku:"ABC",quantity_ordered:true,
+      quantity_fulfilled:null}]
+  })).error,"ledger_order_line_invalid");assertions++;
+  assert.equal((await call("/order/observe",{
+    ...observed,buyer:{name:"SECRET_NEVER_ALLOWED"}
+  })).error,"ledger_order_invalid");assertions++;
+  const old=await call("/order/read",{provider:"amazon",account:"SELLER_01",
+    order_id:"SYNTH_111"});
+  assert.equal(old.revision,2);assertions++;
+  assert.equal(old.fulfillment_status,"PARTIALLY_SHIPPED");assertions++;
 
   await mf.dispose();mf=new Miniflare(options);
   assert.equal((await call("/ingest",primary)).status,"DUPLICATE");assertions++;
