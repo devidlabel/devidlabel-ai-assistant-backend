@@ -152,13 +152,18 @@ export function compareAmazonOrderWithChannableShopifyLines(
   for(const k of new Set([...external.map.keys(),...imported.map.keys()])){
     if(external.map.get(k)!==imported.map.get(k))differing++;
   }
+  const changedCurrentQuantities=sh.lines.some(raw=>{
+    const line=object(raw);
+    return line.current_quantity!==line.ordered_quantity;
+  });
   const matched=differing===0&&external.unresolved===0&&imported.unresolved===0&&
-    sh.all_line_skus_mapped===true;
+    sh.all_line_skus_mapped===true&&!changedCurrentQuantities;
   return {
     ok:true,amazon_order_id:am.order_id,shopify_order_gid:sh.shopify_order_gid,
     status:matched?"REFERENCE_AND_QUANTITIES_MATCHED_NEEDS_FULFILLMENT_REVIEW":
       "LINE_RECONCILIATION_REQUIRED",
     sku_quantity_mismatch_count:differing,
+    shopify_current_quantity_differs_from_original:changedCurrentQuantities,
     amazon_unresolved_lines:external.unresolved,
     shopify_unresolved_lines:imported.unresolved,
     matched_unique_sku_count:matched?external.map.size:0,
