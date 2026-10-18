@@ -85,6 +85,7 @@ const original=globalThis.fetch;
 let calls=[], graphqlCalls=0;
 let listingResponse=()=>json({errors:[{code:"NOT_FOUND",message:"not found"}]},
   404,{"x-amzn-requestid":"synthetic-request-123"});
+let asinSearchResponse=()=>json({numberOfResults:0,items:[]});
 let definitionsResponse=()=>json({
   productType:"PRODUCT",marketplaceIds:[marketId],
   requirements:"LISTING_OFFER_ONLY",requirementsEnforced:"ENFORCED",
@@ -117,6 +118,11 @@ function installFetch(){
     if(u.pathname==="/auth/o2/token")return json({access_token:"synthetic-lwa"});
     assert.equal(opts.method,"GET","No SP-API write is allowed");
     assert.equal(opts.headers["x-amz-access-token"],"synthetic-lwa");
+    if(u.pathname==="/listings/2021-08-01/items/A123456789"){
+      assert.equal(u.searchParams.get("identifiersType"),"ASIN");
+      assert.equal(u.searchParams.get("identifiers"),input.asin);
+      return asinSearchResponse();
+    }
     if(u.pathname.startsWith("/listings/2021-08-01/items/"))return listingResponse();
     if(u.pathname==="/listings/2021-08-01/restrictions")return json({restrictions:[]});
     if(u.pathname.endsWith("/definitions/2020-09-01/productTypes/PRODUCT")){
@@ -139,6 +145,26 @@ try {
   assert.equal(graphqlCalls,4,"Must paginate all variants for both SKU and barcode searches");
   assert(calls.filter(x=>!x.url.includes("/graphql.json")&&!x.url.includes("/auth/o2/token"))
     .every(x=>x.method==="GET"),"Amazon must remain read-only");
+
+  assert.equal(result.seller_asin_search_result,
+    "NO_SELLER_ASIN_IN_BOUNDED_SEARCH");
+  assert.equal(result.seller_asin_search_is_not_final_absence_proof,true);
+  asinSearchResponse=()=>json({numberOfResults:1,items:[{
+    sku:"LEGACY_CHANNABLE_SKU",summaries:[{
+      marketplaceId:marketId,asin:input.asin,productType:"HANDBAG"
+    }]
+  }]});
+  const asinAlreadyListed=await readAmazonOfferOnlyPreflight(input,env,
+    shopifyStub,matchStub,detailsStub);
+  assert.equal(asinAlreadyListed.status,"BLOCKED_EXISTING_OFFER");
+  assert.equal(asinAlreadyListed.blocker,"seller_has_asin_under_other_sku");
+  asinSearchResponse=()=>json({numberOfResults:2,items:[]});
+  const inconclusiveAsin=await readAmazonOfferOnlyPreflight(input,env,
+    shopifyStub,matchStub,detailsStub);
+  assert.equal(inconclusiveAsin.status,"BLOCKED_LISTING_STATUS_UNKNOWN");
+  assert.equal(inconclusiveAsin.blocker,
+    "seller_asin_search_incomplete_or_unverified");
+  asinSearchResponse=()=>json({numberOfResults:0,items:[]});
 
   // A bogus status flag on the original legacy reader must not count as complete.
   await assert.rejects(()=>readAmazonOfferOnlyPreflight(input,env,
