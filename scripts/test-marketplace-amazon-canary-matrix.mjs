@@ -64,7 +64,9 @@ assert.throws(()=>classifyAmazonPilotCatalogIdentity({...black,vendor:"P448"},ev
 assert.throws(()=>classifyAmazonPilotCatalogIdentity(black,evidences.slice(1)),/four_market/);
 assert.throws(()=>classifyAmazonPilotCatalogIdentity(black,
  [...evidences.slice(0,3),evidences[0]]),/four_market/);
-assert.throws(()=>classifyAmazonPilotCatalogIdentity(black,
- [{...evidences[0],lookup_asins:["B000000001"]},...evidences.slice(1)]),
- /./ /* returned BLOCKED rather than throw is also legitimate, see below */);
+const wrongAsin=classifyAmazonPilotCatalogIdentity(black,
+ [{...evidences[0],lookup_asins:["B000000001"]},...evidences.slice(1)]);
+assert.equal(wrongAsin.overall_status,"CATALOG_IDENTITY_BLOCKED");
+assert.equal(wrongAsin.markets[0].reason,"amazon_live_identity_evidence_incomplete");
+assert.equal(wrongAsin.can_create_offer,false);
 console.log("PASS Amazon canary identity 4-country strong vs review vs blocked, no offer validation or listing write authorization");
