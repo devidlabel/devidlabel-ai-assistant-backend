@@ -25,6 +25,7 @@ try{
   const u=new URL(String(url));
   if(u.host==="api.amazon.com")return response({access_token:"test-lwa-token"});
   assert.equal(opts.method,"GET");
+  assert.equal(opts.redirect,"manual");
   assert.equal(u.host,"sellingpartnerapi-eu.amazon.com");
   assert.equal(u.pathname,"/listings/2021-08-01/items/A123456789");
   assert.equal(u.searchParams.get("marketplaceIds"),"APJ6JRA9NG5V4");
@@ -48,6 +49,7 @@ try{
      marketplaceId:"APJ6JRA9NG5V4",asin:"B0WRONG001"
     }]
   }]});
+  if(asin==="B0ERROR004")throw new TypeError("PRIVATE_TOKEN_MUST_NOT_LEAK");
   if(asin==="B0ERROR001")return response({errors:[{code:"THROTTLED"}]},429);
   if(asin==="B0ERROR002")return response({numberOfResults:2,items:[]});
   if(asin==="B0ERROR003")return response({numberOfResults:1,items:[a(asin)],
@@ -72,12 +74,14 @@ try{
  assert.equal(x.exact_seller_sku_must_still_be_checked,true);
  assert.equal(getCalls.length,5);
  const error=await readAmazonSellerAsinListings({
-  marketplace:"IT",asins:["B0ERROR001","B0ERROR002","B0ERROR003"]
+  marketplace:"IT",asins:["B0ERROR001","B0ERROR002","B0ERROR003","B0ERROR004"]
  },env);
- assert.equal(error.unknown_count,3);
+ assert.equal(error.unknown_count,4);
  assert.equal(error.results[0].reason,"seller_asin_http_429");
  assert.equal(error.results[1].reason,"seller_asin_empty_with_nonzero_count");
  assert.equal(error.results[2].reason,"seller_asin_invalid_cursor");
+ assert.equal(error.results[3].reason,"seller_asin_transport_type_error");
+ assert(!JSON.stringify(error).includes("PRIVATE_TOKEN_MUST_NOT_LEAK"));
  assert.equal(error.can_create_offer,false);
  const before=getCalls.length;
  for(const bad of [

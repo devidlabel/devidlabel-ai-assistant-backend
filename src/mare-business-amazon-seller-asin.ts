@@ -52,10 +52,14 @@ async function searchOne(asin:string,marketId:string,token:string,sellerId:strin
   try{
    response=await fetch(url.toString(),{
     method:"GET",headers:{"x-amz-access-token":token,Accept:"application/json"},
-    redirect:"error",signal:AbortSignal.timeout(20000)
+    redirect:"manual",signal:AbortSignal.timeout(20000)
    });
-  }catch{
-   return {asin,state:"UNKNOWN",reason:"seller_asin_network_error",
+  }catch(error){
+   const kind=error instanceof Error?error.name:"Unknown";
+   const reason=kind==="TimeoutError"||kind==="AbortError"?
+     "seller_asin_transport_timeout":kind==="TypeError"?
+     "seller_asin_transport_type_error":"seller_asin_transport_other";
+   return {asin,state:"UNKNOWN",reason,
     pages_read:pages,skus:[...skus],query_complete:false};
   }
   if(!response.ok)return {asin,state:"UNKNOWN",

@@ -50,6 +50,7 @@ function install(){
   globalThis.fetch=async(url,init={})=>{
     const u=new URL(String(url));
     requests.push({url:u.toString(),method:init.method,headers:init.headers});
+    if(u.hostname==="sellingpartnerapi-eu.amazon.com")assert.equal(init.redirect,"manual");
     if(u.hostname==="api.amazon.com"){
       assert.equal(init.method,"POST");
       return json({access_token:"synthetic-token"});

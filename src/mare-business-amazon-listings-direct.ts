@@ -100,10 +100,15 @@ export async function readAmazonSellerListingsDirect(
       response=await fetch(url.toString(),{
         method:"GET",
         headers:{"x-amz-access-token":token,Accept:"application/json"},
-        signal:AbortSignal.timeout(20000),redirect:"error"
+        signal:AbortSignal.timeout(20000),redirect:"manual"
       });
-    }catch {
-      results.push({sku,state:"UNKNOWN",reason:"amazon_network_or_timeout",request_id:null});
+    }catch (error) {
+      // Never return exception text: it could contain URLs or account data.
+      const kind=error instanceof Error ? error.name : "Unknown";
+      const reason=kind==="TimeoutError"||kind==="AbortError" ?
+        "amazon_transport_timeout" : kind==="TypeError" ?
+        "amazon_transport_type_error" : "amazon_transport_other";
+      results.push({sku,state:"UNKNOWN",reason,request_id:null});
       continue;
     }
     const reqId=requestId(response);

@@ -31,6 +31,7 @@ try{
     }
     assert.equal(u.host,"sellingpartnerapi-eu.amazon.com");
     assert.equal(opts.method,"GET");
+    assert.equal(opts.redirect,"manual","Disallow credential forwarding through redirects");
     assert.equal(opts.headers["x-amz-access-token"],"synthetic-access");
     assert.equal(u.searchParams.get("marketplaceIds"),"APJ6JRA9NG5V4");
     assert.equal(u.searchParams.get("includedData"),"summaries,offers,issues");
@@ -49,7 +50,7 @@ try{
     }]});
     if(sku==="SYNTH_G")return new Response("<html>not found</html>",{
       status:404,headers:{"content-type":"text/html","x-amzn-requestid":"request-2"}});
-    if(sku==="SYNTH_H")throw new Error("synthetic_network_failure");
+    if(sku==="SYNTH_H")throw new TypeError("synthetic_secret_must_not_be_in_error");
     throw new Error("unexpected sku");
   };
   const scan=await readAmazonSellerListingsDirect({
@@ -73,7 +74,8 @@ try{
   assert.equal(scan.results[4].reason,"listing_response_sku_or_json_mismatch");
   assert.equal(scan.results[5].state,"PRESENT_ATTRIBUTES_UNKNOWN");
   assert.equal(scan.results[6].reason,"ambiguous_404_not_absence_proof");
-  assert.equal(scan.results[7].reason,"amazon_network_or_timeout");
+  assert.equal(scan.results[7].reason,"amazon_transport_type_error");
+  assert(!JSON.stringify(scan).includes("synthetic_secret_must_not_be_in_error"));
   assert.equal(httpCalls.length,8);
   const before=httpCalls.length;
   for(const invalid of [

@@ -104,9 +104,14 @@ async function amazonGet(path: string, token: string): Promise<AmazonRead> {
       method: "GET",
       headers: { "x-amz-access-token": token, Accept: "application/json" },
       signal: AbortSignal.timeout(20000),
-      redirect: "error"
+      redirect: "manual"
     });
-  } catch { throw new Error("amazon_offer_preflight_network_error"); }
+  } catch(error) {
+    const kind=error instanceof Error?error.name:"Unknown";
+    throw new Error(kind==="TimeoutError"||kind==="AbortError"?
+      "amazon_offer_preflight_transport_timeout":kind==="TypeError"?
+      "amazon_offer_preflight_transport_type_error":"amazon_offer_preflight_transport_other");
+  }
   const requestId = string(response.headers.get("x-amzn-requestid") ||
     response.headers.get("x-amzn-request-id")).slice(0,128) || null;
   if (response.status === 404) {

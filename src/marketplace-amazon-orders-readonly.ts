@@ -144,9 +144,14 @@ export async function readAmazonOrdersPilot(
     try {
       response=await fetch(url.toString(),{
         method:"GET",headers:{"x-amz-access-token":token,Accept:"application/json"},
-        signal:AbortSignal.timeout(20000),redirect:"error"
+        signal:AbortSignal.timeout(20000),redirect:"manual"
       });
-    } catch { throw new Error("amazon_orders_network_error"); }
+    } catch(error) {
+      const kind=error instanceof Error?error.name:"Unknown";
+      throw new Error(kind==="TimeoutError"||kind==="AbortError"?
+        "amazon_orders_transport_timeout":kind==="TypeError"?
+        "amazon_orders_transport_type_error":"amazon_orders_transport_other");
+    }
     if (!response.ok)throw new Error("amazon_orders_http_"+response.status);
     const text=await response.text();
     if (new TextEncoder().encode(text).length>MAX_RESPONSE_BYTES)
