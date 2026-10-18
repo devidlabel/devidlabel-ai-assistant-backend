@@ -209,6 +209,22 @@ export async function readAmazonOfferOnlyPreflight(
       !Array.isArray(item.product_types) || item.product_types.length === 0) {
     return blocked(marketplace, sku, asin, "BLOCKED_CATALOG_ATTRIBUTES", "brand_asin_or_product_type_mismatch");
   }
+  // EAN equality does NOT establish a compatible commercial product.
+  // Observed case: a Shopify "Pochette e Borselli" item has an Amazon
+  // productType "LABEL". Do not validate a bag offer against a label page.
+  // This intentionally only blocks *known clearly incompatible* types;
+  // other product types remain REVIEW_REQUIRED for manual schema checks.
+  const shopifyProductType=string(product.product_type).toLocaleLowerCase();
+  const fashionAccessory=/pochette|borsell|borsa|borse|handbag|backpack|zain|wallet|portafogli/i
+    .test(shopifyProductType);
+  const catalogTypes=(item.product_types as unknown[])
+    .map(x=>string(x).toLocaleUpperCase()).filter(Boolean);
+  const clearlyNonAccessory=new Set(["LABEL","STICKER","GIFT_CARD","SHIPPING_LABEL"]);
+  if(fashionAccessory && catalogTypes.length>0 &&
+      catalogTypes.every(x=>clearlyNonAccessory.has(x))) {
+    return blocked(marketplace,sku,asin,"BLOCKED_CATALOG_ATTRIBUTES",
+      "amazon_product_type_incompatible_with_shopify_category");
+  }
   const classification = string(item.item_classification).toLocaleUpperCase();
   if (classification.includes("PARENT")) {
     return blocked(marketplace, sku, asin, "BLOCKED_CATALOG_ATTRIBUTES", "parent_asin_not_sellable_variant");
