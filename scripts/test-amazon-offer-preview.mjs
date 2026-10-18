@@ -6,7 +6,7 @@ const compiled=await build({entryPoints:["src/mare-business-amazon-offer-preview
   bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"});
 const {previewAmazonOfferOnlyZeroQuantity}=await import("data:text/javascript;base64,"+
   Buffer.from(compiled.outputFiles[0].text).toString("base64"));
-const input={marketplace:"IT",sku:"SYNTHETIC_001",ean:"2000000001233",asin:"B0TEST0001"};
+const input={marketplace:"IT",sku:"SYNTHETIC_001",ean:"2000000001234",asin:"B0TEST0001"};
 const env={
   AMAZON_SP_API_CLIENT_ID:"synthetic-client",
   AMAZON_SP_API_CLIENT_SECRET:"synthetic-secret",
