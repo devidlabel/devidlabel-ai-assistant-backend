@@ -61,6 +61,22 @@ assert.equal(result.found[1].shopify_order_gid,"gid://shopify/Order/1002");
 assert.equal(result.unverified[0].reason,"unexpected_importing_app_or_source");
 assert(!JSON.stringify(result).includes("PII_CANARY"));
 assert.equal(visits.length,2);
+assert(visits.every(x=>x.query.includes("created_at:>=2026-10-16T00:00:00Z")));
+assert(visits.every(x=>x.query.includes("created_at:<=2026-10-18T00:00:00Z")));
+assert(visits.every(x=>!x.query.includes(".000Z")),
+  "Shopify search rejects millisecond-precision filter timestamps");
+let fractionalSearch="";
+const fractional=await run(async(_env,_query,vars)=>{
+  fractionalSearch=vars.query;
+  return {orders:{nodes:[a],pageInfo:{hasNextPage:false,endCursor:null}}};
+},{
+  ...input,created_after:"2026-10-16T00:00:00.500Z",
+  created_before:"2026-10-18T00:00:00.250Z"
+});
+assert.equal(fractional.found_count,1);
+assert(fractionalSearch.includes("created_at:>=2026-10-16T00:00:00Z"));
+assert(fractionalSearch.includes("created_at:<=2026-10-18T00:00:01Z"));
+assert(!fractionalSearch.includes(".000Z"));
 
 const malformed=[
   [{...a,customAttributes:[]},"unverified"],

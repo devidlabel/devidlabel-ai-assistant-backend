@@ -40,6 +40,18 @@ function iso(raw:unknown):string {
     throw new Error("shopify_adoption_invalid_timestamp");
   return new Date(raw).toISOString();
 }
+/**
+ * Shopify's search parser accepts timestamp seconds (e.g. 2026-10-11T00:00:00Z)
+ * but can silently interpret millisecond timestamps such as .000Z as a
+ * different boundary. Normalize for SEARCH ONLY; compare returned createdAt
+ * against the precise original milliseconds to prevent false window claims.
+ * Floor start/ceil end means boundary items cannot be accidentally excluded.
+ */
+function shopifySearchSecond(timestampMs:number,round:"floor"|"ceil"):string {
+  const seconds=round==="floor"
+    ?Math.floor(timestampMs/1000):Math.ceil(timestampMs/1000);
+  return new Date(seconds*1000).toISOString().replace(/\.000Z$/,"Z");
+}
 function value(v:unknown):string {
   return typeof v==="string"?v:"";
 }
@@ -67,8 +79,8 @@ export async function readShopifyChannableAmazonAdoptionIndex(
     throw new Error("shopify_adoption_invalid_pages");
   // Shopify source_name is a performance filter; not evidence that orders
   // outside this source or date window do not exist.
-  const filter="source_name:amazon created_at:>="+after+
-    " created_at:<="+before;
+  const filter="source_name:amazon created_at:>="+shopifySearchSecond(since,"floor")+
+    " created_at:<="+shopifySearchSecond(until,"ceil");
   const found=new Map<string,Imported>();
   const gidToExternal=new Map<string,string>();
   const unverified:Unverified[]=[];
