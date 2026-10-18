@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-17T20:28:21.996Z",
+  "generated_at": "2026-10-18T07:56:51.361Z",
   "type": "amazon_eu_devid_label_pochette_merchant_sku_presence_slots",
   "scope": "Devid Label | Pochette e Borselli",
   "slot_key": "sorted_shopify_sku_localeCompare_order_1_based",
@@ -77,5 +77,5 @@
     }
   },
   "error_code": null,
-  "audit_generated_at": "2026-10-17T20:28:22.000Z"
+  "audit_generated_at": "2026-10-18T07:56:51.365Z"
 }
