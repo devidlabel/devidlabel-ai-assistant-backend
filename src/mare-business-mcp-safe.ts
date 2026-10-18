@@ -2,6 +2,7 @@ import { readMarketplaceShadowStatus } from "./marketplace-shadow.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
+import { prepareAmazonExistingOfferStockSync, executeAmazonExistingOfferStockSync } from "./mare-business-amazon-stock-sync.js";
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
@@ -58,6 +59,7 @@ type StoredPlan = {
 const PLAN_TTL_SECONDS = 24 * 60 * 60;
 const SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing";
 const SHOPIFY_SEASON_CAPABILITY_ID = "shopify.product.season.assign_missing";
+const AMAZON_STOCK_CAPABILITY_ID = "amazon.inventory.sync.pilot";
 const TIKTOK_CAPABILITIES = new Set([
   "tiktok.authorization.status",
   "tiktok.authorization.start",
@@ -247,6 +249,42 @@ function shopifySeasonCapability(env: SafeBusinessEnv): MareBusinessCapability {
   };
 }
 
+
+function amazonStockCapability(env: SafeBusinessEnv): MareBusinessCapability {
+  const configured = Boolean(
+    normalize(env.AMAZON_SP_API_CLIENT_ID) &&
+    normalize(env.AMAZON_SP_API_CLIENT_SECRET) &&
+    normalize(env.AMAZON_SP_API_REFRESH_TOKEN) &&
+    normalize(env.AMAZON_SP_API_SELLER_ID) &&
+    normalize(env.SHOPIFY_SHOP_DOMAIN) &&
+    env.SHOPIFY_TOKENS_KV
+  );
+  return {
+    id: AMAZON_STOCK_CAPABILITY_ID,
+    provider: "amazon",
+    domain: "marketplace",
+    operation: "execute",
+    risk: "live_write",
+    implemented: true,
+    configured,
+    available: configured,
+    approval: "explicit",
+    description: "Pilot-only update of current FBM quantity on one existing Amazon seller offer. Target quantity is derived server-side from Shopify available inventory after committed units; prepare and execute re-read Shopify and Amazon, require explicit Channable isolation attestation, perform at most one PATCH, then require provider readback. No product creation, price change, feed upload or automatic scheduler.",
+    request_schema: {
+      type: "object",
+      properties: {
+        marketplace: { type: "string", enum: ["IT", "DE", "FR", "ES"] },
+        sku: { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$" },
+        asin: { type: "string", pattern: "^[A-Z0-9]{10}$" },
+        writer_isolation: { type: "string", enum: ["CHANNABLE_DISABLED_FOR_SKU"] },
+      },
+      required: ["marketplace", "sku", "asin", "writer_isolation"],
+      additionalProperties: false,
+    },
+    missing: configured ? [] : ["Amazon SP-API seller credentials and Shopify OAuth/KV"],
+  };
+}
+
 async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessCapability[]> {
   const status = await tiktokSafeAuthorizationStatus(env);
   const authorized = status.authorized === true;
@@ -273,6 +311,11 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
   const existingShopifySeason = capabilities.findIndex((item) => item.id === SHOPIFY_SEASON_CAPABILITY_ID);
   if (existingShopifySeason >= 0) capabilities[existingShopifySeason] = shopifySeason;
   else capabilities.push(shopifySeason);
+
+  const amazonStock = amazonStockCapability(env);
+  const existingAmazonStock = capabilities.findIndex((item) => item.id === AMAZON_STOCK_CAPABILITY_ID);
+  if (existingAmazonStock >= 0) capabilities[existingAmazonStock] = amazonStock;
+  else capabilities.push(amazonStock);
 
   return capabilities;
 }
@@ -328,6 +371,38 @@ async function completeArtifactPlan(
   plan.result_summary = result;
   await storePlan(plan, env);
   return textToolResult({ plan, result });
+}
+
+
+async function prepareAmazonStockWrite(
+  capability: MareBusinessCapability,
+  requestPayload: JsonObject,
+  env: SafeBusinessEnv,
+): Promise<JsonObject> {
+  const prepared = await prepareAmazonExistingOfferStockSync(requestPayload, env as any);
+  const plan = createPlan(capability, prepared.prepared_request as unknown as JsonObject);
+  await storePlan(plan, env);
+  return textToolResult({
+    ok: true,
+    status: "prepared",
+    plan,
+    preview: prepared.summary,
+    required_confirmation: "EXECUTE MARE LIVE PLAN",
+    immutable_request: true,
+    external_write_performed: false,
+    guardrails: {
+      one_existing_offer_only: true,
+      target_quantity_server_derived_from_shopify_available: true,
+      committed_inventory_accounted: true,
+      channable_writer_isolation_attested: true,
+      amazon_read_before_write: true,
+      at_most_one_provider_patch: true,
+      amazon_read_after_write_required: true,
+      listing_creation_allowed: false,
+      price_change_allowed: false,
+      automatic_scheduler_enabled: false,
+    },
+  });
 }
 
 async function prepareTikTokWrite(
@@ -401,6 +476,38 @@ async function prepareShopifySeasonWrite(
       read_after_write: true,
     },
   });
+}
+
+
+async function executeAmazonStockPlan(
+  plan: StoredPlan,
+  confirmation: string,
+  env: SafeBusinessEnv,
+): Promise<JsonObject> {
+  if (confirmation !== "EXECUTE MARE LIVE PLAN") throw new Error("approval_confirmation_required:EXECUTE MARE LIVE PLAN");
+  if (plan.status === "completed") return textToolResult({ ok: true, status: "completed", idempotent_replay: true, plan });
+  if (plan.status === "failed" || plan.status === "reconciliation_required") throw new Error("plan_reconciliation_required");
+  if (plan.status === "cancelled") throw new Error("plan_cancelled");
+  if (plan.status === "executing") throw new Error("plan_already_executing");
+  if (Date.parse(plan.expires_at) <= Date.now()) throw new Error("plan_expired");
+  const capability = await resolveCapability(plan.capability_id, env);
+  if (!capability?.available) throw new Error(`capability_no_longer_available:${capability?.missing.join(",") || "unknown"}`);
+
+  plan.status = "executing";
+  await storePlan(plan, env);
+  try {
+    const result = await executeAmazonExistingOfferStockSync(plan.request, env as any);
+    plan.status = "completed";
+    plan.executed_at = new Date().toISOString();
+    plan.result_summary = result;
+    await storePlan(plan, env);
+    return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
+  } catch (error) {
+    plan.status = "reconciliation_required";
+    plan.error = error instanceof Error ? error.message : "amazon_stock_plan_execution_failed";
+    await storePlan(plan, env);
+    throw error;
+  }
 }
 
 async function executeTikTokPlan(
@@ -643,11 +750,15 @@ export async function handleMareBusinessMcpSafeRequest(
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, await prepareShopifySeasonWrite(capability, requestPayload, env));
       }
+      if (capabilityId === AMAZON_STOCK_CAPABILITY_ID) {
+        if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
+        return rpcToolResponse(request, rpc.id, await prepareAmazonStockWrite(capability, requestPayload, env));
+      }
     }
 
     if (toolName === "mare_validate") {
       const plan = await loadPlan(normalize(args.plan_id), env);
-      if (TIKTOK_CAPABILITIES.has(plan.capability_id) || [SHOPIFY_METAFIELD_CAPABILITY_ID, SHOPIFY_SEASON_CAPABILITY_ID].includes(plan.capability_id)) {
+      if (TIKTOK_CAPABILITIES.has(plan.capability_id) || [SHOPIFY_METAFIELD_CAPABILITY_ID, SHOPIFY_SEASON_CAPABILITY_ID, AMAZON_STOCK_CAPABILITY_ID].includes(plan.capability_id)) {
         const capability = await resolveCapability(plan.capability_id, env);
         return rpcToolResponse(request, rpc.id, textToolResult({
           ok: true,
@@ -673,6 +784,9 @@ export async function handleMareBusinessMcpSafeRequest(
       }
       if (plan.capability_id === SHOPIFY_SEASON_CAPABILITY_ID) {
         return rpcToolResponse(request, rpc.id, await executeShopifySeasonPlan(plan, normalize(args.approval_confirmation), env));
+      }
+      if (plan.capability_id === AMAZON_STOCK_CAPABILITY_ID) {
+        return rpcToolResponse(request, rpc.id, await executeAmazonStockPlan(plan, normalize(args.approval_confirmation), env));
       }
     }
   } catch (error) {
