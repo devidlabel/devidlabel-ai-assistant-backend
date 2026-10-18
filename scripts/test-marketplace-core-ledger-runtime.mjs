@@ -235,7 +235,6 @@ try{
     observation:"NOT_FOUND",observation_hash:"c".repeat(64)};
   assert.equal((await call("/note",note)).still_blocked,true);assertions++;
   assert.equal((await call("/note",note)).status,"DUPLICATE");assertions++;
-  assert.equal((await call("/order/read",{provider:"amazon",account:"SELLER_01",order_id:"SYNTH_111"})).revision,2);assertions++;
   assert.equal((await call("/note",{...note,observation:"FOUND"})).error,
     "ledger_reconciliation_evidence_conflict");assertions++;
   assert.equal((await call("/draft/read",{command_id:unknownWork.intent.command_id})).state,
@@ -333,6 +332,7 @@ try{
   assert.equal((await call("/draft/read",{command_id:primary.intent.command_id})).state,
     "REVIEW_REQUIRED");assertions++;
   assert.equal((await call("/note",note)).status,"DUPLICATE");assertions++;
+  assert.equal((await call("/order/read",{provider:"amazon",account:"SELLER_01",order_id:"SYNTH_111"})).revision,2);assertions++;
   console.log("PASS R1.2 atomic inbox/outbox and uncertain outcomes: "+assertions+
     " checks, no marketplace writes");
 
