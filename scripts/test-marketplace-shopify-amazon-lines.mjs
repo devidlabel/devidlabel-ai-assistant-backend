@@ -65,6 +65,14 @@ const mismatch=compareAmazonOrderWithChannableShopifyLines({
 },record);
 assert.equal(mismatch.status,"LINE_RECONCILIATION_REQUIRED");
 assert.equal(mismatch.sku_quantity_mismatch_count,1);
+const adjustedShopify={
+  ...record,lines:record.lines.map((l,i)=>
+    i===0?{...l,current_quantity:0}:l)
+};
+const adjusted=compareAmazonOrderWithChannableShopifyLines(amazonOrder,adjustedShopify);
+assert.equal(adjusted.status,"LINE_RECONCILIATION_REQUIRED");
+assert.equal(adjusted.shopify_current_quantity_differs_from_original,true);
+assert.equal(adjusted.may_create_shopify_order,false);
 const unknown=compareAmazonOrderWithChannableShopifyLines({
   ...amazonOrder,items:[{seller_sku:null,quantity_ordered:1}]
 },record);
