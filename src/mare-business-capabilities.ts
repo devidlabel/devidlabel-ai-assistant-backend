@@ -134,11 +134,11 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
       approval:"none",
-      description:"Merchant-private seller listing GET via Amazon Listings Items, independent of seller report downloads. Returns PRESENT, VERIFIED_ABSENT or UNKNOWN per SKU; never writes.",
-      request_schema:schema({
+      description:"Merchant-private seller listing GET via Amazon Listings Items, independent of reports. Reads current FBM availability and per-market offers/prices with separate identity, quantity and price evidence. Missing data stays unknown, never zero; complete_evidence alone is not stock or price proof. Never writes or transfers Channable ownership.",
+      request_schema:{...schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
-        skus:{type:"array",minItems:1,maxItems:8,items:{type:"string"}}
-      },["marketplace","skus"]),
+        skus:{type:"array",minItems:1,maxItems:8,uniqueItems:true,items:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}}
+      },["marketplace","skus"]),additionalProperties:false},
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
         [amazon,"Amazon SP-API credentials"],
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
