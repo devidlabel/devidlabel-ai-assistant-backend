@@ -124,7 +124,11 @@ export async function readShopifyChannableFulfillmentMetadata(
  };
 }
 
-/** Pure bounded matching to the already-adopted Channable Amazon order lines. */
+/** Audit F05: SUCCESS means Shopify completed the fulfillment operation,
+ * not carrier handover, delivery or Amazon receipt. Count only SUCCESS.
+ * Cancelled/failed records remain diagnostic evidence; pending records
+ * prohibit a complete-coverage verdict even if other lines already match.
+ */
 export function compareChannableFulfillmentCoverage(
   orderLinesRaw:unknown,shipmentRaw:unknown
 ):Row{
@@ -134,7 +138,8 @@ export function compareChannableFulfillmentCoverage(
     b.provider!=="amazon"||b.metadata_complete_bounded!==true||
     b.read_only!==true||a.shopify_order_gid!==b.shopify_order_gid||
     a.amazon_order_id!==b.external_order_id||
-    !Array.isArray(a.lines)||!Array.isArray(b.shipments))
+    !Array.isArray(a.lines)||!Array.isArray(b.shipments)||
+    a.lines.length>200||b.shipments.length>=FULFILLMENT_CAP)
    throw new Error("channable_fulfillment_coverage_untrusted_source");
  const expected=new Map<string,number>();
  for(const raw of a.lines){
@@ -144,18 +149,37 @@ export function compareChannableFulfillmentCoverage(
   expected.set(id,ordered);
  }
  if(!expected.size)throw new Error("channable_fulfillment_coverage_empty_order");
+ const allowedStatuses=new Set(["SUCCESS","CANCELLED","ERROR","FAILURE","OPEN","PENDING"]);
+ const seenShipments=new Set<string>();
  const shipped=new Map<string,number>();
+ let excludedShipments=0,pendingShipments=0,successfulShipments=0;
  for(const raw of b.shipments){
-  const lines=obj(raw).lines;
-  if(!Array.isArray(lines))throw new Error("channable_fulfillment_coverage_missing_lines");
+  const shipment=obj(raw),fid=str(shipment.fulfillment_gid),status=str(shipment.status);
+  if(!FULFILLMENT_RE.test(fid)||seenShipments.has(fid))
+   throw new Error("channable_fulfillment_coverage_shipment_identity_conflict");
+  if(!allowedStatuses.has(status))
+   throw new Error("channable_fulfillment_coverage_unknown_status");
+  seenShipments.add(fid);
+  const lines=shipment.lines;
+  if(!Array.isArray(lines)||lines.length<1||lines.length>LINE_CAP)
+   throw new Error("channable_fulfillment_coverage_missing_lines");
+  const seenLines=new Set<string>();
   for(const rawLine of lines){
-   const x=obj(rawLine),id=str(x.line_item_gid),qty=x.quantity;
-   if(!expected.has(id)||!positive(qty))
+   const x=obj(rawLine),id=str(x.line_item_gid),quantity=x.quantity;
+   if(!expected.has(id)||!positive(quantity))
     throw new Error("channable_fulfillment_coverage_unknown_line");
-   const total=(shipped.get(id)??0)+qty;
+   if(seenLines.has(id))throw new Error("channable_fulfillment_coverage_duplicate_line");
+   seenLines.add(id);
+   if(status!=="SUCCESS")continue;
+   const total=(shipped.get(id)??0)+quantity;
    if(!Number.isSafeInteger(total)||total>expected.get(id)!)
     throw new Error("channable_fulfillment_coverage_overshipped");
    shipped.set(id,total);
+  }
+  if(status==="SUCCESS")successfulShipments++;
+  else {
+   excludedShipments++;
+   if(status==="OPEN"||status==="PENDING")pendingShipments++;
   }
  }
  let totalExpected=0,totalShipped=0;
@@ -164,11 +188,17 @@ export function compareChannableFulfillmentCoverage(
  }
  if(!Number.isSafeInteger(totalExpected)||!Number.isSafeInteger(totalShipped))
   throw new Error("channable_fulfillment_coverage_overflow");
+ const coverage=pendingShipments>0?"PENDING_FULFILLMENT_REVIEW":
+   b.shipments.length===0?"NO_SHIPMENTS":
+   totalShipped===0?"NO_SUCCESSFUL_FULFILLMENTS":
+   totalShipped===totalExpected?"SHOPIFY_FULFILLMENT_LINES_COMPLETE":"PARTIAL";
  return {
   ok:true,source:"channable_order_fulfillment_shadow_coverage",
   original_line_units:totalExpected,fulfillment_line_units:totalShipped,
-  coverage:totalShipped===0?"NO_SHIPMENTS":
-    totalShipped===totalExpected?"SHOPIFY_FULFILLMENT_LINES_COMPLETE":"PARTIAL",
+  successful_fulfillments:successfulShipments,
+  excluded_non_success_fulfillments:excludedShipments,
+  pending_fulfillments:pendingShipments,coverage,
+  coverage_basis:"SHOPIFY_SUCCESS_ONLY_NOT_CARRIER_HANDOVER",
   read_only:true,amazon_tracking_confirmation_proven:false,
   may_confirm_marketplace_shipment:false,may_release_reservations:false
  };
