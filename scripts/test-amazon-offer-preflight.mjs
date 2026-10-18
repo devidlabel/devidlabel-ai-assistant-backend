@@ -201,6 +201,29 @@ try {
       product_types:["HANDBAG"],color:"Yellow"}]}));
   assert.equal(badColor.blocker,"variant_attributes_mismatch");
 
+  // A verified EAN can still point to an incorrectly classified Amazon page.
+  // A Shopify pochette must never pass preflight on an Amazon LABEL ASIN.
+  const bagReader=async args=>{
+    const row=await shopifyStub(args);
+    return {...row,products:row.products.map(p=>({
+      ...p,product_type:"Pochette e Borselli"
+    }))};
+  };
+  const catalogLabel=async()=>{
+    const details=await detailsStub();
+    return {...details,results:details.results.map(d=>({
+      ...d,product_types:["LABEL"]
+    }))};
+  };
+  const beforeCategoryCheck=calls.length;
+  const wrongCategory=await readAmazonOfferOnlyPreflight(input,env,
+    bagReader,matchStub,catalogLabel);
+  assert.equal(wrongCategory.status,"BLOCKED_CATALOG_ATTRIBUTES");
+  assert.equal(wrongCategory.blocker,
+    "amazon_product_type_incompatible_with_shopify_category");
+  assert.equal(calls.length,beforeCategoryCheck,
+    "Known category mismatch must block before any Amazon Listings call");
+
   installFetch(); listingResponse=()=>json({sku:input.sku});
   const exists=await readAmazonOfferOnlyPreflight(input,env,shopifyStub,matchStub,detailsStub);
   assert.equal(exists.status,"BLOCKED_EXISTING_OFFER");
