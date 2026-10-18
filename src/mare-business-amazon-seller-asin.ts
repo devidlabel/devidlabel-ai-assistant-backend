@@ -99,7 +99,7 @@ async function searchOne(asin:string,marketId:string,token:string,sellerId:strin
   }
   cursor=next;seenTokens.add(next);
  }
- if(incomplete || (totalReport!==null&&totalReport>0&&skus.size===0)){
+ if(incomplete){
   return {asin,state:"UNKNOWN",reason:"seller_asin_search_evidence_inconsistent",
    pages_read:pages,skus:[...skus],query_complete:false};
  }
