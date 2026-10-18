@@ -1,6 +1,6 @@
 {
-  "report_date": "2026-10-16",
-  "requested_at": "2026-10-17T06:38:00Z",
-  "reason": "Single D-1 recovery request: 2026-10-17 morning Daily Pulse and Daily Report pointers stale; no relay in progress",
+  "report_date": "2026-10-17",
+  "requested_at": "2026-10-18T06:33:44Z",
+  "reason": "Single D-1 recovery: Daily Pulse and Daily Report pointers stale; no in-progress or queued GitHub Actions runs",
   "verify_render_version": "expanded_kpis"
 }
