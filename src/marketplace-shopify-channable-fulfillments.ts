@@ -3,13 +3,20 @@ import type {MareBusinessShopifyEnv} from "./mare-business-shopify.js";
 import {readShopifyChannableAmazonOrderLines} from "./marketplace-shopify-channable-amazon-lines.js";
 
 /**
- * Merchant-private Shopify shipment observation. Tracking numbers are read
- * transiently only to derive presence counts; no number, URL or fingerprint
- * is returned or persisted. No recipient/customer/address or mutation.
+ * Merchant-private Shopify shipment observation. Public metadata contains
+ * presence counts only. A separate internal projection keeps tracking numbers
+ * transiently for exact Amazon readback comparison; no persistence or mutation.
  */
 type Row=Record<string,unknown>;
 type Reader=typeof shopifyGraphQL;
 type Data={order?:Row|null};
+export type PrivateChannableFulfillmentObservation={
+ metadata:Row;
+ private_tracking_entries:Array<{
+  fulfillment_gid:string;
+  tracking_entries:Array<{company:string|null;number:string|null}>;
+ }>;
+};
 const ORDER_RE=/^gid:\/\/shopify\/Order\/\d+$/;
 const FULFILLMENT_RE=/^gid:\/\/shopify\/Fulfillment\/\d+$/;
 const LINE_RE=/^gid:\/\/shopify\/LineItem\/\d+$/;
@@ -51,7 +58,7 @@ function trackingNumberPresent(value:unknown):boolean{
  if(typeof value!=="string"||value.length>256||/[\u0000-\u001f\u007f]/.test(value))
   throw new Error("channable_fulfillment_tracking_number_invalid");
  // Presence is not carrier validation. Keep the original number private and
- // do not normalize, return, fingerprint, log or persist its contents.
+ // do not normalize, expose through public metadata, fingerprint or persist it.
  return value.trim().length>0;
 }
 function verifiedTrackingPresence(shipment:Row):boolean{
@@ -65,10 +72,14 @@ function verifiedTrackingPresence(shipment:Row):boolean{
  return entries>0&&present===entries;
 }
 
-export async function readShopifyChannableFulfillmentMetadata(
+/** Internal server-only projection. Never register this reader directly as a
+ * capability or serialize its result outside the shipment comparison boundary.
+ * The public metadata reader below discards private_tracking_entries.
+ */
+export async function readShopifyChannableFulfillmentMetadataPrivate(
  input:Row,env:MareBusinessShopifyEnv,
  reader:Reader=shopifyGraphQL
-):Promise<Row>{
+):Promise<PrivateChannableFulfillmentObservation>{
  if(!input||typeof input!=="object"||Array.isArray(input)||
     Object.keys(input).some(k=>!["provider","shopify_order_gid","external_order_id"].includes(k))||
     !Object.hasOwn(PROVIDERS,str(input.provider))||
@@ -98,6 +109,7 @@ export async function readShopifyChannableFulfillmentMetadata(
   all_tracking_entries_have_numbers:boolean;
   lines:Array<{line_item_gid:string;sku:string|null;quantity:number}>
  }>=[];
+ const privateTracking:PrivateChannableFulfillmentObservation["private_tracking_entries"]=[];
  let trackingEntries=0,totalLineUnits=0,trackingPresent=0,trackingMissing=0;
  const uniqueFulfillments=new Set<string>();
  for(const raw of order.fulfillments){
@@ -109,6 +121,7 @@ export async function readShopifyChannableFulfillmentMetadata(
   if(!Array.isArray(f.trackingInfo)||f.trackingInfo.length>=TRACK_CAP)
    throw new Error("channable_fulfillment_tracking_metadata_incomplete");
   const carriers:string[]=[];
+  const privateEntries:Array<{company:string|null;number:string|null}>=[];
   let present=0;
   for(const rawTrack of f.trackingInfo){
    const track=obj(rawTrack),carrier=str(track.company);
@@ -118,6 +131,7 @@ export async function readShopifyChannableFulfillmentMetadata(
     throw new Error("channable_fulfillment_carrier_invalid");
    carriers.push(carrier||"UNVERIFIED");
    if(trackingNumberPresent(track.number))present++;
+   privateEntries.push({company:track.company as string|null,number:track.number as string|null});
    trackingEntries++;
   }
   const missing=carriers.length-present;
@@ -146,11 +160,12 @@ export async function readShopifyChannableFulfillmentMetadata(
     tracking_number_present_count:present,tracking_number_missing_count:missing,
     all_tracking_entries_have_numbers:carriers.length>0&&missing===0,lines
   });
+  privateTracking.push({fulfillment_gid:fid,tracking_entries:privateEntries});
  }
  const status=str(order.displayFulfillmentStatus);
  if(!status||status.length>90||/[\u0000-\u001f\u007f]/.test(status))
   throw new Error("channable_fulfillment_order_status_invalid");
- return {
+ const metadata:Row={
   ok:true,source:"shopify_channable_marketplace_fulfillment_metadata",
   provider,shopify_order_gid:gid,external_order_id:input.external_order_id,
   order_display_fulfillment_status:status,shipment_count:shipments.length,
@@ -166,6 +181,16 @@ export async function readShopifyChannableFulfillmentMetadata(
   can_confirm_marketplace_shipment:false,can_change_shopify_fulfillment:false,
   can_release_stock_reservation:false
  };
+ return {metadata,private_tracking_entries:privateTracking};
+}
+
+/** Existing public metadata shape is deliberately unchanged. The same single
+ * validated provider read supplies either counts or the internal comparison.
+ */
+export async function readShopifyChannableFulfillmentMetadata(
+ input:Row,env:MareBusinessShopifyEnv,reader:Reader=shopifyGraphQL
+):Promise<Row>{
+ return (await readShopifyChannableFulfillmentMetadataPrivate(input,env,reader)).metadata;
 }
 
 /** Audit F05: SUCCESS means Shopify completed the fulfillment operation,
