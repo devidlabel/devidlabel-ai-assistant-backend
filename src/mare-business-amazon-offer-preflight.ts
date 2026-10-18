@@ -69,6 +69,27 @@ function verifiedShopifyResult(data: unknown): Row {
 function normalizeOption(value: string): string {
   return value.normalize("NFKC").trim().toLocaleLowerCase().replace(/[\s_-]+/g," ");
 }
+// Narrow, audited translation equivalences: no fuzzy colors or arbitrary
+// shade inference. COAL, OFFWHITE, NAVY etc remain REVIEW_REQUIRED unless
+// explicitly supported by real product attributes and human review.
+const COLOR_ALIASES:Record<string,string>={
+  black:"black",nero:"black",noir:"black",schwarz:"black",negro:"black",
+  white:"white",bianco:"white",blanc:"white",weiss:"white",blanco:"white",
+  grey:"grey",gray:"grey",grigio:"grey",grau:"grey",gris:"grey",
+  blue:"blue",blu:"blue",bleu:"blue",blau:"blue",azul:"blue"
+};
+const ONE_SIZE=new Set([
+  "one size","one size fits all","taglia unica",
+  "taille unique","talla única","einheitsgröße"
+]);
+function sameLocalizedColor(a:string,b:string):boolean{
+  const left=normalizeOption(a),right=normalizeOption(b);
+  return (COLOR_ALIASES[left]??left)===(COLOR_ALIASES[right]??right);
+}
+function sameLocalizedSize(a:string,b:string):boolean{
+  const left=normalizeOption(a),right=normalizeOption(b);
+  return left===right||(ONE_SIZE.has(left)&&ONE_SIZE.has(right));
+}
 function selectedOption(variant: Row, name: RegExp): string {
   if (!Array.isArray(variant.selected_options)) return "";
   const match = variant.selected_options.map(obj).find(x => name.test(string(x.name)));
@@ -234,9 +255,9 @@ export async function readAmazonOfferOnlyPreflight(
   const desiredColor = selectedOption(variant, /^(color|colour|colore)$/i);
   const desiredSize = selectedOption(variant, /^(size|taglia)$/i);
   if ((desiredColor && string(item.color) &&
-       normalizeOption(desiredColor) !== normalizeOption(string(item.color))) ||
+       !sameLocalizedColor(desiredColor,string(item.color))) ||
       (desiredSize && string(item.size) &&
-       normalizeOption(desiredSize) !== normalizeOption(string(item.size)))) {
+       !sameLocalizedSize(desiredSize,string(item.size)))) {
     return blocked(marketplace, sku, asin, "BLOCKED_CATALOG_ATTRIBUTES", "variant_attributes_mismatch");
   }
 
