@@ -127,6 +127,35 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
     capability({
+      id:"amazon.seller.listings.direct",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Merchant-private seller listing GET via Amazon Listings Items, independent of seller report downloads. Returns PRESENT, VERIFIED_ABSENT or UNKNOWN per SKU; never writes.",
+      request_schema:schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        skus:{type:"array",minItems:1,maxItems:8,items:{type:"string"}}
+      },["marketplace","skus"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
+      id:"amazon.offer.preflight",provider:"amazon",domain:"marketplace",
+      operation:"read",risk:"read_only",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
+      description:"Fail-closed Amazon EU Offer Only preflight: verifies Shopify identity, exact EAN-to-ASIN, seller listing absence, restrictions and product type; never publishes.",
+      request_schema:schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string"},ean:{type:"string",pattern:"^[0-9]{13}$"},
+        asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+      },["marketplace","sku","ean","asin"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id:"amazon.orders.observe.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
