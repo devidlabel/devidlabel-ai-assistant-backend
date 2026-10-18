@@ -44,3 +44,22 @@
 ## Stato immediato
 
 **Risultato:** 8/8 EAN-ASIN associazioni live univoche per 2 SKU Rains nei 4 mercati. Candidato primario con identità coerente in tutti i paesi. **0 nuove offerte M.A.R.E. verificate online; 0 validazioni preview Amazon reali eseguite**. Non è stato alterato alcun feed/ordine/prezzo/quantità/tracking di Channable.
+
+
+## R3.4 — Blocco offerte ASIN già pubblicate con SKU differente
+
+Il catalogo Amazon può avere un unico ASIN associato a più codici SKU venditore in sessioni o feed differenti. Un `getListingsItem(sellerId, proposedSku)` che restituisce 404 **non** dimostra che l'account non abbia già una propria offerta sul medesimo ASIN tramite Channable.
+
+L'implementazione di sviluppo `src/mare-business-amazon-seller-asin.ts` effettua `GET /listings/2021-08-01/items/{sellerId}` con `identifiersType=ASIN`, `identifiers={asin}`, `marketplaceIds` e paginazione limitata. È l'API Search Listings Items ufficiale e richiede Seller ID e ruolo Listings nel medesimo account autorizzato.
+
+- `SELLER_ASIN_LISTING_FOUND`: offerte venditore trovate, restituisce SKU originali opachi. **Blocco** della nuova offerta anche quando lo SKU proposto è libero.
+- `NO_SELLER_ASIN_IN_BOUNDED_SEARCH`: risposta completa zero risultati; dato utile, ma **non** prova definitiva di libertà dell'offerta né handoff Channable.
+- `UNKNOWN`: rete, 403/429/5xx, paginazione inconsistente/troncata, result shape/ASIN incongrui, JSON invalido. Nessuna pubblicazione consentita.
+
+Il preflight R3 e la `VALIDATION_PREVIEW` interna ora richiedono entrambi il controllo ASIN oltre all'assenza verificata dello SKU; restituiscono sempre `REVIEW_REQUIRED` o blocchi, mai una decisione di pubblicare. Tests: `scripts/test-amazon-seller-asin.mjs`, `scripts/test-amazon-offer-preflight.mjs`, `scripts/test-amazon-offer-preview.mjs`. **Modifiche non ancora deployate in produzione.**
+
+## Requisito esterno per il primo test autenticato
+
+Il backend di produzione ha LWA Amazon configurato ed espone catalog read; non espone ancora i nuovi strumenti `amazon.seller.listings.direct`, `amazon.seller.asin.direct` e `amazon.offer.preflight` poiché la PR #204 è draft. L'effettiva presenza di `AMAZON_SP_API_SELLER_ID` nel Worker non è stata provata. Anche il ruolo Amazon Product Listing per il seller deve essere verificato con richiesta reale, non dedotto dalla lettura Catalog Items.
+
+Per evitare la trasmissione di credenziali in chat, l'eventuale Seller ID va inserito solo come Secret server-side Cloudflare e confrontato con il merchant corretto. Non revocare Channable. Nessun `VALIDATION_PREVIEW` verso Amazon è stato eseguito in questa sessione.
