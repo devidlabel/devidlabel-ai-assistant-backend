@@ -217,6 +217,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       },["shopify_order_gid","amazon_order_id"]),
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV (read_orders)"]]
     }),
+    capability({
+      id:"shopify.marketplace.fulfillment_metadata.readonly",
+      provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify,approval:"none",
+      description:"Read-only Channable Amazon/Spartoo fulfillment line quantities and carrier names on Shopify. Does not access tracking numbers, recipients or addresses; cannot send shipment confirmations.",
+      request_schema:schema({
+        provider:{type:"string",enum:["amazon","spartoo"]},
+        shopify_order_gid:{type:"string"},
+        external_order_id:{type:"string"}
+      },["provider","shopify_order_gid","external_order_id"]),
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [shopify,"Shopify OAuth/KV (read_orders)"]]
+    }),
     capability({ id:"shopify.marketplace.scopes.readonly",provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",implemented:true,configured:businessAuth&&shopify,approval:"none",description:"Read installed Shopify OAuth scope names from KV metadata without disclosing the access token. NEVER approves order creation, inventory updates, or tracking.",request_schema:schema(),requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"]] }),
     capability({ id: "shopify.catalog.read", provider: "shopify", domain: "catalog", operation: "read", risk: "read_only", implemented: true, configured: shopify, approval: "none", description: "Read the complete Shopify catalog with products, variants, SKU, prices, compare-at prices, costs, stock by location, collections and media.", request_schema: schema({ query: { type: "string" }, max_products: { type: "integer", minimum: 1, maximum: 2500 }, inline_limit: { type: "integer", minimum: 0, maximum: 100 }, include_csv: { type: "boolean" } }), requirements: [[shopify, "Shopify OAuth/KV"]] }),
     capability({ id: "shopify.catalog.export", provider: "shopify", domain: "catalog", operation: "artifact", risk: "artifact_only", implemented: true, configured: shopify, approval: "none", description: "Export the canonical Shopify catalog as JSON and CSV artifacts.", request_schema: schema({ query: { type: "string" }, max_products: { type: "integer" }, include_csv: { type: "boolean" } }), requirements: [[shopify, "Shopify OAuth/KV"]] }),
