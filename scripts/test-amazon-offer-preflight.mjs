@@ -166,6 +166,28 @@ try {
     "seller_asin_search_incomplete_or_unverified");
   asinSearchResponse=()=>json({numberOfResults:0,items:[]});
 
+  // EU locales must not create false color/one-size conflicts.
+  const sizeColorReader=async()=>stubResult("sku",
+    mappedVariant(targetRaw,{selected_options:[
+      {name:"Color",value:"Black"},{name:"Size",value:"One Size"}
+    ]}));
+  const localizedDetails=async()=>({...await detailsStub(),results:[{
+    state:"READ_ONLY_DETAILS_COMPLETE",asin:input.asin,
+    brand:"Example Brand",product_types:["HANDBAG"],
+    color:"Nero",size:"Einheitsgröße",item_classification:"BASE_PRODUCT"
+  }]});
+  const translated=await readAmazonOfferOnlyPreflight(input,env,
+    sizeColorReader,matchStub,localizedDetails);
+  assert.equal(translated.status,"REVIEW_REQUIRED");
+  const coalReader=async()=>stubResult("sku",
+    mappedVariant(targetRaw,{selected_options:[
+      {name:"Color",value:"Coal"}
+    ]}));
+  const wrongShade=await readAmazonOfferOnlyPreflight(input,env,
+    coalReader,matchStub,localizedDetails);
+  assert.equal(wrongShade.status,"BLOCKED_CATALOG_ATTRIBUTES");
+  assert.equal(wrongShade.blocker,"variant_attributes_mismatch");
+
   // A bogus status flag on the original legacy reader must not count as complete.
   await assert.rejects(()=>readAmazonOfferOnlyPreflight(input,env,
     async()=>({ok:true,truncated:false,product_count:1,inline_product_count:1,
