@@ -40,7 +40,13 @@ try{
     if(sku==="SYNTH_A")return mock({sku,summaries:[{
       marketplaceId:"APJ6JRA9NG5V4",asin:"B0TEST0001",
       productType:"HANDBAG",status:["BUYABLE"]
-    }],offers:[{marketplaceId:"APJ6JRA9NG5V4"}],issues:[]});
+    }],offers:[{marketplaceId:"APJ6JRA9NG5V4"}],issues:[
+      {marketplaceId:"APJ6JRA9NG5V4",code:"90000",severity:"ERROR",
+        categories:["MISSING_ATTRIBUTE"],attributeNames:["fulfillment_availability"],
+        message:"SECRET_PERSONAL_ACCOUNT_TEXT_CANARY"},
+      {marketplaceId:"A1PA6795UKMFR9",code:"OTHER_MARKET",severity:"WARNING",
+        attributeNames:["private"],message:"PRIVATE_OTHER_MARKET"}
+    ]});
     if(sku==="SYNTH_B")return mock({errors:[{code:"NOT_FOUND",message:"No listing"}]},404);
     if(sku==="SYNTH_C")return mock({errors:[{code:"ACCESS_DENIED"}]},404);
     if(sku==="SYNTH_D")return mock({errors:[{code:"THROTTLED"}]},429);
@@ -68,6 +74,15 @@ try{
   assert.equal(scan.results[0].state,"PRESENT");
   assert.equal(scan.results[0].asin,"B0TEST0001");
   assert.deepEqual(scan.results[0].statuses,["BUYABLE"]);
+  assert.equal(scan.results[0].listing_issues_count,1);
+  assert.equal(scan.results[0].issue_signals.length,1);
+  assert.equal(scan.results[0].issue_signals[0].code,"90000");
+  assert.equal(scan.results[0].issue_signals[0].severity,"ERROR");
+  assert.deepEqual(scan.results[0].issue_signals[0].categories,["MISSING_ATTRIBUTE"]);
+  assert.deepEqual(scan.results[0].issue_signals[0].attribute_names,["fulfillment_availability"]);
+  assert.equal(scan.results[0].issue_signals_truncated,false);
+  assert(!JSON.stringify(scan).includes("SECRET_PERSONAL_ACCOUNT_TEXT_CANARY"));
+  assert(!JSON.stringify(scan).includes("PRIVATE_OTHER_MARKET"));
   assert.equal(scan.results[1].state,"VERIFIED_ABSENT");
   assert.equal(scan.results[2].state,"UNKNOWN");
   assert.equal(scan.results[3].reason,"amazon_http_429");
