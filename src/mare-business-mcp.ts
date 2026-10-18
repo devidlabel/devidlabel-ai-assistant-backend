@@ -4,6 +4,7 @@ import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
+import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
 import { readMarketplaceShopifyPermissionReadiness } from "./marketplace-shopify-scope-readiness.js";
 import { readShopifyChannableAmazonAdoptionIndex } from "./marketplace-shopify-channable-amazon-adoption.js";
@@ -417,6 +418,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.catalog.asin.details") return textToolResult(await readAmazonCatalogASINDetails(request,env));
   if (capabilityId === "amazon.offer.preflight") return textToolResult(await readAmazonOfferOnlyPreflight(request,env));
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
+  if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
   if (capabilityId === "shopify.marketplace.scopes.readonly") return textToolResult(await readMarketplaceShopifyPermissionReadiness(env));
   if (capabilityId === "shopify.marketplace.amazon_order_adoption.readonly") return textToolResult(await readShopifyChannableAmazonAdoptionIndex(request,env));
