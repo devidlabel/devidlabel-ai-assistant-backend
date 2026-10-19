@@ -147,6 +147,28 @@ await assert.rejects(
   /amazon_stock_writer_isolation_not_operationally_verified/,
 );
 assert.equal(writes, 0);
+await assert.rejects(
+  () => execute(prepared.prepared_request, env, {
+    ...deps,
+    verifyWriterIsolation: async p => ({
+      ...(await deps.verifyWriterIsolation(p)),
+      verified_at: new Date(fixedTime - 6 * 60 * 1000).toISOString(),
+    }),
+  }),
+  /amazon_stock_writer_isolation_not_operationally_verified/,
+);
+assert.equal(writes, 0);
+await assert.rejects(
+  () => execute(prepared.prepared_request, env, {
+    ...deps,
+    verifyWriterIsolation: async p => ({
+      ...(await deps.verifyWriterIsolation(p)),
+      marketplaces: ["IT", "DE", "FR", "UK"],
+    }),
+  }),
+  /amazon_stock_writer_isolation_not_operationally_verified/,
+);
+assert.equal(writes, 0);
 
 const updated = await execute(prepared.prepared_request, env, deps);
 assert.equal(updated.status, "UPDATED_AND_VERIFIED");
