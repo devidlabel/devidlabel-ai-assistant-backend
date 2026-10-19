@@ -7,6 +7,10 @@ MARE_MARKETPLACE_SHADOW_ENABLED = "true"
 MARE_ORDER_JOURNAL_ENABLED = "true"
 # Amazon remote validation only: fixed preview mode and zero submitted quantity.
 AMAZON_OFFER_PREVIEW_ENABLED = "true"
+# Shipment confirmation remains preview-only, with no Amazon writer. BRT is an
+# accepted Amazon carrier code; map only observed Shopify label spellings.
+# Revalidate seller/account eligibility and shipment ownership before any future live writer.
+AMAZON_SHIPMENT_CARRIER_MAP_JSON = '{"brt":{"carrier_code":"BRT"},"BRT":{"carrier_code":"BRT"}}'
 ASSISTANT_MODEL = "gpt-4o-mini"
 # Comma-separated list. The Worker also derives the exact *.myshopify.com preview origin from SHOPIFY_SHOP_DOMAIN.
 ASSISTANT_ALLOWED_ORIGINS = "https://devidlabel.com,https://www.devidlabel.com"
