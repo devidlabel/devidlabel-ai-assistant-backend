@@ -24,7 +24,7 @@ function catalog(key,barcodeQuery=false,duplicate=false) {
   const i=barcodeQuery?getEan(key):getSku(key);
   assert.ok(i>=0);
   const makeProduct=(variantId,ean=key)=>({
-    status:"ACTIVE",variants:[{id:variantId,sku:S[i][0],barcode:barcodeQuery?ean:S[i][1]}],
+    status:"ACTIVE",product_type:"Sneakers",vendor:"4B12",variants:[{id:variantId,sku:S[i][0],barcode:barcodeQuery?ean:S[i][1]}],
   });
   const p=[makeProduct(id(i))];
   if(duplicate&&barcodeQuery&&i===1)
