@@ -28,6 +28,26 @@ export type AmazonStockSyncPreparedRequest = AmazonStockSyncRequest & Readonly<{
   prepared_at: string;
 }>;
 
+export type AmazonStockMutationReceipt = Readonly<{
+  marketplace: Market;
+  sku: string;
+  asin: string;
+  writer_isolation: "CHANNABLE_DISABLED_FOR_SKU";
+  shopify_variant_id: string;
+  shopify_available_quantity_at_write: number;
+  shopify_committed_quantity_at_write: number;
+  shopify_on_hand_quantity_at_write: number;
+  amazon_product_type: string;
+  target_quantity: number;
+  previous_quantity: number;
+  prepared_at: string;
+  provider_status: "ACCEPTED";
+  submission_reference: string;
+  accepted_at: string;
+  provider_issues: Array<{ code: string; severity: string; attribute_names: string[] }>;
+  provider_mutations: 1;
+}>;
+
 export type AmazonStockSyncDependencies = {
   readShopifyCatalog?: typeof readShopifyCatalogComplete;
   readAmazonListing?: typeof readAmazonSellerListingsDirect;
@@ -35,6 +55,7 @@ export type AmazonStockSyncDependencies = {
   fetch?: typeof fetch;
   clock?: () => number;
   sleep?: (milliseconds: number) => Promise<void>;
+  onMutationAccepted?: (receipt: AmazonStockMutationReceipt) => Promise<void>;
 };
 
 const HOST = "https://sellingpartnerapi-eu.amazon.com";
@@ -261,6 +282,104 @@ function safeIssues(raw: unknown): Array<{ code: string; severity: string; attri
   });
 }
 
+function classifyReadFailure(error: unknown): "READ_TIMEOUT" | "READ_ERROR" {
+  const message = error instanceof Error ? error.message : "";
+  return /timeout|timed.?out|abort/i.test(message) ? "READ_TIMEOUT" : "READ_ERROR";
+}
+
+async function readShopifyStateOnly(
+  request: Pick<AmazonStockSyncRequest, "sku">,
+  env: StockSyncEnv,
+  dependencies: AmazonStockSyncDependencies,
+): Promise<ReturnType<typeof extractShopifyVariant>> {
+  const catalog = await (dependencies.readShopifyCatalog ?? readShopifyCatalogComplete)({
+    query: "sku:" + request.sku,
+    max_products: 10,
+    inline_limit: 10,
+    include_csv: false,
+  }, env);
+  return extractShopifyVariant(catalog, request.sku);
+}
+
+async function readAmazonStateOnly(
+  request: Pick<AmazonStockSyncRequest, "marketplace" | "sku" | "asin">,
+  env: StockSyncEnv,
+  dependencies: AmazonStockSyncDependencies,
+): Promise<ReturnType<typeof extractAmazonState>> {
+  const amazonRaw = await (dependencies.readAmazonListing ?? readAmazonSellerListingsDirect)({
+    marketplace: request.marketplace,
+    skus: [request.sku],
+  }, env);
+  return extractAmazonState(amazonRaw, request);
+}
+
+function validateMutationReceipt(raw: unknown): AmazonStockMutationReceipt {
+  const row = object(raw);
+  const request = validateInput({
+    marketplace: row.marketplace,
+    sku: row.sku,
+    asin: row.asin,
+    writer_isolation: row.writer_isolation,
+  });
+  const variantId = typeof row.shopify_variant_id === "string" ? row.shopify_variant_id : "";
+  const available = integer(row.shopify_available_quantity_at_write);
+  const committed = integer(row.shopify_committed_quantity_at_write);
+  const onHand = integer(row.shopify_on_hand_quantity_at_write);
+  const target = integer(row.target_quantity);
+  const previous = integer(row.previous_quantity);
+  const productType = typeof row.amazon_product_type === "string" ? row.amazon_product_type : "";
+  const preparedAt = typeof row.prepared_at === "string" ? row.prepared_at : "";
+  const acceptedAt = typeof row.accepted_at === "string" ? row.accepted_at : "";
+  const submissionReference = typeof row.submission_reference === "string" && REFERENCE_RE.test(row.submission_reference)
+    ? row.submission_reference : "";
+  const issues = Array.isArray(row.provider_issues)
+    ? row.provider_issues.slice(0, 32).map(value => {
+      const issue = object(value);
+      return {
+        code: typeof issue.code === "string" && /^[A-Za-z0-9_-]{1,90}$/.test(issue.code) ? issue.code : "UNVERIFIED",
+        severity: typeof issue.severity === "string" && ["ERROR", "WARNING", "INFO", "UNVERIFIED"].includes(issue.severity)
+          ? issue.severity : "UNVERIFIED",
+        attribute_names: Array.isArray(issue.attribute_names)
+          ? issue.attribute_names.filter(x => typeof x === "string" && /^[a-z][a-z0-9_]{0,119}$/.test(x)).slice(0, 20) as string[]
+          : [],
+      };
+    })
+    : [];
+  if (!/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(variantId) ||
+      available === null || committed === null || onHand === null || target === null || previous === null ||
+      target > MAX_TARGET_QUANTITY || target !== available || !PRODUCT_TYPE_RE.test(productType) ||
+      !preparedAt || !Number.isFinite(Date.parse(preparedAt)) ||
+      row.provider_status !== "ACCEPTED" || !submissionReference ||
+      !acceptedAt || !Number.isFinite(Date.parse(acceptedAt)) || row.provider_mutations !== 1)
+    fail("amazon_stock_mutation_receipt_invalid");
+  return Object.freeze({
+    ...request,
+    shopify_variant_id: variantId,
+    shopify_available_quantity_at_write: available,
+    shopify_committed_quantity_at_write: committed,
+    shopify_on_hand_quantity_at_write: onHand,
+    amazon_product_type: productType,
+    target_quantity: target,
+    previous_quantity: previous,
+    prepared_at: preparedAt,
+    provider_status: "ACCEPTED",
+    submission_reference: submissionReference,
+    accepted_at: acceptedAt,
+    provider_issues: issues,
+    provider_mutations: 1,
+  });
+}
+
+function shopifyChangedSinceMutation(
+  current: ReturnType<typeof extractShopifyVariant>,
+  receipt: AmazonStockMutationReceipt,
+): boolean {
+  return current.variant_id !== receipt.shopify_variant_id ||
+    current.available !== receipt.shopify_available_quantity_at_write ||
+    current.committed !== receipt.shopify_committed_quantity_at_write ||
+    current.on_hand !== receipt.shopify_on_hand_quantity_at_write;
+}
+
 export async function executeAmazonExistingOfferStockSync(
   rawPrepared: unknown,
   env: StockSyncEnv,
@@ -330,8 +449,6 @@ export async function executeAmazonExistingOfferStockSync(
       redirect: "manual",
     });
   } catch { fail("amazon_stock_write_transport_failed"); }
-  // Listings Items PATCH returns HTTP 200. Acceptance still requires the
-  // matching SKU, ACCEPTED status and submission ID below, then live readback.
   if (response.status !== 200) {
     void response.body?.cancel().catch(() => {});
     fail("amazon_stock_write_http_" + response.status);
@@ -344,15 +461,38 @@ export async function executeAmazonExistingOfferStockSync(
   if (!submissionId || provider.sku !== prepared.sku || providerStatus !== "ACCEPTED")
     fail("amazon_stock_write_not_accepted");
 
+  const receipt: AmazonStockMutationReceipt = Object.freeze({
+    marketplace: prepared.marketplace,
+    sku: prepared.sku,
+    asin: prepared.asin,
+    writer_isolation: prepared.writer_isolation,
+    shopify_variant_id: prepared.shopify_variant_id,
+    shopify_available_quantity_at_write: prepared.shopify_available_quantity,
+    shopify_committed_quantity_at_write: prepared.shopify_committed_quantity,
+    shopify_on_hand_quantity_at_write: prepared.shopify_on_hand_quantity,
+    amazon_product_type: prepared.amazon_product_type,
+    target_quantity: target,
+    previous_quantity: prepared.amazon_current_quantity,
+    prepared_at: prepared.prepared_at,
+    provider_status: "ACCEPTED",
+    submission_reference: submissionId,
+    accepted_at: now(dependencies.clock ?? Date.now),
+    provider_issues: issues,
+    provider_mutations: 1,
+  });
+  if (dependencies.onMutationAccepted) {
+    try { await dependencies.onMutationAccepted(receipt); }
+    catch { fail("amazon_stock_write_receipt_persistence_failed"); }
+  }
+
   const sleep = dependencies.sleep ?? ((milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds)));
+  let successfulReadbacks = 0;
+  let lastReadFailure: "READ_TIMEOUT" | "READ_ERROR" = "READ_ERROR";
   for (let attempt = 1; attempt <= POLL_ATTEMPTS; attempt++) {
     if (attempt > 1) await sleep(POLL_DELAY_MS);
-    const observedRaw = await (dependencies.readAmazonListing ?? readAmazonSellerListingsDirect)({
-      marketplace: prepared.marketplace,
-      skus: [prepared.sku],
-    }, env);
     try {
-      const observed = extractAmazonState(observedRaw, prepared);
+      const observed = await readAmazonStateOnly(prepared, env, dependencies);
+      successfulReadbacks++;
       if (observed.product_type === prepared.amazon_product_type && observed.quantity === target) {
         return {
           ok: true,
@@ -370,11 +510,164 @@ export async function executeAmazonExistingOfferStockSync(
           readback_verified: true,
           readback_attempt: attempt,
           writer_isolation: prepared.writer_isolation,
+          mutation_receipt: receipt,
         };
       }
-    } catch {
-      // Continue bounded readback attempts. Never issue a second write.
+    } catch (error) {
+      lastReadFailure = classifyReadFailure(error);
     }
   }
-  fail("amazon_stock_write_readback_unconfirmed");
+  return {
+    ok: false,
+    status: "MUTATION_ACCEPTED_PENDING_READBACK",
+    marketplace: prepared.marketplace,
+    sku: prepared.sku,
+    asin: prepared.asin,
+    target_quantity: target,
+    previous_quantity: prepared.amazon_current_quantity,
+    provider_status: providerStatus,
+    submission_reference: submissionId,
+    provider_issues: issues,
+    provider_mutations: 1,
+    readback_verified: false,
+    readback_attempts: POLL_ATTEMPTS,
+    readback_outcome: successfulReadbacks > 0 ? "QUANTITY_NOT_CONFIRMED" : lastReadFailure,
+    writer_isolation: prepared.writer_isolation,
+    mutation_receipt: receipt,
+    retry_patch_allowed: false,
+  };
+}
+
+export async function reconcileAmazonExistingOfferStockSync(
+  rawReceipt: unknown,
+  env: StockSyncEnv,
+  dependencies: AmazonStockSyncDependencies = {},
+): Promise<Row> {
+  const receipt = validateMutationReceipt(rawReceipt);
+  let shopify: ReturnType<typeof extractShopifyVariant> | null = null;
+  let shopifyReadOutcome: "VERIFIED" | "READ_TIMEOUT" | "READ_ERROR" = "VERIFIED";
+  try {
+    shopify = await readShopifyStateOnly(receipt, env, dependencies);
+  } catch (error) {
+    shopifyReadOutcome = classifyReadFailure(error);
+  }
+
+  let amazon: ReturnType<typeof extractAmazonState> | null = null;
+  let amazonReadOutcome: "VERIFIED" | "READ_TIMEOUT" | "READ_ERROR" = "VERIFIED";
+  try {
+    amazon = await readAmazonStateOnly(receipt, env, dependencies);
+  } catch (error) {
+    amazonReadOutcome = classifyReadFailure(error);
+  }
+
+  const shopifyChanged = shopify ? shopifyChangedSinceMutation(shopify, receipt) : null;
+  const common = {
+    marketplace: receipt.marketplace,
+    sku: receipt.sku,
+    asin: receipt.asin,
+    target_quantity: receipt.target_quantity,
+    previous_quantity: receipt.previous_quantity,
+    provider_status: receipt.provider_status,
+    submission_reference: receipt.submission_reference,
+    accepted_at: receipt.accepted_at,
+    provider_mutations: 0,
+    read_only: true,
+    retry_patch_allowed: false,
+    shopify_state_verified: Boolean(shopify),
+    shopify_read_outcome: shopifyReadOutcome,
+    shopify_current_available_quantity: shopify?.available ?? null,
+    shopify_current_committed_quantity: shopify?.committed ?? null,
+    shopify_current_on_hand_quantity: shopify?.on_hand ?? null,
+    shopify_changed_since_mutation: shopifyChanged,
+  };
+
+  if (!amazon) {
+    return {
+      ...common,
+      ok: false,
+      status: "RECONCILIATION_PENDING",
+      closure_allowed: false,
+      readback_verified: false,
+      readback_outcome: amazonReadOutcome,
+      verified_quantity: null,
+      follow_up_required: true,
+    };
+  }
+
+  if (amazon.product_type === receipt.amazon_product_type && amazon.quantity === receipt.target_quantity) {
+    return {
+      ...common,
+      ok: true,
+      status: "RECONCILED_AND_VERIFIED",
+      closure_allowed: true,
+      readback_verified: true,
+      readback_outcome: "VERIFIED",
+      verified_quantity: amazon.quantity,
+      follow_up_required: shopifyChanged !== false,
+    };
+  }
+
+  return {
+    ...common,
+    ok: false,
+    status: "RECONCILIATION_PENDING",
+    closure_allowed: false,
+    readback_verified: false,
+    readback_outcome: "QUANTITY_NOT_CONFIRMED",
+    verified_quantity: amazon.quantity,
+    follow_up_required: true,
+  };
+}
+
+export async function observeHistoricalAmazonStockPlan(
+  rawPrepared: unknown,
+  env: StockSyncEnv,
+  dependencies: AmazonStockSyncDependencies = {},
+): Promise<Row> {
+  const prepared = validatePrepared(rawPrepared);
+  let shopify: ReturnType<typeof extractShopifyVariant> | null = null;
+  let shopifyReadOutcome: "VERIFIED" | "READ_TIMEOUT" | "READ_ERROR" = "VERIFIED";
+  try {
+    shopify = await readShopifyStateOnly(prepared, env, dependencies);
+  } catch (error) {
+    shopifyReadOutcome = classifyReadFailure(error);
+  }
+
+  let amazon: ReturnType<typeof extractAmazonState> | null = null;
+  let amazonReadOutcome: "VERIFIED" | "READ_TIMEOUT" | "READ_ERROR" = "VERIFIED";
+  try {
+    amazon = await readAmazonStateOnly(prepared, env, dependencies);
+  } catch (error) {
+    amazonReadOutcome = classifyReadFailure(error);
+  }
+
+  return {
+    ok: true,
+    status: "HISTORICAL_OBSERVATION_ONLY",
+    marketplace: prepared.marketplace,
+    sku: prepared.sku,
+    asin: prepared.asin,
+    target_quantity: prepared.shopify_available_quantity,
+    previous_quantity: prepared.amazon_current_quantity,
+    provider_mutations: 0,
+    read_only: true,
+    retry_patch_allowed: false,
+    closure_allowed: false,
+    historical_submission_reference_available: false,
+    attribution_to_historical_mutation_proven: false,
+    shopify_state_verified: Boolean(shopify),
+    shopify_read_outcome: shopifyReadOutcome,
+    shopify_current_available_quantity: shopify?.available ?? null,
+    shopify_changed_since_prepare: shopify
+      ? shopify.variant_id !== prepared.shopify_variant_id ||
+        shopify.available !== prepared.shopify_available_quantity ||
+        shopify.committed !== prepared.shopify_committed_quantity ||
+        shopify.on_hand !== prepared.shopify_on_hand_quantity
+      : null,
+    amazon_state_verified: Boolean(amazon),
+    amazon_read_outcome: amazonReadOutcome,
+    amazon_current_quantity: amazon?.quantity ?? null,
+    amazon_quantity_matches_historical_target: amazon?.quantity === prepared.shopify_available_quantity,
+    reason: "historical_mutation_reference_unavailable",
+  };
 }
