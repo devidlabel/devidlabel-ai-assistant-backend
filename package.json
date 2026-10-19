@@ -57,7 +57,8 @@
     "test:marketplace-shipment-reconciliation": "node scripts/test-marketplace-amazon-order-packages.mjs && node scripts/test-marketplace-shopify-amazon-shipments.mjs && node scripts/test-marketplace-shipment-runtime.mjs",
     "test:amazon-stock-sync": "node scripts/test-amazon-stock-sync.mjs",
     "test:amazon-eu-inventory-shadow": "node scripts/test-amazon-eu-inventory-shadow.mjs",
-    "test:amazon-shipment-confirmation-preview": "node scripts/test-amazon-shipment-confirmation-preview.mjs"
+    "test:amazon-shipment-confirmation-preview": "node scripts/test-amazon-shipment-confirmation-preview.mjs",
+    "test:amazon-new-asin-research": "node scripts/test-amazon-new-asin-product-type-research.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
