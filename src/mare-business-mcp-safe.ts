@@ -318,6 +318,29 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
   if (existingAmazonStock >= 0) capabilities[existingAmazonStock] = amazonStock;
   else capabilities.push(amazonStock);
 
+  const amazonStockReconcile: MareBusinessCapability = {
+    id: "amazon.inventory.sync.reconcile",
+    provider: "amazon",
+    domain: "marketplace",
+    operation: "read",
+    risk: "read_only",
+    implemented: true,
+    configured: amazonStock.configured,
+    available: amazonStock.available,
+    approval: "none",
+    description: "Read-only deferred reconciliation for one previously executed Amazon stock pilot plan. It never issues PATCH, never replays the mutation, and only closes a plan when the stored accepted-mutation receipt is matched by live Amazon readback. Historical plans without a stored submission reference remain observation-only.",
+    request_schema: {
+      type: "object",
+      properties: { plan_id: { type: "string", pattern: "^mbp_[A-Za-z0-9-]{20,80}$" } },
+      required: ["plan_id"],
+      additionalProperties: false,
+    },
+    missing: amazonStock.missing,
+  };
+  const existingAmazonStockReconcile = capabilities.findIndex((item) => item.id === amazonStockReconcile.id);
+  if (existingAmazonStockReconcile >= 0) capabilities[existingAmazonStockReconcile] = amazonStockReconcile;
+  else capabilities.push(amazonStockReconcile);
+
   return capabilities;
 }
 
