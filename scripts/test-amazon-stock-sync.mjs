@@ -83,6 +83,15 @@ const deps = {
     return amazon(amazonQuantity);
   },
   getAccessToken: async () => "synthetic-access-token",
+  verifyWriterIsolation: async prepared => ({
+    verified: true,
+    scope: "AMAZON_EU_INVENTORY_WRITERS",
+    sku: prepared.sku,
+    marketplaces: ["IT", "DE", "FR", "ES"],
+    all_competing_writers_disabled: true,
+    proof_reference: "SYNTHETIC_ISOLATION_PROOF_1",
+    verified_at: new Date(fixedTime).toISOString(),
+  }),
   sleep: async () => {},
   fetch: async (url, init) => {
     writes++;
@@ -132,6 +141,12 @@ assert.equal(prepared.summary.provider_mutations, 0);
 assert.equal(prepared.prepared_request.shopify_available_quantity, 1);
 assert.equal(prepared.prepared_request.amazon_current_quantity, 2);
 assert.equal(prepared.prepared_request.amazon_product_type, "PANTS");
+
+await assert.rejects(
+  () => execute(prepared.prepared_request, env, { ...deps, verifyWriterIsolation: undefined }),
+  /amazon_stock_writer_isolation_not_operationally_verified/,
+);
+assert.equal(writes, 0);
 
 const updated = await execute(prepared.prepared_request, env, deps);
 assert.equal(updated.status, "UPDATED_AND_VERIFIED");
@@ -222,6 +237,7 @@ assert.equal(unconfirmedReads, 7); // prepare + freshness check + five readbacks
 assert.equal(persistedReceipt.submission_reference, "SYNTHETIC_SUBMISSION_1");
 assert.equal(persistedReceipt.target_quantity, 1);
 assert.equal(persistedReceipt.provider_mutations, 1);
+assert.equal(persistedReceipt.writer_isolation_proof_reference, "SYNTHETIC_ISOLATION_PROOF_1");
 
 // Deferred reconciliation is read-only and may close after propagation, even if
 // Shopify has changed since the accepted mutation. The changed source state is
