@@ -3,6 +3,8 @@
  * This is NOT a listing builder or schema validator. Never infers technical
  * footwear specifications, brand authorization or GPSR compliance.
  */
+import { locateAmazonShoesDescriptionCandidates } from "./marketplace-amazon-shoes-description-evidence.js";
+
 type Row = Record<string, unknown>;
 type Status = "SOURCE_VERIFIED" | "TRANSFORM_REVIEW" | "MISSING" | "CONDITIONAL_UNRESOLVED";
 type AttributeRow = {attribute: string; status: Status; source_path: string | null};
@@ -27,7 +29,8 @@ function hasOption(variant: Row, names: string[]): boolean {
       names.includes(option.name.toLowerCase().trim()) && stringValue(option.value);
   });
 }
-function evidence(attribute: string, product: Row, variant: Row): Omit<AttributeRow, "attribute"> {
+function evidence(attribute: string, product: Row, variant: Row,
+  descriptionCandidates: Readonly<Record<string,string>>): Omit<AttributeRow, "attribute"> {
   if (attribute === "brand" && stringValue(product.vendor))
     return {status:"SOURCE_VERIFIED", source_path:"product.vendor"};
   if (attribute === "item_name" && stringValue(product.title))
@@ -48,6 +51,9 @@ function evidence(attribute: string, product: Row, variant: Row): Omit<Attribute
     return {status:"TRANSFORM_REVIEW", source_path:"product.tags"};
   if (attribute === "product_description" && stringValue(product.description_html))
     return {status:"TRANSFORM_REVIEW", source_path:"product.description_html"};
+  // These are only unverified marketing-copy LOCATIONS for human review.
+  if (Object.hasOwn(descriptionCandidates, attribute))
+    return {status:"TRANSFORM_REVIEW", source_path: descriptionCandidates[attribute]};
   // No synthetic manufacturer, origin, leather, sole, construction, GPSR,
   // bullets, etc. Marketing descriptions alone do not prove technical specs.
   return {status:"MISSING", source_path:null};
@@ -79,8 +85,9 @@ export function buildAmazonShoesGapReport(
       typeof variant.sku !== "string" || !variant.sku)
     return unavailable("shopify_sneaker_evidence_unverified");
 
+  const descriptionCandidates = locateAmazonShoesDescriptionCandidates(product.description_html);
   const attributes: AttributeRow[] = [...requiredNames].sort().map(attribute => ({
-    attribute, ...evidence(attribute, product, variant),
+    attribute, ...evidence(attribute, product, variant, descriptionCandidates),
   }));
   const required_status_counts = {
     SOURCE_VERIFIED: attributes.filter(x => x.status === "SOURCE_VERIFIED").length,
@@ -91,6 +98,9 @@ export function buildAmazonShoesGapReport(
     report_status:"GAPS_REQUIRE_REVIEW", product_type:"SHOES",
     required_attribute_count:attributes.length,
     attributes, required_status_counts,
+    description_review_candidate_count: attributes.filter(a => a.status === "TRANSFORM_REVIEW" &&
+      a.source_path?.startsWith("product.description_html:")).length,
+    description_evidence_not_manufacturer_verified: true,
     conditional_requirements:conditionalRequirementsDetected
       ? [{attribute:"unmapped_schema_conditions",
           status:"CONDITIONAL_UNRESOLVED",source_path:null}]
