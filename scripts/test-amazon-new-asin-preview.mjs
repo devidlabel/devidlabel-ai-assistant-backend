@@ -16,13 +16,23 @@ function research(){
     read_only:true,provider_mutations:0,product_payload_constructed:false,
     validation_preview_sent:false,can_publish:false,
     attribute_gap_report:{report_status:"GAPS_REQUIRE_REVIEW"},
+    required_attribute_names:["brand","item_name","model_name","color"],
     shopify:{ean,product_title:"Mock Sneaker Ivory",
+      variant_id:"gid://shopify/ProductVariant/55555",
       brand:"Back70",amazon_listing_brand:"Back 70 Streetwear",
       amazon_brand_mapping_source:"MERCHANT_CONFIRMED_MAPPING"}};
 }
 let calls=0;
 const deps={
   research:async x=>{assert.deepEqual(x,{marketplace,sku,product_type:"SHOES"});return research();},
+  readPrivateFields:async input=>{
+    assert.equal(input.sku,sku);
+    assert.equal(input.variantId,"gid://shopify/ProductVariant/55555");
+    assert.equal(input.amazonBrand,"Back 70 Streetwear");
+    return {ok:true,model_name:"Mohair",color:"Camel/Butter",
+      draft_values_review_only:true,public_storefront_access_used:false,
+      ready_for_publication:false};
+  },
   getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
   fetch:async (url,init)=>{
     calls++;
@@ -37,7 +47,9 @@ const deps={
     assert.equal(body.productType,"SHOES");
     assert.equal(body.requirements,"LISTING");
     assert.deepEqual(Object.keys(body.attributes).sort(),[
-      "brand","externally_assigned_product_identifier","item_name"].sort());
+      "brand","externally_assigned_product_identifier","item_name","model_name","color"].sort());
+    assert.equal(body.attributes.model_name[0].value,"Mohair");
+    assert.equal(body.attributes.color[0].value,"Camel/Butter");
     assert.equal(body.attributes.brand[0].value,"Back 70 Streetwear");
     assert.equal(body.attributes.item_name[0].value,"Mock Sneaker Ivory");
     assert.equal(body.attributes.externally_assigned_product_identifier[0].value,ean);
@@ -63,6 +75,10 @@ assert.equal(result.can_publish,false);
 assert.equal(result.gpsr_compliance_proven,false);
 assert.equal(result.validation_mode,"VALIDATION_PREVIEW");
 assert.equal(result.preview_only,true);
+assert.equal(result.private_shopify_metafields_used,true);
+assert.equal(result.storefront_unchanged,true);
+assert.ok(!JSON.stringify(result).includes("Camel/Butter"));
+assert.ok(!JSON.stringify(result).includes("Mohair"));
 assert.equal(result.issue_count,1);
 assert.deepEqual(result.issues[0],{
   code:"90004100",severity:"ERROR",attribute_names:["country_of_origin"]});
@@ -93,3 +109,8 @@ const tooBig=await run(request,env,{...deps,fetch:async()=>new Response("x".repe
   status:200,headers:{"content-type":"application/json"}})});
 assert.equal(tooBig.reason,"amazon_preview_body_too_large");
 console.log("Amazon new ASIN SHOES VALIDATION_PREVIEW safety tests passed.");
+
+const mismatchedFields=await run(request,env,{...deps,readPrivateFields:async()=>({ok:false,reason:"shopify_brand_field_mismatch"})});
+assert.equal(mismatchedFields.ok,false);
+assert.equal(mismatchedFields.reason,"shopify_private_fields_not_verified");
+assert.equal(calls,1);
