@@ -341,7 +341,7 @@ export async function researchAmazonNewAsinProductType(
   let discoverySource = "AMAZON_ITEM_NAME";
   let titleCategoryConflict = false;
   if (sneakers) {
-    const footwear = (choices: typeof candidates) =>
+    const footwear = (choices: Array<{name:string; display_name:string}>) =>
       choices.filter(c => c.name === "SHOES" || c.name === "BOOT");
     const titleFootwear = footwear(candidates);
     if (titleFootwear.length) {
