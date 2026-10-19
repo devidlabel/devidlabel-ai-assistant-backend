@@ -24,7 +24,9 @@ on:
       - '.github/workflows/deploy-worker.yml'
 
 concurrency:
-  group: cloudflare-production
+  # PR checks must never hold the Cloudflare production deployment queue.
+  # Each PR is serialized on its own; actual deploys stay exclusive.
+  group: ${{ github.event_name == 'pull_request' && format('cloudflare-pr-{0}', github.event.pull_request.number) || 'cloudflare-production' }}
   cancel-in-progress: false
 
 permissions:
