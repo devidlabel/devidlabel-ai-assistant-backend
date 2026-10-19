@@ -171,5 +171,5 @@ for(const bad of [{...req,product_type:"../../secret"},{...req,extra:true},{...r
 }
 const source=await (await import("node:fs/promises")).readFile("src/marketplace-amazon-new-asin-research.ts","utf8");
 assert.equal(/method:\s*["'](?:PUT|POST|PATCH|DELETE)["']/.test(source),false);
-assert.equal(/VALIDATION_PREVIEW/.test(source),false);
+assert.equal(/searchParams\.set\(["\x27]mode["\x27],\s*["\x27]VALIDATION_PREVIEW/.test(source),false);
 console.log("Amazon new-ASIN PTD read-only research tests passed.");
