@@ -106,6 +106,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"], [amazon, "Amazon SP-API credentials"]]
     }),
     capability({
+      id:"amazon.sneakers.ptd_readiness.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Read-only single-SKU, single-market SHOES PTD readiness combining verified Amazon new-ASIN research with Shopify structured evidence locations. Original MISSING attributes remain missing, all safety/compliance/publication gates blocked, no payload and no writes.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}
+      },["marketplace","sku"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [shopify,"Shopify OAuth/KV"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"shopify.sneakers.structured_evidence.readonly",
       provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&shopify,approval:"none",
