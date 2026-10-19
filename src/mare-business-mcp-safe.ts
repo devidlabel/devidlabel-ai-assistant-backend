@@ -2,7 +2,7 @@ import { readMarketplaceShadowStatus } from "./marketplace-shadow.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
-import { prepareAmazonExistingOfferStockSync, executeAmazonExistingOfferStockSync } from "./mare-business-amazon-stock-sync.js";
+import { prepareAmazonExistingOfferStockSync, executeAmazonExistingOfferStockSync, reconcileAmazonExistingOfferStockSync, observeHistoricalAmazonStockPlan } from "./mare-business-amazon-stock-sync.js";
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
@@ -54,6 +54,7 @@ type StoredPlan = {
   executed_at?: string;
   result_summary?: JsonObject;
   error?: string;
+  reconciliation?: JsonObject;
 };
 
 const PLAN_TTL_SECONDS = 24 * 60 * 60;
@@ -496,15 +497,57 @@ async function executeAmazonStockPlan(
   plan.status = "executing";
   await storePlan(plan, env);
   try {
-    const result = await executeAmazonExistingOfferStockSync(plan.request, env as any);
+    let acceptedReceipt: JsonObject | null = null;
+    const result = await executeAmazonExistingOfferStockSync(plan.request, env as any, {
+      onMutationAccepted: async (receipt) => {
+        acceptedReceipt = receipt as unknown as JsonObject;
+        plan.reconciliation = {
+          phase: "mutation_accepted",
+          receipt: acceptedReceipt,
+          readback_verified: false,
+          retry_patch_allowed: false,
+        };
+        await storePlan(plan, env);
+      },
+    });
+    if (result.status === "MUTATION_ACCEPTED_PENDING_READBACK") {
+      plan.status = "reconciliation_required";
+      plan.result_summary = result;
+      plan.error = "amazon_stock_write_readback_unconfirmed";
+      plan.reconciliation = {
+        phase: "pending_readback",
+        receipt: acceptedReceipt ?? object(result.mutation_receipt),
+        readback_verified: false,
+        retry_patch_allowed: false,
+        last_readback: result,
+      };
+      await storePlan(plan, env);
+      return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
+    }
     plan.status = "completed";
     plan.executed_at = new Date().toISOString();
     plan.result_summary = result;
+    if (acceptedReceipt) {
+      plan.reconciliation = {
+        phase: "verified",
+        receipt: acceptedReceipt,
+        readback_verified: true,
+        retry_patch_allowed: false,
+        last_readback: result,
+      };
+    }
     await storePlan(plan, env);
     return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
   } catch (error) {
     plan.status = "reconciliation_required";
     plan.error = error instanceof Error ? error.message : "amazon_stock_plan_execution_failed";
+    if (!plan.reconciliation) {
+      plan.reconciliation = {
+        phase: "mutation_outcome_unknown",
+        readback_verified: false,
+        retry_patch_allowed: false,
+      };
+    }
     await storePlan(plan, env);
     throw error;
   }
@@ -685,6 +728,8 @@ export async function handleMareBusinessMcpSafeRequest(
           correct_regular_and_sale_price_mapping: true,
           shopify_existing_metafields_first_class: true,
           shopify_missing_season_first_class: true,
+          amazon_stock_deferred_readback_reconciliation: true,
+          amazon_stock_patch_retry_after_acceptance: false,
         },
       };
       return rpcToolResponse(request, rpc.id, textToolResult(payload));
@@ -727,6 +772,61 @@ export async function handleMareBusinessMcpSafeRequest(
         const capability = await resolveCapability(capabilityId, env);
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, textToolResult(await readTikTokCampaignsSafe(requestPayload, env)));
+      }
+      if (capabilityId === "amazon.inventory.sync.reconcile") {
+        const planId = normalize(requestPayload.plan_id);
+        const plan = await loadPlan(planId, env);
+        if (plan.capability_id !== AMAZON_STOCK_CAPABILITY_ID) {
+          return rpcToolResponse(request, rpc.id, toolFailure("plan_capability_mismatch", plan));
+        }
+        if (plan.status !== "reconciliation_required") {
+          return rpcToolResponse(request, rpc.id, textToolResult({
+            ok: true,
+            plan_id: plan.plan_id,
+            status: plan.status,
+            reconciliation_required: false,
+            read_only: true,
+          }));
+        }
+        const receipt = object(plan.reconciliation?.receipt);
+        if (Object.keys(receipt).length === 0) {
+          const observation = await observeHistoricalAmazonStockPlan(plan.request, env as any);
+          plan.reconciliation = {
+            ...(plan.reconciliation || {}),
+            phase: "historical_observation_only",
+            historical_submission_reference_available: false,
+            retry_patch_allowed: false,
+            last_readback: observation,
+          };
+          await storePlan(plan, env);
+          return rpcToolResponse(request, rpc.id, textToolResult({
+            plan_id: plan.plan_id,
+            plan_status: plan.status,
+            reconciliation_closed: false,
+            result: observation,
+          }));
+        }
+        const reconciliation = await reconcileAmazonExistingOfferStockSync(receipt, env as any);
+        plan.result_summary = reconciliation;
+        plan.reconciliation = {
+          ...(plan.reconciliation || {}),
+          phase: reconciliation.status === "RECONCILED_AND_VERIFIED" ? "verified" : "pending_readback",
+          readback_verified: reconciliation.readback_verified === true,
+          retry_patch_allowed: false,
+          last_readback: reconciliation,
+        };
+        if (reconciliation.status === "RECONCILED_AND_VERIFIED" && reconciliation.closure_allowed === true) {
+          plan.status = "completed";
+          plan.executed_at = plan.executed_at || new Date().toISOString();
+          plan.error = undefined;
+        }
+        await storePlan(plan, env);
+        return rpcToolResponse(request, rpc.id, textToolResult({
+          plan_id: plan.plan_id,
+          plan_status: plan.status,
+          reconciliation_closed: plan.status === "completed",
+          result: reconciliation,
+        }));
       }
     }
 
