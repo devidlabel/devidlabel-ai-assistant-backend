@@ -270,7 +270,7 @@ function amazonStockCapability(env: SafeBusinessEnv): MareBusinessCapability {
     configured,
     available: configured,
     approval: "explicit",
-    description: "Pilot-only update of current FBM quantity on one existing Amazon seller offer. Target quantity is derived server-side from Shopify available inventory after committed units; prepare and execute re-read Shopify and Amazon, require explicit Channable isolation attestation, perform at most one PATCH, then require provider readback. No product creation, price change, feed upload or automatic scheduler.",
+    description: "Pilot-only update of current FBM quantity on one existing Amazon seller offer. Target quantity is derived server-side from Shopify available inventory. Execute requires fresh server-side proof that all competing EU inventory writers are disabled; the caller writer_isolation string is only an attestation and is never sufficient by itself. At most one PATCH is allowed, followed by provider readback or deferred reconciliation. No product creation, price change, feed upload or automatic scheduler.",
     request_schema: {
       type: "object",
       properties: {
@@ -419,6 +419,9 @@ async function prepareAmazonStockWrite(
       target_quantity_server_derived_from_shopify_available: true,
       committed_inventory_accounted: true,
       channable_writer_isolation_attested: true,
+      caller_attestation_is_not_isolation_proof: true,
+      server_side_eu_writer_isolation_proof_required: true,
+      production_execute_fail_closed_until_verifier_is_wired: true,
       amazon_read_before_write: true,
       at_most_one_provider_patch: true,
       amazon_read_after_write_required: true,
