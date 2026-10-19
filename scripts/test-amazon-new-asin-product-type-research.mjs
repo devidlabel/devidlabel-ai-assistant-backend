@@ -63,19 +63,35 @@ function fakeFetch(events, options={}) {
     events.push({url:u.toString(),auth:Object.hasOwn(init.headers,"x-amz-access-token")});
     let data;
     if(u.pathname==="/definitions/2020-09-01/productTypes"){
-      assert.equal(u.searchParams.get("itemName"),"Cappello A Pescatora Buffalo");
       assert.equal(u.searchParams.get("marketplaceIds"),MARKET_ID);
-      data={productTypes:[
-        {name:"HAT",displayName:"Hat",marketplaceIds:[MARKET_ID]},
-        {name:"SHOES",displayName:"Shoes",marketplaceIds:[MARKET_ID]},
-      ]};
-    }else if(u.pathname==="/definitions/2020-09-01/productTypes/HAT"){
+      if(options.sneakersFallback){
+        if(u.searchParams.has("keywords")){
+          assert.equal(u.searchParams.get("itemName"),null);
+          assert.equal(u.searchParams.get("keywords"),"shoes");
+          assert.equal(u.searchParams.get("searchLocale"),"en_US");
+          data={productTypes: options.noShoeKeyword
+            ? [{name:"SPEAKERS",displayName:"Speakers",marketplaceIds:[MARKET_ID]}]
+            : [{name:"SHOES",displayName:"Shoes",marketplaceIds:[MARKET_ID]},
+               {name:"DRINK_FLAVORED",displayName:"Drink",marketplaceIds:[MARKET_ID]}]};
+        }else{
+          assert.equal(u.searchParams.get("itemName"),"PlayNew D-2026 White/Bordeaux");
+          data={productTypes:[{name:"SPEAKERS",displayName:"Speakers",marketplaceIds:[MARKET_ID]}]};
+        }
+      }else{
+        assert.equal(u.searchParams.get("itemName"),"Cappello A Pescatora Buffalo");
+        data={productTypes:[
+          {name:"HAT",displayName:"Hat",marketplaceIds:[MARKET_ID]},
+          {name:"SHOES",displayName:"Shoes",marketplaceIds:[MARKET_ID]},
+        ]};
+      }
+    }else if(u.pathname==="/definitions/2020-09-01/productTypes/HAT" ||
+      (options.sneakersFallback && u.pathname==="/definitions/2020-09-01/productTypes/SHOES")){
       assert.equal(u.searchParams.get("requirements"),"LISTING");
       assert.equal(u.searchParams.get("requirementsEnforced"),"ENFORCED");
       assert.equal(u.searchParams.get("parentageLevel"),"NONE");
       assert.equal(u.searchParams.get("sellerId"),"A1234567891234");
       data={
-        productType:"HAT",requirements:"LISTING",requirementsEnforced:"ENFORCED",
+        productType:u.pathname.endsWith("/SHOES")?"SHOES":"HAT",requirements:"LISTING",requirementsEnforced:"ENFORCED",
         marketplaceIds:[MARKET_ID],
         schema:{link:{resource:options.evilUrl||"https://valid-schema.s3.eu-west-1.amazonaws.com/ptd.json?signature=mock",verb:"GET"},checksum:"abcd1234"},
         productTypeVersion:{version:"2026.10",latest:true},
@@ -187,6 +203,48 @@ assert.equal(rootSchemaResult.conditional_requirements_detected,true);
 assert.equal(rootSchemaResult.full_schema_validated,false);
 assert.equal(rootSchemaResult.provider_mutations,0);
 assert.equal(rootSchemaEvents.length,3);
+
+// Live regression: Amazon item-name PTD has called PlayNew a SPEAKERS product.
+// Shopify Sneakers activates a strictly read-only keyword recheck; unrelated
+// title matches can never be selected as valid footwear product types.
+function sneakerDeps(events, opts={}) {
+  return deps(events,{
+    readShopify:async args=>{
+      assert.equal(args.persist_artifacts,false);
+      assert.ok(args.query.includes('sku:"'+SKU+'"') ||
+        args.query.includes('barcode:"'+EAN+'"'));
+      const catalog=shopify();
+      catalog.products[0].product_type="Sneakers";
+      catalog.products[0].title="PlayNew D-2026 White/Bordeaux";
+      return catalog;
+    },
+    fetch:fakeFetch(events,{sneakersFallback:true,...opts}),
+  });
+}
+const sneakerEvents=[];
+const sneakerDiscovery=await research(req,env,sneakerDeps(sneakerEvents));
+assert.equal(sneakerDiscovery.status,"PRODUCT_TYPE_SELECTION_REQUIRED");
+assert.deepEqual(sneakerDiscovery.product_type_candidates.map(x=>x.name),["SHOES"]);
+assert.equal(sneakerDiscovery.product_type_discovery_source,"AMAZON_KEYWORDS_SHOPIFY_SNEAKERS");
+assert.equal(sneakerDiscovery.title_category_conflict_detected,true);
+assert.equal(sneakerDiscovery.can_publish,false);
+assert.equal(sneakerDiscovery.provider_mutations,0);
+assert.equal(sneakerEvents.length,2);
+assert.ok(sneakerEvents.every(x=>x.auth));
+const sneakerSchemaEvents=[];
+const sneakerSchema=await research({...req,product_type:"SHOES"},env,sneakerDeps(sneakerSchemaEvents));
+assert.equal(sneakerSchema.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(sneakerSchema.product_type,"SHOES");
+assert.equal(sneakerSchema.product_type_discovery_source,"AMAZON_KEYWORDS_SHOPIFY_SNEAKERS");
+assert.equal(sneakerSchema.full_schema_validated,false);
+assert.equal(sneakerSchema.provider_mutations,0);
+assert.equal(sneakerSchemaEvents.length,4);
+const invalidSneakerType=await research({...req,product_type:"SPEAKERS"},env,sneakerDeps([]));
+assert.equal(invalidSneakerType.blocker,"product_type_not_in_marketplace_recommendations");
+const sneakerNoFootwear=await research(req,env,sneakerDeps([],{noShoeKeyword:true}));
+assert.equal(sneakerNoFootwear.status,"BLOCKED_DEFINITIONS");
+assert.equal(sneakerNoFootwear.blocker,"sneakers_footwear_type_not_recommended");
+assert.equal(sneakerNoFootwear.provider_mutations,0);
 
 const invalidType=await research({...req,product_type:"BAG"},env,deps());
 assert.equal(invalidType.status,"BLOCKED_DEFINITIONS");
