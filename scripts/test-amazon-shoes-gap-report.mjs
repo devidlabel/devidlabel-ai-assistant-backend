@@ -90,6 +90,72 @@ const extra=gap(product,variant,[...required,"compliance_custom_future_field"],t
 assert.equal(extra.required_attribute_count,24);
 assert.equal(byField(extra).compliance_custom_future_field.status,"MISSING");
 
+
+const proKeds = {
+  status:"ACTIVE",product_type:"Sneakers",vendor:"Pro-Keds",
+  title:"Royal Classic Tundra/Ivory",tags:["COL:Sneakers","FW26"],
+  description_html:[
+    "<p>Marketing copy, not a manufacturer certificate</p>",
+    "<ul><li><strong>Modello:</strong> Royal Classic</li>",
+    "<li><strong>Genere:</strong> Uomo</li>",
+    "<li><strong>Colore:</strong> Tundra/Ivory</li>",
+    "<li><strong>Tomaia:</strong> 83% suede, 17% pelle</li>",
+    "<li><strong>Suola:</strong> 100% gomma</li>",
+    "<li><strong>Codice modello:</strong> RC426SLM</li></ul>",
+  ].join(""),
+};
+const proReport=gap(proKeds,variant,required,true,true);
+assert.deepEqual(proReport.required_status_counts,{
+  SOURCE_VERIFIED:2,TRANSFORM_REVIEW:8,MISSING:13,
+});
+assert.equal(proReport.description_review_candidate_count,6);
+assert.equal(proReport.description_evidence_not_manufacturer_verified,true);
+for(const field of ["model_name","target_gender","color","outer","sole_material","model_number"]){
+  const located=byField(proReport)[field];
+  assert.equal(located.status,"TRANSFORM_REVIEW",field);
+  assert.ok(located.source_path.startsWith("product.description_html:label:"),field);
+}
+for(const field of ["manufacturer","country_of_origin","inner","leather_type"])
+  assert.equal(byField(proReport)[field].status,"MISSING",field);
+assert.equal(proReport.ready_for_publication,false);
+assert.equal(proReport.ready_for_validation_preview,false);
+assert.equal(proReport.provider_mutations,0);
+assert.equal(JSON.stringify(proReport).includes("Tundra/Ivory"),false);
+assert.equal(JSON.stringify(proReport).includes("RC426SLM"),false);
+
+const fessura = {...proKeds,vendor:"Fessura",title:"Trail Sbl Land Violet Lime",
+  description_html:"<p>• Tomaia in mesh e rinforzi in gomma</p><p>• Battistrada in gomma</p>"};
+const fessuraReport=gap(fessura,variant,required,true,true);
+assert.deepEqual(fessuraReport.required_status_counts,{
+  SOURCE_VERIFIED:2,TRANSFORM_REVIEW:3,MISSING:18,
+});
+assert.equal(byField(fessuraReport).outer.source_path,"product.description_html:bullet:tomaia");
+assert.equal(byField(fessuraReport).sole_material.status,"MISSING",
+  "Tread material alone must not prove full sole composition");
+
+const untrusted = {...proKeds,description_html:
+  "<script><strong>Suola:</strong> gomma</script>"+
+  "<!-- <strong>Paese di origine:</strong> Italia -->"+
+  "<strong>Colore:</strong> n/a "+
+  "<style><strong>Produttore:</strong> Example</style>"};
+const untrustedReport=gap(untrusted,variant,required,true,true);
+for(const field of ["sole_material","country_of_origin","color","manufacturer"])
+  assert.equal(byField(untrustedReport)[field].status,"MISSING",field);
+assert.equal(untrustedReport.description_review_candidate_count,0);
+
+const longMarkup={...proKeds,description_html:"a".repeat(24001)+proKeds.description_html};
+const oversized=gap(longMarkup,variant,required,true,true);
+assert.equal(oversized.description_review_candidate_count,0);
+assert.equal(byField(oversized).outer.status,"MISSING");
+
+const misleading={...proKeds, description_html:
+  "<p>Sola suola in gomma secondo uno slogan pubblicitario</p>"+
+  "<p><strong>Suola:</strong> non disponibile</p>"};
+assert.equal(byField(gap(misleading,variant,required,true,true)).sole_material.status,"MISSING");
+const descriptionSource=readFileSync("src/marketplace-amazon-shoes-description-evidence.ts","utf8");
+assert.equal(/\b(?:fetch|XMLHttpRequest|putListing|submitFeed)\s*\(/.test(descriptionSource),false);
+assert.equal(/method\s*:\s*["'](?:PUT|PATCH|POST|DELETE)/.test(descriptionSource),false);
+
 const src=readFileSync("src/marketplace-amazon-shoes-gap-report.ts","utf8");
 assert.equal(/\b(?:fetch|XMLHttpRequest|putListing|submitFeed)\s*\(/.test(src),false);
 assert.equal(/method\s*:\s*["'](?:PUT|PATCH|POST|DELETE)/.test(src),false);
