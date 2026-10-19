@@ -53,6 +53,25 @@ function validate(raw: unknown): readonly string[] {
   return Object.freeze(skus);
 }
 
+function inactiveDuplicateHasVerifiedZeroStock(variant: Row): boolean {
+  if (variant.inventory_tracked !== true || variant.inventory_levels_complete !== true ||
+      integer(variant.inventory_quantity) !== 0)
+    return false;
+  const levels = Array.isArray(variant.inventory_levels) ? variant.inventory_levels.map(object) : [];
+  if (levels.length < 1 || levels.length > 100) return false;
+  return levels.every(level => {
+    const quantities = Array.isArray(level.quantities) ? level.quantities.map(object) : [];
+    const seen = new Set<string>();
+    for (const quantity of quantities) {
+      const name = quantity.name;
+      if (name !== "available" && name !== "committed" && name !== "on_hand") continue;
+      if (seen.has(name) || integer(quantity.quantity) !== 0) return false;
+      seen.add(name);
+    }
+    return seen.size === 3;
+  });
+}
+
 function extractShopify(catalogRaw: unknown, sku: string): Row {
   const catalog = object(catalogRaw);
   if (catalog.ok !== true || catalog.truncated === true || catalog.complete_variant_pagination !== true)
@@ -63,8 +82,27 @@ function extractShopify(catalogRaw: unknown, sku: string): Row {
     const variants = Array.isArray(product.variants) ? product.variants.map(object) : [];
     for (const variant of variants) if (variant.sku === sku) matches.push({ product, variant });
   }
-  if (matches.length !== 1) return { state: "UNKNOWN", reason: "shopify_sku_missing_or_duplicated" };
-  const { product, variant } = matches[0];
+  if (matches.length === 0)
+    return { state: "UNKNOWN", reason: "shopify_sku_missing_or_duplicated" };
+  const activeMatches = matches.filter(match => match.product.status === "ACTIVE");
+  if (activeMatches.length !== 1) {
+    return {
+      state: "UNKNOWN",
+      reason: activeMatches.length > 1 ? "shopify_multiple_active_sku_matches" : "shopify_no_active_sku_match",
+      total_sku_matches: matches.length,
+      active_sku_matches: activeMatches.length,
+    };
+  }
+  const inactiveMatches = matches.filter(match => match.product.status !== "ACTIVE");
+  if (!inactiveMatches.every(match => inactiveDuplicateHasVerifiedZeroStock(match.variant))) {
+    return {
+      state: "UNKNOWN",
+      reason: "shopify_inactive_sku_inventory_unverified",
+      total_sku_matches: matches.length,
+      inactive_duplicate_count: inactiveMatches.length,
+    };
+  }
+  const { product, variant } = activeMatches[0];
   if (product.status !== "ACTIVE" || variant.inventory_tracked !== true || variant.inventory_levels_complete !== true)
     return { state: "UNKNOWN", reason: "shopify_variant_not_sync_eligible" };
   const variantId = typeof variant.id === "string" && VARIANT_RE.test(variant.id) ? variant.id : null;
@@ -96,6 +134,8 @@ function extractShopify(catalogRaw: unknown, sku: string): Row {
     available,
     committed,
     on_hand: onHand,
+    inactive_duplicate_count: inactiveMatches.length,
+    source_unique_active_sku: true,
   };
 }
 
