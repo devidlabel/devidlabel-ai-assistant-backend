@@ -103,6 +103,45 @@ assert.equal(result.results[1].all_four_markets_match_shopify_available, false);
 assert.deepEqual(result.results[1].unique_verified_market_quantities, [1, 0]);
 assert.equal(result.results[1].writer_ownership_proven, false);
 
+function withDuplicateSkuProduct(sku, legacyQuantity, legacyStatus) {
+  const current = catalog(sku, 2);
+  const old = catalog(sku, legacyQuantity).products[0];
+  old.status = legacyStatus;
+  old.variants[0].id = "gid://shopify/ProductVariant/999";
+  return { ...current, products: [...current.products, old] };
+}
+
+const legacyZeroStock = await readShadow({ skus: [skus[0]] }, {}, {
+  clock: () => fixed,
+  readShopifyCatalog: async () => withDuplicateSkuProduct(skus[0], 0, "UNLISTED"),
+  readAmazonListing: async args => amazon(args.marketplace, args.skus),
+});
+assert.equal(legacyZeroStock.results[0].shopify.state, "VERIFIED");
+assert.equal(legacyZeroStock.results[0].shopify.available, 2);
+assert.equal(legacyZeroStock.results[0].shopify.inactive_duplicate_count, 1);
+assert.equal(legacyZeroStock.results[0].shopify.source_unique_active_sku, true);
+assert.equal(legacyZeroStock.results[0].all_four_markets_match_shopify_available, true);
+assert.equal(legacyZeroStock.results[0].writer_ownership_proven, false);
+assert.equal(legacyZeroStock.provider_mutations, 0);
+
+const twoActiveProducts = await readShadow({ skus: [skus[0]] }, {}, {
+  clock: () => fixed,
+  readShopifyCatalog: async () => withDuplicateSkuProduct(skus[0], 2, "ACTIVE"),
+  readAmazonListing: async args => amazon(args.marketplace, args.skus),
+});
+assert.equal(twoActiveProducts.results[0].shopify.state, "UNKNOWN");
+assert.equal(twoActiveProducts.results[0].shopify.reason, "shopify_multiple_active_sku_matches");
+assert.equal(twoActiveProducts.results[0].all_four_markets_match_shopify_available, false);
+
+const inactiveWithStock = await readShadow({ skus: [skus[0]] }, {}, {
+  clock: () => fixed,
+  readShopifyCatalog: async () => withDuplicateSkuProduct(skus[0], 1, "UNLISTED"),
+  readAmazonListing: async args => amazon(args.marketplace, args.skus),
+});
+assert.equal(inactiveWithStock.results[0].shopify.state, "UNKNOWN");
+assert.equal(inactiveWithStock.results[0].shopify.reason, "shopify_inactive_sku_inventory_unverified");
+assert.equal(inactiveWithStock.results[0].all_four_markets_match_shopify_available, false);
+
 const partial = await readShadow({ skus: [skus[0]] }, {}, {
   clock: () => fixed,
   readShopifyCatalog: async () => catalog(skus[0], 2),
