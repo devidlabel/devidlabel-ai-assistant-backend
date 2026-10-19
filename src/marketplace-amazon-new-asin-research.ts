@@ -1,6 +1,7 @@
 import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
+import { buildAmazonShoesGapReport } from "./marketplace-amazon-shoes-gap-report.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
@@ -424,6 +425,10 @@ export async function researchAmazonNewAsinProductType(
   const fields = requiredAttributes(rawSchema);
   if (!fields)
     return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_schema_structure_unverified", ...base};
+  const shoesGap = sneakers && input.product_type === "SHOES"
+    ? buildAmazonShoesGapReport(product, variant, fields.required,
+      fields.staticRequiredDeclared, fields.complex)
+    : null;
   return {
     ok: true, status: "REQUIREMENTS_REVIEW_REQUIRED",
     ...discoveryEvidence,
@@ -443,6 +448,7 @@ export async function researchAmazonNewAsinProductType(
       "item_name", "brand", "externally_assigned_product_identifier",
       "purchasable_offer", "fulfillment_availability",
     ],
+    ...(shoesGap ? {attribute_gap_report: shoesGap} : {}),
     product_payload_constructed: false, validation_preview_sent: false,
     next_step: "MAP_REQUIRED_ATTRIBUTES_AND_VALIDATE_GPSR_BRAND_AND_GTIN_BEFORE_VALIDATION_PREVIEW",
     ...base,
