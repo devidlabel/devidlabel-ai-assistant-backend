@@ -159,7 +159,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
-      id:"amazon.inventory.eu.shadow.readonly",
+      id: "amazon.inventory.eu.shadow.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
       description:"Read up to eight Shopify SKUs once and compare their live seller offer identity, FBM quantity and B2C price across Amazon IT/DE/FR/ES. Read-only shadow evidence only: it cannot change stock, price, listings, orders or writer ownership.",
@@ -220,7 +220,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       ]
     }),
     capability({
-      id:"amazon.shipment.confirmation.preview",
+      id: "amazon.shipment.confirmation.preview",
       provider:"amazon",domain:"marketplace",operation:"prepare",risk:"artifact_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
       description:"Prepare a zero-mutation Amazon Orders v0 confirmShipment preview from one existing Channable-imported Shopify order. Server-side reads require an UNSHIPPED merchant order, complete SUCCESS fulfillments, one tracking entry per package, complete quantity mapping and a configured carrier-code mapping. Tracking numbers are never returned. No Amazon confirmation is sent.",
