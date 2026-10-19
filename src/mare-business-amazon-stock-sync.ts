@@ -330,7 +330,9 @@ export async function executeAmazonExistingOfferStockSync(
       redirect: "manual",
     });
   } catch { fail("amazon_stock_write_transport_failed"); }
-  if (response.status !== 202) {
+  // Listings Items PATCH returns HTTP 200. Acceptance still requires the
+  // matching SKU, ACCEPTED status and submission ID below, then live readback.
+  if (response.status !== 200) {
     void response.body?.cancel().catch(() => {});
     fail("amazon_stock_write_http_" + response.status);
   }
