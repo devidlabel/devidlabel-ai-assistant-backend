@@ -316,27 +316,78 @@ export async function researchAmazonNewAsinProductType(
   catch { return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_search_unverified", ...base}; }
   if (!Array.isArray(found.productTypes) || found.productTypes.length > MAX_PRODUCT_TYPES)
     return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_search_invalid", ...base};
-  const candidates: Array<{name:string; display_name: string}> = [];
-  for (const raw of found.productTypes) {
-    const candidate = obj(raw), name = candidate.name;
-    if (typeof name !== "string" || !TYPE_RE.test(name) ||
-        !Array.isArray(candidate.marketplaceIds) || !candidate.marketplaceIds.includes(marketId))
-      continue;
-    candidates.push({name, display_name:
-      typeof candidate.displayName === "string" ? candidate.displayName.slice(0,120) : name});
+  // Item-name recommendations are advisory. Ambiguous sneaker titles such as
+  // "PlayNew" and "Violet Lime" have returned SPEAKERS / DRINK_FLAVORED live.
+  // A Shopify Sneakers category is a scoped hint, not publication eligibility.
+  // Recheck with a separate Amazon product-type keyword search and fail closed.
+  function extractTypes(raw: unknown): Array<{name:string; display_name:string}> | null {
+    if (!Array.isArray(raw) || raw.length > MAX_PRODUCT_TYPES) return null;
+    const choices: Array<{name:string; display_name:string}> = [];
+    for (const row of raw) {
+      const candidate = obj(row), name = candidate.name;
+      if (typeof name !== "string" || !TYPE_RE.test(name) ||
+          !Array.isArray(candidate.marketplaceIds) || !candidate.marketplaceIds.includes(marketId))
+        continue;
+      choices.push({name, display_name:
+        typeof candidate.displayName === "string" ? candidate.displayName.slice(0,120) : name});
+    }
+    return [...new Map(choices.map(c => [c.name, c])).values()];
   }
-  const unique = [...new Map(candidates.map(c => [c.name, c])).values()];
+  let candidates = extractTypes(found.productTypes);
+  if (!candidates)
+    return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_search_invalid", ...base};
+  const sneakers = typeof product.product_type === "string" &&
+    product.product_type.trim().toLowerCase() === "sneakers";
+  let discoverySource = "AMAZON_ITEM_NAME";
+  let titleCategoryConflict = false;
+  if (sneakers) {
+    const footwear = (choices: typeof candidates) =>
+      choices.filter(c => c.name === "SHOES" || c.name === "BOOT");
+    const titleFootwear = footwear(candidates);
+    if (titleFootwear.length) {
+      candidates = titleFootwear;
+      discoverySource = "AMAZON_ITEM_NAME_FOOTWEAR";
+    } else {
+      titleCategoryConflict = candidates.length > 0;
+      const keywordUrl = new URL(HOST + "/definitions/2020-09-01/productTypes");
+      keywordUrl.searchParams.set("marketplaceIds", marketId);
+      keywordUrl.searchParams.set("keywords", "shoes");
+      keywordUrl.searchParams.set("searchLocale", "en_US");
+      let keywordTypes: Row;
+      try { keywordTypes = await readJson(keywordUrl.toString(), token, fetcher); }
+      catch {
+        return {ok: false, status: "BLOCKED_DEFINITIONS",
+          blocker: "sneakers_keyword_search_unverified", ...base};
+      }
+      const verifiedTypes = extractTypes(keywordTypes.productTypes);
+      if (!verifiedTypes)
+        return {ok: false, status: "BLOCKED_DEFINITIONS",
+          blocker: "sneakers_keyword_search_invalid", ...base};
+      candidates = footwear(verifiedTypes);
+      if (candidates.length === 0)
+        return {ok: false, status: "BLOCKED_DEFINITIONS",
+          blocker: "sneakers_footwear_type_not_recommended", ...base};
+      discoverySource = "AMAZON_KEYWORDS_SHOPIFY_SNEAKERS";
+    }
+  }
+  const unique = candidates;
+  const discoveryEvidence = {
+    product_type_discovery_source: discoverySource,
+    title_category_conflict_detected: titleCategoryConflict,
+    seller_selected_product_type_not_automatically_approved: true,
+  };
   if (!input.product_type) return {
     ok: true, status: "PRODUCT_TYPE_SELECTION_REQUIRED",
     product_type_candidates: unique.slice(0, MAX_OUTPUT_TYPES),
     candidates_truncated: unique.length > MAX_OUTPUT_TYPES,
     candidate_count: unique.length,
     next_step: "REVIEW_PRODUCT_TYPE_AND_REQUEST_FULL_LISTING_SCHEMA",
+    ...discoveryEvidence,
     ...base,
   };
   if (!unique.some(c => c.name === input.product_type))
     return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_not_in_marketplace_recommendations",
-      product_type_candidates: unique.slice(0, MAX_OUTPUT_TYPES), ...base};
+      product_type_candidates: unique.slice(0, MAX_OUTPUT_TYPES), ...discoveryEvidence, ...base};
 
   const url = new URL(HOST + "/definitions/2020-09-01/productTypes/" + input.product_type);
   url.searchParams.set("marketplaceIds", marketId);
@@ -375,6 +426,7 @@ export async function researchAmazonNewAsinProductType(
     return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_schema_structure_unverified", ...base};
   return {
     ok: true, status: "REQUIREMENTS_REVIEW_REQUIRED",
+    ...discoveryEvidence,
     product_type: input.product_type, parentage_level: "NONE",
     schema_requirements: "LISTING", schema_enforced: true,
     schema_version: version.version, schema_checksum_reported: true,
