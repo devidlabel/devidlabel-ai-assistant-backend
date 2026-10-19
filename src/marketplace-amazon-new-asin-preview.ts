@@ -107,14 +107,26 @@ export async function previewAmazonNewAsinShoesValidation(
   const headerLength=Number(res.headers.get("content-length")||0);
   if(!Number.isFinite(headerLength)||headerLength>MAX_BODY)
     return blocked(marketplace,sku,"amazon_preview_body_too_large");
-  let raw:string;
+  let raw="";
+  const reader=res.body?.getReader();
+  if(!reader)return blocked(marketplace,sku,"amazon_preview_body_unreadable");
+  let bytes=0;
   try{
-    // The body length is verified in bytes after receipt. Do not return
-    // raw provider messages, URLs or customer/item details.
-    raw=await res.text();
+    const decoder=new TextDecoder("utf-8",{fatal:true});
+    for(;;){
+      if(signal.aborted)return blocked(marketplace,sku,"amazon_preview_transport_failed");
+      const part=await reader.read();
+      if(part.done)break;
+      bytes+=part.value.byteLength;
+      if(bytes>MAX_BODY){
+        void reader.cancel().catch(()=>{});
+        return blocked(marketplace,sku,"amazon_preview_body_too_large");
+      }
+      raw+=decoder.decode(part.value,{stream:true});
+    }
+    raw+=decoder.decode();
   }catch{return blocked(marketplace,sku,"amazon_preview_body_unreadable");}
-  if(new TextEncoder().encode(raw).length>MAX_BODY)
-    return blocked(marketplace,sku,"amazon_preview_body_too_large");
+  finally{reader.releaseLock();}
   let response:Row;
   try{response=obj(JSON.parse(raw));}
   catch{return blocked(marketplace,sku,"amazon_preview_json_invalid");}
