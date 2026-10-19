@@ -125,7 +125,7 @@ function eanUniqueInShopify(catalogRaw: unknown, ean: string, expectedVariantId:
   return matches === 1;
 }
 
-async function readJson(url: string, token: string | null, fetcher: typeof fetch): Promise<Row> {
+async function readJson(url: string, token: string | null, fetcher: typeof fetch, schemaDocument = false): Promise<Row> {
   let response: Response;
   try {
     response = await fetcher(url, {
@@ -136,8 +136,15 @@ async function readJson(url: string, token: string | null, fetcher: typeof fetch
     });
   } catch { throw new Error("provider_transport_unverified"); }
   if (response.status !== 200) throw new Error("provider_http_" + response.status);
-  if (!/^application\/json(?:\s*;|$)/i.test(response.headers.get("content-type") || ""))
-    throw new Error("provider_content_type_unverified");
+  const mime = (response.headers.get("content-type") || "").toLowerCase().split(";")[0].trim();
+  const accepted = mime === "application/json" ||
+    (schemaDocument && (mime === "application/octet-stream" || mime === "text/plain" || mime === ""));
+  // Amazon PTD returns a short-lived signed S3 schema document. S3 object
+  // metadata may label the JSON bytes as octet-stream or text/plain.
+  // This relaxed MIME policy applies ONLY to the URL from the verified PTD
+  // response and after strict Amazon-host allowlisting, bounded streaming and
+  // JSON parsing. Authenticated SP-API calls still require application/json.
+  if (!accepted) throw new Error("provider_content_type_unverified");
   const length = response.headers.get("content-length");
   if (length && /^\d+$/.test(length) && Number(length) > MAX_RESPONSE_BYTES)
     throw new Error("provider_payload_too_large");
@@ -340,8 +347,15 @@ export async function researchAmazonNewAsinProductType(
     return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_schema_metadata_unverified", ...base};
 
   let rawSchema: Row;
-  try { rawSchema = await readJson(schemaUrl, null, fetcher); }
-  catch { return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_schema_unavailable", ...base}; }
+  try { rawSchema = await readJson(schemaUrl, null, fetcher, true); }
+  catch (error) {
+    const kind = error instanceof Error && /^provider_(?:transport_unverified|http_[0-9]{3}|content_type_unverified|payload_too_large|body_missing|invalid_json)$/.test(error.message)
+      ? error.message : "provider_unknown";
+    return {ok: false, status: "BLOCKED_DEFINITIONS",
+      blocker: "product_type_schema_unavailable",
+      schema_download_diagnostic: kind,
+      ...base};
+  }
   const fields = requiredAttributes(rawSchema);
   if (!fields)
     return {ok: false, status: "BLOCKED_DEFINITIONS", blocker: "product_type_schema_structure_unverified", ...base};
