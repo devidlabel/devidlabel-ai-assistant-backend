@@ -84,7 +84,11 @@ function fakeFetch(events, options={}) {
       assert.equal(Object.hasOwn(init.headers,"x-amz-access-token"),false);
       data=schema;
     }else throw new Error("Unexpected request: "+url);
-    return new Response(JSON.stringify(data),{status:200,headers:{"content-type":"application/json"}});
+    const schemaGet = u.hostname === "valid-schema.s3.eu-west-1.amazonaws.com";
+    return new Response(JSON.stringify(data),{
+      status:schemaGet ? (options.schemaStatus || 200) : 200,
+      headers:{"content-type":schemaGet ? (options.schemaMime ?? "application/json") : "application/json"},
+    });
   };
 }
 function deps(events=[], overrides={}) {
@@ -130,6 +134,24 @@ assert.equal(details.validation_preview_sent,false);
 assert.equal(schemaEvents.length,3);
 assert.deepEqual(schemaEvents.map(x=>x.auth),[true,true,false]);
 assert.equal(JSON.stringify(details).includes("signature=mock"),false);
+
+const s3MimeEvents=[];
+const s3MimeResult=await research({...req,product_type:"HAT"},env,deps(s3MimeEvents,{
+  fetch:fakeFetch(s3MimeEvents,{schemaMime:"application/octet-stream"}),
+}));
+assert.equal(s3MimeResult.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(s3MimeResult.provider_mutations,0);
+assert.equal(s3MimeEvents.length,3);
+
+const s3DeniedEvents=[];
+const s3Denied=await research({...req,product_type:"HAT"},env,deps(s3DeniedEvents,{
+  fetch:fakeFetch(s3DeniedEvents,{schemaStatus:403}),
+}));
+assert.equal(s3Denied.status,"BLOCKED_DEFINITIONS");
+assert.equal(s3Denied.blocker,"product_type_schema_unavailable");
+assert.equal(s3Denied.schema_download_diagnostic,"provider_http_403");
+assert.equal(JSON.stringify(s3Denied).includes("signature=mock"),false);
+assert.equal(s3DeniedEvents.length,3);
 
 const invalidType=await research({...req,product_type:"BAG"},env,deps());
 assert.equal(invalidType.status,"BLOCKED_DEFINITIONS");
