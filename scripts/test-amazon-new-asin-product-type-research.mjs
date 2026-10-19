@@ -85,7 +85,7 @@ function fakeFetch(events, options={}) {
       data=schema;
     }else throw new Error("Unexpected request: "+url);
     const schemaGet = u.hostname === "valid-schema.s3.eu-west-1.amazonaws.com";
-    return new Response(JSON.stringify(data),{
+    return new Response(schemaGet && options.schemaRaw !== undefined ? options.schemaRaw : JSON.stringify(data),{
       status:schemaGet ? (options.schemaStatus || 200) : 200,
       headers:{"content-type":schemaGet ? (options.schemaMime ?? "application/json") : "application/json"},
     });
@@ -142,6 +142,21 @@ const s3MimeResult=await research({...req,product_type:"HAT"},env,deps(s3MimeEve
 assert.equal(s3MimeResult.status,"REQUIREMENTS_REVIEW_REQUIRED");
 assert.equal(s3MimeResult.provider_mutations,0);
 assert.equal(s3MimeEvents.length,3);
+
+const unusualS3MimeEvents=[];
+const unusualS3Mime=await research({...req,product_type:"HAT"},env,deps(unusualS3MimeEvents,{
+  fetch:fakeFetch(unusualS3MimeEvents,{schemaMime:"application/x-amz-json"}),
+}));
+assert.equal(unusualS3Mime.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(unusualS3Mime.provider_mutations,0);
+
+const invalidS3JsonEvents=[];
+const invalidS3Json=await research({...req,product_type:"HAT"},env,deps(invalidS3JsonEvents,{
+  fetch:fakeFetch(invalidS3JsonEvents,{schemaMime:"application/x-amz-json",schemaRaw:"<html>not a schema</html>"}),
+}));
+assert.equal(invalidS3Json.status,"BLOCKED_DEFINITIONS");
+assert.equal(invalidS3Json.schema_download_diagnostic,"provider_invalid_json");
+assert.equal(invalidS3Json.provider_mutations,0);
 
 const s3DeniedEvents=[];
 const s3Denied=await research({...req,product_type:"HAT"},env,deps(s3DeniedEvents,{
