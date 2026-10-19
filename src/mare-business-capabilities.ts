@@ -106,6 +106,16 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"], [amazon, "Amazon SP-API credentials"]]
     }),
     capability({
+      id:"shopify.sneakers.structured_evidence.readonly",
+      provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify,approval:"none",
+      description:"Read-only SKU-scoped discovery of existing Shopify product and variant metafield locations for active in-stock sneakers. No raw values, manufacturer claims, GPSR approvals, Amazon listing writes or Channable writer changes.",
+      request_schema:{...schema({
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+      },["sku"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id: "amazon.sneakers.sku_state.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
