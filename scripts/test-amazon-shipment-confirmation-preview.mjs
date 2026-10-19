@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { build } from "esbuild";
 
 const compiled = await build({
@@ -100,6 +101,49 @@ assert.equal(ready.packages[0].tracking_number_present, true);
 assert.equal(ready.packages[0].order_item_count, 1);
 assert.equal(ready.packages[0].unit_count, 1);
 assert.equal(JSON.stringify(ready).includes("PRIVATE_TRACKING_123"), false);
+
+// The preview's allowed BRT label aliases come from the deployed (non-secret)
+// Worker configuration, never from caller-provided carrier assertions.
+const wrangler = readFileSync("wrangler.toml", "utf8");
+const carrierConfig = wrangler.match(/^AMAZON_SHIPMENT_CARRIER_MAP_JSON = '([^'\\n]+)'$/m);
+assert.ok(carrierConfig, "BRT preview mapping must be declared in wrangler.toml");
+const configuredCarriers = JSON.parse(carrierConfig[1]);
+assert.equal(configuredCarriers.brt.carrier_code, "BRT");
+assert.equal(configuredCarriers.BRT.carrier_code, "BRT");
+const brtEnv = { AMAZON_SHIPMENT_CARRIER_MAP_JSON: carrierConfig[1] };
+const brtShopify = shopifySource();
+brtShopify.fulfillments[0].tracking[0].company = "brt";
+const brtReady = await preview(request, brtEnv, {
+  clock: () => fixed,
+  readShopify: async () => brtShopify,
+  readAmazonPackages: async () => amazonObservation(),
+});
+assert.equal(brtReady.status, "PREVIEW_READY_FOR_LIVE_PLAN_DESIGN");
+assert.equal(brtReady.packages[0].carrier_code, "BRT");
+assert.equal(brtReady.provider_mutations, 0);
+assert.equal(brtReady.preview_only, true);
+assert.equal(brtReady.can_confirm_shipment, false);
+assert.equal(JSON.stringify(brtReady).includes("PRIVATE_TRACKING_123"), false);
+
+const brtAlreadyRegistered = await preview(request, brtEnv, {
+  clock: () => fixed,
+  readShopify: async () => brtShopify,
+  readAmazonPackages: async () => amazonObservation({
+    fulfillment_status: "SHIPPED",
+    packages: [{
+      package_reference_id: "1",
+      carrier: "BRT",
+      tracking_number: "EXISTING_PRIVATE_TRACKING",
+      ship_time: "2026-10-19T10:32:00Z",
+      package_status: "SHIPPED",
+      items: [{ line_id: "79039765272157", quantity: 1 }],
+    }],
+  }),
+});
+assert.equal(brtAlreadyRegistered.status, "PREVIEW_REVIEW_REQUIRED");
+assert.ok(brtAlreadyRegistered.blockers.includes("amazon_packages_already_registered"));
+assert.equal(brtAlreadyRegistered.provider_mutations, 0);
+assert.equal(JSON.stringify(brtAlreadyRegistered).includes("EXISTING_PRIVATE_TRACKING"), false);
 
 const noFulfillments = await preview(request, env, {
   clock: () => fixed,
