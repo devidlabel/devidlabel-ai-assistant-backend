@@ -54,7 +54,9 @@ function lookupVariant(catalog: unknown, sku: string, variantId: unknown): Row |
   const found: Row[] = [];
   for (const productRaw of obj(catalog).products as unknown[]) {
     const product = obj(productRaw);
-    if (product.status !== "ACTIVE" || !Array.isArray(product.variants)) continue;
+    if (product.status !== "ACTIVE" || product.product_type !== "Sneakers" ||
+        (typeof product.vendor === "string" && product.vendor.trim().toLowerCase() === "p448") ||
+        !Array.isArray(product.variants)) continue;
     for (const variantRaw of product.variants) {
       const v = obj(variantRaw);
       if (v.sku === sku) found.push(v);
@@ -126,7 +128,8 @@ export async function classifyAmazonSneakerSkuStates(
   const blockers = new Map<string, string>();
   for (const sku of skus) {
     const row = rows.get(sku)!, shopify = obj(row.shopify);
-    if (shopify.state !== "VERIFIED" || shopify.source_unique_active_sku !== true) {
+    if (shopify.state !== "VERIFIED" || shopify.source_unique_active_sku !== true ||
+        typeof shopify.available !== "number" || !Number.isSafeInteger(shopify.available) || shopify.available <= 0) {
       blockers.set(sku,"shopify_identity_unverified"); continue;
     }
     try {
@@ -151,7 +154,9 @@ export async function classifyAmazonSneakerSkuStates(
   }
   const uniqueCodes = [...new Set(codes.values())];
   if (uniqueCodes.length !== codes.size) {
-    for (const [sku,code] of codes) if ([...codes.values()].filter(x=>x===code).length>1) {
+    const frequencies = new Map<string, number>();
+    for (const code of codes.values()) frequencies.set(code, (frequencies.get(code) || 0) + 1);
+    for (const [sku,code] of codes) if ((frequencies.get(code) || 0) > 1) {
       codes.delete(sku); blockers.set(sku,"shopify_ean_duplicate_in_batch");
     }
   }
