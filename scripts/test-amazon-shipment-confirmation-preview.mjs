@@ -105,7 +105,7 @@ assert.equal(JSON.stringify(ready).includes("PRIVATE_TRACKING_123"), false);
 // The preview's allowed BRT label aliases come from the deployed (non-secret)
 // Worker configuration, never from caller-provided carrier assertions.
 const wrangler = readFileSync("wrangler.toml", "utf8");
-const carrierConfig = wrangler.match(/^AMAZON_SHIPMENT_CARRIER_MAP_JSON = '([^'\\n]+)'$/m);
+const carrierConfig = wrangler.match(/^AMAZON_SHIPMENT_CARRIER_MAP_JSON = '(.+)'$/m);
 assert.ok(carrierConfig, "BRT preview mapping must be declared in wrangler.toml");
 const configuredCarriers = JSON.parse(carrierConfig[1]);
 assert.equal(configuredCarriers.brt.carrier_code, "BRT");
