@@ -297,6 +297,24 @@ export async function handleMareBusinessMcpFinalRequest(
       return handleMareBusinessMcpSafeRequest(rebuildRequest(request, forwardedRpc), env as any);
     }
 
+    if (toolName === "mare_read" && normalize(args.capability_id) === "amazon.inventory.sync.reconcile") {
+      const requestPayload = object(args.request);
+      const planId = normalize(requestPayload.plan_id);
+      const delegated = await handleMareBusinessMcpSafeRequest(request, env as any) as Response;
+      let responseBody: JsonObject = {};
+      try { responseBody = await delegated.clone().json() as JsonObject; } catch { responseBody = {}; }
+      const structured = object(object(responseBody.result).structuredContent);
+      if (normalize(structured.plan_status) === "completed" && structured.reconciliation_closed === true) {
+        const coordination = await coordinatorAction(env, planId, "status");
+        const ledger = object(coordination.body.ledger);
+        const claimId = normalize(ledger.claim_id);
+        if (normalize(ledger.status) === "reconciliation_required" && claimId) {
+          await coordinatorAction(env, planId, "complete", claimId, "deferred_readback_verified");
+        }
+      }
+      return delegated;
+    }
+
     if (toolName === "mare_execute") {
       const planId = normalize(args.plan_id);
       const plan = await loadPlanRecord(planId, env);
@@ -342,8 +360,17 @@ export async function handleMareBusinessMcpFinalRequest(
       let responseBody: JsonObject = {};
       try { responseBody = await delegated.clone().json() as JsonObject; } catch { responseBody = {}; }
       const failure = delegatedToolFailed(responseBody);
-      if (failure.failed || !delegated.ok) {
-        await coordinatorAction(env, planId, "reconciliation_required", claimId, failure.message || `http_${delegated.status}`);
+      const result = object(responseBody.result);
+      const structured = object(result.structuredContent);
+      const delegatedStatus = normalize(structured.status);
+      if (failure.failed || !delegated.ok || delegatedStatus === "reconciliation_required") {
+        await coordinatorAction(
+          env,
+          planId,
+          "reconciliation_required",
+          claimId,
+          failure.message || normalize(object(structured.result).readback_outcome) || `http_${delegated.status}`,
+        );
       } else {
         await coordinatorAction(env, planId, "complete", claimId);
       }
