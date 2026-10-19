@@ -82,7 +82,13 @@ function fakeFetch(events, options={}) {
       };
     }else if(u.hostname==="valid-schema.s3.eu-west-1.amazonaws.com"){
       assert.equal(Object.hasOwn(init.headers,"x-amz-access-token"),false);
-      data=schema;
+      data=options.rootSchema ? {
+        type:"object",
+        required:["brand","country_of_origin","item_name"],
+        properties:{brand:{type:"array"},country_of_origin:{type:"array"},
+          item_name:{type:"array"},material:{type:"array"}},
+        allOf:[{if:{properties:{material:{}}},then:{required:["material"]}}],
+      } : schema;
     }else throw new Error("Unexpected request: "+url);
     const schemaGet = u.hostname === "valid-schema.s3.eu-west-1.amazonaws.com";
     return new Response(schemaGet && options.schemaRaw !== undefined ? options.schemaRaw : JSON.stringify(data),{
@@ -167,6 +173,20 @@ assert.equal(s3Denied.blocker,"product_type_schema_unavailable");
 assert.equal(s3Denied.schema_download_diagnostic,"provider_http_403");
 assert.equal(JSON.stringify(s3Denied).includes("signature=mock"),false);
 assert.equal(s3DeniedEvents.length,3);
+
+const rootSchemaEvents=[];
+const rootSchemaResult=await research({...req,product_type:"HAT"},env,deps(rootSchemaEvents,{
+  fetch:fakeFetch(rootSchemaEvents,{rootSchema:true,schemaMime:"application/x-amz-json"}),
+}));
+assert.equal(rootSchemaResult.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.deepEqual(rootSchemaResult.required_attribute_names,["brand","country_of_origin","item_name"]);
+assert.equal(rootSchemaResult.schema_attribute_structure,"TOP_LEVEL_ATTRIBUTES");
+assert.equal(rootSchemaResult.static_required_set_declared,true);
+assert.equal(rootSchemaResult.schema_attribute_count,4);
+assert.equal(rootSchemaResult.conditional_requirements_detected,true);
+assert.equal(rootSchemaResult.full_schema_validated,false);
+assert.equal(rootSchemaResult.provider_mutations,0);
+assert.equal(rootSchemaEvents.length,3);
 
 const invalidType=await research({...req,product_type:"BAG"},env,deps());
 assert.equal(invalidType.status,"BLOCKED_DEFINITIONS");
