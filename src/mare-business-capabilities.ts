@@ -106,6 +106,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"], [amazon, "Amazon SP-API credentials"]]
     }),
     capability({
+      id: "amazon.listing.new_asin.requirements.readonly",
+      provider: "amazon", domain: "marketplace", operation: "read", risk: "read_only",
+      implemented: true, configured: businessAuth && amazon && amazonSellerId && shopify, approval: "none",
+      description: "Read-only new-ASIN Product Type Definitions research for a uniquely identified, ACTIVE Shopify SKU with validated EAN and stock. Confirms seller-SKU absence and EAN exact lookup, retrieves marketplace product-type recommendations, and optionally inspects an explicit LISTING standalone schema. Does not validate or submit any listing, check brand authorization or switch Channable ownership.",
+      request_schema: {...schema({
+        marketplace: {type:"string",enum:["IT","DE","FR","ES"]},
+        sku: {type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        product_type: {type:"string",pattern:"^[A-Z][A-Z0-9_]{1,79}$"},
+      },["marketplace","sku"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id: "amazon.catalog.asin.details",
       provider: "amazon", domain: "marketplace", operation: "read",
       risk: "read_only", implemented: true, configured: businessAuth && amazon,
