@@ -2,6 +2,7 @@ import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
 import { buildAmazonShoesGapReport } from "./marketplace-amazon-shoes-gap-report.js";
+import { resolveAmazonListingBrand } from "./marketplace-amazon-listing-brand.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
@@ -239,6 +240,7 @@ export async function researchAmazonNewAsinProductType(
   if (!selected) return blocked(input, at, "BLOCKED_SHOPIFY", "sku_missing_duplicated_or_incomplete");
   const {product, variant} = selected;
   const brand = typeof product.vendor === "string" ? product.vendor : "";
+  const brandIdentity = resolveAmazonListingBrand(brand);
   const title = typeof product.title === "string" ? product.title : "";
   const code = typeof variant.barcode === "string" ? variant.barcode : "";
   const quantity = variant.inventory_quantity;
@@ -248,7 +250,9 @@ export async function researchAmazonNewAsinProductType(
       variant.inventory_tracked !== true || variant.inventory_levels_complete !== true)
     return blocked(input, at, "BLOCKED_SHOPIFY", "active_gtin_stock_or_inventory_unverified");
   const source = {
-    product_title: title, brand, shopify_product_type: product.product_type || null,
+    product_title: title, brand, amazon_listing_brand: brandIdentity?.amazon_brand ?? null,
+    amazon_brand_mapping_source: brandIdentity?.source ?? null,
+    brand_authorization_proven: false, shopify_product_type: product.product_type || null,
     ean: code, shopify_available: quantity, has_media: (product.media_count as number) > 0,
     variant_id: variant.id, shopify_price: variant.price ?? null,
   };
