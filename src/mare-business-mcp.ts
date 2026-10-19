@@ -8,6 +8,7 @@ import { readAmazonShoesCrossSourceReadiness } from "./marketplace-amazon-shoes-
 import { classifyAmazonSneakerSkuStates } from "./marketplace-amazon-sneaker-state-classifier.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest } from "./mare-business-amazon-offer-preview.js";
+import { previewAmazonNewAsinShoesValidation } from "./marketplace-amazon-new-asin-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
@@ -480,6 +481,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   const request = { ...plan.request };
   if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
   if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
+  if (plan.capability_id === "amazon.shoes.new_asin.validation.preview") return textToolResult(await previewAmazonNewAsinShoesValidation(request,env));
   if (plan.capability_id === "amazon.shipment.confirmation.preview") return textToolResult(await previewAmazonShipmentConfirmation(request, env));
   const deterministicIdempotency = `mare-${plan.plan_id}`.replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 128);
 
