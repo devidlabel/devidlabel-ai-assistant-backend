@@ -1,6 +1,7 @@
 import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { researchAmazonNewAsinProductType } from "./marketplace-amazon-new-asin-research.js";
+import { readAmazonShoesPrivateShopifyValues } from "./marketplace-amazon-shoes-private-shopify-values.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
 /**
@@ -16,6 +17,7 @@ type Env = AmazonCredentials & MareBusinessShopifyEnv & {
 };
 export type NewAsinPreviewDeps = {
   research?: typeof researchAmazonNewAsinProductType;
+  readPrivateFields?: typeof readAmazonShoesPrivateShopifyValues;
   getAccessToken?: typeof getAmazonAccessToken;
   fetch?: typeof fetch;
 };
@@ -75,8 +77,20 @@ export async function previewAmazonNewAsinShoesValidation(
      typeof title!=="string"||!title.trim()||title.length>200||
      typeof ean!=="string"||!eanOk(ean)||
      research.schema_enforced!==true||research.schema_requirements!=="LISTING"||
-     obj(research.attribute_gap_report).report_status!=="GAPS_REQUIRE_REVIEW")
+     obj(research.attribute_gap_report).report_status!=="GAPS_REQUIRE_REVIEW"||
+     !Array.isArray(research.required_attribute_names)||
+     !research.required_attribute_names.includes("model_name")||
+     !research.required_attribute_names.includes("color"))
     return blocked(marketplace,sku,"read_only_research_or_listing_identity_unverified");
+  const evidence=await (deps.readPrivateFields??readAmazonShoesPrivateShopifyValues)({
+    sku,variantId:shop.variant_id as string,productTitle:title,
+    shopifyVendor:shop.brand as string,amazonBrand:brand,
+  },env).catch(()=>({ok:false,reason:"private_shopify_read_failed"}));
+  if(evidence.ok!==true||evidence.draft_values_review_only!==true||
+     evidence.public_storefront_access_used!==false||
+     evidence.ready_for_publication!==false||
+     typeof evidence.model_name!=="string"||typeof evidence.color!=="string")
+    return blocked(marketplace,sku,"shopify_private_fields_not_verified");
   // Important: this intentionally does NOT infer materials, manufacturer,
   // origin, brand permissions, GPSR or full PTD conditional requirements.
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
@@ -84,6 +98,8 @@ export async function previewAmazonNewAsinShoesValidation(
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
     externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:marketId}],
+    model_name:[{value:evidence.model_name,marketplace_id:marketId}],
+    color:[{value:evidence.color,marketplace_id:marketId}],
   }};
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
@@ -154,7 +170,9 @@ export async function previewAmazonNewAsinShoesValidation(
     provider_validation_status:response.status,
     issue_count:sanitized.length,issues:sanitized,
     preview_submission_reference:response.submissionId,
-    attributes_submitted:["brand","item_name","externally_assigned_product_identifier"],
+    attributes_submitted:["brand","item_name","externally_assigned_product_identifier","model_name","color"],
+    private_shopify_metafields_used:true,private_shopify_values_exported_in_response:false,
+    storefront_unchanged:true,
     listing_brand_from_merchant_mapping:obj(research.shopify).amazon_brand_mapping_source,
     // This PUT uses Amazon mode VALIDATION_PREVIEW, never a live listing PUT.
     validation_mode:"VALIDATION_PREVIEW",
