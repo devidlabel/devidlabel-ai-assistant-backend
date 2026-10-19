@@ -2,6 +2,7 @@ import { handleMareMcpRequest } from "./mare-mcp.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
+import { researchAmazonNewAsinProductType } from "./marketplace-amazon-new-asin-research.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest } from "./mare-business-amazon-offer-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
