@@ -106,6 +106,18 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements: [[businessAuth, "MARE_BUSINESS_ACCESS_TOKEN"], [amazon, "Amazon SP-API credentials"]]
     }),
     capability({
+      id: "amazon.sneakers.sku_state.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
+      description:"Merchant-private joint read-only Shopify EAN, Amazon seller SKU and exact Catalog Items classification for up to eight sneakers across IT DE FR ES. Fail-closed missing/duplicate barcode checks, unknown and ambiguous states, no inferred ASIN absence. Does not publish, create offers, authorize brand, update stock or transfer Channable writer ownership.",
+      request_schema:{...schema({
+        skus:{type:"array",minItems:1,maxItems:8,uniqueItems:true,
+          items:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}},
+      },["skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id: "amazon.listing.new_asin.requirements.readonly",
       provider: "amazon", domain: "marketplace", operation: "read", risk: "read_only",
       implemented: true, configured: businessAuth && amazon && amazonSellerId && shopify, approval: "none",

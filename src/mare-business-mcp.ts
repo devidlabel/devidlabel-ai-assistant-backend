@@ -3,6 +3,7 @@ import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { researchAmazonNewAsinProductType } from "./marketplace-amazon-new-asin-research.js";
+import { classifyAmazonSneakerSkuStates } from "./marketplace-amazon-sneaker-state-classifier.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest } from "./mare-business-amazon-offer-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
@@ -425,6 +426,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.catalog.exact.match") return textToolResult(await readAmazonExactMatchCandidates(request, env));
   if (capabilityId === "amazon.catalog.asin.details") return textToolResult(await readAmazonCatalogASINDetails(request,env));
   if (capabilityId === "amazon.listing.new_asin.requirements.readonly") return textToolResult(await researchAmazonNewAsinProductType(request,env));
+  if (capabilityId === "amazon.sneakers.sku_state.readonly") return textToolResult(await classifyAmazonSneakerSkuStates(request,env));
   if (capabilityId === "amazon.offer.preflight") return textToolResult(await readAmazonOfferOnlyPreflight(request,env));
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
