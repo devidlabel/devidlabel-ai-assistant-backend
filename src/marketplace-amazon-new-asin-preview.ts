@@ -82,10 +82,10 @@ export async function previewAmazonNewAsinShoesValidation(
      !research.required_attribute_names.includes("model_name")||
      !research.required_attribute_names.includes("color"))
     return blocked(marketplace,sku,"read_only_research_or_listing_identity_unverified");
-  const evidence=await (deps.readPrivateFields??readAmazonShoesPrivateShopifyValues)({
+  const evidence:Row=await (deps.readPrivateFields??readAmazonShoesPrivateShopifyValues)({
     sku,variantId:shop.variant_id as string,productTitle:title,
     shopifyVendor:shop.brand as string,amazonBrand:brand,
-  },env).catch(()=>({ok:false,reason:"private_shopify_read_failed"}));
+  },env).catch(():Row=>({ok:false,reason:"private_shopify_read_failed"}));
   if(evidence.ok!==true||evidence.draft_values_review_only!==true||
      evidence.public_storefront_access_used!==false||
      evidence.ready_for_publication!==false||
