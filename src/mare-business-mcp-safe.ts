@@ -2,7 +2,7 @@ import { readMarketplaceShadowStatus } from "./marketplace-shadow.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
-import { prepareAmazonExistingOfferStockSync, executeAmazonExistingOfferStockSync } from "./mare-business-amazon-stock-sync.js";
+import { prepareAmazonExistingOfferStockSync, executeAmazonExistingOfferStockSync, reconcileAmazonExistingOfferStockSync, observeHistoricalAmazonStockPlan } from "./mare-business-amazon-stock-sync.js";
 import { handleMareBusinessMcpRequest } from "./mare-business-mcp.js";
 import { buildMareBusinessCapabilities, type MareBusinessCapability } from "./mare-business-capabilities.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
@@ -54,6 +54,7 @@ type StoredPlan = {
   executed_at?: string;
   result_summary?: JsonObject;
   error?: string;
+  reconciliation?: JsonObject;
 };
 
 const PLAN_TTL_SECONDS = 24 * 60 * 60;
@@ -269,7 +270,7 @@ function amazonStockCapability(env: SafeBusinessEnv): MareBusinessCapability {
     configured,
     available: configured,
     approval: "explicit",
-    description: "Pilot-only update of current FBM quantity on one existing Amazon seller offer. Target quantity is derived server-side from Shopify available inventory after committed units; prepare and execute re-read Shopify and Amazon, require explicit Channable isolation attestation, perform at most one PATCH, then require provider readback. No product creation, price change, feed upload or automatic scheduler.",
+    description: "Pilot-only update of current FBM quantity on one existing Amazon seller offer. Target quantity is derived server-side from Shopify available inventory. Execute requires fresh server-side proof that all competing EU inventory writers are disabled; the caller writer_isolation string is only an attestation and is never sufficient by itself. At most one PATCH is allowed, followed by provider readback or deferred reconciliation. No product creation, price change, feed upload or automatic scheduler.",
     request_schema: {
       type: "object",
       properties: {
@@ -316,6 +317,29 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
   const existingAmazonStock = capabilities.findIndex((item) => item.id === AMAZON_STOCK_CAPABILITY_ID);
   if (existingAmazonStock >= 0) capabilities[existingAmazonStock] = amazonStock;
   else capabilities.push(amazonStock);
+
+  const amazonStockReconcile: MareBusinessCapability = {
+    id: "amazon.inventory.sync.reconcile",
+    provider: "amazon",
+    domain: "marketplace",
+    operation: "read",
+    risk: "read_only",
+    implemented: true,
+    configured: amazonStock.configured,
+    available: amazonStock.available,
+    approval: "none",
+    description: "Read-only deferred reconciliation for one previously executed Amazon stock pilot plan. It never issues PATCH, never replays the mutation, and only closes a plan when the stored accepted-mutation receipt is matched by live Amazon readback. Historical plans without a stored submission reference remain observation-only.",
+    request_schema: {
+      type: "object",
+      properties: { plan_id: { type: "string", pattern: "^mbp_[A-Za-z0-9-]{20,80}$" } },
+      required: ["plan_id"],
+      additionalProperties: false,
+    },
+    missing: amazonStock.missing,
+  };
+  const existingAmazonStockReconcile = capabilities.findIndex((item) => item.id === amazonStockReconcile.id);
+  if (existingAmazonStockReconcile >= 0) capabilities[existingAmazonStockReconcile] = amazonStockReconcile;
+  else capabilities.push(amazonStockReconcile);
 
   return capabilities;
 }
@@ -395,6 +419,9 @@ async function prepareAmazonStockWrite(
       target_quantity_server_derived_from_shopify_available: true,
       committed_inventory_accounted: true,
       channable_writer_isolation_attested: true,
+      caller_attestation_is_not_isolation_proof: true,
+      server_side_eu_writer_isolation_proof_required: true,
+      production_execute_fail_closed_until_verifier_is_wired: true,
       amazon_read_before_write: true,
       at_most_one_provider_patch: true,
       amazon_read_after_write_required: true,
@@ -496,15 +523,57 @@ async function executeAmazonStockPlan(
   plan.status = "executing";
   await storePlan(plan, env);
   try {
-    const result = await executeAmazonExistingOfferStockSync(plan.request, env as any);
+    let acceptedReceipt: JsonObject | null = null;
+    const result = await executeAmazonExistingOfferStockSync(plan.request, env as any, {
+      onMutationAccepted: async (receipt) => {
+        acceptedReceipt = receipt as unknown as JsonObject;
+        plan.reconciliation = {
+          phase: "mutation_accepted",
+          receipt: acceptedReceipt,
+          readback_verified: false,
+          retry_patch_allowed: false,
+        };
+        await storePlan(plan, env);
+      },
+    });
+    if (result.status === "MUTATION_ACCEPTED_PENDING_READBACK") {
+      plan.status = "reconciliation_required";
+      plan.result_summary = result;
+      plan.error = "amazon_stock_write_readback_unconfirmed";
+      plan.reconciliation = {
+        phase: "pending_readback",
+        receipt: acceptedReceipt ?? object(result.mutation_receipt),
+        readback_verified: false,
+        retry_patch_allowed: false,
+        last_readback: result,
+      };
+      await storePlan(plan, env);
+      return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
+    }
     plan.status = "completed";
     plan.executed_at = new Date().toISOString();
     plan.result_summary = result;
+    if (acceptedReceipt) {
+      plan.reconciliation = {
+        phase: "verified",
+        receipt: acceptedReceipt,
+        readback_verified: true,
+        retry_patch_allowed: false,
+        last_readback: result,
+      };
+    }
     await storePlan(plan, env);
     return textToolResult({ plan_id: plan.plan_id, status: plan.status, result });
   } catch (error) {
     plan.status = "reconciliation_required";
     plan.error = error instanceof Error ? error.message : "amazon_stock_plan_execution_failed";
+    if (!plan.reconciliation) {
+      plan.reconciliation = {
+        phase: "mutation_outcome_unknown",
+        readback_verified: false,
+        retry_patch_allowed: false,
+      };
+    }
     await storePlan(plan, env);
     throw error;
   }
@@ -685,6 +754,8 @@ export async function handleMareBusinessMcpSafeRequest(
           correct_regular_and_sale_price_mapping: true,
           shopify_existing_metafields_first_class: true,
           shopify_missing_season_first_class: true,
+          amazon_stock_deferred_readback_reconciliation: true,
+          amazon_stock_patch_retry_after_acceptance: false,
         },
       };
       return rpcToolResponse(request, rpc.id, textToolResult(payload));
@@ -727,6 +798,61 @@ export async function handleMareBusinessMcpSafeRequest(
         const capability = await resolveCapability(capabilityId, env);
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, textToolResult(await readTikTokCampaignsSafe(requestPayload, env)));
+      }
+      if (capabilityId === "amazon.inventory.sync.reconcile") {
+        const planId = normalize(requestPayload.plan_id);
+        const plan = await loadPlan(planId, env);
+        if (plan.capability_id !== AMAZON_STOCK_CAPABILITY_ID) {
+          return rpcToolResponse(request, rpc.id, toolFailure("plan_capability_mismatch", plan));
+        }
+        if (plan.status !== "reconciliation_required") {
+          return rpcToolResponse(request, rpc.id, textToolResult({
+            ok: true,
+            plan_id: plan.plan_id,
+            status: plan.status,
+            reconciliation_required: false,
+            read_only: true,
+          }));
+        }
+        const receipt = object(plan.reconciliation?.receipt);
+        if (Object.keys(receipt).length === 0) {
+          const observation = await observeHistoricalAmazonStockPlan(plan.request, env as any);
+          plan.reconciliation = {
+            ...(plan.reconciliation || {}),
+            phase: "historical_observation_only",
+            historical_submission_reference_available: false,
+            retry_patch_allowed: false,
+            last_readback: observation,
+          };
+          await storePlan(plan, env);
+          return rpcToolResponse(request, rpc.id, textToolResult({
+            plan_id: plan.plan_id,
+            plan_status: plan.status,
+            reconciliation_closed: false,
+            result: observation,
+          }));
+        }
+        const reconciliation = await reconcileAmazonExistingOfferStockSync(receipt, env as any);
+        plan.result_summary = reconciliation;
+        plan.reconciliation = {
+          ...(plan.reconciliation || {}),
+          phase: reconciliation.status === "RECONCILED_AND_VERIFIED" ? "verified" : "pending_readback",
+          readback_verified: reconciliation.readback_verified === true,
+          retry_patch_allowed: false,
+          last_readback: reconciliation,
+        };
+        if (reconciliation.status === "RECONCILED_AND_VERIFIED" && reconciliation.closure_allowed === true) {
+          plan.status = "completed";
+          plan.executed_at = plan.executed_at || new Date().toISOString();
+          plan.error = undefined;
+        }
+        await storePlan(plan, env);
+        return rpcToolResponse(request, rpc.id, textToolResult({
+          plan_id: plan.plan_id,
+          plan_status: plan.status,
+          reconciliation_closed: plan.status === "completed",
+          result: reconciliation,
+        }));
       }
     }
 
