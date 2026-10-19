@@ -100,6 +100,31 @@ function entries(catalogRaw: unknown, sku: string): {product: Row; variant: Row}
   return matches.length === 1 ? matches[0] : null;
 }
 
+function eanUniqueInShopify(catalogRaw: unknown, ean: string, expectedVariantId: unknown): boolean {
+  const catalog = obj(catalogRaw);
+  if (catalog.ok !== true || catalog.truncated !== false ||
+      catalog.complete_variant_pagination !== true ||
+      !Array.isArray(catalog.products) ||
+      !Number.isSafeInteger(catalog.product_count) ||
+      catalog.product_count !== catalog.products.length ||
+      catalog.inline_product_count !== catalog.product_count ||
+      catalog.product_count > 50 ||
+      typeof expectedVariantId !== "string" ||
+      !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(expectedVariantId)) return false;
+  let matches = 0;
+  for (const rawProduct of catalog.products) {
+    const product = obj(rawProduct);
+    if (!Array.isArray(product.variants)) return false;
+    for (const rawVariant of product.variants) {
+      const variant = obj(rawVariant);
+      if (variant.barcode !== ean) continue;
+      matches++;
+      if (variant.id !== expectedVariantId) return false;
+    }
+  }
+  return matches === 1;
+}
+
 async function readJson(url: string, token: string | null, fetcher: typeof fetch): Promise<Row> {
   let response: Response;
   try {
@@ -205,6 +230,17 @@ export async function researchAmazonNewAsinProductType(
     ean: code, shopify_available: quantity, has_media: (product.media_count as number) > 0,
     variant_id: variant.id, shopify_price: variant.price ?? null,
   };
+  try {
+    const barcodeCatalog = await (dependencies.readShopify ?? readShopifyCatalogComplete)({
+      query: 'barcode:"' + code + '" status:active,draft,archived,unlisted',
+      max_products: 50, inline_limit: 50, include_csv: false,
+      stable_order: true, persist_artifacts: false,
+    }, env);
+    if (!eanUniqueInShopify(barcodeCatalog, code, variant.id))
+      return blocked(input, at, "BLOCKED_SHOPIFY", "ean_missing_or_duplicated_in_shopify", {shopify: source});
+  } catch {
+    return blocked(input, at, "BLOCKED_SHOPIFY", "ean_identity_read_unverified", {shopify: source});
+  }
   let listing: Row;
   try {
     const result = obj(await (dependencies.readListing ?? readAmazonSellerListingsDirect)({
