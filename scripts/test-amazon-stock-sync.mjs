@@ -109,7 +109,7 @@ const deps = {
       status: "ACCEPTED",
       submissionId: "SYNTHETIC_SUBMISSION_1",
       issues: [],
-    }), { status: 202, headers: { "content-type": "application/json" } });
+    }), { status: 200, headers: { "content-type": "application/json" } });
   },
 };
 
@@ -160,5 +160,59 @@ const raced = await prepare(request, env, deps);
 shopifyQuantity = 0;
 await assert.rejects(() => execute(raced.prepared_request, env, deps), /shopify_inventory_changed_since_prepare/);
 assert.equal(writes, 0);
+
+// A successful transport response is not proof of acceptance or application.
+// Every failure below must stop after one PATCH, without retrying the write.
+shopifyQuantity = 1;
+amazonQuantity = 2;
+const accepted = {
+  sku: request.sku,
+  status: "ACCEPTED",
+  submissionId: "SYNTHETIC_SUBMISSION_1",
+  issues: [],
+};
+for (const [httpStatus, body, error] of [
+  [202, accepted, /amazon_stock_write_http_202/],
+  [429, {}, /amazon_stock_write_http_429/],
+  [500, {}, /amazon_stock_write_http_500/],
+  [200, { ...accepted, status: "INVALID" }, /amazon_stock_write_not_accepted/],
+  [200, { ...accepted, sku: "OTHER_SKU" }, /amazon_stock_write_not_accepted/],
+  [200, { ...accepted, submissionId: null }, /amazon_stock_write_not_accepted/],
+]) {
+  let patches = 0;
+  let observations = 0;
+  const failureDeps = {
+    ...deps,
+    readAmazonListing: async () => { observations++; return amazon(2); },
+    fetch: async () => {
+      patches++;
+      return new Response(JSON.stringify(body), { status: httpStatus });
+    },
+  };
+  const plan = await prepare(request, env, failureDeps);
+  await assert.rejects(() => execute(plan.prepared_request, env, failureDeps), error);
+  assert.equal(patches, 1);
+  assert.equal(observations, 2); // prepare + execute freshness check only
+}
+
+// Even HTTP 200 + ACCEPTED cannot succeed when the provider never confirms
+// the target quantity; bounded GETs must not become mutation retries.
+let unconfirmedPatches = 0;
+let unconfirmedReads = 0;
+const unconfirmedDeps = {
+  ...deps,
+  readAmazonListing: async () => { unconfirmedReads++; return amazon(2); },
+  fetch: async () => {
+    unconfirmedPatches++;
+    return new Response(JSON.stringify(accepted), { status: 200 });
+  },
+};
+const unconfirmed = await prepare(request, env, unconfirmedDeps);
+await assert.rejects(
+  () => execute(unconfirmed.prepared_request, env, unconfirmedDeps),
+  /amazon_stock_write_readback_unconfirmed/,
+);
+assert.equal(unconfirmedPatches, 1);
+assert.equal(unconfirmedReads, 7); // prepare + freshness check + five readbacks
 
 console.log("Amazon stock sync pilot tests passed.");
