@@ -234,6 +234,23 @@ function add(map: Map<string, number>, key: string, quantity: number): void {
   map.set(key, next);
 }
 
+const SAFE_SHOPIFY_BLOCKERS = new Map<string, string>([
+  ["amazon_shipment_preview_shopify_order_identity_unverified", "shopify_order_identity_unverified"],
+  ["amazon_shipment_preview_shopify_order_reference_unverified", "shopify_order_reference_unverified"],
+  ["amazon_shipment_preview_fulfillments_unavailable", "shopify_fulfillments_unavailable"],
+  ["amazon_shipment_preview_fulfillment_invalid", "shopify_fulfillment_invalid"],
+  ["amazon_shipment_preview_tracking_set_invalid", "shopify_tracking_set_invalid"],
+  ["amazon_shipment_preview_tracking_invalid", "shopify_tracking_invalid"],
+  ["amazon_shipment_preview_fulfillment_lines_incomplete", "shopify_fulfillment_lines_incomplete"],
+  ["amazon_shipment_preview_fulfillment_line_invalid", "shopify_fulfillment_line_invalid"],
+]);
+
+function safeShopifyBlocker(error: unknown): string {
+  return error instanceof Error
+    ? SAFE_SHOPIFY_BLOCKERS.get(error.message) ?? "shopify_shipment_source_unverified"
+    : "shopify_shipment_source_unverified";
+}
+
 export async function previewAmazonShipmentConfirmation(
   rawInput: unknown,
   env: Env,
@@ -245,9 +262,9 @@ export async function previewAmazonShipmentConfirmation(
   let shopify: ShopifyShipmentSource;
   try {
     shopify = await (dependencies.readShopify ?? readShopifyShipmentSource)(input, env);
-  } catch {
+  } catch (error) {
     return {
-      ok: false, status: "BLOCKED_PREVIEW", reason: "shopify_shipment_source_unverified",
+      ok: false, status: "BLOCKED_PREVIEW", reason: safeShopifyBlocker(error),
       marketplace: input.marketplace, shopify_order_gid: input.shopify_order_gid,
       amazon_order_id: input.amazon_order_id, observed_at: observedAt,
       provider_request_performed: false, provider_mutations: 0, preview_only: true,

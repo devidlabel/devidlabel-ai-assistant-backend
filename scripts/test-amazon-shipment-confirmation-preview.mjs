@@ -101,6 +101,16 @@ assert.equal(ready.packages[0].order_item_count, 1);
 assert.equal(ready.packages[0].unit_count, 1);
 assert.equal(JSON.stringify(ready).includes("PRIVATE_TRACKING_123"), false);
 
+const noFulfillments = await preview(request, env, {
+  clock: () => fixed,
+  readShopify: async () => { throw new Error("amazon_shipment_preview_fulfillments_unavailable"); },
+  readAmazonPackages: async () => { throw new Error("must not read Amazon after Shopify blocker"); },
+});
+assert.equal(noFulfillments.status, "BLOCKED_PREVIEW");
+assert.equal(noFulfillments.reason, "shopify_fulfillments_unavailable");
+assert.equal(noFulfillments.provider_request_performed, false);
+assert.equal(noFulfillments.provider_mutations, 0);
+
 const noCarrierMap = await preview(request, {}, {
   clock: () => fixed,
   readShopify: async () => shopifySource(),
