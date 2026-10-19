@@ -36,7 +36,7 @@ assert.equal((mcpSource.match(/name: "mare_[a-z0-9_]+"/g) || []).length, 10, "MA
 
 for (const fragment of [
   'MARE_BUSINESS_ACCESS_TOKEN', 'immutable_plan_before_external_write: true', 'EXECUTE MARE PLAN', 'EXECUTE MARE LIVE PLAN',
-  'amazon.inventory.eu.shadow.readonly', 'amazon.shipment.confirmation.preview',
+  'amazon.inventory.eu.shadow.readonly', 'amazon.shipment.confirmation.preview', 'amazon.listing.new_asin.requirements.readonly',
   'credentials_or_customer_contact_data_not_accepted', 'direct_delete_capability_exposed: false', 'handleMareMcpRequest',
   'handleMareOperationsMcpRequest', 'handleMareProductMediaMcpRequest',
 ]) assert.ok(mcpSource.includes(fragment), `Missing Business OS safeguard or internal adapter: ${fragment}`);
