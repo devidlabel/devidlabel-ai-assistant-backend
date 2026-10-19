@@ -10,7 +10,7 @@ const compiled = await build({
   logLevel: "silent",
 });
 const mod = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
-const { prepareAmazonExistingOfferStockSync: prepare, executeAmazonExistingOfferStockSync: execute } = mod;
+const { prepareAmazonExistingOfferStockSync: prepare, executeAmazonExistingOfferStockSync: execute, reconcileAmazonExistingOfferStockSync: reconcile, observeHistoricalAmazonStockPlan: observeHistorical } = mod;
 
 const request = {
   marketplace: "IT",
@@ -83,6 +83,15 @@ const deps = {
     return amazon(amazonQuantity);
   },
   getAccessToken: async () => "synthetic-access-token",
+  verifyWriterIsolation: async prepared => ({
+    verified: true,
+    scope: "AMAZON_EU_INVENTORY_WRITERS",
+    sku: prepared.sku,
+    marketplaces: ["IT", "DE", "FR", "ES"],
+    all_competing_writers_disabled: true,
+    proof_reference: "SYNTHETIC_ISOLATION_PROOF_1",
+    verified_at: new Date(fixedTime).toISOString(),
+  }),
   sleep: async () => {},
   fetch: async (url, init) => {
     writes++;
@@ -132,6 +141,34 @@ assert.equal(prepared.summary.provider_mutations, 0);
 assert.equal(prepared.prepared_request.shopify_available_quantity, 1);
 assert.equal(prepared.prepared_request.amazon_current_quantity, 2);
 assert.equal(prepared.prepared_request.amazon_product_type, "PANTS");
+
+await assert.rejects(
+  () => execute(prepared.prepared_request, env, { ...deps, verifyWriterIsolation: undefined }),
+  /amazon_stock_writer_isolation_not_operationally_verified/,
+);
+assert.equal(writes, 0);
+await assert.rejects(
+  () => execute(prepared.prepared_request, env, {
+    ...deps,
+    verifyWriterIsolation: async p => ({
+      ...(await deps.verifyWriterIsolation(p)),
+      verified_at: new Date(fixedTime - 6 * 60 * 1000).toISOString(),
+    }),
+  }),
+  /amazon_stock_writer_isolation_not_operationally_verified/,
+);
+assert.equal(writes, 0);
+await assert.rejects(
+  () => execute(prepared.prepared_request, env, {
+    ...deps,
+    verifyWriterIsolation: async p => ({
+      ...(await deps.verifyWriterIsolation(p)),
+      marketplaces: ["IT", "DE", "FR", "UK"],
+    }),
+  }),
+  /amazon_stock_writer_isolation_not_operationally_verified/,
+);
+assert.equal(writes, 0);
 
 const updated = await execute(prepared.prepared_request, env, deps);
 assert.equal(updated.status, "UPDATED_AND_VERIFIED");
@@ -208,11 +245,62 @@ const unconfirmedDeps = {
   },
 };
 const unconfirmed = await prepare(request, env, unconfirmedDeps);
-await assert.rejects(
-  () => execute(unconfirmed.prepared_request, env, unconfirmedDeps),
-  /amazon_stock_write_readback_unconfirmed/,
-);
+let persistedReceipt = null;
+const pending = await execute(unconfirmed.prepared_request, env, {
+  ...unconfirmedDeps,
+  onMutationAccepted: async receipt => { persistedReceipt = receipt; },
+});
+assert.equal(pending.status, "MUTATION_ACCEPTED_PENDING_READBACK");
+assert.equal(pending.readback_verified, false);
+assert.equal(pending.readback_outcome, "QUANTITY_NOT_CONFIRMED");
+assert.equal(pending.retry_patch_allowed, false);
 assert.equal(unconfirmedPatches, 1);
 assert.equal(unconfirmedReads, 7); // prepare + freshness check + five readbacks
+assert.equal(persistedReceipt.submission_reference, "SYNTHETIC_SUBMISSION_1");
+assert.equal(persistedReceipt.target_quantity, 1);
+assert.equal(persistedReceipt.provider_mutations, 1);
+assert.equal(persistedReceipt.writer_isolation_proof_reference, "SYNTHETIC_ISOLATION_PROOF_1");
+
+// Deferred reconciliation is read-only and may close after propagation, even if
+// Shopify has changed since the accepted mutation. The changed source state is
+// reported explicitly and must never cause a second PATCH.
+shopifyQuantity = 2;
+let reconciliationReads = 0;
+const reconciled = await reconcile(persistedReceipt, env, {
+  ...deps,
+  readAmazonListing: async () => { reconciliationReads++; return amazon(1); },
+  fetch: async () => { throw new Error("PATCH forbidden during reconciliation"); },
+});
+assert.equal(reconciled.status, "RECONCILED_AND_VERIFIED");
+assert.equal(reconciled.closure_allowed, true);
+assert.equal(reconciled.verified_quantity, 1);
+assert.equal(reconciled.shopify_changed_since_mutation, true);
+assert.equal(reconciled.provider_mutations, 0);
+assert.equal(reconciled.retry_patch_allowed, false);
+assert.equal(reconciliationReads, 1);
+
+// Provider read failures remain pending and are classified without mutation.
+const readTimeout = await reconcile(persistedReceipt, env, {
+  ...deps,
+  readAmazonListing: async () => { throw new Error("request timed out"); },
+  fetch: async () => { throw new Error("PATCH forbidden during reconciliation"); },
+});
+assert.equal(readTimeout.status, "RECONCILIATION_PENDING");
+assert.equal(readTimeout.readback_outcome, "READ_TIMEOUT");
+assert.equal(readTimeout.closure_allowed, false);
+assert.equal(readTimeout.provider_mutations, 0);
+
+// Historical plans lacking the accepted submission reference can be observed
+// but cannot be attributed to the old mutation or persistently closed as such.
+const historical = await observeHistorical(unconfirmed.prepared_request, env, {
+  ...deps,
+  readAmazonListing: async () => amazon(1),
+});
+assert.equal(historical.status, "HISTORICAL_OBSERVATION_ONLY");
+assert.equal(historical.historical_submission_reference_available, false);
+assert.equal(historical.attribution_to_historical_mutation_proven, false);
+assert.equal(historical.closure_allowed, false);
+assert.equal(historical.retry_patch_allowed, false);
+assert.equal(historical.provider_mutations, 0);
 
 console.log("Amazon stock sync pilot tests passed.");
