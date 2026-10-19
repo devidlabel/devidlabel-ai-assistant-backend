@@ -34,7 +34,7 @@ const FIELD_RE = /^[a-z][a-z0-9_]{0,119}$/;
 const MAX_RESPONSE_BYTES = 2_000_000;
 const MAX_PRODUCT_TYPES = 100;
 const MAX_OUTPUT_TYPES = 15;
-const MAX_ATTRIBUTES = 250;
+const MAX_ATTRIBUTES = 1000;
 const TIMEOUT_MS = 20_000;
 const FLAGS = Object.freeze({
   read_only: true, provider_mutations: 0,
@@ -183,22 +183,36 @@ function approvedSchemaUrl(raw: unknown): string | null {
 function safeName(value: unknown): string | null {
   return typeof value === "string" && FIELD_RE.test(value) ? value : null;
 }
-function requiredAttributes(schema: Row): {required: string[]; visible: string[]; complex: boolean} | null {
-  const rootProperties = obj(schema.properties), attributes = obj(rootProperties.attributes);
-  const properties = obj(attributes.properties);
-  if (schema.type !== "object" || attributes.type !== "object" ||
-      !Array.isArray(attributes.required)) return null;
-  const required = attributes.required;
-  if (required.length > MAX_ATTRIBUTES || Object.keys(properties).length > MAX_ATTRIBUTES ||
-      !required.every(x => safeName(x) !== null)) return null;
-  const visible = Object.keys(properties).filter(name => safeName(name) !== null);
+function requiredAttributes(schema: Row): {
+  required: string[]; visible: string[]; visibleCount: number; truncated: boolean;
+  complex: boolean; structure: "TOP_LEVEL_ATTRIBUTES" | "WRAPPED_ATTRIBUTES";
+  staticRequiredDeclared: boolean;
+} | null {
+  if (schema.type !== "object") return null;
+  const rootProperties = obj(schema.properties);
+  const wrapped = obj(rootProperties.attributes);
+  // Amazon's PTD JSON Schema normally describes listing attributes DIRECTLY
+  // under root properties/required. A feed/representation wrapper may place
+  // attributes under properties.attributes. Support both, never infer missing
+  // conditional requirements from an empty static required array.
+  const nested = wrapped.type === "object" &&
+    Object.keys(obj(wrapped.properties)).length > 0;
+  const holder = nested ? wrapped : schema;
+  const props = obj(holder.properties), names = Object.keys(props);
+  if (names.length < 1 || names.length > MAX_ATTRIBUTES) return null;
+  const declared = Array.isArray(holder.required);
+  const required = declared ? holder.required as unknown[] : [];
+  if (required.length > MAX_ATTRIBUTES || !required.every(x => safeName(x) !== null))
+    return null;
+  const visible = names.filter(name => safeName(name) !== null).sort();
+  if (visible.length !== names.length) return null;
   const structure = JSON.stringify(schema);
   return {
     required: [...new Set(required as string[])].sort(),
-    visible: visible.sort(),
-    // Conditional requirements and references must be resolved by full JSON Schema
-    // validation before any real listing creation.
+    visible: visible.slice(0, 160), visibleCount: visible.length, truncated: visible.length > 160,
     complex: /"(?:allOf|anyOf|oneOf|if|then|else|\$ref|dependentSchemas)"/.test(structure),
+    structure: nested ? "WRAPPED_ATTRIBUTES" : "TOP_LEVEL_ATTRIBUTES",
+    staticRequiredDeclared: declared,
   };
 }
 
@@ -367,6 +381,10 @@ export async function researchAmazonNewAsinProductType(
     schema_checksum_verified: false,
     required_attribute_names: fields.required,
     available_schema_attribute_names: fields.visible,
+    schema_attribute_count: fields.visibleCount,
+    available_schema_attribute_names_truncated: fields.truncated,
+    schema_attribute_structure: fields.structure,
+    static_required_set_declared: fields.staticRequiredDeclared,
     conditional_requirements_detected: fields.complex,
     static_requirements_not_full_validation: true,
     supported_shopify_evidence_fields: [
