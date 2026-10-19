@@ -7,6 +7,8 @@ import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest }
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
+import { readAmazonEuInventoryShadow } from "./marketplace-amazon-eu-inventory-shadow.js";
+import { previewAmazonShipmentConfirmation, validateAmazonShipmentConfirmationPreviewRequest } from "./marketplace-amazon-shipment-confirmation-preview.js";
 import { readShopifyAmazonShipmentReconciliation } from "./marketplace-shopify-amazon-shipments.js";
 import { captureLiveMarketplaceOrderEvidence, readStoredMarketplaceOrderEvidence, validateOrderEvidenceCaptureRequest } from "./marketplace-order-evidence-client.js";
 import { readMarketplaceShopifyPermissionReadiness } from "./marketplace-shopify-scope-readiness.js";
@@ -425,6 +427,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
+  if (capabilityId === "amazon.inventory.eu.shadow.readonly") return textToolResult(await readAmazonEuInventoryShadow(request, env));
   if (capabilityId === "marketplace.amazon.shipment_reconciliation.readonly") return textToolResult(await readShopifyAmazonShipmentReconciliation(request, env));
   if (capabilityId === "marketplace.order.evidence.read") return textToolResult(await readStoredMarketplaceOrderEvidence(request, env));
   if (capabilityId === "shopify.marketplace.scopes.readonly") return textToolResult(await readMarketplaceShopifyPermissionReadiness(env));
@@ -469,6 +472,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   const request = { ...plan.request };
   if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
   if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
+  if (plan.capability_id === "amazon.shipment.confirmation.preview") return textToolResult(await previewAmazonShipmentConfirmation(request, env));
   const deterministicIdempotency = `mare-${plan.plan_id}`.replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 128);
 
   if (plan.capability_id === "marketplace.feed.generate") return textToolResult(await generateMarketplaceFeed(request, env));
@@ -537,6 +541,7 @@ async function prepareCapability(capability: MareBusinessCapability, request: Js
   // Reject caller-supplied observations before even persisting a local plan.
   if (capability.id === "marketplace.order.evidence.capture") request = validateOrderEvidenceCaptureRequest(request);
   if (capability.id === "amazon.offer.validation.preview") request = validateAmazonOfferPreviewRequest(request);
+  if (capability.id === "amazon.shipment.confirmation.preview") request = validateAmazonShipmentConfirmationPreviewRequest(request);
   assertRequestSafe(request);
   if (!capability.implemented) throw new Error("capability_not_implemented");
   if (!capability.available) throw new Error(`capability_not_available:${capability.missing.join(",")}`);

@@ -36,6 +36,7 @@ assert.equal((mcpSource.match(/name: "mare_[a-z0-9_]+"/g) || []).length, 10, "MA
 
 for (const fragment of [
   'MARE_BUSINESS_ACCESS_TOKEN', 'immutable_plan_before_external_write: true', 'EXECUTE MARE PLAN', 'EXECUTE MARE LIVE PLAN',
+  'amazon.inventory.eu.shadow.readonly', 'amazon.shipment.confirmation.preview',
   'credentials_or_customer_contact_data_not_accepted', 'direct_delete_capability_exposed: false', 'handleMareMcpRequest',
   'handleMareOperationsMcpRequest', 'handleMareProductMediaMcpRequest',
 ]) assert.ok(mcpSource.includes(fragment), `Missing Business OS safeguard or internal adapter: ${fragment}`);
@@ -48,7 +49,8 @@ for (const forbidden of [
 for (const capability of [
   "shopify.catalog.read", "shopify.catalog.export", "shopify.media.preview", "shopify.media.publish", "marketplace.feed.generate",
   "matrixify.catalog.generate", "tiktok.authorization.status", "tiktok.campaign.read", "tiktok.campaign.create", "tiktok.campaign.update",
-  "google_merchant.products.sync", "amazon.listings.sync", "ai.claude.review", "ai.gemini.review",
+  "google_merchant.products.sync", "amazon.listings.sync", "amazon.inventory.eu.shadow.readonly", "amazon.shipment.confirmation.preview",
+  "ai.claude.review", "ai.gemini.review",
 ]) assert.ok(capabilitiesSource.includes(`id: "${capability}"`), `Missing dynamic capability ${capability}`);
 
 for (const fragment of [
@@ -83,6 +85,7 @@ for (const fragment of [
 
 for (const fragment of [
   'resolvedCapabilities', 'tiktok.authorization.start', 'reconciliation_required', 'plan_reconciliation_required',
+  'amazon.inventory.sync.reconcile',
   'complete_variant_pagination: true', 'correct_regular_and_sale_price_mapping: true', 'operationStatus === "DISABLE"', '"PAUSE TIKTOK CAMPAIGN"',
 ]) assert.ok(safeMcpSource.includes(fragment), `Missing Business runtime hardening: ${fragment}`);
 

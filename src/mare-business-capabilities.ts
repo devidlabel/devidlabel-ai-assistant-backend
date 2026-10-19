@@ -159,6 +159,18 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id: "amazon.inventory.eu.shadow.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
+      description:"Read up to eight Shopify SKUs once and compare their live seller offer identity, FBM quantity and B2C price across Amazon IT/DE/FR/ES. Read-only shadow evidence only: it cannot change stock, price, listings, orders or writer ownership.",
+      request_schema:{...schema({
+        skus:{type:"array",minItems:1,maxItems:8,uniqueItems:true,
+          items:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}}
+      },["skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id:"amazon.offer.preflight",provider:"amazon",domain:"marketplace",
       operation:"read",risk:"read_only",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
@@ -206,6 +218,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazon,"Amazon SP-API credentials"],
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]
       ]
+    }),
+    capability({
+      id: "amazon.shipment.confirmation.preview",
+      provider:"amazon",domain:"marketplace",operation:"prepare",risk:"artifact_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
+      description:"Prepare a zero-mutation Amazon Orders v0 confirmShipment preview from one existing Channable-imported Shopify order. Server-side reads require an UNSHIPPED merchant order, complete SUCCESS fulfillments, one tracking entry per package, complete quantity mapping and a configured carrier-code mapping. Tracking numbers are never returned. No Amazon confirmation is sent.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        shopify_order_gid:{type:"string",pattern:"^gid://shopify/Order/[0-9]+$"},
+        amazon_order_id:{type:"string",pattern:"^[0-9]{3}-[0-9]{7}-[0-9]{7}$"}
+      },["marketplace","shopify_order_gid","amazon_order_id"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV (read_orders)"]]
     }),
     capability({
       id:"marketplace.amazon.shipment_reconciliation.readonly",
