@@ -93,7 +93,8 @@ function deps(events=[], overrides={}) {
     readShopify:async args=>{
       assert.equal(args.persist_artifacts,false);
       assert.equal(args.max_products,50);
-      assert.ok(args.query.includes('sku:"'+SKU+'"'));
+      assert.ok(args.query.includes('sku:"'+SKU+'"') ||
+        args.query.includes('barcode:"'+EAN+'"'));
       return shopify();
     },
     readListing:async()=>listing(),
@@ -147,6 +148,20 @@ const duplicate=await research(req,env,deps([],{
   readShopify:async()=>({ ...shopify(),product_count:2,inline_product_count:2,products:[shopify().products[0],shopify().products[0]] }),
 }));
 assert.equal(duplicate.status,"BLOCKED_SHOPIFY");
+
+const duplicateEan=await research(req,env,deps([],{
+  readShopify:async args=>{
+    if(args.query.startsWith("barcode:")){
+      const source=shopify(),other=structuredClone(source.products[0]);
+      other.variants[0].sku="OTHER_SKU";
+      other.variants[0].id="gid://shopify/ProductVariant/99999";
+      return {...source,product_count:2,inline_product_count:2,products:[source.products[0],other]};
+    }
+    return shopify();
+  },
+}));
+assert.equal(duplicateEan.status,"BLOCKED_SHOPIFY");
+assert.equal(duplicateEan.blocker,"ean_missing_or_duplicated_in_shopify");
 
 const missingBarcode=await research(req,env,deps([],{
   readShopify:async()=>{const x=shopify();x.products[0].variants[0].barcode=null;return x;},
