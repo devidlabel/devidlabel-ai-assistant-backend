@@ -46,6 +46,18 @@ export type AmazonStockMutationReceipt = Readonly<{
   accepted_at: string;
   provider_issues: Array<{ code: string; severity: string; attribute_names: string[] }>;
   provider_mutations: 1;
+  writer_isolation_proof_reference: string;
+  writer_isolation_verified_at: string;
+}>;
+
+export type AmazonStockWriterIsolationProof = Readonly<{
+  verified: true;
+  scope: "AMAZON_EU_INVENTORY_WRITERS";
+  sku: string;
+  marketplaces: readonly ["IT", "DE", "FR", "ES"];
+  all_competing_writers_disabled: true;
+  proof_reference: string;
+  verified_at: string;
 }>;
 
 export type AmazonStockSyncDependencies = {
@@ -56,6 +68,7 @@ export type AmazonStockSyncDependencies = {
   clock?: () => number;
   sleep?: (milliseconds: number) => Promise<void>;
   onMutationAccepted?: (receipt: AmazonStockMutationReceipt) => Promise<void>;
+  verifyWriterIsolation?: (request: AmazonStockSyncPreparedRequest) => Promise<AmazonStockWriterIsolationProof>;
 };
 
 const HOST = "https://sellingpartnerapi-eu.amazon.com";
@@ -332,6 +345,9 @@ function validateMutationReceipt(raw: unknown): AmazonStockMutationReceipt {
   const acceptedAt = typeof row.accepted_at === "string" ? row.accepted_at : "";
   const submissionReference = typeof row.submission_reference === "string" && REFERENCE_RE.test(row.submission_reference)
     ? row.submission_reference : "";
+  const isolationProofReference = typeof row.writer_isolation_proof_reference === "string" && REFERENCE_RE.test(row.writer_isolation_proof_reference)
+    ? row.writer_isolation_proof_reference : "";
+  const isolationVerifiedAt = typeof row.writer_isolation_verified_at === "string" ? row.writer_isolation_verified_at : "";
   const issues = Array.isArray(row.provider_issues)
     ? row.provider_issues.slice(0, 32).map(value => {
       const issue = object(value);
@@ -350,7 +366,8 @@ function validateMutationReceipt(raw: unknown): AmazonStockMutationReceipt {
       target > MAX_TARGET_QUANTITY || target !== available || !PRODUCT_TYPE_RE.test(productType) ||
       !preparedAt || !Number.isFinite(Date.parse(preparedAt)) ||
       row.provider_status !== "ACCEPTED" || !submissionReference ||
-      !acceptedAt || !Number.isFinite(Date.parse(acceptedAt)) || row.provider_mutations !== 1)
+      !acceptedAt || !Number.isFinite(Date.parse(acceptedAt)) || row.provider_mutations !== 1 ||
+      !isolationProofReference || !isolationVerifiedAt || !Number.isFinite(Date.parse(isolationVerifiedAt)))
     fail("amazon_stock_mutation_receipt_invalid");
   return Object.freeze({
     ...request,
@@ -367,6 +384,8 @@ function validateMutationReceipt(raw: unknown): AmazonStockMutationReceipt {
     accepted_at: acceptedAt,
     provider_issues: issues,
     provider_mutations: 1,
+    writer_isolation_proof_reference: isolationProofReference,
+    writer_isolation_verified_at: isolationVerifiedAt,
   });
 }
 
@@ -386,6 +405,20 @@ export async function executeAmazonExistingOfferStockSync(
   dependencies: AmazonStockSyncDependencies = {},
 ): Promise<Row> {
   const prepared = validatePrepared(rawPrepared);
+  if (!dependencies.verifyWriterIsolation) fail("amazon_stock_writer_isolation_not_operationally_verified");
+  let isolationProof: AmazonStockWriterIsolationProof;
+  try { isolationProof = await dependencies.verifyWriterIsolation(prepared); }
+  catch { fail("amazon_stock_writer_isolation_not_operationally_verified"); }
+  const proofTime = Date.parse(isolationProof.verified_at);
+  const currentTime = dependencies.clock ? dependencies.clock() : Date.now();
+  if (isolationProof.verified !== true ||
+      isolationProof.scope !== "AMAZON_EU_INVENTORY_WRITERS" ||
+      isolationProof.sku !== prepared.sku ||
+      isolationProof.all_competing_writers_disabled !== true ||
+      isolationProof.marketplaces.join(",") !== "IT,DE,FR,ES" ||
+      !REFERENCE_RE.test(isolationProof.proof_reference) ||
+      !Number.isFinite(proofTime) || proofTime > currentTime || currentTime - proofTime > 5 * 60 * 1000)
+    fail("amazon_stock_writer_isolation_not_operationally_verified");
   const fresh = await readFreshState(prepared, env, dependencies);
   if (fresh.shopify.variant_id !== prepared.shopify_variant_id ||
       fresh.shopify.available !== prepared.shopify_available_quantity ||
@@ -479,6 +512,8 @@ export async function executeAmazonExistingOfferStockSync(
     accepted_at: now(dependencies.clock ?? Date.now),
     provider_issues: issues,
     provider_mutations: 1,
+    writer_isolation_proof_reference: isolationProof.proof_reference,
+    writer_isolation_verified_at: isolationProof.verified_at,
   });
   if (dependencies.onMutationAccepted) {
     try { await dependencies.onMutationAccepted(receipt); }
