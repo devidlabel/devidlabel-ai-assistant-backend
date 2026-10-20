@@ -84,6 +84,25 @@ assert.deepEqual(fallbackOk.footwear_size,{size:"38",size_class:"numeric",size_s
 assert.equal(fallbackOk.ready_for_publication,false);
 assert.equal(fallbackOk.public_storefront_access_used,false);
 assert.ok(fallbackOk.verified_paths.includes("product.features.color.metaobject.name"));
+const euTaglia=structuredClone(fallback);
+euTaglia.productVariant.selectedOptions=[{name:"Taglia",value:"41"}];
+euTaglia.productVariant.googleSizeSystem={type:"single_line_text_field",value:"EU"};
+const euTagliaResult=await read(fallbackExpected,{},{queryShopify:async (_env,q,v)=>
+  q.includes("metaobject(id:$colorId)")?{metaobject:{id:v.colorId,type:"product_feature_color",
+    displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+    euTaglia});
+assert.equal(euTagliaResult.ok,true);
+assert.deepEqual(euTagliaResult.footwear_size,{size:"41",size_class:"numeric",size_system:"eu_footwear_size_system"});
+assert.ok(euTagliaResult.verified_paths.includes("variant.mm-google-shopping.size_system"));
+for(const sizeSystem of [undefined,{type:"single_line_text_field",value:"US"},{type:"boolean",value:"EU"}]){
+  const candidate=structuredClone(euTaglia);
+  candidate.productVariant.googleSizeSystem=sizeSystem;
+  const actual=await read(fallbackExpected,{},{queryShopify:async (_env,q,v)=>
+    q.includes("metaobject(id:$colorId)")?{metaobject:{id:v.colorId,type:"product_feature_color",
+      displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:candidate});
+  assert.equal(actual.ok,true);
+  assert.equal(actual.footwear_size,undefined,"No unitless EU inference without explicit Shopify evidence");
+}
 // A brand with a different confirmed Amazon mapping can never silently use vendor.
 const missingMappedBrand=source();
 missingMappedBrand.productVariant.product.metafields.nodes=[];
