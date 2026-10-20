@@ -10,7 +10,7 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
 const COLOR_QUERY='query MerchantShoesFeatureColor($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
 function obj(value:unknown):Row {
@@ -117,14 +117,22 @@ export async function readAmazonShoesPrivateShopifyValues(
   const targetGender=rawGender==="Donna"?"female":
     rawGender==="Uomo"?"male":rawGender==="Unisex"?"unisex":undefined;
   // EU shoe size must come from the actual variant option, never from SKU text.
-  // Ambiguous sizes or option sets are omitted, NOT guessed.
+  // For a unitless "Taglia: 41", require a separately declared Shopify EU
+  // sizing-system metafield; no assumptions about US/UK sizes.
   const selections=variant.selectedOptions;
+  const declaredSystem=obj(variant.googleSizeSystem);
+  const euDeclared=declaredSystem.type==="single_line_text_field"&&
+    declaredSystem.value==="EU";
   let selectedSize:string|undefined;
+  let sizeNeedsSystemEvidence=false;
   if(Array.isArray(selections)&&selections.length===1){
     const option=obj(selections[0]);
     if(option.name==="Numero"&&typeof option.value==="string"){
       const match=/^([34][0-9]|50) EU$/.exec(option.value);
       if(match)selectedSize=match[1];
+    }else if(option.name==="Taglia"&&typeof option.value==="string"&&euDeclared){
+      const match=/^([34][0-9]|50)$/.exec(option.value);
+      if(match){selectedSize=match[1];sizeNeedsSystemEvidence=true;}
     }
   }
   return {ok:true,model_name:model,color,
@@ -136,7 +144,7 @@ export async function readAmazonShoesPrivateShopifyValues(
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
       sourceColor,
       ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
-      ...(selectedSize?["variant.selectedOptions"]:[])],
+      ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
 }
