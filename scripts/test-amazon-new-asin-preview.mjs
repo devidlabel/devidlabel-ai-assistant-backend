@@ -17,6 +17,13 @@ function research(){
     validation_preview_sent:false,can_publish:false,
     attribute_gap_report:{report_status:"GAPS_REQUIRE_REVIEW"},
     required_attribute_names:["brand","item_name","model_name","color"],
+    ptd_attribute_shapes:{footwear_size:{type:"array",items:{type:"object",
+      required:["size","size_class","size_system"],properties:{
+        size:{type:"string"},size_class:{enum:["numeric"]},
+        size_system:{enum:["eu_footwear_size_system"]},
+        gender:{enum:["women","men"]}}}},
+      target_gender:{type:"array",items:{type:"object",properties:{
+        value:{enum:["female","male","unisex"]}}}}},
     shopify:{ean,product_title:"Mock Sneaker Ivory",
       variant_id:"gid://shopify/ProductVariant/55555",
       brand:"Back70",amazon_listing_brand:"Back 70 Streetwear",
@@ -30,6 +37,7 @@ const deps={
     assert.equal(input.variantId,"gid://shopify/ProductVariant/55555");
     assert.equal(input.amazonBrand,"Back 70 Streetwear");
     return {ok:true,model_name:"Mohair",color:"Camel/Butter",
+      eu_footwear_size:"37",amazon_target_gender:"female",
       draft_values_review_only:true,public_storefront_access_used:false,
       ready_for_publication:false};
   },
@@ -47,7 +55,10 @@ const deps={
     assert.equal(body.productType,"SHOES");
     assert.equal(body.requirements,"LISTING");
     assert.deepEqual(Object.keys(body.attributes).sort(),[
-      "brand","externally_assigned_product_identifier","item_name","model_name","color"].sort());
+      "brand","externally_assigned_product_identifier","item_name","model_name","color","target_gender","footwear_size"].sort());
+    assert.equal(body.attributes.target_gender[0].value,"female");
+    assert.deepEqual(body.attributes.footwear_size,[{size:"37",size_class:"numeric",
+      size_system:"eu_footwear_size_system",gender:"women",marketplace_id:"A1PA6795UKMFR9"}]);
     assert.equal(body.attributes.model_name[0].value,"Mohair");
     assert.equal(body.attributes.color[0].value,"Camel/Butter");
     assert.equal(body.attributes.brand[0].value,"Back 70 Streetwear");
@@ -79,6 +90,7 @@ assert.equal(result.private_shopify_metafields_used,true);
 assert.equal(result.storefront_unchanged,true);
 assert.ok(!JSON.stringify(result).includes("Camel/Butter"));
 assert.ok(!JSON.stringify(result).includes("Mohair"));
+assert.ok(!JSON.stringify(result).includes("eu_footwear_size"));
 assert.equal(result.issue_count,1);
 assert.deepEqual(result.issues[0],{
   code:"90004100",severity:"ERROR",attribute_names:["country_of_origin"]});
@@ -113,4 +125,10 @@ console.log("Amazon new ASIN SHOES VALIDATION_PREVIEW safety tests passed.");
 const mismatchedFields=await run(request,env,{...deps,readPrivateFields:async()=>({ok:false,reason:"shopify_brand_field_mismatch"})});
 assert.equal(mismatchedFields.ok,false);
 assert.equal(mismatchedFields.reason,"shopify_private_fields_not_verified");
+assert.equal(calls,1);
+
+const missingSizeSchema=await run(request,env,{...deps,research:async()=>({
+  ...research(),ptd_attribute_shapes:{}
+})});
+assert.equal(missingSizeSchema.reason,"amazon_ptd_shoes_size_gender_shape_unverified");
 assert.equal(calls,1);
