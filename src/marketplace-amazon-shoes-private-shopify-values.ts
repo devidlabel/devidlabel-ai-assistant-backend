@@ -26,11 +26,17 @@ function safeText(raw:unknown,max=95):raw is string {
  * Never derive GTIN, materials, origin, compliance, or pricing from this text.
  * Unsafe/ambiguous HTML simply omits these optional attributes.
  */
-function merchantDescription(raw:unknown):{product_description?:string;model_number?:string}{
+function merchantDescription(raw:unknown):{product_description?:string;model_number?:string;bullet_point?:string}{
   if(typeof raw!=="string"||raw.length<60||raw.length>8000||
      /<\s*(?:script|style|iframe|object|embed|svg|form|input|textarea)\b/i.test(raw)||
      /<[^>]*$/.test(raw))return {};
   const matches=[...raw.matchAll(/<li>\s*Codice modello:\s*([A-Za-z0-9][A-Za-z0-9._/-]{0,59})\s*<\/li>/gi)];
+  // A single explicitly labelled model line is merchant-origin metadata.
+  // Never synthesize marketing claims or material/technical specifications.
+  const modelLines=[...raw.matchAll(/<li>\s*Modello:\s*([^<>]{4,100})\s*<\/li>/gi)];
+  const modelBullet=modelLines.length===1?modelLines[0][1].trim():undefined;
+  const bulletPoint=safeText(modelBullet,100)&&
+    !/&(?:#\w+|\w+);/.test(modelBullet)?modelBullet:undefined;
   const description=raw.replace(/<br\s*\/?>/gi,". ")
     .replace(/<\/(?:p|li|h[1-6]|div)>/gi,". ")
     .replace(/<[^>]+>/g," ")
@@ -41,7 +47,8 @@ function merchantDescription(raw:unknown):{product_description?:string;model_num
      /[\u0000-\u001f\u007f<>]/.test(description)||
      /&(?:#\w+|\w+);/.test(description))return {};
   return {product_description:description,
-    ...(matches.length===1?{model_number:matches[0][1]}:{})};
+    ...(matches.length===1?{model_number:matches[0][1]}:{}),
+    ...(bulletPoint?{bullet_point:bulletPoint}:{})};
 }
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
