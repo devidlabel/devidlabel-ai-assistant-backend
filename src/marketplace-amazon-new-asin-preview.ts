@@ -91,8 +91,34 @@ export async function previewAmazonNewAsinShoesValidation(
      evidence.ready_for_publication!==false||
      typeof evidence.model_name!=="string"||typeof evidence.color!=="string")
     return blocked(marketplace,sku,"shopify_private_fields_not_verified");
-  // Important: this intentionally does NOT infer materials, manufacturer,
-  // origin, brand permissions, GPSR or full PTD conditional requirements.
+
+  // PTD shape comes from the freshly fetched Amazon marketplace schema,
+  // never from caller input. Enum checks are deliberately fail-closed.
+  const shapes=obj(research.ptd_attribute_shapes);
+  const footwear=obj(shapes.footwear_size),footwearItem=obj(footwear.items);
+  const footwearProps=obj(footwearItem.properties);
+  const sizeSystem=obj(footwearProps.size_system),sizeClass=obj(footwearProps.size_class);
+  const numericSize=obj(footwearProps.size),sizeGender=obj(footwearProps.gender);
+  const target=obj(shapes.target_gender),targetItem=obj(target.items);
+  const genderValue=obj(obj(targetItem.properties).value);
+  const checkEnum=(v:Row,needle:string)=>Array.isArray(v.enum)&&v.enum.includes(needle);
+  const euSize=evidence.eu_footwear_size,gender=evidence.amazon_target_gender;
+  if(footwear.type!=="array"||footwearItem.type!=="object"||
+     !Array.isArray(footwearItem.required)||
+     !["size","size_class","size_system"].every(v=>footwearItem.required.includes(v))||
+     numericSize.type!=="string"||
+     typeof euSize!=="string"||!/^\d{2}(?:\.5)?$/.test(euSize)||
+     !checkEnum(sizeSystem,"eu_footwear_size_system")||
+     !checkEnum(sizeClass,"numeric")||
+     target.type!=="array"||targetItem.type!=="object"||
+     typeof gender!=="string"||!["female","male","unisex"].includes(gender)||
+     !checkEnum(genderValue,gender))
+    return blocked(marketplace,sku,"amazon_ptd_shoes_size_gender_shape_unverified");
+  const sizeGenderValue=gender==="female"?"women":gender==="male"?"men":null;
+  if(sizeGenderValue!==null&&!checkEnum(sizeGender,sizeGenderValue))
+    return blocked(marketplace,sku,"amazon_ptd_shoes_size_gender_shape_unverified");
+  // Important: these are verified size and gender transformations only;
+  // materials, manufacturer, origin, GPSR and package measurements remain blocked.
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
   const payload={productType:"SHOES",requirements:"LISTING",attributes:{
     brand:[{value:brand,marketplace_id:marketId}],
@@ -100,6 +126,10 @@ export async function previewAmazonNewAsinShoesValidation(
     externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:marketId}],
     model_name:[{value:evidence.model_name,marketplace_id:marketId}],
     color:[{value:evidence.color,marketplace_id:marketId}],
+    target_gender:[{value:gender,marketplace_id:marketId}],
+    footwear_size:[{size:euSize,size_system:"eu_footwear_size_system",
+      size_class:"numeric",...(sizeGenderValue?{gender:sizeGenderValue}:{}),
+      marketplace_id:marketId}],
   }};
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
@@ -170,7 +200,7 @@ export async function previewAmazonNewAsinShoesValidation(
     provider_validation_status:response.status,
     issue_count:sanitized.length,issues:sanitized,
     preview_submission_reference:response.submissionId,
-    attributes_submitted:["brand","item_name","externally_assigned_product_identifier","model_name","color"],
+    attributes_submitted:["brand","item_name","externally_assigned_product_identifier","model_name","color","target_gender","footwear_size"],
     private_shopify_metafields_used:true,private_shopify_values_exported_in_response:false,
     storefront_unchanged:true,
     listing_brand_from_merchant_mapping:obj(research.shopify).amazon_brand_mapping_source,
