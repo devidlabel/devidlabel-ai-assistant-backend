@@ -62,6 +62,7 @@ fallback.productVariant.product.metafields.nodes=[];
 fallback.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Hyper"};
 fallback.productVariant.product.fallbackGender={type:"list.single_line_text_field",value:'["Donna"]'};
 fallback.productVariant.product.fallbackColorRef={type:"metaobject_reference",value:"gid://shopify/Metaobject/299395449173"};
+fallback.productVariant.product.descriptionHtml='<h2>4B12 Hyper D4006</h2><p>Una sneaker da donna nella colorazione bianca, con dettagli specifici del modello e suola per uso quotidiano.</p><ul><li>Codice modello: HYPER-D4006</li></ul>';
 fallback.productVariant.selectedOptions=[{name:"Numero",value:"38 EU"}];
 let fallbackHits=0;
 const fallbackQuery=async (_env,query,vars)=>{
@@ -80,10 +81,35 @@ assert.equal(fallbackOk.ok,true);
 assert.equal(fallbackOk.model_name,"Hyper");
 assert.equal(fallbackOk.color,"Bianco");
 assert.equal(fallbackOk.target_gender,"female");
+assert.equal(fallbackOk.model_number,"HYPER-D4006");
+assert.match(fallbackOk.product_description,/4B12 Hyper D4006/);
+assert.ok(!fallbackOk.product_description.includes("<h2>"));
+assert.ok(fallbackOk.verified_paths.includes("product.descriptionHtml"));
 assert.deepEqual(fallbackOk.footwear_size,{size:"38",size_class:"numeric",size_system:"eu_footwear_size_system"});
 assert.equal(fallbackOk.ready_for_publication,false);
 assert.equal(fallbackOk.public_storefront_access_used,false);
 assert.ok(fallbackOk.verified_paths.includes("product.features.color.metaobject.name"));
+// Reject HTML carrying executable elements. No hidden body fields are inferred.
+const dangerous=structuredClone(fallback);
+dangerous.productVariant.product.descriptionHtml='<script>alert(1)</script>'+fallback.productVariant.product.descriptionHtml;
+const descriptionQuery=async (_env,q,v)=>q.includes("metaobject(id:$colorId)")?
+  {metaobject:{id:v.colorId,type:"product_feature_color",
+    displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+  dangerous;
+const dangerousRead=await read(fallbackExpected,{}, {queryShopify:descriptionQuery});
+assert.equal(dangerousRead.ok,true);
+assert.equal(dangerousRead.product_description,undefined);
+assert.equal(dangerousRead.model_number,undefined);
+const ambiguous=structuredClone(fallback);
+ambiguous.productVariant.product.descriptionHtml+=
+  '<li>Codice modello: HYPER-OTHER</li>';
+const ambiguityRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+  q.includes("metaobject(id:$colorId)")?
+    {metaobject:{id:v.colorId,type:"product_feature_color",
+      displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:ambiguous});
+assert.equal(ambiguityRead.ok,true);
+assert.equal(ambiguityRead.model_number,undefined);
+assert.ok(ambiguityRead.product_description);
 const euTaglia=structuredClone(fallback);
 euTaglia.productVariant.selectedOptions=[{name:"Taglia",value:"41"}];
 euTaglia.productVariant.googleSizeSystem={type:"single_line_text_field",value:"EU"};

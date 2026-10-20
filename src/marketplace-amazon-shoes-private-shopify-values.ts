@@ -10,7 +10,7 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
 const COLOR_QUERY='query MerchantShoesFeatureColor($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
 function obj(value:unknown):Row {
@@ -19,6 +19,29 @@ function obj(value:unknown):Row {
 function safeText(raw:unknown,max=95):raw is string {
   return typeof raw==="string"&&raw.length>0&&raw.length<=max&&
     raw===raw.trim()&&!/[\u0000-\u001f\u007f<>]/.test(raw);
+}
+/**
+ * Optional, merchant-authored Shopify description evidence. This is marketing
+ * copy for Amazon VALIDATION_PREVIEW only, NOT a manufacturer technical spec.
+ * Never derive GTIN, materials, origin, compliance, or pricing from this text.
+ * Unsafe/ambiguous HTML simply omits these optional attributes.
+ */
+function merchantDescription(raw:unknown):{product_description?:string;model_number?:string}{
+  if(typeof raw!=="string"||raw.length<60||raw.length>8000||
+     /<\s*(?:script|style|iframe|object|embed|svg|form|input|textarea)\b/i.test(raw)||
+     /<[^>]*$/.test(raw))return {};
+  const matches=[...raw.matchAll(/<li>\s*Codice modello:\s*([A-Za-z0-9][A-Za-z0-9._/-]{0,59})\s*<\/li>/gi)];
+  const description=raw.replace(/<br\s*\/?>/gi,". ")
+    .replace(/<\/(?:p|li|h[1-6]|div)>/gi,". ")
+    .replace(/<[^>]+>/g," ")
+    .replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&")
+    .replace(/&quot;/gi,'"').replace(/&#39;/gi,"'")
+    .replace(/\s+/g," ").trim();
+  if(description.length<60||description.length>2000||
+     /[\u0000-\u001f\u007f<>]/.test(description)||
+     /&(?:#\w+|\w+);/.test(description))return {};
+  return {product_description:description,
+    ...(matches.length===1?{model_number:matches[0][1]}:{})};
 }
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
@@ -135,7 +158,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       if(match){selectedSize=match[1];sizeNeedsSystemEvidence=true;}
     }
   }
-  return {ok:true,model_name:model,color,
+  const descriptionEvidence=merchantDescription(product.descriptionHtml);
+  return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
       size:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
@@ -144,7 +168,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
       sourceColor,
       ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
-      ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[])],
+      ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
+      ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
 }

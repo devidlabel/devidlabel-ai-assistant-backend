@@ -91,6 +91,16 @@ export async function previewAmazonNewAsinShoesValidation(
      evidence.ready_for_publication!==false||
      typeof evidence.model_name!=="string"||typeof evidence.color!=="string")
     return blocked(marketplace,sku,"shopify_private_fields_not_verified");
+  // Merchant-authored description and the explicit "Codice modello" line are
+  // optional validation-only hints, not manufacturer-verified product evidence.
+  // Revalidate even injected dependency output before it enters Amazon.
+  const description=typeof evidence.product_description==="string"&&
+    evidence.product_description.length>=60&&evidence.product_description.length<=2000&&
+    !/[\u0000-\u001f\u007f<>]/.test(evidence.product_description)?
+    evidence.product_description:undefined;
+  const modelNumber=typeof evidence.model_number==="string"&&
+    /^[A-Za-z0-9][A-Za-z0-9._/-]{0,59}$/.test(evidence.model_number)?
+    evidence.model_number:undefined;
   // Important: this intentionally does NOT infer materials, manufacturer,
   // origin, brand permissions, GPSR or full PTD conditional requirements.
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
@@ -99,6 +109,8 @@ export async function previewAmazonNewAsinShoesValidation(
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
     externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:marketId}],
     model_name:[{value:evidence.model_name,marketplace_id:marketId}],
+    ...(description?{product_description:[{value:description,language_tag:locale,marketplace_id:marketId}]}:{}),
+    ...(modelNumber?{model_number:[{value:modelNumber,marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
     ...(evidence.target_gender==="female"||evidence.target_gender==="male"||
         evidence.target_gender==="unisex"?
