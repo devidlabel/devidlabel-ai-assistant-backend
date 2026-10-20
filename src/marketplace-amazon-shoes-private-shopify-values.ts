@@ -10,7 +10,7 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}}}}}';
 function obj(value:unknown):Row {
   return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Row:{};
 }
@@ -65,11 +65,29 @@ export async function readAmazonShoesPrivateShopifyValues(
   const model=fields.get("model_name"),color=fields.get("color");
   if(!safeText(model,80)||!safeText(color,80))
     return fail("shopify_pilot_model_or_color_missing");
-  // Check single pilot fields only; do not map target_gender, origin, safety,
-  // technical footwear materials or manufacturer to Amazon without verifying PTD.
+
+  const rawGender=fields.get("target_gender");
+  const genderMap:Record<string,string>={Donna:"female",Uomo:"male",Unisex:"unisex"};
+  if(!rawGender||!Object.hasOwn(genderMap,rawGender))
+    return fail("shopify_shoes_gender_unverified");
+  const choices=variant.selectedOptions;
+  if(!Array.isArray(choices)||choices.length===0||choices.length>8)
+    return fail("shopify_shoes_size_unverified");
+  const sizes=choices.map(obj).filter(o=>typeof o.name==="string"&&
+    /^(numero|taglia|size|shoe size|eu size)$/i.test(o.name.trim()));
+  if(sizes.length!==1||typeof sizes[0].value!=="string")
+    return fail("shopify_shoes_size_unverified");
+  const match=/^([1-9]\d?)(?:[.,](5))?\s+EU$/i.exec(sizes[0].value.trim());
+  if(!match||Number(match[1])<20||Number(match[1])>55)
+    return fail("shopify_shoes_size_unverified");
+  const euSize=match[1]+(match[2]?".5":"");
+  // Identical Admin-verified variant selection and private product metafields.
+  // Never guess manufacturer, origin, footwear materials, GPSR or package metrics.
   return {ok:true,model_name:model,color,
+    eu_footwear_size:euSize,amazon_target_gender:genderMap[rawGender],
     verified_paths:["product.amazon_ptd_shoes.amazon_brand",
-      "product.amazon_ptd_shoes.model_name","product.amazon_ptd_shoes.color"],
+      "product.amazon_ptd_shoes.model_name","product.amazon_ptd_shoes.color",
+      "product.amazon_ptd_shoes.target_gender","variant.selectedOptions"],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
 }
