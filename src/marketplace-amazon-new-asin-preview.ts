@@ -100,6 +100,14 @@ export async function previewAmazonNewAsinShoesValidation(
     externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:marketId}],
     model_name:[{value:evidence.model_name,marketplace_id:marketId}],
     color:[{value:evidence.color,marketplace_id:marketId}],
+    ...(evidence.target_gender==="female"||evidence.target_gender==="male"||
+        evidence.target_gender==="unisex"?
+      {target_gender:[{value:evidence.target_gender,marketplace_id:marketId}]}:{}),
+    ...(typeof obj(evidence.footwear_size).size==="string"&&
+        /^[34][0-9]$|^50$/.test(obj(evidence.footwear_size).size as string)&&
+        obj(evidence.footwear_size).size_class==="numeric"&&
+        obj(evidence.footwear_size).size_system==="eu_footwear_size_system"?
+      {footwear_size:[{...evidence.footwear_size as Row,marketplace_id:marketId}]}:{}),
   }};
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
@@ -170,7 +178,7 @@ export async function previewAmazonNewAsinShoesValidation(
     provider_validation_status:response.status,
     issue_count:sanitized.length,issues:sanitized,
     preview_submission_reference:response.submissionId,
-    attributes_submitted:["brand","item_name","externally_assigned_product_identifier","model_name","color"],
+    attributes_submitted:Object.keys(payload.attributes),
     private_shopify_metafields_used:true,private_shopify_values_exported_in_response:false,
     storefront_unchanged:true,
     listing_brand_from_merchant_mapping:obj(research.shopify).amazon_brand_mapping_source,
