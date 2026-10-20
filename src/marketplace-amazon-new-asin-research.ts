@@ -218,6 +218,64 @@ function requiredAttributes(schema: Row): {
   };
 }
 
+
+/** Bounded, read-only structural hint from Amazon's live SHOES PTD.
+ * No signed schema URLs, raw schema, product values or inferred enum choices.
+ * A shape is an inspection aid, NOT proof that a draft passes PTD conditions. */
+function shoesAttributeShapes(schema: Row): Row {
+  const root = obj(schema.properties), wrapper = obj(root.attributes);
+  const holder = wrapper.type === "object" &&
+    Object.keys(obj(wrapper.properties)).length > 0 ? wrapper : schema;
+  const attributes = obj(holder.properties);
+  const names = [
+    "footwear_size", "target_gender", "age_range_description", "closure",
+    "sole_material", "inner", "outer", "leather_type",
+    "item_package_weight", "item_package_dimensions", "list_price",
+    "country_of_origin", "manufacturer", "batteries_required",
+  ];
+  function shape(node: unknown, depth = 0): Row {
+    if (depth > 5) return {truncated: true};
+    const value = obj(node), result: Row = {};
+    if (typeof value.type === "string" &&
+      ["array","object","string","integer","number","boolean","null"].includes(value.type))
+      result.type = value.type;
+    if (typeof value.$ref === "string") result.reference_resolution_required = true;
+    const values = value.enum;
+    if (Array.isArray(values) && values.length <= 100 &&
+      values.every(v => typeof v === "string" && v.length <= 96 &&
+        !/[\u0000-\u001f<>]/.test(v)))
+      result.enum = values;
+    if (typeof value.pattern === "string" && value.pattern.length <= 200)
+      result.pattern = value.pattern;
+    if (typeof value.minimum === "number" && Number.isFinite(value.minimum))
+      result.minimum = value.minimum;
+    if (typeof value.maximum === "number" && Number.isFinite(value.maximum))
+      result.maximum = value.maximum;
+    if (value.items) result.items = shape(value.items, depth + 1);
+    const properties = obj(value.properties), keys = Object.keys(properties);
+    if (keys.length > 0) {
+      if (keys.length > 40) result.properties_truncated = true;
+      else {
+        const output: Row = {};
+        for (const k of keys) if (safeName(k) !== null)
+          output[k] = shape(properties[k], depth + 1);
+        result.properties = output;
+      }
+    }
+    if (Array.isArray(value.required) && value.required.length <= 40 &&
+      value.required.every(v => safeName(v) !== null))
+      result.required = value.required;
+    for (const keyword of ["allOf","anyOf","oneOf","if","then","else","dependentSchemas"]) {
+      if (value[keyword] !== undefined) result.conditional_review_required = true;
+    }
+    return result;
+  }
+  const result: Row = {};
+  for (const name of names) if (attributes[name] !== undefined)
+    result[name] = shape(attributes[name]);
+  return result;
+}
+
 /** One request, one marketplace, one SKU, optional explicitly selected PTD product type.
  * No request URL, image URL, compliance assertion or product attribute injection. */
 export async function researchAmazonNewAsinProductType(
@@ -448,6 +506,11 @@ export async function researchAmazonNewAsinProductType(
     static_required_set_declared: fields.staticRequiredDeclared,
     conditional_requirements_detected: fields.complex,
     static_requirements_not_full_validation: true,
+    ...(sneakers && input.product_type === "SHOES" ? {
+      ptd_attribute_shapes: shoesAttributeShapes(rawSchema),
+      ptd_shapes_are_read_only: true,
+      ptd_shapes_are_not_schema_validation: true,
+    } : {}),
     supported_shopify_evidence_fields: [
       "item_name", "brand", "externally_assigned_product_identifier",
       "purchasable_offer", "fulfillment_availability",
