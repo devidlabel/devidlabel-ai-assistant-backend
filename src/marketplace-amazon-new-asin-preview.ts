@@ -26,6 +26,7 @@ const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const SELLER=/^[A-Z0-9]{8,30}$/;
 const EAN=/^\d{13}$/;
 const LOCALES={IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"} as const;
+const MODEL_LABELS={IT:"Modello",DE:"Modell",FR:"Modèle",ES:"Modelo"} as const;
 const REF=/^[A-Za-z0-9._:-]{1,128}$/;
 const ATTR=/^[a-z][a-z0-9_]{0,119}$/;
 const CODE=/^[A-Za-z0-9_.-]{1,64}$/;
@@ -98,6 +99,10 @@ export async function previewAmazonNewAsinShoesValidation(
     evidence.product_description.length>=60&&evidence.product_description.length<=2000&&
     !/[\u0000-\u001f\u007f<>]/.test(evidence.product_description)?
     evidence.product_description:undefined;
+  const explicitModelBullet=typeof evidence.bullet_point==="string"&&
+    evidence.bullet_point.length>=4&&evidence.bullet_point.length<=100&&
+    /^[\p{L}\p{N}][\p{L}\p{N} ._\/-]{3,99}$/u.test(evidence.bullet_point)?
+    evidence.bullet_point:undefined;
   const modelNumber=typeof evidence.model_number==="string"&&
     /^[A-Za-z0-9][A-Za-z0-9._/-]{0,59}$/.test(evidence.model_number)?
     evidence.model_number:undefined;
@@ -111,6 +116,8 @@ export async function previewAmazonNewAsinShoesValidation(
     model_name:[{value:evidence.model_name,marketplace_id:marketId}],
     ...(description?{product_description:[{value:description,language_tag:locale,marketplace_id:marketId}]}:{}),
     ...(modelNumber?{model_number:[{value:modelNumber,marketplace_id:marketId}]}:{}),
+    ...(explicitModelBullet?{bullet_point:[{value:`${MODEL_LABELS[marketplace]} ${brand}: ${explicitModelBullet}`,
+      language_tag:locale,marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
     ...(evidence.target_gender==="female"||evidence.target_gender==="male"||
         evidence.target_gender==="unisex"?
