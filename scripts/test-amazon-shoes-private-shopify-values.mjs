@@ -15,7 +15,7 @@ const expected={
 const source=()=>{
   const values=[["target_gender","Donna"],["color","Camel/Butter"],
     ["model_name","Mohair"],["amazon_brand","Back 70 Streetwear"]];
-  return {productVariant:{id:expected.variantId,sku:expected.sku,
+  return {productVariant:{id:expected.variantId,sku:expected.sku,selectedOptions:[{name:"Numero",value:"37 EU"}],
     product:{id:"gid://shopify/Product/11464876097877",
       title:expected.productTitle,vendor:expected.shopifyVendor,status:"ACTIVE",
       productType:"Sneakers",metafields:{
@@ -36,10 +36,18 @@ assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
 assert.equal(ok.color,"Camel/Butter");
+assert.equal(ok.target_gender,"female");
+assert.deepEqual(ok.footwear_size,{size:"37",size_class:"numeric",size_system:"eu_footwear_size_system"});
 assert.equal(ok.ready_for_publication,false);
 assert.equal(ok.public_storefront_access_used,false);
 assert.equal(ok.draft_values_review_only,true);
 assert.ok(!JSON.stringify(ok).includes("Donna"));
+for(const selectedOptions of [[{name:"Numero",value:"37.5 EU"}],[{name:"Numero",value:"37 EU"},{name:"Color",value:"Camel"}],[{name:"Numero",value:"not-a-size"}]]){
+  const s=source();s.productVariant.selectedOptions=selectedOptions;
+  const result=await read(expected,{},{queryShopify:async()=>s});
+  assert.equal(result.ok,true);
+  assert.equal(result.footwear_size,undefined);
+}
 const wrongBrand=await read({...expected,amazonBrand:"Back70"},{},{queryShopify});
 assert.equal(wrongBrand.ok,false);
 assert.equal(wrongBrand.reason,"amazon_brand_mapping_unverified");
