@@ -62,7 +62,7 @@ fallback.productVariant.product.metafields.nodes=[];
 fallback.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Hyper"};
 fallback.productVariant.product.fallbackGender={type:"list.single_line_text_field",value:'["Donna"]'};
 fallback.productVariant.product.fallbackColorRef={type:"metaobject_reference",value:"gid://shopify/Metaobject/299395449173"};
-fallback.productVariant.product.descriptionHtml='<h2>4B12 Hyper D4006</h2><p>Una sneaker da donna nella colorazione bianca, con dettagli specifici del modello e suola per uso quotidiano.</p><ul><li>Codice modello: HYPER-D4006</li></ul>';
+fallback.productVariant.product.descriptionHtml='<h2>4B12 Hyper D4006</h2><p>Una sneaker da donna nella colorazione bianca, con dettagli specifici del modello e suola per uso quotidiano.</p><ul><li>Modello: Hyper D4006</li><li>Codice modello: HYPER-D4006</li></ul>';
 fallback.productVariant.selectedOptions=[{name:"Numero",value:"38 EU"}];
 let fallbackHits=0;
 const fallbackQuery=async (_env,query,vars)=>{
@@ -82,6 +82,7 @@ assert.equal(fallbackOk.model_name,"Hyper");
 assert.equal(fallbackOk.color,"Bianco");
 assert.equal(fallbackOk.target_gender,"female");
 assert.equal(fallbackOk.model_number,"HYPER-D4006");
+assert.equal(fallbackOk.bullet_point,"Hyper D4006");
 assert.match(fallbackOk.product_description,/4B12 Hyper D4006/);
 assert.ok(!fallbackOk.product_description.includes("<h2>"));
 assert.ok(fallbackOk.verified_paths.includes("product.descriptionHtml"));
@@ -100,6 +101,7 @@ const dangerousRead=await read(fallbackExpected,{}, {queryShopify:descriptionQue
 assert.equal(dangerousRead.ok,true);
 assert.equal(dangerousRead.product_description,undefined);
 assert.equal(dangerousRead.model_number,undefined);
+assert.equal(dangerousRead.bullet_point,undefined);
 const ambiguous=structuredClone(fallback);
 ambiguous.productVariant.product.descriptionHtml+=
   '<li>Codice modello: HYPER-OTHER</li>';
@@ -109,6 +111,23 @@ const ambiguityRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,
       displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:ambiguous});
 assert.equal(ambiguityRead.ok,true);
 assert.equal(ambiguityRead.model_number,undefined);
+const ambiguousBullet=structuredClone(fallback);
+ambiguousBullet.productVariant.product.descriptionHtml+='<li>Modello: Another Model</li>';
+const ambiguousBulletRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+  q.includes("metaobject(id:$colorId)")?
+    {metaobject:{id:v.colorId,type:"product_feature_color",
+      displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:ambiguousBullet});
+assert.equal(ambiguousBulletRead.ok,true);
+assert.equal(ambiguousBulletRead.bullet_point,undefined);
+const modelWithoutBullet=structuredClone(fallback);
+modelWithoutBullet.productVariant.product.descriptionHtml=
+  modelWithoutBullet.productVariant.product.descriptionHtml.replace('<li>Modello: Hyper D4006</li>','');
+const noBulletRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+  q.includes("metaobject(id:$colorId)")?
+    {metaobject:{id:v.colorId,type:"product_feature_color",
+      displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:modelWithoutBullet});
+assert.equal(noBulletRead.bullet_point,undefined);
+
 assert.ok(ambiguityRead.product_description);
 const euTaglia=structuredClone(fallback);
 euTaglia.productVariant.selectedOptions=[{name:"Taglia",value:"41"}];
