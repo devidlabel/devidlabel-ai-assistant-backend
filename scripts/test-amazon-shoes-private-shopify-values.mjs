@@ -48,6 +48,58 @@ for(const selectedOptions of [[{name:"Numero",value:"37.5 EU"}],[{name:"Numero",
   assert.equal(result.ok,true);
   assert.equal(result.footwear_size,undefined);
 }
+// A merchant's structured Shopify data may be used as candidate values for
+// validation only when no amazon_ptd_shoes override exists. No storefront write.
+const fallbackExpected={sku:"4B12_HYPER_D4006_38_EU",
+  variantId:"gid://shopify/ProductVariant/52635806433621",
+  productTitle:"Sneaker Hyper-d4006",shopifyVendor:"4B12",amazonBrand:"4B12"};
+const fallback=source();
+fallback.productVariant.id=fallbackExpected.variantId;
+fallback.productVariant.sku=fallbackExpected.sku;
+fallback.productVariant.product.title=fallbackExpected.productTitle;
+fallback.productVariant.product.vendor=fallbackExpected.shopifyVendor;
+fallback.productVariant.product.metafields.nodes=[];
+fallback.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Hyper"};
+fallback.productVariant.product.fallbackGender={type:"list.single_line_text_field",value:'["Donna"]'};
+fallback.productVariant.product.fallbackColorRef={type:"metaobject_reference",value:"gid://shopify/Metaobject/299395449173"};
+fallback.productVariant.selectedOptions=[{name:"Numero",value:"38 EU"}];
+let fallbackHits=0;
+const fallbackQuery=async (_env,query,vars)=>{
+  fallbackHits++;
+  if(query.includes("metaobject(id:$colorId)")){
+    assert.deepEqual(vars,{colorId:"gid://shopify/Metaobject/299395449173"});
+    return {metaobject:{id:vars.colorId,type:"product_feature_color",
+      displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}};
+  }
+  assert.deepEqual(vars,{variantId:fallbackExpected.variantId});
+  return fallback;
+};
+const fallbackOk=await read(fallbackExpected,{}, {queryShopify:fallbackQuery});
+assert.equal(fallbackHits,2);
+assert.equal(fallbackOk.ok,true);
+assert.equal(fallbackOk.model_name,"Hyper");
+assert.equal(fallbackOk.color,"Bianco");
+assert.equal(fallbackOk.target_gender,"female");
+assert.deepEqual(fallbackOk.footwear_size,{size:"38",size_class:"numeric",size_system:"eu_footwear_size_system"});
+assert.equal(fallbackOk.ready_for_publication,false);
+assert.equal(fallbackOk.public_storefront_access_used,false);
+assert.ok(fallbackOk.verified_paths.includes("product.features.color.metaobject.name"));
+// A brand with a different confirmed Amazon mapping can never silently use vendor.
+const missingMappedBrand=source();
+missingMappedBrand.productVariant.product.metafields.nodes=[];
+assert.equal((await read(expected,{}, {queryShopify:async()=>missingMappedBrand})).reason,
+  "shopify_brand_field_mismatch");
+const colorConflict=structuredClone(fallback);
+colorConflict.productVariant.product.fallbackColorText={type:"single_line_text_field",value:"Verde"};
+assert.equal((await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+  q.includes("metaobject")?{metaobject:{id:v.colorId,type:"product_feature_color",
+    displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+    colorConflict})).reason,"shopify_color_sources_conflict");
+const badRef=structuredClone(fallback);
+assert.equal((await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+  q.includes("metaobject")?{metaobject:{id:v.colorId,type:"wrong",
+    displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+    badRef})).reason,"shopify_color_reference_unverified");
 const wrongBrand=await read({...expected,amazonBrand:"Back70"},{},{queryShopify});
 assert.equal(wrongBrand.ok,false);
 assert.equal(wrongBrand.reason,"amazon_brand_mapping_unverified");
