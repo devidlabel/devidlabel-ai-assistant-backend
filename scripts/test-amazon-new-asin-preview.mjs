@@ -29,7 +29,8 @@ const deps={
     assert.equal(input.sku,sku);
     assert.equal(input.variantId,"gid://shopify/ProductVariant/55555");
     assert.equal(input.amazonBrand,"Back 70 Streetwear");
-    return {ok:true,model_name:"Mohair",color:"Camel/Butter",
+    return {ok:true,model_name:"Mohair",color:"Camel/Butter",target_gender:"female",
+      footwear_size:{size:"37",size_class:"numeric",size_system:"eu_footwear_size_system"},
       draft_values_review_only:true,public_storefront_access_used:false,
       ready_for_publication:false};
   },
@@ -47,7 +48,9 @@ const deps={
     assert.equal(body.productType,"SHOES");
     assert.equal(body.requirements,"LISTING");
     assert.deepEqual(Object.keys(body.attributes).sort(),[
-      "brand","externally_assigned_product_identifier","item_name","model_name","color"].sort());
+      "brand","externally_assigned_product_identifier","item_name","model_name","color","footwear_size","target_gender"].sort());
+    assert.equal(body.attributes.footwear_size[0].size,"37");
+    assert.equal(body.attributes.target_gender[0].value,"female");
     assert.equal(body.attributes.model_name[0].value,"Mohair");
     assert.equal(body.attributes.color[0].value,"Camel/Butter");
     assert.equal(body.attributes.brand[0].value,"Back 70 Streetwear");
@@ -80,6 +83,8 @@ assert.equal(result.storefront_unchanged,true);
 assert.ok(!JSON.stringify(result).includes("Camel/Butter"));
 assert.ok(!JSON.stringify(result).includes("Mohair"));
 assert.equal(result.issue_count,1);
+assert.ok(result.attributes_submitted.includes("footwear_size"));
+assert.ok(result.attributes_submitted.includes("target_gender"));
 assert.deepEqual(result.issues[0],{
   code:"90004100",severity:"ERROR",attribute_names:["country_of_origin"]});
 assert.equal(JSON.stringify(result).includes("sensitive original provider"),false);
