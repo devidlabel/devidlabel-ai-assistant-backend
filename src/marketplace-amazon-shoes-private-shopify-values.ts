@@ -10,7 +10,9 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} product{id title vendor status productType metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
+const COLOR_QUERY='query MerchantShoesFeatureColor($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
+const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
 function obj(value:unknown):Row {
   return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Row:{};
 }
@@ -60,14 +62,58 @@ export async function readAmazonShoesPrivateShopifyValues(
     if(typeof field.value!=="string")return fail("shopify_metafields_unverified");
     fields.set(key,field.value);
   }
-  if(fields.get("amazon_brand")!==expected.amazonBrand)
+  // Existing merchant-approved Amazon brand wins. Never fall back to Shopify
+  // vendor if this brand requires a special Amazon mapping (e.g. Back70).
+  if(fields.has("amazon_brand")?
+     fields.get("amazon_brand")!==expected.amazonBrand:
+     expected.shopifyVendor!==expected.amazonBrand)
     return fail("shopify_brand_field_mismatch");
-  const model=fields.get("model_name"),color=fields.get("color");
-  if(!safeText(model,80)||!safeText(color,80))
-    return fail("shopify_pilot_model_or_color_missing");
-  // Only a merchant-maintained, explicit target_gender is eligible for enum mapping.
-  // Do not infer gender from tags, marketing descriptions or product imagery.
-  const rawGender=fields.get("target_gender");
+  const modelSource=obj(product.fallbackModel);
+  const model=fields.has("model_name")?fields.get("model_name"):
+    modelSource.type==="single_line_text_field"?modelSource.value:undefined;
+  if(!safeText(model,80))return fail("shopify_pilot_model_or_color_missing");
+  let color:unknown=fields.get("color");
+  let sourceColor="product.amazon_ptd_shoes.color";
+  if(!fields.has("color")){
+    const direct=obj(product.fallbackColorText),ref=obj(product.fallbackColorRef);
+    const directValue=direct.type==="single_line_text_field"&&
+      safeText(direct.value,80)?direct.value:undefined;
+    const colorGid=ref.type==="metaobject_reference"&&
+      typeof ref.value==="string"&&COLOR_GID.test(ref.value)?ref.value:undefined;
+    let referencedValue:string|undefined;
+    if(colorGid){
+      let colorResult:Row;
+      try{colorResult=obj(await(deps.queryShopify??shopifyGraphQL)(
+        env,COLOR_QUERY,{colorId:colorGid}));
+      }catch{return fail("shopify_color_source_unavailable");}
+      const meta=obj(colorResult.metaobject);
+      const names=Array.isArray(meta.fields)?meta.fields.filter(f=>obj(f).key==="name"):[];
+      const name=obj(names[0]);
+      if(meta.id!==colorGid||meta.type!=="product_feature_color"||
+         names.length!==1||name.type!=="single_line_text_field"||
+         !safeText(name.value,80)||meta.displayName!==name.value)
+        return fail("shopify_color_reference_unverified");
+      referencedValue=name.value;
+    }
+    if(directValue&&referencedValue&&directValue!==referencedValue)
+      return fail("shopify_color_sources_conflict");
+    color=directValue??referencedValue;
+    sourceColor=directValue?"product.agentic.color":"product.features.color.metaobject.name";
+  }
+  if(!safeText(color,80))return fail("shopify_pilot_model_or_color_missing");
+  // Gender must be explicit merchant-maintained metadata, never inferred from
+  // marketing copy, navigation tags, imagery or shoe size.
+  let rawGender:unknown=fields.get("target_gender");
+  if(!fields.has("target_gender")){
+    const structured=obj(product.fallbackGender);
+    if(structured.type==="list.single_line_text_field"&&typeof structured.value==="string"){
+      try{
+        const values=JSON.parse(structured.value);
+        if(Array.isArray(values)&&values.length===1&&typeof values[0]==="string")
+          rawGender=values[0];
+      }catch{ /* no inference */ }
+    }
+  }
   const targetGender=rawGender==="Donna"?"female":
     rawGender==="Uomo"?"male":rawGender==="Unisex"?"unisex":undefined;
   // EU shoe size must come from the actual variant option, never from SKU text.
@@ -86,9 +132,10 @@ export async function readAmazonShoesPrivateShopifyValues(
     ...(selectedSize?{footwear_size:{
       size:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
     }}:{}),
-    verified_paths:["product.amazon_ptd_shoes.amazon_brand",
-      "product.amazon_ptd_shoes.model_name","product.amazon_ptd_shoes.color",
-      ...(targetGender?["product.amazon_ptd_shoes.target_gender"]:[]),
+    verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":"product.vendor",
+      fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
+      sourceColor,
+      ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
       ...(selectedSize?["variant.selectedOptions"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
