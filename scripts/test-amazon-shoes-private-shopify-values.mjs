@@ -150,6 +150,46 @@ const noClosureRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,
     {metaobject:{id:v.colorId,type:"product_feature_color",
       displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:noClosure});
 assert.equal(noClosureRead.closure_laces,undefined);
+// Exact Shopify rich-text editor layout: <li><p>Label: value</p></li>.
+// 4B12 Hyper U-3027 uses this layout for all three model/closure fields.
+const nestedHtml=fallback.productVariant.product.descriptionHtml
+  .replace('<li>Modello: Hyper D4006</li>','<li><p>Modello: Hyper U-3027</p></li>')
+  .replace('<li>Codice modello: HYPER-D4006</li>',
+    '<li><p>Codice modello: HYPER-U3027</p></li>')
+  .replace('<li>Chiusura con lacci</li>','<li><p>Chiusura con lacci</p></li>');
+const nestedRead=async descriptionHtml=>{
+  const product=structuredClone(fallback);
+  product.productVariant.product.descriptionHtml=descriptionHtml;
+  return read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+    q.includes("metaobject(id:$colorId)")?
+      {metaobject:{id:v.colorId,type:"product_feature_color",
+        displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+      product});
+};
+const nested=await nestedRead(nestedHtml);
+assert.equal(nested.ok,true);
+assert.equal(nested.model_number,"HYPER-U3027");
+assert.equal(nested.bullet_point,"Hyper U-3027");
+assert.equal(nested.closure_laces,true);
+assert.equal(nested.ready_for_publication,false);
+const duplicated=await nestedRead(nestedHtml+
+  '<li>Modello: Fake</li><li>Codice modello: WRONG</li><li>Chiusura con velcro</li>');
+assert.equal(duplicated.bullet_point,undefined);
+assert.equal(duplicated.model_number,undefined);
+assert.equal(duplicated.closure_laces,undefined);
+// Unsupported nested markup cannot be promoted to a trusted model attribute.
+const malformed=await nestedRead(nestedHtml.replace(
+  '<li><p>Modello: Hyper U-3027</p></li>',
+  '<li><strong>Modello: Hyper U-3027</strong></li>'));
+assert.equal(malformed.bullet_point,undefined);
+const escapedBad=await nestedRead(nestedHtml.replace("HYPER-U3027",
+  "HYPER-U3027&amp;X"));
+assert.equal(escapedBad.model_number,undefined);
+const mixed=await nestedRead(nestedHtml.replace(
+  '<li><p>Chiusura con lacci</p></li>',
+  '<li>Chiusura con lacci</li>'));
+assert.equal(mixed.closure_laces,true);
+
 const euTaglia=structuredClone(fallback);
 euTaglia.productVariant.selectedOptions=[{name:"Taglia",value:"41"}];
 euTaglia.productVariant.googleSizeSystem={type:"single_line_text_field",value:"EU"};
