@@ -15,7 +15,7 @@ const expected={
 const source=()=>{
   const values=[["target_gender","Donna"],["color","Camel/Butter"],
     ["model_name","Mohair"],["amazon_brand","Back 70 Streetwear"]];
-  return {productVariant:{id:expected.variantId,sku:expected.sku,
+  return {productVariant:{id:expected.variantId,sku:expected.sku,selectedOptions:[{name:"Numero",value:"37 EU"}],
     product:{id:"gid://shopify/Product/11464876097877",
       title:expected.productTitle,vendor:expected.shopifyVendor,status:"ACTIVE",
       productType:"Sneakers",metafields:{
@@ -36,6 +36,8 @@ assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
 assert.equal(ok.color,"Camel/Butter");
+assert.equal(ok.eu_footwear_size,"37");
+assert.equal(ok.amazon_target_gender,"female");
 assert.equal(ok.ready_for_publication,false);
 assert.equal(ok.public_storefront_access_used,false);
 assert.equal(ok.draft_values_review_only,true);
@@ -54,6 +56,9 @@ const changes=[
  ["shopify_brand_field_mismatch",a=>{a.productVariant.product.metafields.nodes[3].value="Back70";}],
  ["shopify_pilot_model_or_color_missing",a=>{a.productVariant.product.metafields.nodes[1].value="";}],
  ["shopify_pilot_model_or_color_missing",a=>{a.productVariant.product.metafields.nodes[2].value="<script>";}],
+ ["shopify_shoes_gender_unverified",a=>{a.productVariant.product.metafields.nodes[0].value="altro";}],
+ ["shopify_shoes_size_unverified",a=>{a.productVariant.selectedOptions[0].value="Taglia 37";}],
+ ["shopify_shoes_size_unverified",a=>{a.productVariant.selectedOptions.push({name:"Taglia",value:"38 EU"});}],
 ];
 for(const [reason,modify] of changes){
   const data=source();modify(data);
