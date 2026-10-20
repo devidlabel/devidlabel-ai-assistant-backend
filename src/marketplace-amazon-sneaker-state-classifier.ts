@@ -44,10 +44,10 @@ function validEAN(v: unknown): v is string {
 }
 function completeCatalog(raw: unknown): boolean {
   const c = obj(raw);
-  return c.ok === true && c.truncated !== true && c.complete_variant_pagination === true &&
+  return c.ok === true && c.truncated === false && c.complete_variant_pagination === true &&
     Array.isArray(c.products) && Number.isSafeInteger(c.product_count) &&
     typeof c.product_count === "number" && c.product_count <= 50 &&
-    c.product_count === c.inline_product_count;
+    c.product_count === c.inline_product_count && c.product_count === c.products.length;
 }
 function lookupVariant(catalog: unknown, sku: string, variantId: unknown): Row | null {
   if (!completeCatalog(catalog) || typeof variantId !== "string") return null;
@@ -66,19 +66,29 @@ function lookupVariant(catalog: unknown, sku: string, variantId: unknown): Row |
 }
 function barcodeUnique(catalog: unknown, ean: string, variantId: unknown): boolean {
   if (!completeCatalog(catalog) || typeof variantId !== "string") return false;
-  let seen = 0;
+  let activeTargetCount = 0;
   for (const productRaw of obj(catalog).products as unknown[]) {
     const product = obj(productRaw);
     if (!Array.isArray(product.variants)) return false;
     for (const variantRaw of product.variants) {
       const v = obj(variantRaw);
-      if (v.barcode === ean) {
-        seen++;
-        if (v.id !== variantId) return false;
+      if (v.barcode !== ean) continue;
+      if (v.id === variantId) {
+        if (product.status !== "ACTIVE") return false;
+        activeTargetCount++;
+        continue;
       }
+      // An old UNLISTED copy with verified zero inventory is not another
+      // sellable identity. Never delete or change its Shopify barcode.
+      // Any other duplicate (ACTIVE, stocked, untracked, or incomplete)
+      // remains blocked, including duplicates outside the requested batch.
+      if (product.status === "UNLISTED" &&
+          v.inventory_quantity === 0 && v.available_for_sale === false &&
+          v.inventory_tracked === true) continue;
+      return false;
     }
   }
-  return seen === 1;
+  return activeTargetCount === 1;
 }
 function exactMatch(root: unknown, marketplace: Market, requested: string[]): Map<string, Row> | null {
   const v = obj(root), result = obj(v.result);
