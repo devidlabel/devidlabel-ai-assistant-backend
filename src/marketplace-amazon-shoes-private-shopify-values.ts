@@ -30,18 +30,36 @@ function merchantDescription(raw:unknown):{product_description?:string;model_num
   if(typeof raw!=="string"||raw.length<60||raw.length>8000||
      /<\s*(?:script|style|iframe|object|embed|svg|form|input|textarea)\b/i.test(raw)||
      /<[^>]*$/.test(raw))return {};
-  const matches=[...raw.matchAll(/<li>\s*Codice modello:\s*([A-Za-z0-9][A-Za-z0-9._/-]{0,59})\s*<\/li>/gi)];
-  // A single explicitly labelled model line is merchant-origin metadata.
-  // Never synthesize marketing claims or material/technical specifications.
-  const modelLines=[...raw.matchAll(/<li>\s*Modello:\s*([^<>]{4,100})\s*<\/li>/gi)];
-  const modelBullet=modelLines.length===1?modelLines[0][1].trim():undefined;
+  // Shopify's rich text editor stores otherwise identical labelled <li>
+  // entries as either <li>Label: value</li> or <li><p>Label: value</p></li>.
+  // Only these two exact structures are accepted, and any unmatched/duplicate
+  // label makes its field fail closed (no guesswork from surrounding prose).
+  const listLines=[...raw.matchAll(/<li>\s*([\s\S]*?)\s*<\/li>/gi)].map(match=>{
+    const inner=match[1].trim();
+    const paragraph=/^<p>\s*([^<>]*)\s*<\/p>$/i.exec(inner);
+    return paragraph?paragraph[1].trim():/^[^<>]+$/.test(inner)?inner:null;
+  });
+  const countLabel=(label:string):number=>
+    [...raw.matchAll(new RegExp("(?:^|>)\\s*"+label+"\\s*:","gi"))].length;
+  const codes=listLines.filter((line):line is string=>
+    typeof line==="string"&&/^Codice modello\s*:/i.test(line))
+    .map(line=>/^Codice modello:\s*([A-Za-z0-9][A-Za-z0-9._/-]{0,59})$/i.exec(line))
+    .filter((m):m is RegExpExecArray=>m!==null);
+  const modelNames=listLines.filter((line):line is string=>
+    typeof line==="string"&&/^Modello\s*:/i.test(line))
+    .map(line=>/^Modello:\s*([^<>]{4,100})$/i.exec(line))
+    .filter((m):m is RegExpExecArray=>m!==null);
+  const codeNumber=countLabel("Codice modello")===1&&codes.length===1?
+    codes[0][1]:undefined;
+  const modelBullet=countLabel("Modello")===1&&modelNames.length===1?
+    modelNames[0][1].trim():undefined;
   const bulletPoint=safeText(modelBullet,100)&&
     !/&(?:#\w+|\w+);/.test(modelBullet)?modelBullet:undefined;
-  // Closure evidence only when merchant content has exactly one unambiguous
-  // structured line. Never infer it from sneakers, photos or marketing copy.
-  const closureLines=[...raw.matchAll(/<li>\s*Chiusura[^<>]*<\/li>/gi)];
+  const closureLines=listLines.filter((line):line is string=>
+    typeof line==="string"&&/^Chiusura\b/i.test(line));
   const closureLaces=closureLines.length===1&&
-    /^<li>\s*Chiusura con lacci\s*<\/li>$/i.test(closureLines[0][0]);
+    [...raw.matchAll(/(?:^|>)\s*Chiusura\b/gi)].length===1&&
+    /^Chiusura con lacci$/i.test(closureLines[0]);
   const description=raw.replace(/<br\s*\/?>/gi,". ")
     .replace(/<\/(?:p|li|h[1-6]|div)>/gi,". ")
     .replace(/<[^>]+>/g," ")
@@ -52,7 +70,7 @@ function merchantDescription(raw:unknown):{product_description?:string;model_num
      /[\u0000-\u001f\u007f<>]/.test(description)||
      /&(?:#\w+|\w+);/.test(description))return {};
   return {product_description:description,
-    ...(matches.length===1?{model_number:matches[0][1]}:{}),
+    ...(codeNumber?{model_number:codeNumber}:{}),
     ...(bulletPoint?{bullet_point:bulletPoint}:{}),
     ...(closureLaces?{closure_laces:true as const}:{})};
 }
