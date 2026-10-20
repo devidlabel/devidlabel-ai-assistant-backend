@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-10-20T17:42:05.416Z",
+  "generated_at": "2026-10-20T19:41:36.835Z",
   "search_console": {
     "permission_level": "siteFullUser",
     "timeframe": {
@@ -21,13 +21,13 @@
       "until": "2026-10-19",
       "preset": "last_7_days"
     },
-    "active_users": 3165,
-    "sessions": 3615,
+    "active_users": 3181,
+    "sessions": 3656,
     "ecommerce_purchases": 24,
-    "purchase_revenue": 3133.7399979999996,
+    "purchase_revenue": 3133.74,
     "landing_page_rows": 250,
-    "source_medium_rows": 28,
-    "realtime_rows": 1
+    "source_medium_rows": 29,
+    "realtime_rows": 2
   },
   "daily_pulse": {
     "ga4_yesterday_ok": true,
