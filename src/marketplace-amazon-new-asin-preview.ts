@@ -27,6 +27,7 @@ const SELLER=/^[A-Z0-9]{8,30}$/;
 const EAN=/^\d{13}$/;
 const LOCALES={IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"} as const;
 const MODEL_LABELS={IT:"Modello",DE:"Modell",FR:"Modèle",ES:"Modelo"} as const;
+const LACE_CLOSURE_LABELS={IT:"Lacci",DE:"Schnürung",FR:"Lacets",ES:"Cordones"} as const;
 const REF=/^[A-Za-z0-9._:-]{1,128}$/;
 const ATTR=/^[a-z][a-z0-9_]{0,119}$/;
 const CODE=/^[A-Za-z0-9_.-]{1,64}$/;
@@ -118,6 +119,9 @@ export async function previewAmazonNewAsinShoesValidation(
     ...(modelNumber?{model_number:[{value:modelNumber,marketplace_id:marketId}]}:{}),
     ...(explicitModelBullet?{bullet_point:[{value:`${MODEL_LABELS[marketplace]} ${brand}: ${explicitModelBullet}`,
       language_tag:locale,marketplace_id:marketId}]}:{}),
+    ...(evidence.closure_laces===true?{closure:[{type:[{
+      value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
+    }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
     ...(evidence.target_gender==="female"||evidence.target_gender==="male"||
         evidence.target_gender==="unisex"?
