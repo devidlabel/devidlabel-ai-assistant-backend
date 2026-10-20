@@ -27,8 +27,16 @@ function catalog(key,barcodeQuery=false,duplicate=false) {
     status:"ACTIVE",product_type:"Sneakers",vendor:"4B12",variants:[{id:variantId,sku:S[i][0],barcode:barcodeQuery?ean:S[i][1]}],
   });
   const p=[makeProduct(id(i))];
-  if(duplicate&&barcodeQuery&&i===1)
-    p.push({status:"UNLISTED",variants:[{id:id(999),sku:"OTHER",barcode:key}]});
+  if(duplicate&&barcodeQuery&&i===1) {
+    const mode=duplicate===true?"UNLISTED_ZERO":duplicate;
+    const stocked=mode==="UNLISTED_STOCK";
+    p.push({status:mode==="ACTIVE"?"ACTIVE":"UNLISTED",variants:[{
+      id:id(999),sku:"OTHER",barcode:key,
+      inventory_quantity:stocked?1:0,
+      available_for_sale:mode==="ACTIVE"||stocked||mode==="UNLISTED_AVAILABLE",
+      inventory_tracked:mode!=="UNLISTED_UNTRACKED",
+    }]});
+  }
   return {ok:true,truncated:false,complete_variant_pagination:true,
     product_count:p.length,inline_product_count:p.length,products:p};
 }
@@ -103,10 +111,24 @@ assert.equal(missingResult.results[1].markets.ES.status,"RECHECK_REQUIRED");
 assert.equal(missingResult.results[0].markets.ES.status,"SELLER_BUYABLE");
 assert.equal(missingResult.results[1].markets.IT.status,"EXISTING_ASIN_CANDIDATE");
 
-const dupe=deps({duplicate:true});
-const dresult=await classify(baseRequest,{},dupe);
-for(const m of markets)assert.equal(dresult.results[1].markets[m].status,"SHOPIFY_EAN_BLOCKED");
-assert.equal(dresult.results[1].blocker,"shopify_ean_duplicated_or_incomplete");
+// Historical unlisted, tracked and unavailable variants with confirmed zero
+// stock may keep their EAN without blocking an ACTIVE SKU. No Shopify writes.
+const retired=deps({duplicate:true});
+const retiredResult=await classify(baseRequest,{},retired);
+for(const m of markets){
+  assert.equal(retiredResult.results[1].markets[m].status,"EXISTING_ASIN_CANDIDATE");
+  assert.equal(retiredResult.results[1].markets[m].is_publish_eligible,false);
+}
+assert.equal(retiredResult.results[1].blocker,null);
+assert.equal(retiredResult.provider_mutations,0);
+
+// Fail closed for any still-sellable, stocked, untracked or unavailable-state-
+// inconsistent second identity, even when the product status is UNLISTED.
+for (const duplicate of ["ACTIVE","UNLISTED_STOCK","UNLISTED_AVAILABLE","UNLISTED_UNTRACKED"]) {
+  const dresult=await classify(baseRequest,{},deps({duplicate}));
+  for(const m of markets)assert.equal(dresult.results[1].markets[m].status,"SHOPIFY_EAN_BLOCKED");
+  assert.equal(dresult.results[1].blocker,"shopify_ean_duplicated_or_incomplete");
+}
 
 const blocked=await classify(baseRequest,{},deps({shadowResult:{ok:true,results:[],read_only:true,provider_mutations:0,can_publish:false}}));
 assert.equal(blocked.status,"BLOCKED_SHADOW");
