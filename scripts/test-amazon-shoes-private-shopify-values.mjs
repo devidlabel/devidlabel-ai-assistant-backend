@@ -62,7 +62,7 @@ fallback.productVariant.product.metafields.nodes=[];
 fallback.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Hyper"};
 fallback.productVariant.product.fallbackGender={type:"list.single_line_text_field",value:'["Donna"]'};
 fallback.productVariant.product.fallbackColorRef={type:"metaobject_reference",value:"gid://shopify/Metaobject/299395449173"};
-fallback.productVariant.product.descriptionHtml='<h2>4B12 Hyper D4006</h2><p>Una sneaker da donna nella colorazione bianca, con dettagli specifici del modello e suola per uso quotidiano.</p><ul><li>Modello: Hyper D4006</li><li>Codice modello: HYPER-D4006</li></ul>';
+fallback.productVariant.product.descriptionHtml='<h2>4B12 Hyper D4006</h2><p>Una sneaker da donna nella colorazione bianca, con dettagli specifici del modello e suola per uso quotidiano.</p><ul><li>Modello: Hyper D4006</li><li>Codice modello: HYPER-D4006</li><li>Chiusura con lacci</li></ul>';
 fallback.productVariant.selectedOptions=[{name:"Numero",value:"38 EU"}];
 let fallbackHits=0;
 const fallbackQuery=async (_env,query,vars)=>{
@@ -83,6 +83,7 @@ assert.equal(fallbackOk.color,"Bianco");
 assert.equal(fallbackOk.target_gender,"female");
 assert.equal(fallbackOk.model_number,"HYPER-D4006");
 assert.equal(fallbackOk.bullet_point,"Hyper D4006");
+assert.equal(fallbackOk.closure_laces,true);
 assert.match(fallbackOk.product_description,/4B12 Hyper D4006/);
 assert.ok(!fallbackOk.product_description.includes("<h2>"));
 assert.ok(fallbackOk.verified_paths.includes("product.descriptionHtml"));
@@ -102,6 +103,7 @@ assert.equal(dangerousRead.ok,true);
 assert.equal(dangerousRead.product_description,undefined);
 assert.equal(dangerousRead.model_number,undefined);
 assert.equal(dangerousRead.bullet_point,undefined);
+assert.equal(dangerousRead.closure_laces,undefined);
 const ambiguous=structuredClone(fallback);
 ambiguous.productVariant.product.descriptionHtml+=
   '<li>Codice modello: HYPER-OTHER</li>';
@@ -129,6 +131,25 @@ const noBulletRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,v
 assert.equal(noBulletRead.bullet_point,undefined);
 
 assert.ok(ambiguityRead.product_description);
+// Merchant closure must be one exact, unambiguous HTML list statement.
+for(const extra of ['<li>Chiusura con velcro</li>','<li>Chiusura con lacci</li>']){
+  const ambiguousClosure=structuredClone(fallback);
+  ambiguousClosure.productVariant.product.descriptionHtml+=extra;
+  const candidate=await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+    q.includes("metaobject(id:$colorId)")?
+      {metaobject:{id:v.colorId,type:"product_feature_color",
+        displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:ambiguousClosure});
+  assert.equal(candidate.ok,true);
+  assert.equal(candidate.closure_laces,undefined);
+}
+const noClosure=structuredClone(fallback);
+noClosure.productVariant.product.descriptionHtml=
+  noClosure.productVariant.product.descriptionHtml.replace('<li>Chiusura con lacci</li>','');
+const noClosureRead=await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
+  q.includes("metaobject(id:$colorId)")?
+    {metaobject:{id:v.colorId,type:"product_feature_color",
+      displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:noClosure});
+assert.equal(noClosureRead.closure_laces,undefined);
 const euTaglia=structuredClone(fallback);
 euTaglia.productVariant.selectedOptions=[{name:"Taglia",value:"41"}];
 euTaglia.productVariant.googleSizeSystem={type:"single_line_text_field",value:"EU"};

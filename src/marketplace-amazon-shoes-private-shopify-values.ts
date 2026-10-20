@@ -26,7 +26,7 @@ function safeText(raw:unknown,max=95):raw is string {
  * Never derive GTIN, materials, origin, compliance, or pricing from this text.
  * Unsafe/ambiguous HTML simply omits these optional attributes.
  */
-function merchantDescription(raw:unknown):{product_description?:string;model_number?:string;bullet_point?:string}{
+function merchantDescription(raw:unknown):{product_description?:string;model_number?:string;bullet_point?:string;closure_laces?:true}{
   if(typeof raw!=="string"||raw.length<60||raw.length>8000||
      /<\s*(?:script|style|iframe|object|embed|svg|form|input|textarea)\b/i.test(raw)||
      /<[^>]*$/.test(raw))return {};
@@ -37,6 +37,11 @@ function merchantDescription(raw:unknown):{product_description?:string;model_num
   const modelBullet=modelLines.length===1?modelLines[0][1].trim():undefined;
   const bulletPoint=safeText(modelBullet,100)&&
     !/&(?:#\w+|\w+);/.test(modelBullet)?modelBullet:undefined;
+  // Closure evidence only when merchant content has exactly one unambiguous
+  // structured line. Never infer it from sneakers, photos or marketing copy.
+  const closureLines=[...raw.matchAll(/<li>\s*Chiusura[^<>]*<\/li>/gi)];
+  const closureLaces=closureLines.length===1&&
+    /^<li>\s*Chiusura con lacci\s*<\/li>$/i.test(closureLines[0][0]);
   const description=raw.replace(/<br\s*\/?>/gi,". ")
     .replace(/<\/(?:p|li|h[1-6]|div)>/gi,". ")
     .replace(/<[^>]+>/g," ")
@@ -48,7 +53,8 @@ function merchantDescription(raw:unknown):{product_description?:string;model_num
      /&(?:#\w+|\w+);/.test(description))return {};
   return {product_description:description,
     ...(matches.length===1?{model_number:matches[0][1]}:{}),
-    ...(bulletPoint?{bullet_point:bulletPoint}:{})};
+    ...(bulletPoint?{bullet_point:bulletPoint}:{}),
+    ...(closureLaces?{closure_laces:true as const}:{})};
 }
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
