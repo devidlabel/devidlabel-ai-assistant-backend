@@ -115,7 +115,8 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
   }
   if (capability === "tiktok.pixel.existing.read") {
     const result = await tiktokPilotApi("GET", "/pixel/list/", { advertiser_id: PILOT_ADVERTISER, pixel_id: EXISTING_SHOPIFY_PIXEL }, env);
-    const pixels = list(result);
+    const data = obj(result.data);
+    const pixels = Array.isArray(data.pixels) ? data.pixels.map(obj) : list(result);
     return { ok: true, pixel_id: EXISTING_SHOPIFY_PIXEL, verified: pixels.some(p => p.pixel_id === EXISTING_SHOPIFY_PIXEL), read_only: true };
   }
   const path = READ_PATHS[capability];
@@ -134,11 +135,72 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
   }
   return tiktokPilotApi("GET", path, query, env);
 }
+
+async function verifyPixel(env: MareBusinessTikTokSafeEnv): Promise<void> {
+  const result = await tiktokPilotApi("GET", "/pixel/list/", {
+    advertiser_id: PILOT_ADVERTISER, pixel_id: EXISTING_SHOPIFY_PIXEL, page: 1, page_size: 100,
+  }, env);
+  const data = obj(result.data);
+  const pixels = Array.isArray(data.pixels) ? data.pixels.map(obj) : list(result);
+  if (!pixels.some(item => item.pixel_id === EXISTING_SHOPIFY_PIXEL)) {
+    throw new Error("tiktok_pilot_existing_pixel_not_owned_by_advertiser");
+  }
+}
+async function verifyBudget(p: JsonObject, env: MareBusinessTikTokSafeEnv): Promise<void> {
+  const min = Number(env.TIKTOK_PILOT_MIN_DAILY_BUDGET);
+  const max = Number(env.TIKTOK_PILOT_MAX_DAILY_BUDGET);
+  const approvedCurrency = str(env.TIKTOK_PILOT_ADVERTISER_CURRENCY).toUpperCase();
+  if (!Number.isFinite(min) || min <= MIN_USD_ADGROUP_DAILY_BUDGET_EXCLUSIVE ||
+      !Number.isFinite(max) || max < min ||
+      !["USD", "EUR"].includes(approvedCurrency)) {
+    throw new Error("tiktok_pilot_budget_policy_not_verified");
+  }
+  const info = await tiktokPilotApi("GET", "/advertiser/info/", {
+    advertiser_id: PILOT_ADVERTISER, advertiser_ids: [PILOT_ADVERTISER],
+  }, env);
+  const account = list(info).find(item => item.advertiser_id === PILOT_ADVERTISER);
+  if (!account || str(account.currency).toUpperCase() !== approvedCurrency) {
+    throw new Error("tiktok_pilot_account_currency_not_verified");
+  }
+  if (typeof p.budget !== "number" || p.budget < min || p.budget > max) {
+    throw new Error("tiktok_pilot_adgroup_budget_outside_approved_limits");
+  }
+}
+function planMarker(key: unknown): string {
+  const clean = str(key).replace(/[^A-Za-z0-9]/g, "");
+  if (clean.length < 20) throw new Error("tiktok_pilot_immutable_plan_id_required");
+  return "MARE-" + clean.slice(-16);
+}
+async function verifyCreateIdempotency(
+  capability: string, payload: JsonObject, marker: string, env: MareBusinessTikTokSafeEnv,
+): Promise<JsonObject | null> {
+  const adgroup = capability === "tiktok.adgroup.create";
+  const endpoint = adgroup ? "/adgroup/get/" : "/ad/get/";
+  const filtering = adgroup ? { campaign_ids: [PILOT_CAMPAIGN] } : { adgroup_ids: [payload.adgroup_id] };
+  const response = await tiktokPilotApi("GET", endpoint, {
+    advertiser_id: PILOT_ADVERTISER, filtering, page: 1, page_size: 1000,
+  }, env);
+  const pages = Number(obj(obj(response.data).page_info).total_page);
+  if (!Number.isFinite(pages) || pages > 1) throw new Error("tiktok_pilot_idempotency_scan_incomplete");
+  const matched = list(response).filter(item =>
+    str(adgroup ? item.adgroup_name : item.ad_name).includes("[" + marker + "]"));
+  if (matched.length > 1) throw new Error("tiktok_pilot_idempotency_collision_reconciliation_required");
+  if (!matched.length) return null;
+  const found = matched[0];
+  if (found.operation_status !== "DISABLE" || (adgroup && found.campaign_id !== PILOT_CAMPAIGN) ||
+     (!adgroup && found.adgroup_id !== payload.adgroup_id)) {
+    throw new Error("tiktok_pilot_duplicate_not_verified_disabled");
+  }
+  return found;
+}
+
 export async function executeTikTokPilot(capability: string, request: JsonObject, env: MareBusinessTikTokSafeEnv): Promise<JsonObject> {
   assertTikTokPilotPlan(capability, request);
   await verifyPilot(request, env);
   const payload = obj(request.payload);
   const adgroup = capability.includes(".adgroup.");
+  const create = capability.endsWith(".create");
+  if (adgroup && create) { await verifyBudget(payload, env); await verifyPixel(env); }
   if (adgroup && capability.endsWith(".update")) await verifyAdgroup(str(payload.adgroup_id), env);
   if (!adgroup) {
     if (capability.endsWith(".create")) await verifyAdgroup(str(payload.adgroup_id), env);
@@ -152,7 +214,34 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
     }
   }
   const endpoint = adgroup ? "/adgroup/" : "/ad/";
-  const action = capability.endsWith(".create") ? "create" : "update";
-  const result = await tiktokPilotApi("POST", endpoint + action + "/", { ...payload, advertiser_id: PILOT_ADVERTISER, operation_status: "DISABLE" }, env);
-  return { ...result, safety: { forced_operation_status: "DISABLE", activation_performed: false, pilot_campaign_id: PILOT_CAMPAIGN, retry_allowed: false } };
+  const action = create ? "create" : "update";
+  let outgoing = { ...payload, advertiser_id: PILOT_ADVERTISER, operation_status: "DISABLE" };
+  let marker: string | undefined;
+  if (create) {
+    marker = planMarker(request.idempotency_key);
+    const existing = await verifyCreateIdempotency(capability, payload, marker, env);
+    if (existing) return {
+      ok: true, status: "existing_disabled_entity", data: existing, idempotent_replay: true,
+      safety: { forced_operation_status: "DISABLE", activation_performed: false, retry_allowed: false, marker },
+    };
+    const nameField = adgroup ? "adgroup_name" : "ad_name";
+    if (!str(payload[nameField])) throw new Error("tiktok_pilot_entity_name_required");
+    outgoing = { ...outgoing, [nameField]: (str(payload[nameField]).slice(0, 460) + " [" + marker + "]") };
+  }
+  // Any failure or uncertain outcome is handled by M.A.R.E. as reconciliation_required; never retry POST.
+  const result = await tiktokPilotApi("POST", endpoint + action + "/", outgoing, env);
+  const returned = obj(result.data);
+  const returnedId = str(adgroup ? returned.adgroup_id : returned.ad_id);
+  if (!id(returnedId)) throw new Error("tiktok_pilot_provider_receipt_missing_reconciliation_required");
+  const readback = await tiktokPilotApi("GET", endpoint + "get/", {
+    advertiser_id: PILOT_ADVERTISER, filtering: adgroup ? { adgroup_ids: [returnedId] } : { ad_ids: [returnedId] },
+    page: 1, page_size: 100,
+  }, env);
+  const match = list(readback).find(item => (adgroup ? item.adgroup_id : item.ad_id) === returnedId);
+  if (!match || match.operation_status !== "DISABLE") throw new Error("tiktok_pilot_readback_unconfirmed_reconciliation_required");
+  return {
+    ...result, verified_disabled: true, readback: match,
+    safety: { forced_operation_status: "DISABLE", activation_performed: false,
+      pilot_campaign_id: PILOT_CAMPAIGN, retry_allowed: false, marker: marker ?? null },
+  };
 }
