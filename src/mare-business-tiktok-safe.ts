@@ -325,6 +325,7 @@ export async function updateTikTokCampaignSafe(args: JsonObject, env: MareBusine
   const payload: JsonObject = { ...object(args.payload), advertiser_id: advertiserId };
   const campaignId = normalize(payload.campaign_id);
   if (!/^\d{5,40}$/.test(campaignId)) throw new Error("tiktok_campaign_id_required");
+  if (campaignId === "1879657422391810") throw new Error("tiktok_pilot_campaign_updates_disabled");
   const operationStatus = normalize(payload.operation_status).toUpperCase();
   if (operationStatus) {
     if (!new Set(["ENABLE", "DISABLE"]).has(operationStatus)) throw new Error("tiktok_operation_status_not_allowed");
