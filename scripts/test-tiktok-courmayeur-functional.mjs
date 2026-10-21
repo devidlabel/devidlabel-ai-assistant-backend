@@ -15,7 +15,7 @@ const { assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot } = await loa
 const advertiserId = "7502001151039258640";
 const campaignId = "1879657422391810";
 const pixelId = "D7SRMKRC77U8CRB30MM0";
-const marker = "MARE-479d9c6f027ed55e";
+const marker = "MARE-9c6f027ed55e4b1f";
 const authorization = JSON.stringify({
   access_token: "synthetic-not-a-real-secret",
   advertiser_id: advertiserId, advertiser_ids: [advertiserId], updated_at: "2026-10-21T00:00:00Z",
@@ -106,7 +106,7 @@ assert.equal(created[0].body.pixel_id, pixelId);
 assert.equal(created[0].body.budget, 25);
 reset((path, body, params) => {
   if (path.endsWith("/adgroup/get/")) return ok({
-    list: [{ adgroup_id:"1879657422391811", adgroup_name:"Courmayeur test [MARE-479d9c6f027ed55e]",
+    list: [{ adgroup_id:"1879657422391811", adgroup_name:"Courmayeur test [MARE-9c6f027ed55e4b1f]",
       campaign_id:campaignId, operation_status:"DISABLE" }],
     page_info:{total_page:1},
   });
