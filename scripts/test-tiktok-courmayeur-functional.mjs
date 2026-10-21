@@ -27,6 +27,7 @@ const env = {
   TIKTOK_PILOT_ADVERTISER_CURRENCY: "EUR",
   TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED: "true",
   TIKTOK_PILOT_AD_SCHEMA_VERIFIED: "true",
+  TIKTOK_PILOT_ALLOWED_LANDING_HOST: "devidlabel.com",
   SHOPIFY_TOKENS_KV: { async get(k) { return k === "mare-business:tiktok:authorization" ? authorization : null; } },
 };
 function ok(data) { return { code: 0, message: "OK", data }; }
@@ -55,6 +56,9 @@ const groupRequest = {
   advertiser_id: advertiserId,
   payload: {
     campaign_id: campaignId, adgroup_name: "Courmayeur test",
+    billing_event: "OCPM", optimization_goal: "CONVERT",
+    pacing: "PACING_MODE_SMOOTH", schedule_type: "SCHEDULE_FROM_NOW",
+    schedule_start_time: "2026-10-22 10:00:00",
     budget_mode: "BUDGET_MODE_DAY", budget: 25,
     pixel_id: pixelId, optimization_event: "COMPLETE_PAYMENT",
     operation_status: "DISABLE",
@@ -106,6 +110,47 @@ assert.equal(created.length, 1);
 assert.equal(created[0].body.operation_status, "DISABLE");
 assert.equal(created[0].body.pixel_id, pixelId);
 assert.equal(created[0].body.budget, 25);
+const adCreateRequest = {
+  advertiser_id: advertiserId,
+  payload: {
+    adgroup_id: "1879657422391811",
+    creatives: [{
+      ad_name: "Courmayeur creative A", video_id: "1879657422391813",
+      ad_text: "Courmayeur", landing_page_url: "https://devidlabel.com/products/courmayeur",
+      operation_status: "DISABLE",
+    }],
+    operation_status: "DISABLE",
+  },
+};
+assertTikTokPilotPlan("tiktok.ad.create", adCreateRequest);
+assert.throws(() => assertTikTokPilotPlan("tiktok.ad.create", {
+  ...adCreateRequest,
+  payload: { ...adCreateRequest.payload, creatives: [{ ...adCreateRequest.payload.creatives[0], operation_status: "ENABLE" }] },
+}), /disable_required/);
+reset((path, body, params) => {
+  if (path.endsWith("/adgroup/get/")) return ok({
+    list: [{ adgroup_id: "1879657422391811", campaign_id: campaignId, operation_status:"DISABLE" }],
+    page_info: { total_page: 1 },
+  });
+  if (path.endsWith("/file/video/ad/info/")) return ok({ list: [{ video_id:"1879657422391813" }] });
+  if (path.endsWith("/ad/get/")) {
+    const filtering = JSON.parse(params.get("filtering") || "{}");
+    return ok({ list: filtering.ad_ids
+      ? [{ ad_id: "1879657422391812", ad_name: "Courmayeur creative A", adgroup_id: "1879657422391811", operation_status: "DISABLE" }]
+      : [], page_info: { total_page: 1 } });
+  }
+  if (path.endsWith("/ad/create/")) return ok({ ad_ids: ["1879657422391812"] });
+  return mock(path,body,params);
+});
+const adReceipt = await executeTikTokPilot("tiktok.ad.create", {
+  ...adCreateRequest, idempotency_key:"mbp_6388238d-390d-479d-9c6f-027ed55e4b1f",
+}, env);
+assert.equal(adReceipt.verified_disabled, true);
+const adCalls = calls.filter(c => c.path.endsWith("/ad/create/"));
+assert.equal(adCalls.length, 1);
+assert.equal(adCalls[0].body.operation_status, undefined, "Top-level status is not part of v1.3 AdCreateBody");
+assert.equal(adCalls[0].body.creatives[0].operation_status, "DISABLE", "The creative itself must be disabled");
+assert.equal(adCalls[0].body.creatives[0].video_id, "1879657422391813");
 reset((path, body, params) => {
   if (path.endsWith("/adgroup/get/")) return ok({
     list: [{ adgroup_id:"1879657422391811", adgroup_name:"Courmayeur test [MARE-9c6f027ed55e4b1f]",
