@@ -11,7 +11,7 @@ async function load(path) {
   return import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
 }
 const { tiktokPilotApi, updateTikTokCampaignSafe } = await load("src/mare-business-tiktok-safe.ts");
-const { assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot } = await load("src/mare-business-tiktok-pilot.ts");
+const { assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot, observeTikTokPilotPlan } = await load("src/mare-business-tiktok-pilot.ts");
 const advertiserId = "7502001151039258640";
 const campaignId = "1879657422391810";
 const pixelId = "D7SRMKRC77U8CRB30MM0";
@@ -119,6 +119,16 @@ const replay = await executeTikTokPilot("tiktok.adgroup.create", {
 }, env);
 assert.equal(replay.idempotent_replay, true);
 assert.equal(calls.filter(c=>c.method==="POST").length, 0, "Idempotent replay must not POST");
+const observation = await observeTikTokPilotPlan(
+  "tiktok.adgroup.create", groupRequest,
+  "mbp_6388238d-390d-479d-9c6f-027ed55e4b1f", env,
+);
+assert.equal(observation.read_only, true);
+assert.equal(observation.found, true);
+assert.equal(observation.confirmed_disabled, true);
+assert.equal(observation.plan_reconciliation_closed, false);
+assert.equal(observation.retry_allowed, false);
+assert.equal(calls.filter(c=>c.method==="POST").length, 0, "Reconciliation must never mutate TikTok");
 reset((path, body) => path.endsWith("/adgroup/create/") ? fail(40100,"Invalid budget") : mock(path,body));
 await assert.rejects(() => executeTikTokPilot("tiktok.adgroup.create", {
   ...groupRequest, idempotency_key:"mbp_6388238d-390d-479d-9c6f-027ed55e4b1f",
