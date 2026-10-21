@@ -289,7 +289,7 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
   }
   const endpoint = adgroup ? "/adgroup/" : "/ad/";
   const action = create ? "create" : "update";
-  let outgoing = { ...payload, advertiser_id: PILOT_ADVERTISER, operation_status: "DISABLE" };
+  let outgoing: JsonObject = { ...payload, advertiser_id: PILOT_ADVERTISER, operation_status: "DISABLE" };
   let marker: string | undefined;
   if (create) {
     marker = planMarker(request.idempotency_key);
