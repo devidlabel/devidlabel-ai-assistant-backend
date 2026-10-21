@@ -301,7 +301,7 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
       missing: authorized ? [] : ["TikTok long-term access token and advertiser authorization"],
     };
   });
-  capabilities.push(...tiktokPilotCapabilities(authorized) as MareBusinessCapability[]);
+  capabilities.push(...tiktokPilotCapabilities(authorized, env) as MareBusinessCapability[]);
   const existingStart = capabilities.findIndex((item) => item.id === "tiktok.authorization.start");
   const start = startCapability(status);
   if (existingStart >= 0) capabilities[existingStart] = start;
