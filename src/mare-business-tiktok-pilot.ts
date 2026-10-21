@@ -258,6 +258,23 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
   if (!adgroup && create && env.TIKTOK_PILOT_AD_SCHEMA_VERIFIED !== "true") {
     throw new Error("tiktok_pilot_ad_schema_not_verified");
   }
+  if (!adgroup && create) {
+    const creative = obj((payload.creatives as unknown[])[0]);
+    const permittedHost = str(env.TIKTOK_PILOT_ALLOWED_LANDING_HOST).toLowerCase();
+    let landing: URL;
+    try { landing = new URL(str(creative.landing_page_url)); } catch { throw new Error("tiktok_pilot_landing_url_invalid"); }
+    if (!permittedHost || landing.protocol !== "https:" || landing.hostname.toLowerCase() !== permittedHost) {
+      throw new Error("tiktok_pilot_landing_host_not_approved");
+    }
+    const media = await tiktokPilotApi("GET", "/file/video/ad/info/", {
+      advertiser_id: PILOT_ADVERTISER, video_ids: [creative.video_id],
+    }, env);
+    const mediaData = obj(media.data);
+    const videos = Array.isArray(mediaData.videos) ? mediaData.videos.map(obj) : list(media);
+    if (!videos.some(item => item.video_id === creative.video_id)) {
+      throw new Error("tiktok_pilot_creative_asset_ownership_unverified");
+    }
+  }
   if (adgroup && capability.endsWith(".update")) await verifyAdgroup(str(payload.adgroup_id), env);
   if (!adgroup) {
     if (capability.endsWith(".create")) await verifyAdgroup(str(payload.adgroup_id), env);
@@ -281,15 +298,27 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
       ok: true, status: "existing_disabled_entity", data: existing, idempotent_replay: true,
       safety: { forced_operation_status: "DISABLE", activation_performed: false, retry_allowed: false, marker },
     };
-    const nameField = adgroup ? "adgroup_name" : "ad_name";
-    if (!str(payload[nameField])) throw new Error("tiktok_pilot_entity_name_required");
-    outgoing = { ...outgoing, [nameField]: (str(payload[nameField]).slice(0, 460) + " [" + marker + "]") };
+    if (adgroup) {
+      if (!str(payload.adgroup_name)) throw new Error("tiktok_pilot_entity_name_required");
+      outgoing = { ...outgoing, adgroup_name: str(payload.adgroup_name).slice(0, 460) + " [" + marker + "]" };
+    } else {
+      const creative = obj((payload.creatives as unknown[])[0]);
+      if (!str(creative.ad_name)) throw new Error("tiktok_pilot_entity_name_required");
+      outgoing = { advertiser_id: PILOT_ADVERTISER, adgroup_id: payload.adgroup_id,
+        creatives: [{ ...creative, ad_name: str(creative.ad_name).slice(0, 460) + " [" + marker + "]", operation_status: "DISABLE" }] };
+    }
+  }
+  if (!adgroup && !create) {
+    const creative = obj((payload.creatives as unknown[])[0]);
+    const { operation_status: ignoredStatus, ...safeCreative } = creative;
+    outgoing = { advertiser_id: PILOT_ADVERTISER, adgroup_id: payload.adgroup_id,
+      creatives: [{ ...safeCreative, ad_id: payload.ad_id }] };
   }
   // Any failure or uncertain outcome is handled by M.A.R.E. as reconciliation_required; never retry POST.
   const result = await tiktokPilotApi("POST", endpoint + action + "/", outgoing, env);
   const returned = obj(result.data);
   const returnedId = create
-    ? str(adgroup ? returned.adgroup_id : returned.ad_id)
+    ? str(adgroup ? returned.adgroup_id : returned.ad_id || (Array.isArray(returned.ad_ids) ? returned.ad_ids[0] : ""))
     : str(adgroup ? payload.adgroup_id : payload.ad_id);
   if (!id(returnedId)) throw new Error("tiktok_pilot_provider_receipt_missing_reconciliation_required");
   const readback = await tiktokPilotApi("GET", endpoint + "get/", {
