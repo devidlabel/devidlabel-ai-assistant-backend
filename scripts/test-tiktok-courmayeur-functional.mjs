@@ -45,6 +45,9 @@ globalThis.fetch = async (url, init = {}) => {
 };
 function reset(handler) { calls = []; fixture = handler; }
 const readCapability = tiktokPilotCapabilities(true, env).find(x => x.id === "tiktok.pixel.existing.read");
+for (const capabilityId of ["tiktok.advertiser.info.read", "tiktok.adgroup.quota.read", "tiktok.pixel.event.stats.read"]) {
+  assert.equal(tiktokPilotCapabilities(true, env).find(x => x.id === capabilityId)?.available, true);
+}
 assert.equal(readCapability?.available, true);
 const blockedWrites = tiktokPilotCapabilities(true, { ...env, TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED: "" });
 assert.equal(blockedWrites.find(x => x.id === "tiktok.adgroup.create")?.available, false);
@@ -54,6 +57,8 @@ function mock(path, body) {
   if (path.endsWith("/campaign/get/")) return ok({ list: [{ campaign_id: campaignId, advertiser_id: advertiserId, operation_status: "DISABLE", budget_mode: "BUDGET_MODE_INFINITE" }], page_info: { total_page: 1 } });
   if (path.endsWith("/advertiser/info/")) return ok({ list: [{ advertiser_id: advertiserId, currency: "EUR" }] });
   if (path.endsWith("/pixel/list/")) return ok({ list: [{ pixel_id: pixelId, pixel_name: "Existing Shopify Pixel" }] });
+  if (path.endsWith("/pixel/event/stats/")) return ok({ list: [{pixel_id:pixelId,events:[{event:"CompletePayment",count:3}]}] });
+  if (path.endsWith("/adgroup/quota/")) return ok({quota:100, available_quota:84});
   if (path.endsWith("/adgroup/get/")) return ok({ list: [], page_info: { total_page: 1 } });
   if (path.endsWith("/adgroup/create/")) return ok({ adgroup_id: "1879657422391811", operation_status: "DISABLE" });
   return fail(40001, "unexpected_mock_call");
@@ -96,6 +101,22 @@ for (const invalid of ["1234", "abc", "7502-001151039258640", "  ", "75020011510
   await assert.rejects(() => tiktokPilotApi("GET", "/campaign/get/", { advertiser_id: invalid }, env), /advertiser_not_authorized/);
   assert.equal(calls.length, prior, "Invalid ID must be rejected before network request");
 }
+reset(mock);
+const accountRead = await readTikTokPilot("tiktok.advertiser.info.read", { advertiser_id: advertiserId }, env);
+assert.equal(accountRead.currency, "EUR");
+assert.equal(accountRead.read_only, true);
+const quotaRead = await readTikTokPilot("tiktok.adgroup.quota.read", { advertiser_id: advertiserId }, env);
+assert.equal(quotaRead.read_only, true);
+assert.equal(quotaRead.data.available_quota, 84);
+const pixelStats = await readTikTokPilot("tiktok.pixel.event.stats.read", {
+  advertiser_id: advertiserId, start_date: "2026-10-01", end_date: "2026-10-20",
+}, env);
+assert.equal(pixelStats.read_only, true);
+assert.equal(pixelStats.purchase_event_verified, false, "Mock responses must not be treated as actual events");
+await assert.rejects(() => readTikTokPilot("tiktok.pixel.event.stats.read", {
+  advertiser_id: advertiserId, start_date: "2026-09-01", end_date: "2026-10-20",
+}, env), /pixel_stats_dates_invalid/);
+assert.equal(calls.filter(c => c.method === "POST").length, 0);
 reset(mock);
 assert.deepEqual(await readTikTokPilot("tiktok.pixel.existing.read", {advertiser_id:advertiserId},env),
   {ok:true,pixel_id:pixelId,verified:true,read_only:true});
