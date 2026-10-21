@@ -3,6 +3,8 @@ import { tiktokPilotApi, type MareBusinessTikTokSafeEnv } from "./mare-business-
 type JsonObject = Record<string, unknown>;
 const PILOT_ADVERTISER = "7502001151039258640";
 const PILOT_CAMPAIGN = "1879657422391810";
+const EXISTING_SHOPIFY_PIXEL = "D7SRMKRC77U8CRB30MM0";
+const MIN_USD_ADGROUP_DAILY_BUDGET_EXCLUSIVE = 20;
 const WRITE_ALLOWED = new Set(["tiktok.adgroup.create", "tiktok.adgroup.update", "tiktok.ad.create", "tiktok.ad.update"]);
 const READ_PATHS: Record<string, string> = {
   "tiktok.adgroup.read": "/adgroup/get/",
@@ -19,7 +21,7 @@ const METRICS = ["spend", "impressions", "clicks", "conversion", "complete_payme
 function obj(v: unknown): JsonObject { return v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {}; }
 function str(v: unknown): string { return typeof v === "string" ? v.trim() : ""; }
 function id(v: unknown): boolean { return /^\d{5,40}$/.test(str(v)); }
-function positiveBudget(v: unknown): boolean { return typeof v === "number" && Number.isFinite(v) && v > 0; }
+function positiveBudget(v: unknown): boolean { return typeof v === "number" && Number.isFinite(v) && v > MIN_USD_ADGROUP_DAILY_BUDGET_EXCLUSIVE; }
 function assertAdvertiser(v: unknown): void { if (v !== PILOT_ADVERTISER) throw new Error("tiktok_pilot_advertiser_mismatch"); }
 function list(v: JsonObject): JsonObject[] {
   const raw = obj(v.data).list;
@@ -51,6 +53,7 @@ export function tiktokPilotCapabilities(authorized: boolean): JsonObject[] {
     ["tiktok.ad.read", "read", "Read existing pilot ads"],
     ["tiktok.ad.create", "execute", "Create one disabled ad with existing creative references"],
     ["tiktok.ad.update", "execute", "Update one disabled pilot ad without activation"],
+    ["tiktok.pixel.existing.read", "read", "Verify existing Shopify Purchase Pixel under advertiser"],
     ["tiktok.creative.video.read", "read", "Inspect existing TikTok video assets"],
     ["tiktok.creative.image.read", "read", "Inspect existing TikTok image assets"],
     ["tiktok.reporting.read", "read", "Read performance across campaign, ad group and ad levels"],
@@ -84,13 +87,14 @@ export function assertTikTokPilotPlan(capability: string, request: JsonObject): 
     if (p.campaign_id !== PILOT_CAMPAIGN) throw new Error("tiktok_pilot_campaign_mismatch");
     if (!str(p.adgroup_name)) throw new Error("tiktok_pilot_adgroup_name_required");
     if (p.budget_mode !== "BUDGET_MODE_DAY" || !positiveBudget(p.budget)) throw new Error("tiktok_pilot_explicit_daily_budget_required");
-    if (p.pixel_id !== undefined) throw new Error("tiktok_pilot_pixel_configuration_forbidden");
+    if (p.pixel_id !== EXISTING_SHOPIFY_PIXEL || p.optimization_event !== "COMPLETE_PAYMENT") throw new Error("tiktok_pilot_existing_purchase_pixel_required");
   }
   if (create && !adgroup && !id(p.adgroup_id)) throw new Error("tiktok_pilot_adgroup_id_required");
   if (!create && !id(adgroup ? p.adgroup_id : p.ad_id)) throw new Error("tiktok_pilot_entity_id_required");
   if (p.creative !== undefined) {
     const creative = obj(p.creative);
     if (Object.keys(creative).some(k => /upload|create|pixel|budget|identity|status/i.test(k))) throw new Error("tiktok_pilot_creative_mutation_forbidden");
+    if (Object.keys(creative).some(k => !["video_id", "image_ids", "ad_text", "call_to_action", "landing_page_url"].includes(k))) throw new Error("tiktok_pilot_creative_mutation_forbidden");
   }
 }
 export async function readTikTokPilot(capability: string, request: JsonObject, env: MareBusinessTikTokSafeEnv): Promise<JsonObject> {
@@ -109,6 +113,11 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
     }, env);
     return { ...result, attribution_warning: "TikTok conversions are platform-attributed; never sum with Shopify orders." };
   }
+  if (capability === "tiktok.pixel.existing.read") {
+    const result = await tiktokPilotApi("GET", "/pixel/list/", { advertiser_id: PILOT_ADVERTISER, pixel_id: EXISTING_SHOPIFY_PIXEL }, env);
+    const pixels = list(result);
+    return { ok: true, pixel_id: EXISTING_SHOPIFY_PIXEL, verified: pixels.some(p => p.pixel_id === EXISTING_SHOPIFY_PIXEL), read_only: true };
+  }
   const path = READ_PATHS[capability];
   if (!path) throw new Error("tiktok_pilot_read_not_supported");
   if (capability.endsWith(".read") && (capability === "tiktok.adgroup.read" || capability === "tiktok.ad.read")) await verifyPilot(request, env);
@@ -120,7 +129,8 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
     query.filtering = { adgroup_ids: [request.adgroup_id] };
   } else {
     if (!id(request.file_id)) throw new Error("tiktok_pilot_existing_file_id_required");
-    query.file_ids = [request.file_id];
+    if (capability === "tiktok.creative.video.read") query.video_ids = [request.file_id];
+    else query.image_ids = [request.file_id];
   }
   return tiktokPilotApi("GET", path, query, env);
 }
