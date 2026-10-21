@@ -348,3 +348,33 @@ export function businessTokenMatches(request: Request, env: MareBusinessTikTokSa
   const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : normalize(request.headers.get("X-MARE-BUSINESS-Key"));
   return Boolean(expected) && timingSafeEqualText(expected, supplied);
 }
+
+/**
+ * Reuse the established KV-backed TikTok authorization and v1.3 HTTP adapter.
+ * Reject arbitrary advertiser IDs even when the caller supplies a valid token.
+ * API responses intentionally never include the secret Access-Token.
+ */
+export async function tiktokPilotApi(
+  method: "GET" | "POST",
+  path: string,
+  args: JsonObject,
+  env: MareBusinessTikTokSafeEnv,
+): Promise<JsonObject> {
+  const allowedPaths = new Set([
+    "/campaign/get/", "/adgroup/get/", "/ad/get/",
+    "/adgroup/create/", "/adgroup/update/", "/ad/create/", "/ad/update/",
+    "/report/integrated/get/", "/file/video/ad/info/", "/file/image/ad/info/",
+  ]);
+  if (!allowedPaths.has(path)) throw new Error("tiktok_pilot_endpoint_not_allowed");
+  const expectedMethod = path.includes("/create/") || path.includes("/update/") ? "POST" : "GET";
+  if (method !== expectedMethod) throw new Error("tiktok_pilot_method_not_allowed");
+  const authorization = await resolveAuthorization(env);
+  const requested = normalize(args.advertiser_id);
+  const permitted = authorization.advertiser_ids?.length
+    ? authorization.advertiser_ids
+    : [normalize(authorization.advertiser_id) || normalize(env.TIKTOK_ADVERTISER_ID)];
+  if (!/^\\d{5,40}$/.test(requested) || !permitted.includes(requested)) {
+    throw new Error("tiktok_pilot_advertiser_not_authorized");
+  }
+  return apiRequest(method, path, authorization, args);
+}
