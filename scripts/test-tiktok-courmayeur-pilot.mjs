@@ -9,6 +9,7 @@ const permissions = readFileSync("src/mare-operations-permissions.ts", "utf8");
 
 for (const capability of [
   "tiktok.adgroup.read", "tiktok.adgroup.create", "tiktok.adgroup.update",
+  "tiktok.pixel.existing.read", "tiktok.pilot.reconcile",
   "tiktok.ad.read", "tiktok.ad.create", "tiktok.ad.update",
   "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read",
 ]) {
@@ -30,6 +31,7 @@ assert.ok(safe.includes("tiktokPilotCapabilities(authorized)"));
 assert.ok(safe.includes("assertTikTokPilotPlan(capabilityId, requestPayload)"));
 assert.ok(safe.includes("executeTikTokPilot(plan.capability_id, { ...plan.request, idempotency_key: plan.plan_id }, env)"));
 assert.ok(safe.includes("TIKTOK_PILOT_READ.has(capabilityId)"));
+assert.ok(safe.includes("observeTikTokPilotPlan(plan.capability_id, plan.request, plan.plan_id, env)"));
 assert.ok(safe.includes("TIKTOK_PILOT_WRITE.has(plan.capability_id)"));
 assert.ok(safe.includes('authorization_source: "business_os_kv_authorization_status"'));
 assert.ok(safe.includes('approval_confirmation: "CREATE TIKTOK CAMPAIGN PAUSED"'));
