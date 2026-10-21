@@ -140,7 +140,7 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
       advertiser_id: PILOT_ADVERTISER, report_type: "BASIC", service_type: "AUCTION",
       data_level: level.level, dimensions: [level.dimension], metrics: METRICS,
       start_date: start, end_date: end, page: 1, page_size: 1000,
-      filtering: { campaign_ids: [PILOT_CAMPAIGN] },
+      filtering: [{ field_name: "campaign_ids", filter_type: "IN", filter_value: JSON.stringify([Number(PILOT_CAMPAIGN)]) }],
     }, env);
     const rows = list(result);
     const totalPages = Number(obj(obj(result.data).page_info).total_page);
