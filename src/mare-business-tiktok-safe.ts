@@ -365,7 +365,7 @@ export async function tiktokPilotApi(
     "/campaign/get/", "/adgroup/get/", "/ad/get/",
     "/adgroup/create/", "/adgroup/update/", "/ad/create/", "/ad/update/",
     "/report/integrated/get/", "/file/video/ad/info/", "/file/image/ad/info/",
-    "/pixel/list/", "/advertiser/info/",
+    "/pixel/list/", "/pixel/event/stats/", "/advertiser/info/", "/adgroup/quota/",
   ]);
   if (!allowedPaths.has(path)) throw new Error("tiktok_pilot_endpoint_not_allowed");
   const expectedMethod = path.includes("/create/") || path.includes("/update/") ? "POST" : "GET";
