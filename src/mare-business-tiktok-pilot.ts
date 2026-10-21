@@ -251,13 +251,9 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
   const payload = obj(request.payload);
   const adgroup = capability.includes(".adgroup.");
   const create = capability.endsWith(".create");
-  if (adgroup && create) {
-    if (env.TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED !== "true") throw new Error("tiktok_pilot_provider_schema_not_verified");
-    await verifyBudget(payload, env); await verifyPixel(env);
-  }
-  if (!adgroup && create && env.TIKTOK_PILOT_AD_SCHEMA_VERIFIED !== "true") {
-    throw new Error("tiktok_pilot_ad_schema_not_verified");
-  }
+  if (adgroup && env.TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED !== "true") throw new Error("tiktok_pilot_provider_schema_not_verified");
+  if (!adgroup && env.TIKTOK_PILOT_AD_SCHEMA_VERIFIED !== "true") throw new Error("tiktok_pilot_ad_schema_not_verified");
+  if (adgroup && create) { await verifyBudget(payload, env); await verifyPixel(env); }
   if (!adgroup && create) {
     const creative = obj((payload.creatives as unknown[])[0]);
     const permittedHost = str(env.TIKTOK_PILOT_ALLOWED_LANDING_HOST).toLowerCase();
@@ -317,6 +313,7 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
   // Any failure or uncertain outcome is handled by M.A.R.E. as reconciliation_required; never retry POST.
   const result = await tiktokPilotApi("POST", endpoint + action + "/", outgoing, env);
   const returned = obj(result.data);
+  if (!adgroup && create && Array.isArray(returned.ad_ids) && returned.ad_ids.length !== 1) throw new Error("tiktok_pilot_multiple_ad_receipts_reconciliation_required");
   const returnedId = create
     ? str(adgroup ? returned.adgroup_id : returned.ad_id || (Array.isArray(returned.ad_ids) ? returned.ad_ids[0] : ""))
     : str(adgroup ? payload.adgroup_id : payload.ad_id);
