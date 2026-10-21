@@ -67,7 +67,7 @@
     "test:amazon-listing-brand": "node scripts/test-amazon-listing-brand.mjs",
     "test:amazon-new-asin-validation": "node scripts/test-amazon-new-asin-preview.mjs",
     "test:amazon-shoes-private-shopify-values": "node scripts/test-amazon-shoes-private-shopify-values.mjs",
-    "test:tiktok-courmayeur": "node scripts/test-tiktok-courmayeur-pilot.mjs"
+    "test:tiktok-courmayeur": "node scripts/test-tiktok-courmayeur-pilot.mjs && node scripts/test-tiktok-courmayeur-functional.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
