@@ -233,6 +233,13 @@ const report = await readTikTokPilot("tiktok.reporting.read", {
   advertiser_id:advertiserId,level:"campaign",start_date:"2026-10-20",end_date:"2026-10-21",
 },env);
 assert.equal(report.code,0);
+const reportCall = calls.find(c => c.path.endsWith("/report/integrated/get/"));
+const reportFiltering = JSON.parse(reportCall.params.get("filtering"));
+assert.ok(Array.isArray(reportFiltering));
+assert.equal(reportFiltering.length, 1);
+assert.equal(reportFiltering[0].field_name, "campaign_ids");
+assert.equal(reportFiltering[0].filter_type, "IN");
+assert.deepEqual(JSON.parse(reportFiltering[0].filter_value), [Number(campaignId)]);
 assert.equal(calls.filter(c=>c.method==="POST").length,0);
 globalThis.fetch = originalFetch;
 console.log("TikTok functional mocks PASS: advertiser allowlist, Pixel, strict budgets, DISABLE, API failures, no retries, idempotency, reconciliation, campaign activation block, reporting.");
