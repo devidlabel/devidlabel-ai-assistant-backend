@@ -72,3 +72,7 @@ No existing campaign, ad group, creative, Pixel, marketplace project, credential
 - **Reporting:** the documented `/report/integrated/get/` accepts `report_type`, `data_level`, dimensions/metrics, dates and optional filters. Which Purchase metrics and filters this particular advertiser permits is not yet verified. Cross-account/campaign rows or incomplete pages must be rejected.
 - **Idempotency/reconciliation:** tested with in-memory simulated API responses. Each immutable plan gets one idempotency marker; uncertain writes remain `reconciliation_required`, with read-only observations and no automatic replay or activation.
 - **Merge gate:** a GitHub PR CI success is not a proof that the Pixel, events, advertiser currency or read-only report endpoints work upstream. Keep the PR Draft and all write capabilities gated until account evidence is collected using an authorized read-only deployment or connector. No production deploy authorized here.
+
+## v1.3 reporting filter correction
+
+The `report/integrated/get/` **GET** filtering argument must be a JSON array of filter objects, e.g. `[{ "field_name": "campaign_ids", "filter_type": "IN", "filter_value": "[1879657422391810]" }]`. It is not the object syntax used for `campaign/get/`. The contract/functional mocked test now asserts this exact serialization. Documentation-level confirmation is not a successful live report read.
