@@ -200,7 +200,13 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
   const payload = obj(request.payload);
   const adgroup = capability.includes(".adgroup.");
   const create = capability.endsWith(".create");
-  if (adgroup && create) { await verifyBudget(payload, env); await verifyPixel(env); }
+  if (adgroup && create) {
+    if (env.TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED !== "true") throw new Error("tiktok_pilot_provider_schema_not_verified");
+    await verifyBudget(payload, env); await verifyPixel(env);
+  }
+  if (!adgroup && create && env.TIKTOK_PILOT_AD_SCHEMA_VERIFIED !== "true") {
+    throw new Error("tiktok_pilot_ad_schema_not_verified");
+  }
   if (adgroup && capability.endsWith(".update")) await verifyAdgroup(str(payload.adgroup_id), env);
   if (!adgroup) {
     if (capability.endsWith(".create")) await verifyAdgroup(str(payload.adgroup_id), env);
