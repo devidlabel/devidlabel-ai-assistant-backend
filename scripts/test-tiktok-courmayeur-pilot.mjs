@@ -27,7 +27,7 @@ for (const protection of [
 assert.ok(adapter.includes("tiktokPilotApi("));
 assert.ok(adapter.includes("permitted.includes(requested)"));
 assert.ok(adapter.includes('"/report/integrated/get/"'));
-assert.ok(safe.includes("tiktokPilotCapabilities(authorized)"));
+assert.ok(safe.includes("tiktokPilotCapabilities(authorized, env)"));
 assert.ok(safe.includes("assertTikTokPilotPlan(capabilityId, requestPayload)"));
 assert.ok(safe.includes("executeTikTokPilot(plan.capability_id, { ...plan.request, idempotency_key: plan.plan_id }, env)"));
 assert.ok(safe.includes("TIKTOK_PILOT_READ.has(capabilityId)"));
