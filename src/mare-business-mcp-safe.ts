@@ -63,7 +63,7 @@ const SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing";
 const SHOPIFY_SEASON_CAPABILITY_ID = "shopify.product.season.assign_missing";
 const AMAZON_STOCK_CAPABILITY_ID = "amazon.inventory.sync.pilot";
 const TIKTOK_PILOT_WRITE = new Set(["tiktok.adgroup.create", "tiktok.adgroup.update", "tiktok.ad.create", "tiktok.ad.update"]);
-const TIKTOK_PILOT_READ = new Set(["tiktok.pilot.reconcile", "tiktok.adgroup.read", "tiktok.ad.read", "tiktok.pixel.existing.read", "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read"]);
+const TIKTOK_PILOT_READ = new Set(["tiktok.pilot.reconcile", "tiktok.adgroup.read", "tiktok.ad.read", "tiktok.pixel.existing.read", "tiktok.pixel.event.stats.read", "tiktok.advertiser.info.read", "tiktok.adgroup.quota.read", "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read"]);
 const TIKTOK_CAPABILITIES = new Set([
   "tiktok.authorization.status",
   "tiktok.authorization.start",
