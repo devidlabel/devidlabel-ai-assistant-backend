@@ -54,6 +54,9 @@ export function tiktokPilotCapabilities(authorized: boolean, env: MareBusinessTi
     ["tiktok.ad.create", "execute", "Create one disabled ad with existing creative references"],
     ["tiktok.ad.update", "execute", "Update one disabled pilot ad without activation"],
     ["tiktok.pixel.existing.read", "read", "Verify existing Shopify Purchase Pixel under advertiser"],
+    ["tiktok.pixel.event.stats.read", "read", "Read aggregate events for existing Purchase Pixel"],
+    ["tiktok.advertiser.info.read", "read", "Get advertiser currency and account metadata"],
+    ["tiktok.adgroup.quota.read", "read", "Read current TikTok dynamic adgroup quota"],
     ["tiktok.pilot.reconcile", "read", "Read-only observation of a failed or uncertain pilot plan"],
     ["tiktok.creative.video.read", "read", "Inspect existing TikTok video assets"],
     ["tiktok.creative.image.read", "read", "Inspect existing TikTok image assets"],
@@ -174,6 +177,34 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
     return { ...result, pilot_campaign_scope_verified: true,
       attribution_warning: "TikTok conversions are platform-attributed; never sum with Shopify orders." };
   }
+  if (capability === "tiktok.advertiser.info.read") {
+    const result = await tiktokPilotApi("GET", "/advertiser/info/", {
+      advertiser_id: PILOT_ADVERTISER, advertiser_ids: [PILOT_ADVERTISER],
+      fields: ["advertiser_id", "currency", "timezone"],
+    }, env);
+    const matches = list(result).filter(item => item.advertiser_id === PILOT_ADVERTISER);
+    if (matches.length !== 1 || !str(matches[0].currency)) throw new Error("tiktok_pilot_account_currency_not_verified");
+    return { ok: true, read_only: true, advertiser_id: PILOT_ADVERTISER,
+      currency: matches[0].currency, timezone: matches[0].timezone ?? null };
+  }
+  if (capability === "tiktok.adgroup.quota.read") {
+    const result = await tiktokPilotApi("GET", "/adgroup/quota/", { advertiser_id: PILOT_ADVERTISER }, env);
+    return { ...result, read_only: true, advertiser_id: PILOT_ADVERTISER };
+  }
+  if (capability === "tiktok.pixel.event.stats.read") {
+    const start = str(request.start_date), end = str(request.end_date);
+    const startMs = Date.parse(start + "T00:00:00Z"), endMs = Date.parse(end + "T00:00:00Z");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) ||
+        !Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs > endMs ||
+        endMs - startMs > 30 * 86400000) throw new Error("tiktok_pilot_pixel_stats_dates_invalid");
+    const result = await tiktokPilotApi("GET", "/pixel/event/stats/", {
+      advertiser_id: PILOT_ADVERTISER, pixel_ids: [EXISTING_SHOPIFY_PIXEL],
+      date_range: { start_date: start, end_date: end },
+    }, env);
+    return { ...result, read_only: true, requested_pixel_id: EXISTING_SHOPIFY_PIXEL,
+      purchase_event_verified: false,
+      note: "Inspect provider event types and counts before asserting Purchase delivery" };
+  }
   if (capability === "tiktok.pixel.existing.read") {
     const result = await tiktokPilotApi("GET", "/pixel/list/", { advertiser_id: PILOT_ADVERTISER, pixel_id: EXISTING_SHOPIFY_PIXEL }, env);
     const data = obj(result.data);
@@ -195,6 +226,10 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
     else query.image_ids = [request.file_id];
   }
   const result = await tiktokPilotApi("GET", path, query, env);
+  if (["tiktok.adgroup.read", "tiktok.ad.read"].includes(capability) &&
+      Number(obj(obj(result.data).page_info).total_page) > 1) {
+    throw new Error("tiktok_pilot_entity_list_incomplete");
+  }
   if (capability === "tiktok.adgroup.read" && list(result).some(g => g.campaign_id !== PILOT_CAMPAIGN)) {
     throw new Error("tiktok_pilot_adgroup_read_scope_unverified");
   }
