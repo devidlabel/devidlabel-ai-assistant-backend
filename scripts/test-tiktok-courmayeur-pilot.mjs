@@ -17,9 +17,9 @@ for (const capability of [
 for (const protection of [
   "tiktok_pilot_advertiser_mismatch", "tiktok_pilot_campaign_mismatch",
   "tiktok_pilot_disable_required", "tiktok_pilot_explicit_daily_budget_required",
-  "tiktok_pilot_payload_field_not_allowed", "tiktok_pilot_pixel_configuration_forbidden",
+  "tiktok_pilot_payload_field_not_allowed", "tiktok_pilot_existing_purchase_pixel_required",
   "tiktok_pilot_campaign_not_verified_disabled", "tiktok_pilot_adgroup_not_verified_disabled",
-  "tiktok_pilot_creative_mutation_forbidden",
+  "tiktok_pilot_creative_mutation_forbidden", "tiktok_pilot_existing_pixel_not_owned_by_advertiser",
   'operation_status: "DISABLE"', "retry_allowed: false",
 ]) assert.ok(pilot.includes(protection), "Missing safety rule: " + protection);
 
