@@ -9,7 +9,7 @@ const permissions = readFileSync("src/mare-operations-permissions.ts", "utf8");
 
 for (const capability of [
   "tiktok.adgroup.read", "tiktok.adgroup.create", "tiktok.adgroup.update",
-  "tiktok.pixel.existing.read", "tiktok.pilot.reconcile",
+  "tiktok.pixel.existing.read", "tiktok.pixel.event.stats.read", "tiktok.advertiser.info.read", "tiktok.adgroup.quota.read", "tiktok.pilot.reconcile",
   "tiktok.ad.read", "tiktok.ad.create", "tiktok.ad.update",
   "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read",
 ]) {
