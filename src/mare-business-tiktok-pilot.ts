@@ -231,7 +231,9 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
   // Any failure or uncertain outcome is handled by M.A.R.E. as reconciliation_required; never retry POST.
   const result = await tiktokPilotApi("POST", endpoint + action + "/", outgoing, env);
   const returned = obj(result.data);
-  const returnedId = str(adgroup ? returned.adgroup_id : returned.ad_id);
+  const returnedId = create
+    ? str(adgroup ? returned.adgroup_id : returned.ad_id)
+    : str(adgroup ? payload.adgroup_id : payload.ad_id);
   if (!id(returnedId)) throw new Error("tiktok_pilot_provider_receipt_missing_reconciliation_required");
   const readback = await tiktokPilotApi("GET", endpoint + "get/", {
     advertiser_id: PILOT_ADVERTISER, filtering: adgroup ? { adgroup_ids: [returnedId] } : { ad_ids: [returnedId] },
