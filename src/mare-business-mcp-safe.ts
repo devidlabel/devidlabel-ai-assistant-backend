@@ -20,6 +20,7 @@ import {
   updateTikTokCampaignSafe,
   type MareBusinessTikTokSafeEnv,
 } from "./mare-business-tiktok-safe.js";
+import { tiktokPilotCapabilities, assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot } from "./mare-business-tiktok-pilot.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
 type JsonObject = Record<string, unknown>;
@@ -61,6 +62,8 @@ const PLAN_TTL_SECONDS = 24 * 60 * 60;
 const SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing";
 const SHOPIFY_SEASON_CAPABILITY_ID = "shopify.product.season.assign_missing";
 const AMAZON_STOCK_CAPABILITY_ID = "amazon.inventory.sync.pilot";
+const TIKTOK_PILOT_WRITE = new Set(["tiktok.adgroup.create", "tiktok.adgroup.update", "tiktok.ad.create", "tiktok.ad.update"]);
+const TIKTOK_PILOT_READ = new Set(["tiktok.adgroup.read", "tiktok.ad.read", "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read"]);
 const TIKTOK_CAPABILITIES = new Set([
   "tiktok.authorization.status",
   "tiktok.authorization.start",
@@ -298,6 +301,7 @@ async function resolvedCapabilities(env: SafeBusinessEnv): Promise<MareBusinessC
       missing: authorized ? [] : ["TikTok long-term access token and advertiser authorization"],
     };
   });
+  capabilities.push(...tiktokPilotCapabilities(authorized) as MareBusinessCapability[]);
   const existingStart = capabilities.findIndex((item) => item.id === "tiktok.authorization.start");
   const start = startCapability(status);
   if (existingStart >= 0) capabilities[existingStart] = start;
@@ -597,7 +601,10 @@ async function executeTikTokPlan(
   await storePlan(plan, env);
   try {
     let result: JsonObject;
-    if (plan.capability_id === "tiktok.campaign.create") {
+    if (TIKTOK_PILOT_WRITE.has(plan.capability_id)) {
+      assertTikTokPilotPlan(plan.capability_id, plan.request);
+      result = await executeTikTokPilot(plan.capability_id, plan.request, env);
+    } else if (plan.capability_id === "tiktok.campaign.create") {
       result = await createTikTokCampaignSafe({
         ...plan.request,
         approval_confirmation: "CREATE TIKTOK CAMPAIGN PAUSED",
@@ -738,8 +745,24 @@ export async function handleMareBusinessMcpSafeRequest(
       const providers = object(structured.providers);
       const tiktok = await tiktokSafeAuthorizationStatus(env);
       const capabilities = await resolvedCapabilities(env);
+      const permissionsAudit = object(structured.permissions_audit);
+      const auditProviders = object(permissionsAudit.providers);
+      const legacyTikTokAudit = object(auditProviders.tiktok_ads);
+      const reconciledAudit = {
+        ...permissionsAudit,
+        providers: {
+          ...auditProviders,
+          tiktok_ads: {
+            ...legacyTikTokAudit,
+            configured: tiktok.authorized === true,
+            status: tiktok.authorized === true ? "marketing_api_bridge_configured" : "awaiting_or_missing_marketing_api_authorization",
+            authorization_source: "business_os_kv_authorization_status",
+          },
+        },
+      };
       const payload = {
         ...structured,
+        permissions_audit: reconciledAudit,
         capability_counts: {
           total: capabilities.length,
           implemented: capabilities.filter((item) => item.implemented).length,
@@ -793,6 +816,11 @@ export async function handleMareBusinessMcpSafeRequest(
       }
       if (capabilityId === "tiktok.authorization.status") {
         return rpcToolResponse(request, rpc.id, textToolResult(await tiktokSafeAuthorizationStatus(env)));
+      }
+      if (TIKTOK_PILOT_READ.has(capabilityId)) {
+        const capability = await resolveCapability(capabilityId, env);
+        if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
+        return rpcToolResponse(request, rpc.id, textToolResult(await readTikTokPilot(capabilityId, requestPayload, env)));
       }
       if (capabilityId === "tiktok.campaign.read") {
         const capability = await resolveCapability(capabilityId, env);
@@ -864,6 +892,11 @@ export async function handleMareBusinessMcpSafeRequest(
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, await completeArtifactPlan(capability, requestPayload, env));
       }
+      if (TIKTOK_PILOT_WRITE.has(capabilityId)) {
+        if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
+        assertTikTokPilotPlan(capabilityId, requestPayload);
+        return rpcToolResponse(request, rpc.id, await prepareTikTokWrite(capability, requestPayload, env));
+      }
       if (["tiktok.campaign.create", "tiktok.campaign.update"].includes(capabilityId)) {
         if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
         return rpcToolResponse(request, rpc.id, await prepareTikTokWrite(capability, requestPayload, env));
@@ -884,7 +917,7 @@ export async function handleMareBusinessMcpSafeRequest(
 
     if (toolName === "mare_validate") {
       const plan = await loadPlan(normalize(args.plan_id), env);
-      if (TIKTOK_CAPABILITIES.has(plan.capability_id) || [SHOPIFY_METAFIELD_CAPABILITY_ID, SHOPIFY_SEASON_CAPABILITY_ID, AMAZON_STOCK_CAPABILITY_ID].includes(plan.capability_id)) {
+      if ((TIKTOK_CAPABILITIES.has(plan.capability_id) || TIKTOK_PILOT_WRITE.has(plan.capability_id)) || [SHOPIFY_METAFIELD_CAPABILITY_ID, SHOPIFY_SEASON_CAPABILITY_ID, AMAZON_STOCK_CAPABILITY_ID].includes(plan.capability_id)) {
         const capability = await resolveCapability(plan.capability_id, env);
         return rpcToolResponse(request, rpc.id, textToolResult({
           ok: true,
@@ -902,7 +935,7 @@ export async function handleMareBusinessMcpSafeRequest(
       if (plan.status === "failed" || plan.status === "reconciliation_required") {
         return rpcToolResponse(request, rpc.id, toolFailure("plan_reconciliation_required", plan));
       }
-      if (["tiktok.campaign.create", "tiktok.campaign.update"].includes(plan.capability_id)) {
+      if (TIKTOK_PILOT_WRITE.has(plan.capability_id) || ["tiktok.campaign.create", "tiktok.campaign.update"].includes(plan.capability_id)) {
         return rpcToolResponse(request, rpc.id, await executeTikTokPlan(plan, normalize(args.approval_confirmation), env));
       }
       if (plan.capability_id === SHOPIFY_METAFIELD_CAPABILITY_ID) {
