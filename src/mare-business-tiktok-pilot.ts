@@ -112,7 +112,40 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
       start_date: start, end_date: end, page: 1, page_size: 1000,
       filtering: { campaign_ids: [PILOT_CAMPAIGN] },
     }, env);
-    return { ...result, attribution_warning: "TikTok conversions are platform-attributed; never sum with Shopify orders." };
+    const rows = list(result);
+    const totalPages = Number(obj(obj(result.data).page_info).total_page);
+    if (rows.length > 100 || !Number.isFinite(totalPages) || totalPages > 1) {
+      throw new Error("tiktok_pilot_report_incomplete_or_unbounded");
+    }
+    for (const row of rows) {
+      const dimension = obj(row.dimensions);
+      if (str(request.level) === "campaign") {
+        if (dimension.campaign_id !== PILOT_CAMPAIGN) throw new Error("tiktok_pilot_report_scope_unverified");
+      } else if (str(request.level) === "adgroup") {
+        if (!id(dimension.adgroup_id)) throw new Error("tiktok_pilot_report_scope_unverified");
+        const scope = await tiktokPilotApi("GET", "/adgroup/get/", {
+          advertiser_id: PILOT_ADVERTISER, filtering: { adgroup_ids: [dimension.adgroup_id] }, page: 1, page_size: 100,
+        }, env);
+        if (!list(scope).some(g => g.adgroup_id === dimension.adgroup_id && g.campaign_id === PILOT_CAMPAIGN)) {
+          throw new Error("tiktok_pilot_report_scope_unverified");
+        }
+      } else {
+        if (!id(dimension.ad_id)) throw new Error("tiktok_pilot_report_scope_unverified");
+        const ads = await tiktokPilotApi("GET", "/ad/get/", {
+          advertiser_id: PILOT_ADVERTISER, filtering: { ad_ids: [dimension.ad_id] }, page: 1, page_size: 100,
+        }, env);
+        const ad = list(ads).find(item => item.ad_id === dimension.ad_id);
+        if (!ad || !id(ad.adgroup_id)) throw new Error("tiktok_pilot_report_scope_unverified");
+        const groups = await tiktokPilotApi("GET", "/adgroup/get/", {
+          advertiser_id: PILOT_ADVERTISER, filtering: { adgroup_ids: [ad.adgroup_id] }, page: 1, page_size: 100,
+        }, env);
+        if (!list(groups).some(g => g.adgroup_id === ad.adgroup_id && g.campaign_id === PILOT_CAMPAIGN)) {
+          throw new Error("tiktok_pilot_report_scope_unverified");
+        }
+      }
+    }
+    return { ...result, pilot_campaign_scope_verified: true,
+      attribution_warning: "TikTok conversions are platform-attributed; never sum with Shopify orders." };
   }
   if (capability === "tiktok.pixel.existing.read") {
     const result = await tiktokPilotApi("GET", "/pixel/list/", { advertiser_id: PILOT_ADVERTISER, pixel_id: EXISTING_SHOPIFY_PIXEL }, env);
@@ -134,7 +167,14 @@ export async function readTikTokPilot(capability: string, request: JsonObject, e
     if (capability === "tiktok.creative.video.read") query.video_ids = [request.file_id];
     else query.image_ids = [request.file_id];
   }
-  return tiktokPilotApi("GET", path, query, env);
+  const result = await tiktokPilotApi("GET", path, query, env);
+  if (capability === "tiktok.adgroup.read" && list(result).some(g => g.campaign_id !== PILOT_CAMPAIGN)) {
+    throw new Error("tiktok_pilot_adgroup_read_scope_unverified");
+  }
+  if (capability === "tiktok.ad.read" && list(result).some(a => a.adgroup_id !== request.adgroup_id)) {
+    throw new Error("tiktok_pilot_ad_read_scope_unverified");
+  }
+  return result;
 }
 
 async function verifyPixel(env: MareBusinessTikTokSafeEnv): Promise<void> {
