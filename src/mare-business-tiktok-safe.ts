@@ -364,6 +364,7 @@ export async function tiktokPilotApi(
     "/campaign/get/", "/adgroup/get/", "/ad/get/",
     "/adgroup/create/", "/adgroup/update/", "/ad/create/", "/ad/update/",
     "/report/integrated/get/", "/file/video/ad/info/", "/file/image/ad/info/",
+    "/pixel/list/", "/advertiser/info/",
   ]);
   if (!allowedPaths.has(path)) throw new Error("tiktok_pilot_endpoint_not_allowed");
   const expectedMethod = path.includes("/create/") || path.includes("/update/") ? "POST" : "GET";
@@ -373,7 +374,7 @@ export async function tiktokPilotApi(
   const permitted = authorization.advertiser_ids?.length
     ? authorization.advertiser_ids
     : [normalize(authorization.advertiser_id) || normalize(env.TIKTOK_ADVERTISER_ID)];
-  if (!/^\\d{5,40}$/.test(requested) || !permitted.includes(requested)) {
+  if (!/^\d{5,40}$/.test(requested) || !permitted.includes(requested)) {
     throw new Error("tiktok_pilot_advertiser_not_authorized");
   }
   return apiRequest(method, path, authorization, args);
