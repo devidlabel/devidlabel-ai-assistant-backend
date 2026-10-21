@@ -68,8 +68,8 @@ export function tiktokPilotCapabilities(authorized: boolean, env: MareBusinessTi
     const budgetPolicy = Number(env.TIKTOK_PILOT_MIN_DAILY_BUDGET) > 20 &&
       Number(env.TIKTOK_PILOT_MAX_DAILY_BUDGET) >= Number(env.TIKTOK_PILOT_MIN_DAILY_BUDGET) &&
       ["USD", "EUR"].includes(str(env.TIKTOK_PILOT_ADVERTISER_CURRENCY).toUpperCase());
-    const ready = authorized && (!write || (schemaVerified && (!adgroup || budgetPolicy) &&
-      (adgroup || Boolean(str(env.TIKTOK_PILOT_ALLOWED_LANDING_HOST))));
+    const landingHostApproved = Boolean(str(env.TIKTOK_PILOT_ALLOWED_LANDING_HOST));
+    const ready = authorized && (!write || (schemaVerified && (adgroup ? budgetPolicy : landingHostApproved)));
     return {
       id: capabilityId, provider: "tiktok", domain: "advertising", operation,
       risk: write ? "live_write" : "read_only",
