@@ -25,6 +25,8 @@ const env = {
   TIKTOK_PILOT_MIN_DAILY_BUDGET: "21",
   TIKTOK_PILOT_MAX_DAILY_BUDGET: "35",
   TIKTOK_PILOT_ADVERTISER_CURRENCY: "EUR",
+  TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED: "true",
+  TIKTOK_PILOT_AD_SCHEMA_VERIFIED: "true",
   SHOPIFY_TOKENS_KV: { async get(k) { return k === "mare-business:tiktok:authorization" ? authorization : null; } },
 };
 function ok(data) { return { code: 0, message: "OK", data }; }
