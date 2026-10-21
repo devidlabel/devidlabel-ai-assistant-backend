@@ -77,25 +77,35 @@ export function assertTikTokPilotPlan(capability: string, request: JsonObject): 
   const adgroup = capability.includes(".adgroup.");
   const allowed = adgroup
     ? create
-      ? ["campaign_id", "adgroup_name", "promotion_type", "placement_type", "placements", "location_ids", "gender", "age_groups", "budget_mode", "budget", "schedule_type", "schedule_start_time", "schedule_end_time", "billing_event", "optimization_goal", "bid_type", "bid_price", "operation_status", "pixel_id", "optimization_event", "identity_id", "identity_type"]
+      ? ["campaign_id", "adgroup_name", "promotion_type", "placement_type", "placements", "location_ids", "gender", "age_groups", "budget_mode", "budget", "schedule_type", "schedule_start_time", "schedule_end_time", "billing_event", "optimization_goal", "pacing", "bid_type", "bid_price", "operation_status", "pixel_id", "optimization_event", "identity_id", "identity_type"]
       : ["adgroup_id", "adgroup_name", "operation_status"]
     : create
-      ? ["adgroup_id", "ad_name", "creative", "operation_status"]
-      : ["ad_id", "ad_name", "creative", "operation_status"];
+      ? ["adgroup_id", "creatives", "operation_status"]
+      : ["ad_id", "adgroup_id", "creatives", "operation_status"];
   if (!keys.length || keys.some(k => !allowed.includes(k))) throw new Error("tiktok_pilot_payload_field_not_allowed");
   if (p.operation_status !== "DISABLE") throw new Error("tiktok_pilot_disable_required");
   if (create && adgroup) {
     if (p.campaign_id !== PILOT_CAMPAIGN) throw new Error("tiktok_pilot_campaign_mismatch");
     if (!str(p.adgroup_name)) throw new Error("tiktok_pilot_adgroup_name_required");
+    if (["billing_event", "optimization_goal", "pacing", "schedule_type", "schedule_start_time"].some(k => !str(p[k]))) throw new Error("tiktok_pilot_adgroup_required_v13_field_missing");
     if (p.budget_mode !== "BUDGET_MODE_DAY" || !positiveBudget(p.budget)) throw new Error("tiktok_pilot_explicit_daily_budget_required");
     if (p.pixel_id !== EXISTING_SHOPIFY_PIXEL || p.optimization_event !== "COMPLETE_PAYMENT") throw new Error("tiktok_pilot_existing_purchase_pixel_required");
   }
-  if (create && !adgroup && !id(p.adgroup_id)) throw new Error("tiktok_pilot_adgroup_id_required");
+  if (!adgroup && !id(p.adgroup_id)) throw new Error("tiktok_pilot_adgroup_id_required");
   if (!create && !id(adgroup ? p.adgroup_id : p.ad_id)) throw new Error("tiktok_pilot_entity_id_required");
-  if (p.creative !== undefined) {
-    const creative = obj(p.creative);
-    if (Object.keys(creative).some(k => /upload|create|pixel|budget|identity|status/i.test(k))) throw new Error("tiktok_pilot_creative_mutation_forbidden");
-    if (Object.keys(creative).some(k => !["video_id", "image_ids", "ad_text", "call_to_action", "landing_page_url"].includes(k))) throw new Error("tiktok_pilot_creative_mutation_forbidden");
+  if (!adgroup) {
+    const creatives = p.creatives;
+    if (!Array.isArray(creatives) || creatives.length !== 1) throw new Error("tiktok_pilot_single_creative_required");
+    const creative = obj(creatives[0]);
+    const allowedCreativeFields = create
+      ? ["ad_name", "video_id", "image_ids", "ad_text", "call_to_action", "landing_page_url", "operation_status"]
+      : ["ad_id", "ad_name", "video_id", "image_ids", "ad_text", "call_to_action", "landing_page_url", "operation_status"];
+    if (Object.keys(creative).some(k => !allowedCreativeFields.includes(k))) throw new Error("tiktok_pilot_creative_mutation_forbidden");
+    if (creative.operation_status !== "DISABLE") throw new Error("tiktok_pilot_disable_required");
+    if (create && (!str(creative.ad_name) || !id(creative.video_id) || !str(creative.landing_page_url))) {
+      throw new Error("tiktok_pilot_ad_creative_required_fields_missing");
+    }
+    if (!create && creative.ad_id !== p.ad_id) throw new Error("tiktok_pilot_ad_id_mismatch");
   }
 }
 export async function readTikTokPilot(capability: string, request: JsonObject, env: MareBusinessTikTokSafeEnv): Promise<JsonObject> {
