@@ -45,7 +45,7 @@ async function verifyAdgroup(adgroupId: string, env: MareBusinessTikTokSafeEnv):
     throw new Error("tiktok_pilot_adgroup_not_verified_disabled");
   }
 }
-export function tiktokPilotCapabilities(authorized: boolean): JsonObject[] {
+export function tiktokPilotCapabilities(authorized: boolean, env: MareBusinessTikTokSafeEnv): JsonObject[] {
   const entries: Array<[string, "read" | "execute", string]> = [
     ["tiktok.adgroup.read", "read", "Read the pilot's existing ad groups"],
     ["tiktok.adgroup.create", "execute", "Create one disabled ad group under the pilot"],
@@ -59,14 +59,31 @@ export function tiktokPilotCapabilities(authorized: boolean): JsonObject[] {
     ["tiktok.creative.image.read", "read", "Inspect existing TikTok image assets"],
     ["tiktok.reporting.read", "read", "Read performance across campaign, ad group and ad levels"],
   ];
-  return entries.map(([capabilityId, operation, description]) => ({
-    id: capabilityId, provider: "tiktok", domain: "advertising", operation,
-    risk: operation === "execute" ? "live_write" : "read_only",
-    implemented: true, configured: authorized, available: authorized,
-    approval: operation === "execute" ? "explicit" : "none", description,
-    request_schema: { type: "object", properties: {}, additionalProperties: true },
-    missing: authorized ? [] : ["TikTok advertiser authorization"],
-  }));
+  return entries.map(([capabilityId, operation, description]) => {
+    const write = operation === "execute";
+    const adgroup = capabilityId.includes(".adgroup.");
+    const schemaVerified = adgroup
+      ? env.TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED === "true"
+      : env.TIKTOK_PILOT_AD_SCHEMA_VERIFIED === "true";
+    const budgetPolicy = Number(env.TIKTOK_PILOT_MIN_DAILY_BUDGET) > 20 &&
+      Number(env.TIKTOK_PILOT_MAX_DAILY_BUDGET) >= Number(env.TIKTOK_PILOT_MIN_DAILY_BUDGET) &&
+      ["USD", "EUR"].includes(str(env.TIKTOK_PILOT_ADVERTISER_CURRENCY).toUpperCase());
+    const ready = authorized && (!write || (schemaVerified && (!adgroup || budgetPolicy) &&
+      (adgroup || Boolean(str(env.TIKTOK_PILOT_ALLOWED_LANDING_HOST))));
+    return {
+      id: capabilityId, provider: "tiktok", domain: "advertising", operation,
+      risk: write ? "live_write" : "read_only",
+      implemented: true, configured: ready, available: ready,
+      approval: write ? "explicit" : "none", description,
+      request_schema: { type: "object", properties: {}, additionalProperties: true },
+      missing: ready ? [] : [
+        ...(!authorized ? ["TikTok advertiser authorization"] : []),
+        ...(write && !schemaVerified ? ["v1.3 provider schema approval"] : []),
+        ...(write && adgroup && !budgetPolicy ? ["approved account currency and budget min/max"] : []),
+        ...(write && !adgroup && !str(env.TIKTOK_PILOT_ALLOWED_LANDING_HOST) ? ["approved HTTPS landing host"] : []),
+      ],
+    };
+  });
 }
 export function assertTikTokPilotPlan(capability: string, request: JsonObject): void {
   if (!WRITE_ALLOWED.has(capability)) throw new Error("tiktok_pilot_unsupported_write");
