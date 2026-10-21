@@ -11,7 +11,7 @@ async function load(path) {
   return import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
 }
 const { tiktokPilotApi, updateTikTokCampaignSafe } = await load("src/mare-business-tiktok-safe.ts");
-const { assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot, observeTikTokPilotPlan } = await load("src/mare-business-tiktok-pilot.ts");
+const { assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot, observeTikTokPilotPlan, tiktokPilotCapabilities } = await load("src/mare-business-tiktok-pilot.ts");
 const advertiserId = "7502001151039258640";
 const campaignId = "1879657422391810";
 const pixelId = "D7SRMKRC77U8CRB30MM0";
@@ -44,6 +44,12 @@ globalThis.fetch = async (url, init = {}) => {
   return new Response(JSON.stringify(response), { status: 200, headers: { "Content-Type": "application/json" } });
 };
 function reset(handler) { calls = []; fixture = handler; }
+const readCapability = tiktokPilotCapabilities(true, env).find(x => x.id === "tiktok.pixel.existing.read");
+assert.equal(readCapability?.available, true);
+const blockedWrites = tiktokPilotCapabilities(true, { ...env, TIKTOK_PILOT_ADGROUP_SCHEMA_VERIFIED: "" });
+assert.equal(blockedWrites.find(x => x.id === "tiktok.adgroup.create")?.available, false);
+assert.equal(blockedWrites.find(x => x.id === "tiktok.reporting.read")?.available, true);
+
 function mock(path, body) {
   if (path.endsWith("/campaign/get/")) return ok({ list: [{ campaign_id: campaignId, advertiser_id: advertiserId, operation_status: "DISABLE", budget_mode: "BUDGET_MODE_INFINITE" }], page_info: { total_page: 1 } });
   if (path.endsWith("/advertiser/info/")) return ok({ list: [{ advertiser_id: advertiserId, currency: "EUR" }] });
