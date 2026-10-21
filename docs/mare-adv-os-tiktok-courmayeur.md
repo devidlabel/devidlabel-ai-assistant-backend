@@ -53,3 +53,10 @@ No existing campaign, ad group, creative, Pixel, marketplace project, credential
 3. Verify Pixel ownership and that the existing Shopify event actually emits and is mapped to \`COMPLETE_PAYMENT\` (read-only evidence).
 4. Verify EUR minimum thresholds, optional TikTok dynamic quotas, time zone/scheduling and spend-control policy before configuring server-side gates.
 5. Compare \`main\` for conflicts; do not merge or deploy without explicit owner approval.
+
+## v1.3 SDK schema findings
+- Official AdgroupCreateBody requires billing_event, optimization_goal, pacing, schedule_start_time, schedule_type, campaign_id, advertiser_id, adgroup_name, budget and budget_mode. Missing mandatory caller fields are rejected; no values are invented.
+- Official AdCreateBody requires advertiser_id, adgroup_id and creatives[]. A creative uses its own operation_status; the adapter forces DISABLE inside every creative, not merely at the top level.
+- AdUpdateBody also uses advertiser_id, adgroup_id and creatives[]. The pilot strips operation_status from update bodies but verifies disabled status before and after modification. All writes remain gated behind upstream schema confirmation.
+- The pilot validates existing video_id against the advertiser asset library, allows only a configured HTTPS landing host, and never uploads creative assets.
+- The official SDK establishes endpoint names and model fields; success on this advertiser, Purchase event health, account-specific spend minima and response field variants still require provider read-only evidence. Mock API tests are not live provider validation.
