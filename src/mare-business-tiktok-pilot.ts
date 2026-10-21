@@ -54,6 +54,7 @@ export function tiktokPilotCapabilities(authorized: boolean): JsonObject[] {
     ["tiktok.ad.create", "execute", "Create one disabled ad with existing creative references"],
     ["tiktok.ad.update", "execute", "Update one disabled pilot ad without activation"],
     ["tiktok.pixel.existing.read", "read", "Verify existing Shopify Purchase Pixel under advertiser"],
+    ["tiktok.pilot.reconcile", "read", "Read-only observation of a failed or uncertain pilot plan"],
     ["tiktok.creative.video.read", "read", "Inspect existing TikTok video assets"],
     ["tiktok.creative.image.read", "read", "Inspect existing TikTok image assets"],
     ["tiktok.reporting.read", "read", "Read performance across campaign, ad group and ad levels"],
@@ -251,5 +252,33 @@ export async function executeTikTokPilot(capability: string, request: JsonObject
     ...result, verified_disabled: true, readback: match,
     safety: { forced_operation_status: "DISABLE", activation_performed: false,
       pilot_campaign_id: PILOT_CAMPAIGN, retry_allowed: false, marker: marker ?? null },
+  };
+}
+
+
+/** Never replays a TikTok POST or automatically closes a reconciliation_required plan. */
+export async function observeTikTokPilotPlan(
+  capability: string, originalRequest: JsonObject, planId: string, env: MareBusinessTikTokSafeEnv,
+): Promise<JsonObject> {
+  assertAdvertiser(originalRequest.advertiser_id);
+  if (!WRITE_ALLOWED.has(capability)) throw new Error("tiktok_pilot_reconciliation_capability_invalid");
+  const p = obj(originalRequest.payload);
+  await verifyPilot(originalRequest, env);
+  if (capability.endsWith(".create")) {
+    const marker = planMarker(planId);
+    const existing = await verifyCreateIdempotency(capability, p, marker, env);
+    return {
+      ok: true, read_only: true, plan_id: planId, found: Boolean(existing),
+      confirmed_disabled: existing?.operation_status === "DISABLE",
+      existing_entity: existing ?? null,
+      retry_allowed: false, plan_reconciliation_closed: false,
+      manual_review_required: true,
+    };
+  }
+  // Update outcomes require a human to compare the immutable payload and current state.
+  return {
+    ok: true, read_only: true, plan_id: planId,
+    outcome: "unverified_update_requires_manual_review", retry_allowed: false,
+    plan_reconciliation_closed: false, manual_review_required: true,
   };
 }
