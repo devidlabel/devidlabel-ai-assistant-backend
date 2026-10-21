@@ -20,7 +20,7 @@ import {
   updateTikTokCampaignSafe,
   type MareBusinessTikTokSafeEnv,
 } from "./mare-business-tiktok-safe.js";
-import { tiktokPilotCapabilities, assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot } from "./mare-business-tiktok-pilot.js";
+import { tiktokPilotCapabilities, assertTikTokPilotPlan, readTikTokPilot, executeTikTokPilot, observeTikTokPilotPlan } from "./mare-business-tiktok-pilot.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
 type JsonObject = Record<string, unknown>;
@@ -63,7 +63,7 @@ const SHOPIFY_METAFIELD_CAPABILITY_ID = "shopify.metafields.update_existing";
 const SHOPIFY_SEASON_CAPABILITY_ID = "shopify.product.season.assign_missing";
 const AMAZON_STOCK_CAPABILITY_ID = "amazon.inventory.sync.pilot";
 const TIKTOK_PILOT_WRITE = new Set(["tiktok.adgroup.create", "tiktok.adgroup.update", "tiktok.ad.create", "tiktok.ad.update"]);
-const TIKTOK_PILOT_READ = new Set(["tiktok.adgroup.read", "tiktok.ad.read", "tiktok.pixel.existing.read", "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read"]);
+const TIKTOK_PILOT_READ = new Set(["tiktok.pilot.reconcile", "tiktok.adgroup.read", "tiktok.ad.read", "tiktok.pixel.existing.read", "tiktok.creative.video.read", "tiktok.creative.image.read", "tiktok.reporting.read"]);
 const TIKTOK_CAPABILITIES = new Set([
   "tiktok.authorization.status",
   "tiktok.authorization.start",
@@ -816,6 +816,18 @@ export async function handleMareBusinessMcpSafeRequest(
       }
       if (capabilityId === "tiktok.authorization.status") {
         return rpcToolResponse(request, rpc.id, textToolResult(await tiktokSafeAuthorizationStatus(env)));
+      }
+      if (capabilityId === "tiktok.pilot.reconcile") {
+        const capability = await resolveCapability(capabilityId, env);
+        if (!capability?.available) return rpcToolResponse(request, rpc.id, toolFailure("capability_not_available", capability));
+        const plan = await loadPlan(normalize(requestPayload.plan_id), env);
+        if (!TIKTOK_PILOT_WRITE.has(plan.capability_id)) return rpcToolResponse(request, rpc.id, toolFailure("tiktok_pilot_reconciliation_plan_mismatch"));
+        if (plan.status !== "reconciliation_required") return rpcToolResponse(request, rpc.id, textToolResult({
+          ok: true, read_only: true, plan_id: plan.plan_id, status: plan.status,
+          reconciliation_required: false, retry_allowed: false,
+        }));
+        const result = await observeTikTokPilotPlan(plan.capability_id, plan.request, plan.plan_id, env);
+        return rpcToolResponse(request, rpc.id, textToolResult({ ...result, status: plan.status }));
       }
       if (TIKTOK_PILOT_READ.has(capabilityId)) {
         const capability = await resolveCapability(capabilityId, env);
