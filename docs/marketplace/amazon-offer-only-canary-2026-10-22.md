@@ -50,3 +50,14 @@ SKU 4B12_HYPER_U3027_41_EU (EAN 8057270145605) e 4B12_PLAYNEW_D2026_38_EU (EAN 8
 | Gate separati | Autorizzazioni brand Seller Central, GPSR e responsabile UE | Brand, mercato e articolo |
 
 Avanzamento dati: raccogliere schede fornitore e mappare i valori confermati con fonte/versione/ambito, riutilizzando i dati sui modelli soltanto se validi per le rispettive taglie. Non modificare frontend Shopify. Non inviare nuovi ASIN finché schema, GPSR, brand e writer non sono verificati.
+
+## Blocco successivo: Durable Object per tentativi Offer Only (22 ottobre)
+
+Aggiunti `src/marketplace-amazon-offer-attempt-journal.ts`, binding Cloudflare `MARE_AMAZON_OFFER_JOURNAL` e migration `v5_amazon_offer_only_attempt_journal`. Il nuovo oggetto è esportato nel Worker, ma **non esiste alcuna route pubblica, MCP capability, scheduler o factory di esecuzione che lo colleghi ad Amazon PUT**. Il writer live rimane disabilitato.
+
+- La chiave Durable Object deriva dallo scope rigido `offer-only-v1:{seller}:{market}:{sku}`; una transazione SQLite persistente scrive il primo claim prima di qualunque invio. Un nuovo piano sullo stesso scope non può sovrascrivere il vecchio claim. La registrazione non ha TTL e un riavvio non ripristina il permesso di invio.
+- `/claim`, `/record` e `/read` sono endpoint solo **interni alla binding Durable Object**, protetti da credenziale server-side. I risultati accettano solo campi whitelisted e stati monotoni: CLAIMED → outcome terminale incerto oppure ACCEPTED_PENDING_READBACK → OFFER_IDENTITY_QUANTITY_ZERO_VERIFIED. Gli esiti HTTP incerti restano terminali per evitare doppie PUT.
+- `makeAmazonOfferJournalClient` è un adapter per **una sola esecuzione**, non condivisibile fra richieste. Supporta le dipendenze `atomicClaim` e `storeAttemptResult` del writer in sviluppo, ma **non** collega i due componenti automaticamente, né sostituisce le approvazioni brand/GPSR/Channable mancanti.
+- Test sintetico `npm run test:amazon-offer-attempt-journal`, eseguito in Miniflare con DO SQLite reale: 16 claim concorrenti dello stesso scope, persistenza dopo restart, isolamento per marketplace, nessun nuovo claim dopo timeout/HTTP sconosciuto, conflitti submissionId, divieto di migliorare a VERIFIED senza precedente ACCEPTED e readback verificato, filtro contro payload privati.
+
+**Gates ancora mancanti:** prova trusted su brand/GPSR e price policy, isolation Channable comprovata per SKU/paese, controllo rigoroso della provenienza dell'attestazione di approvazione (piano immutabile server-side), test in ambiente controllato di fine flusso e approvazione esplicita prima di un primo zero-stock canary reale. Il superamento della CI non equivale a un go-live.
