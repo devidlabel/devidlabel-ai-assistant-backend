@@ -1,5 +1,6 @@
 import { handleAmazonReadonlyRequest } from "./amazon-readonly-handler";
 import { MareMarketplaceOrderJournal } from "./marketplace-order-journal";
+import { MareAmazonOfferAttemptJournal } from "./marketplace-amazon-offer-attempt-journal";
 import { MareMarketplaceShadow, handleMarketplaceShadowStatus, scheduleMarketplaceShadow } from "./marketplace-shadow";
 import { handlePaidMediaSnapshotRequest, schedulePaidMediaSnapshot } from "./paid-media-snapshot";
 import { handleDailyReportRequest, scheduleDailyReport } from "./daily-report-snapshot";
@@ -24,7 +25,7 @@ import { handleSneakersNewSeason010926 } from "./klaviyo-sneakers-new-season-010
 import { handleSneak10Discount010926 } from "./shopify-sneak10-once-010926";
 import { handleGoogleAdsProductAuditRequest } from "./google-ads-product-audit";
 
-export { MarePlanCoordinator, MareAutonomyRunner, MareMarketplaceShadow, MareMarketplaceOrderJournal };
+export { MarePlanCoordinator, MareAutonomyRunner, MareMarketplaceShadow, MareMarketplaceOrderJournal, MareAmazonOfferAttemptJournal };
 
 type WorkerEnv = Parameters<typeof workerV3.fetch>[1];
 type WorkerExecutionContext = Parameters<typeof workerV3.fetch>[2];
