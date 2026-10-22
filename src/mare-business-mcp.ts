@@ -11,6 +11,7 @@ import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest }
 import { previewAmazonNewAsinShoesValidation } from "./marketplace-amazon-new-asin-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonQualificationRestrictions } from "./mare-business-amazon-qualification-restrictions.js";
+import { readAmazonExistingOfferQualificationTriage } from "./mare-business-amazon-existing-offer-triage.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
 import { readAmazonEuInventoryShadow } from "./marketplace-amazon-eu-inventory-shadow.js";
@@ -436,6 +437,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.offer.preflight") return textToolResult(await readAmazonOfferOnlyPreflight(request,env));
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.qualification.restrictions.readonly") return textToolResult(await readAmazonQualificationRestrictions(request,env));
+  if (capabilityId === "amazon.existing_offers.qualification_triage.readonly") return textToolResult(await readAmazonExistingOfferQualificationTriage(request,env));
   if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
   if (capabilityId === "amazon.inventory.eu.shadow.readonly") return textToolResult(await readAmazonEuInventoryShadow(request, env));
