@@ -73,12 +73,17 @@ const authorization = (patch = {}) => ({
   ...patch,
 });
 const isolation = (patch = {}) => ({
-  source: "CHANNABLE_API_EXPORT_READBACK", verified: true,
+  source: "CHANNABLE_UI_AUDIT_WITH_AMAZON_READBACK", verified: true,
   seller_id: seller, scope: "AMAZON_EU_OFFER_WRITERS",
   marketplace: input.marketplace, sku: input.sku,
   company_id: 99008, project_id: 328207,
+  audit_reviewer_reference: "UI-REVIEWER-SYNTH-001",
+  audited_export_snapshot_sha256: "c".repeat(64),
+  amazon_crosscheck_reference: "AMAZON-READBACK-SYNTH-001",
+  no_existing_seller_offer_confirmed_at_review: true,
+  listing_deletion_risk_reviewed: true,
   all_competing_writers_disabled: true,
-  provider_export_inventory_complete: true,
+  audited_export_inventory_complete: true,
   independently_checked_other_writers: true,
   other_live_writers_for_sku: 0,
   export_count: 1,
@@ -170,9 +175,13 @@ await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: asy
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ source: "CALLER_ATTESTATION" }) })), /writer_isolation_not_verified/);
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ company_id: 12345 }) })), /writer_isolation_not_verified/);
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ export_count: 0 }) })), /writer_isolation_not_verified/);
-await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ provider_export_inventory_complete: false }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ audited_export_inventory_complete: false }) })), /writer_isolation_not_verified/);
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ exports: [{...isolation().exports[0], seller_sku_excluded: false}] }) })), /writer_isolation_not_verified/);
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ other_live_writers_for_sku: 1 }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ source: "CHANNABLE_API_EXPORT_READBACK" }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ audited_export_snapshot_sha256: "" }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ amazon_crosscheck_reference: "" }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ listing_deletion_risk_reviewed: false }) })), /writer_isolation_not_verified/);
 
 await assert.rejects(() => execute({ ...prepared, prepared_at: "2026-10-22T11:00:00.000Z" }, env, deps()), /prepared_expired/);
 assert.equal(putCount, 0);
