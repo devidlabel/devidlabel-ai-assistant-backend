@@ -243,6 +243,22 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.inventory.eu.shared_stock_guard.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,
+      approval:"none",
+      description:"Read-only multi-market shared-stock guard backed by Shopify/Amazon EU inventory shadow. Distinguishes quantity drift, missing seller offers, unknown quantities and multi-market buyability. Does not sum replicated availability into physical stock or infer oversell, seasonal policies or writer ownership.",
+      request_schema:{...schema({
+        skus:{type:"array",minItems:1,maxItems:8,uniqueItems:true,items:{
+          type:"string",minLength:1,maxLength:120,
+          pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"
+        }}
+      },["skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id: "amazon.inventory.eu.shadow.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,approval:"none",
