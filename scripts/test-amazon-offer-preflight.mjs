@@ -152,7 +152,7 @@ try {
   // A merchant-confirmed brand alias must unblock only the false identity
   // mismatch. It does NOT prove seller eligibility, approval, GPSR or live PUT.
   const withVendor=(name)=>async()=>{
-    const original=await shopifyStub({});
+    const original=await shopifyStub({query:'sku:"TEST_OFFER_001"'});
     return {...original,products:original.products.map(p=>({...p,vendor:name}))};
   };
   const withAmazonBrand=(name)=>async()=>{
