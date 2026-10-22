@@ -81,3 +81,12 @@ tag = "v4_mare_order_evidence"
 new_sqlite_classes = ["MareMarketplaceOrderJournal"]
 
 
+
+# Isolated OFFER_ONLY attempt journal; no public routes, no writer enabled.
+[[durable_objects.bindings]]
+name = "MARE_AMAZON_OFFER_JOURNAL"
+class_name = "MareAmazonOfferAttemptJournal"
+
+[[migrations]]
+tag = "v5_amazon_offer_only_attempt_journal"
+new_sqlite_classes = ["MareAmazonOfferAttemptJournal"]
