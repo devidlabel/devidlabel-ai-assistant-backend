@@ -179,7 +179,7 @@ export async function prepareAmazonOfferOnlyCanary(
 export function buildAmazonOfferOnlyZeroQuantityBody(
   input: AmazonOfferOnlyInput, approvedPriceMinor: number,
 ): Row {
-  const request = validate(input);
+  const request = validate({ marketplace: input.marketplace, sku: input.sku, ean: input.ean, asin: input.asin });
   if (!Number.isSafeInteger(approvedPriceMinor) || approvedPriceMinor <= 0 ||
       approvedPriceMinor > MAX_PRICE_MINOR) fail("price_policy_invalid");
   const marketplace_id = AMAZON_EU_MARKETPLACES[request.marketplace];
