@@ -139,8 +139,14 @@ export async function classifyAmazonSneakerSkuStates(
   for (const sku of skus) {
     const row = rows.get(sku)!, shopify = obj(row.shopify);
     if (shopify.state !== "VERIFIED" || shopify.source_unique_active_sku !== true ||
-        typeof shopify.available !== "number" || !Number.isSafeInteger(shopify.available) || shopify.available <= 0) {
+        typeof shopify.available !== "number" || !Number.isSafeInteger(shopify.available) || shopify.available < 0) {
       blockers.set(sku,"shopify_identity_unverified"); continue;
+    }
+    // A unique ACTIVE SKU with Shopify available=0 is intentionally ineligible
+    // for offer/new-ASIN work, but it is NOT evidence of a missing/invalid EAN.
+    // Avoid GTIN support cases for temporarily sold-out variants.
+    if (shopify.available === 0) {
+      blockers.set(sku,"shopify_available_zero"); continue;
     }
     try {
       const c = await reader({
@@ -191,7 +197,8 @@ export async function classifyAmazonSneakerSkuStates(
       const candidate = match?.state === "EXACT_ONE" && Array.isArray(match.asins) ? match.asins[0] as string : null;
       const sellerState = typeof seller.state === "string" ? seller.state : "UNKNOWN";
       let status = "RECHECK_REQUIRED";
-      if (!ean) status = "SHOPIFY_EAN_BLOCKED";
+      if (!ean) status = blockers.get(sku)==="shopify_available_zero"?
+        "SHOPIFY_OUT_OF_STOCK":"SHOPIFY_EAN_BLOCKED";
       else if (sellerState === "PRESENT" && seller.identity_state === "VERIFIED" && asin) {
         status = candidate && candidate !== asin ? "BLOCKED_ASIN_CONFLICT"
           : Array.isArray(seller.statuses) && seller.statuses.includes("BUYABLE")
@@ -211,7 +218,9 @@ export async function classifyAmazonSneakerSkuStates(
       counts[m] ??= {};
       counts[m][status] = (counts[m][status] || 0) + 1;
     }
-    return {sku, shopify_state:shopify.state || "UNKNOWN",ean_verified:Boolean(ean),
+    return {sku, shopify_state:shopify.state || "UNKNOWN",
+      shopify_available:Number.isSafeInteger(shopify.available)?shopify.available:null,
+      ean_not_checked_due_to_zero_stock:blockers.get(sku)==="shopify_available_zero",ean_verified:Boolean(ean),
       ean:ean||null,blocker:blockers.get(sku)||null,markets};
   });
   return {ok:true,source:"amazon_sneaker_state_classifier",observed_at:at,requested_skus:skus.length,
