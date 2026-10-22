@@ -1,16 +1,24 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // Offline synthetic SP-API only. No authentic provider endpoint is contacted.
 const bundle = await build({
   entryPoints: ["src/mare-business-amazon-offer-only-canary.ts"],
   bundle: true, format: "esm", platform: "neutral", write: false, logLevel: "silent",
 });
+const tempDir = await mkdtemp(join(tmpdir(), "amazon-offer-canary-"));
+const bundlePath = join(tempDir, "bundle.mjs");
+await writeFile(bundlePath, bundle.outputFiles[0].text);
 const {
   prepareAmazonOfferOnlyCanary: prepare,
   executeAmazonOfferOnlyCanary: execute,
   buildAmazonOfferOnlyZeroQuantityBody: buildPayload,
-} = await import("data:text/javascript;base64:" + Buffer.from(bundle.outputFiles[0].text).toString("base64"));
+} = await import(pathToFileURL(bundlePath).href);
+await rm(tempDir, { recursive: true, force: true });
 const input = {
   marketplace: "IT", sku: "SYNTHETIC_CANARY_01", ean: "2000000001234", asin: "B0TEST0001",
 };
