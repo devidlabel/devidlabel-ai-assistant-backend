@@ -28,7 +28,7 @@
     "test:mare-mcp": "node scripts/test-mare-mcp.mjs",
     "test:mare-operations-mcp": "node scripts/test-mare-operations-mcp.mjs",
     "test:mare-product-media-mcp": "node scripts/test-mare-product-media-mcp.mjs",
-    "test:mare-business-mcp": "node scripts/test-mare-business-mcp.mjs && node scripts/test-mare-klaviyo-crm.mjs",
+    "test:mare-business-mcp": "node scripts/test-mare-business-mcp.mjs && node scripts/test-mare-klaviyo-crm.mjs && npm run test:tiktok-courmayeur",
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
     "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
@@ -71,7 +71,8 @@
     "test:amazon-shoes-cross-source": "node scripts/test-amazon-shoes-cross-source-readiness.mjs",
     "test:amazon-listing-brand": "node scripts/test-amazon-listing-brand.mjs",
     "test:amazon-new-asin-validation": "node scripts/test-amazon-new-asin-preview.mjs",
-    "test:amazon-shoes-private-shopify-values": "node scripts/test-amazon-shoes-private-shopify-values.mjs"
+    "test:amazon-shoes-private-shopify-values": "node scripts/test-amazon-shoes-private-shopify-values.mjs",
+    "test:tiktok-courmayeur": "node scripts/test-tiktok-courmayeur-pilot.mjs && node scripts/test-tiktok-courmayeur-functional.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
