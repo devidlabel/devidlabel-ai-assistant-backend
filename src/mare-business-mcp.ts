@@ -14,6 +14,7 @@ import { readAmazonQualificationRestrictions } from "./mare-business-amazon-qual
 import { readAmazonExistingOfferQualificationTriage } from "./mare-business-amazon-existing-offer-triage.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
+import { readAmazonChannableOrderIdentityAudit } from "./mare-business-amazon-channable-order-identity-audit.js";
 import { readAmazonEuInventoryShadow } from "./marketplace-amazon-eu-inventory-shadow.js";
 import { previewAmazonShipmentConfirmation, validateAmazonShipmentConfirmationPreviewRequest } from "./marketplace-amazon-shipment-confirmation-preview.js";
 import { readShopifyAmazonShipmentReconciliation } from "./marketplace-shopify-amazon-shipments.js";
@@ -440,6 +441,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.existing_offers.qualification_triage.readonly") return textToolResult(await readAmazonExistingOfferQualificationTriage(request,env));
   if (capabilityId === "amazon.seller.asin.direct") return textToolResult(await readAmazonSellerAsinListings(request,env));
   if (capabilityId === "amazon.orders.observe.readonly") return textToolResult(await readAmazonOrdersPilot(request, env));
+  if (capabilityId === "amazon.orders.channable_identity_audit.readonly") return textToolResult(await readAmazonChannableOrderIdentityAudit(request, env));
   if (capabilityId === "amazon.inventory.eu.shadow.readonly") return textToolResult(await readAmazonEuInventoryShadow(request, env));
   if (capabilityId === "marketplace.amazon.shipment_reconciliation.readonly") return textToolResult(await readShopifyAmazonShipmentReconciliation(request, env));
   if (capabilityId === "marketplace.order.evidence.read") return textToolResult(await readStoredMarketplaceOrderEvidence(request, env));
