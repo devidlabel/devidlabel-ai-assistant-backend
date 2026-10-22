@@ -172,7 +172,7 @@ export async function readAmazonChannableOrderIdentityAudit(
     amazon.zero_quantity_line_count: null;
   const result={
     ok:true,status:"COMPLETE_OBSERVATION_NO_IMPORT_AUTHORITY",
-    read_only:true,source:"amazon_channable_order_identity_audit",
+    source:"amazon_channable_order_identity_audit",
     amazon_updated_window:{after:input.amazon_updated_after,before:input.amazon_updated_before},
     shopify_created_window:{after:input.shopify_created_after,before:input.shopify_created_before},
     selected_marketplaces:input.marketplaces,
