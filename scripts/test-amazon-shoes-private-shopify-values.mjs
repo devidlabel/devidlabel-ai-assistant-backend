@@ -255,4 +255,50 @@ const invalid=await read({...expected,variantId:"gid://shopify/ProductVariant/..
   queryShopify:async()=>{throw Error("should not be called");}
 });
 assert.equal(invalid.reason,"source_identity_invalid");
+// Genuine-style D-4006 merchant copy: no "Modello:" or "Codice modello:"
+// labels, but model ID explicitly repeated, and technical characteristics
+// explicitly list platform sole and TWO lace descriptions. Validation only.
+const dSeriesHtml=[
+ "<p>Sneaker 4B12 Hyper D-4006 da donna, dettagli laminati oro e suola platform effetto vintage.</p>",
+ "<p>Il modello D-4006 da donna combina volumi importanti e dettagli luminosi, per uso quotidiano.</p>",
+ "<h3>Dettagli distintivi</h3>",
+ "<ul><li><p>Lacci con finitura brillante</p></li>",
+ "<li><p>Suola platform effetto vintage</p></li></ul>",
+ "<h3>Caratteristiche tecniche</h3>",
+ "<ul><li><p>Tomaia in pelle</p></li><li><p>Lacci brillanti</p></li></ul>"
+].join("");
+async function fromDSeriesHtml(html,identity=fallbackExpected){
+ const fixture=structuredClone(fallback);
+ fixture.productVariant.product.descriptionHtml=html;
+ return read(identity,{}, {queryShopify:async (_env,q,v)=>
+   q.includes("metaobject(id:$colorId)")?
+     {metaobject:{id:v.colorId,type:"product_feature_color",
+       displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+     fixture});
+}
+const dRead=await fromDSeriesHtml(dSeriesHtml);
+assert.equal(dRead.ok,true);
+assert.equal(dRead.model_number,"D-4006");
+assert.equal(dRead.bullet_point,"Suola platform effetto vintage");
+assert.equal(dRead.closure_laces,true);
+assert.equal(dRead.ready_for_publication,false);
+assert.equal(dRead.manufacturer,undefined);
+assert.equal(dRead.country_of_origin,undefined);
+assert.equal(dRead.list_price,undefined);
+for(const html of [
+ dSeriesHtml.replace("Il modello D-4006","Il modello D-5006"),
+ dSeriesHtml.replace("<li><p>Lacci brillanti</p></li>",""),
+ dSeriesHtml.replace("<li><p>Lacci brillanti</p></li>","<li><p>Velcro</p></li>"),
+ dSeriesHtml.replace("<li><p>Suola platform effetto vintage</p></li>",""),
+ dSeriesHtml.replace("<h3>Caratteristiche tecniche</h3>",""),
+ dSeriesHtml+"<li>Chiusura con velcro</li>",
+ dSeriesHtml+"<script>alert(1)</script>"
+]){
+ const q=await fromDSeriesHtml(html);
+ assert.equal(q.model_number,undefined);
+ assert.equal(q.bullet_point,undefined);
+ assert.equal(q.closure_laces,undefined);
+}
+const unrelated=await fromDSeriesHtml(dSeriesHtml,{...fallbackExpected,sku:"4B12_HYPER_U3027_41_EU"});
+assert.equal(unrelated.ok,false,"Unexpected variant identity must fail before description extraction");
 console.log("Shopify admin-only Amazon SHOES field read regression tests passed.");
