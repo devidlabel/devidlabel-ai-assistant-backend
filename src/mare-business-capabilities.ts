@@ -193,6 +193,26 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.existing_offers.bulk_case_worklist.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Merchant-private, bounded read-only worklist for 1-9 existing Amazon seller SKU/EAN pairs, using sequential batches of three 100632 triage reads. Groups official Seller Central approval links vs Seller Support cases, EAN/ASIN catalog mismatches, already BUYABLE offers and unknowns. Never creates cases, applications, listings or brand approvals.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        items:{type:"array",minItems:1,maxItems:9,items:{
+          type:"object",additionalProperties:false,required:["sku","ean"],
+          properties:{
+            sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+            ean:{type:"string",pattern:"^[0-9]{13}$"}
+          }
+        }},
+        compare_marketplace:{type:"string",enum:["IT","DE","FR","ES"]}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.existing_offers.qualification_triage.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
