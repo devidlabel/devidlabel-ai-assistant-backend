@@ -3,6 +3,9 @@
  *
  * These are NOT proof-generators. These checks only validate structured
  * output returned by independently authenticated backend evidence services.
+ * Channable's documented public API does NOT expose export rule snapshots.
+ * This gate therefore demands a separately reviewed Channable UI audit plus
+ * independent Amazon seller readback. No connected audit source exists yet.
  * At present no provider-backed approval or Channable reader is connected.
  * No caller-supplied approval object may reach these functions via API.
  */
@@ -57,7 +60,7 @@ export type ChannableOfferExport = Readonly<{
   last_completed_at: string;
 }>;
 export type TrustedOfferWriterIsolation = Readonly<{
-  source: "CHANNABLE_API_EXPORT_READBACK";
+  source: "CHANNABLE_UI_AUDIT_WITH_AMAZON_READBACK";
   verified: true;
   seller_id: string;
   scope: "AMAZON_EU_OFFER_WRITERS";
@@ -65,8 +68,13 @@ export type TrustedOfferWriterIsolation = Readonly<{
   sku: string;
   company_id: 99008;
   project_id: 328207;
+  audit_reviewer_reference: string;
+  audited_export_snapshot_sha256: string;
+  amazon_crosscheck_reference: string;
+  no_existing_seller_offer_confirmed_at_review: true;
+  listing_deletion_risk_reviewed: true;
   all_competing_writers_disabled: true;
-  provider_export_inventory_complete: true;
+  audited_export_inventory_complete: true;
   independently_checked_other_writers: true;
   other_live_writers_for_sku: 0;
   export_count: number;
@@ -131,13 +139,17 @@ export function verifyTrustedChannableOfferIsolation(
 ): raw is TrustedOfferWriterIsolation {
   if (!isObj(raw) || !SELLER.test(seller)) return false;
   const a = raw;
-  if (a.source !== "CHANNABLE_API_EXPORT_READBACK" ||
+  if (a.source !== "CHANNABLE_UI_AUDIT_WITH_AMAZON_READBACK" ||
       a.verified !== true || a.seller_id !== seller ||
       a.scope !== "AMAZON_EU_OFFER_WRITERS" ||
       a.marketplace !== p.marketplace || a.sku !== p.sku ||
       a.company_id !== 99008 || a.project_id !== 328207 ||
+      !ref(a.audit_reviewer_reference) || !hash(a.audited_export_snapshot_sha256) ||
+      !ref(a.amazon_crosscheck_reference) ||
+      a.no_existing_seller_offer_confirmed_at_review !== true ||
+      a.listing_deletion_risk_reviewed !== true ||
       a.all_competing_writers_disabled !== true ||
-      a.provider_export_inventory_complete !== true ||
+      a.audited_export_inventory_complete !== true ||
       a.independently_checked_other_writers !== true ||
       a.other_live_writers_for_sku !== 0 ||
       !ref(a.evidence_reference) ||
