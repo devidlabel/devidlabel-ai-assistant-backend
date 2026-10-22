@@ -3,6 +3,8 @@ import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
+import { verifyTrustedOfferReview, verifyTrustedChannableOfferIsolation } from "./marketplace-amazon-offer-proof-gates.js";
+import type { TrustedOfferReview, TrustedOfferWriterIsolation } from "./marketplace-amazon-offer-proof-gates.js";
 
 /**
  * Amazon OFFER_ONLY zero-quantity canary - isolated implementation, NOT wired
@@ -29,27 +31,8 @@ export type AmazonOfferOnlyPrepared = AmazonOfferOnlyInput & Readonly<{
   schema_version: string;
   schema_checksum: string;
 }>;
-export type AmazonOfferOnlyAuthorization = Readonly<{
-  verified: true;
-  plan_reference: string;
-  reviewed_at: string;
-  exact_identity_reviewed: true;
-  brand_authorization_verified: true;
-  gpsr_and_compliance_verified: true;
-  schema_and_valid_preview_verified: true;
-  price_policy_verified: true;
-  approved_price_minor: number;
-  order_and_tracking_pilot_ready: true;
-}>;
-export type AmazonOfferWriterIsolation = Readonly<{
-  verified: true;
-  scope: "AMAZON_EU_OFFER_WRITERS";
-  marketplace: Market;
-  sku: string;
-  all_competing_writers_disabled: true;
-  evidence_reference: string;
-  verified_at: string;
-}>;
+export type AmazonOfferOnlyAuthorization = TrustedOfferReview;
+export type AmazonOfferWriterIsolation = TrustedOfferWriterIsolation;
 export type AmazonOfferOnlyClaim = Readonly<{
   claimed: true; attempt_reference: string;
 }>;
@@ -74,7 +57,6 @@ const SELLER = /^[A-Z0-9]{8,30}$/;
 const REF = /^[A-Za-z0-9._:-]{8,180}$/;
 const HASH = /^[A-Za-z0-9+/]{20,128}={0,2}$/;
 const MAX_AGE_MS = 15 * 60 * 1000;
-const ISOLATION_AGE_MS = 5 * 60 * 1000;
 const MAX_PRICE_MINOR = 100_000_000;
 const MAX_RESPONSE_BYTES = 64_000;
 const PREPARED_KEYS = ["asin", "ean", "marketplace", "prepared_at", "schema_checksum", "schema_version", "shopify_price_minor", "shopify_variant_id", "sku"];
@@ -196,28 +178,6 @@ export function buildAmazonOfferOnlyZeroQuantityBody(
     }
   };
 }
-function verifiedAuthorization(
-  a: AmazonOfferOnlyAuthorization, p: AmazonOfferOnlyPrepared, clock: () => number,
-): boolean {
-  return a.verified === true && REF.test(a.plan_reference) &&
-    validTime(a.reviewed_at, clock, MAX_AGE_MS) &&
-    a.exact_identity_reviewed === true && a.brand_authorization_verified === true &&
-    a.gpsr_and_compliance_verified === true && a.schema_and_valid_preview_verified === true &&
-    a.price_policy_verified === true && a.order_and_tracking_pilot_ready === true &&
-    typeof a.approved_price_minor === "number" &&
-    Number.isSafeInteger(a.approved_price_minor) &&
-    a.approved_price_minor > 0 && a.approved_price_minor <= MAX_PRICE_MINOR &&
-    a.approved_price_minor === p.shopify_price_minor;
-}
-function verifiedIsolation(
-  proof: AmazonOfferWriterIsolation, p: AmazonOfferOnlyPrepared, clock: () => number,
-): boolean {
-  return proof.verified === true && proof.scope === "AMAZON_EU_OFFER_WRITERS" &&
-    proof.marketplace === p.marketplace && proof.sku === p.sku &&
-    proof.all_competing_writers_disabled === true &&
-    REF.test(proof.evidence_reference) &&
-    validTime(proof.verified_at, clock, ISOLATION_AGE_MS);
-}
 async function safeJson(response: Response): Promise<Row> {
   if (!/^application\/json(?:\s*;|$)/i.test(response.headers.get("content-type") || ""))
     fail("response_mime_unknown");
@@ -265,10 +225,10 @@ export async function executeAmazonOfferOnlyCanary(
       fresh.schema_checksum !== prepared.schema_checksum)
     fail("preflight_changed_since_prepare");
   const authorization = await deps.verifyApprovedPlan(prepared);
-  if (!verifiedAuthorization(authorization, prepared, clock))
+  if (!verifyTrustedOfferReview(authorization, prepared, seller, clock))
     fail("approval_evidence_not_verified");
   const isolation = await deps.verifyWriterIsolation(prepared);
-  if (!verifiedIsolation(isolation, prepared, clock))
+  if (!verifyTrustedChannableOfferIsolation(isolation, prepared, seller, clock))
     fail("writer_isolation_not_verified");
   const token = await (deps.token ?? getAmazonAccessToken)(env);
   if (typeof token !== "string" || token.length < 4 || token.length > 16384 ||
