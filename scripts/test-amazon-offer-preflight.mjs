@@ -149,6 +149,43 @@ try {
   assert.equal(result.seller_asin_search_result,
     "NO_SELLER_ASIN_IN_BOUNDED_SEARCH");
   assert.equal(result.seller_asin_search_is_not_final_absence_proof,true);
+  // A merchant-confirmed brand alias must unblock only the false identity
+  // mismatch. It does NOT prove seller eligibility, approval, GPSR or live PUT.
+  const withVendor=(name)=>async()=>{
+    const original=await shopifyStub({});
+    return {...original,products:original.products.map(p=>({...p,vendor:name}))};
+  };
+  const withAmazonBrand=(name)=>async()=>{
+    const original=await detailsStub();
+    return {...original,results:original.results.map(x=>({...x,brand:name}))};
+  };
+  const brandInputs=[
+    ["Back70","Back 70 Streetwear","MERCHANT_CONFIRMED_MAPPING"],
+    ["County Of Milan","County Of Milan","MERCHANT_CONFIRMED_MAPPING"],
+    ["Example Brand","Example Brand","SHOPIFY_VENDOR_UNVERIFIED"],
+  ];
+  for(const [shopifyName,amazonName,mappingSource] of brandInputs){
+    const branded=await readAmazonOfferOnlyPreflight(input,env,
+      withVendor(shopifyName),matchStub,withAmazonBrand(amazonName));
+    assert.equal(branded.ok,true,shopifyName);
+    assert.equal(branded.status,"REVIEW_REQUIRED");
+    assert.equal(branded.amazon_brand_expected,amazonName);
+    assert.equal(branded.brand_mapping_source,mappingSource);
+    assert.equal(branded.brand_eligibility_proven,false);
+    assert.equal(branded.has_created_offer,false);
+    assert.equal(branded.live_listing_write_enabled,false);
+  }
+  const callsBeforeBrandMismatch=calls.length;
+  const counterfeit=await readAmazonOfferOnlyPreflight(input,env,
+    withVendor("Back70"),matchStub,withAmazonBrand("Unrelated Brand"));
+  assert.equal(counterfeit.status,"BLOCKED_CATALOG_ATTRIBUTES");
+  assert.equal(counterfeit.blocker,"brand_asin_or_product_type_mismatch");
+  assert.equal(calls.length,callsBeforeBrandMismatch,
+    "Wrong brand must stop before direct Amazon seller listing GET");
+  const improperShortName=await readAmazonOfferOnlyPreflight(input,env,
+    withVendor("Back70"),matchStub,withAmazonBrand("Back70"));
+  assert.equal(improperShortName.status,"BLOCKED_CATALOG_ATTRIBUTES");
+  assert.equal(improperShortName.blocker,"brand_asin_or_product_type_mismatch");
   asinSearchResponse=()=>json({numberOfResults:1,items:[{
     sku:"LEGACY_CHANNABLE_SKU",summaries:[{
       marketplaceId:marketId,asin:input.asin,productType:"HANDBAG"
