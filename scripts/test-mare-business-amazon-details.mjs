@@ -55,5 +55,48 @@ try {
     {marketplace:"IT",asins:Array(4).fill(asin)}
   ])await assert.rejects(()=>readAmazonCatalogASINDetails(bad,creds));
   assert.equal(calls,previous,"Invalid inputs must never call Amazon");
+  // Real Amazon rate limiting is a transient state, not catalog absence.
+  // Retry after 0 seconds requires no waiting in the synthetic test.
+  const normalCatalogResponder=globalThis.fetch;
+  let transientGetCount=0;
+  globalThis.fetch=async(input,init)=>{
+    const path=new URL(String(input)).pathname;
+    if(path==="/catalog/2022-04-01/items/"+asin && transientGetCount++===0)
+      return new Response(JSON.stringify({message:"Throttled"}),{
+        status:429,headers:{"retry-after":"0","content-type":"application/json"}});
+    return normalCatalogResponder(input,init);
+  };
+  const recovered=await readAmazonCatalogASINDetails({marketplace:"IT",asins:[asin]},creds);
+  assert.equal(transientGetCount,2,"Exactly one bounded 429 retry");
+  assert.equal(recovered.results[0].state,"READ_ONLY_DETAILS_COMPLETE");
+  assert.equal(recovered.has_created_offer,false);
+
+  // A long Retry-After cannot be ignored to hammer Amazon.
+  let delayedGetCount=0;
+  globalThis.fetch=async(input,init)=>{
+    if(new URL(String(input)).pathname==="/catalog/2022-04-01/items/"+asin){
+      delayedGetCount++;
+      return new Response(JSON.stringify({message:"slow down"}),{
+        status:429,headers:{"retry-after":"30"}});
+    }
+    return normalCatalogResponder(input,init);
+  };
+  await assert.rejects(()=>readAmazonCatalogASINDetails({marketplace:"IT",asins:[asin]},creds),
+    /amazon_catalog_details_http_429/);
+  assert.equal(delayedGetCount,1,"Do not retry if Amazon requests a long delay");
+
+  let repeatedGetCount=0;
+  globalThis.fetch=async(input,init)=>{
+    if(new URL(String(input)).pathname==="/catalog/2022-04-01/items/"+asin){
+      repeatedGetCount++;
+      return new Response(JSON.stringify({message:"Throttled"}),{
+        status:429,headers:{"retry-after":"0"}});
+    }
+    return normalCatalogResponder(input,init);
+  };
+  await assert.rejects(()=>readAmazonCatalogASINDetails({marketplace:"IT",asins:[asin]},creds),
+    /amazon_catalog_details_http_429/);
+  assert.equal(repeatedGetCount,3,"Bound Amazon requests to three attempts per ASIN");
+  globalThis.fetch=normalCatalogResponder;
   console.log("Merchant-only Amazon ASIN attributes read-only validation passed");
 } finally {globalThis.fetch=oldFetch;}
