@@ -105,6 +105,37 @@ for(const m of markets){
 assert.equal(d.calls.filter(x=>x[0]==="amazon").length,4);
 assert.equal(d.calls.filter(x=>x[0]==="shopify").length,9);
 
+// Regression from live 22 Oct: 4B12 U-1035 size 42 has EAN in Shopify,
+// but available=0. An out-of-stock variant is not an invalid/missing GTIN.
+const zeroStockShadow=shadow();
+zeroStockShadow.results[1].shopify.available=0;
+const zeroDeps=deps({shadowResult:zeroStockShadow});
+zeroDeps.readMatch=async request=>{
+  assert.equal(request.identifiers.includes(S[1][1]),false,
+    "No Amazon EAN lookup should run for an out-of-stock SKU");
+  return {ok:true,read_only:true,has_created_offer:false,result:{
+    complete:true,marketplace:request.marketplace,
+    identifiers:request.identifiers.map(ean=>({
+      ean,state:ean===S[0][1]?"EXACT_ONE":"NO_EXACT_MATCH",
+      exact_match_count:ean===S[0][1]?1:0,
+      asins:ean===S[0][1]?["B0HMPG6KM8"]:[],
+    }))
+  }};
+};
+const zeroResult=await classify(baseRequest,{},zeroDeps);
+assert.equal(zeroResult.ok,true);
+assert.equal(zeroResult.results[1].blocker,"shopify_available_zero");
+assert.equal(zeroResult.results[1].ean_not_checked_due_to_zero_stock,true);
+assert.equal(zeroResult.results[1].shopify_available,0);
+for(const m of markets){
+ assert.equal(zeroResult.results[1].markets[m].status,"SHOPIFY_OUT_OF_STOCK");
+ assert.equal(zeroResult.results[1].markets[m].is_publish_eligible,false);
+ assert.equal(zeroResult.counts[m].SHOPIFY_OUT_OF_STOCK,1);
+}
+assert.equal(zeroDeps.calls.some(([k,v])=>k==="shopify"&&v.includes(S[1][0])),false,
+  "Do not make redundant Shopify Admin SKU/EAN reads for zero-stock variant");
+assert.equal(zeroResult.provider_mutations,0);
+
 const missing=deps({incompleteMarket:"ES"});
 const missingResult=await classify(baseRequest,{},missing);
 assert.equal(missingResult.results[1].markets.ES.status,"RECHECK_REQUIRED");
