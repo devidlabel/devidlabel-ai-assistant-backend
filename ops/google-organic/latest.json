@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-10-22T18:37:49.798Z",
+  "generated_at": "2026-10-22T18:40:21.464Z",
   "search_console": {
     "permission_level": "siteFullUser",
     "timeframe": {
@@ -24,7 +24,7 @@
     "active_users": 3071,
     "sessions": 3561,
     "ecommerce_purchases": 19,
-    "purchase_revenue": 2304.99,
+    "purchase_revenue": 2304.9900000000002,
     "landing_page_rows": 250,
     "source_medium_rows": 31,
     "realtime_rows": 2
