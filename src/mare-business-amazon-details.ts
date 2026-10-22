@@ -25,6 +25,35 @@ function shortAttribute(attributes: JsonObject, ...keys: string[]): string | nul
   return null;
 }
 
+/** Amazon Catalog Items is throttled independently from Listings.
+ * Retry only transient HTTP 429 on the SAME read-only GET. If Amazon asks
+ * to wait longer than 3 s, stop and fail closed instead of hammering the API
+ * or risking a long Worker request. Missing/ambiguous details are NEVER an
+ * ASIN absence claim. At most three total GET attempts per ASIN.
+ */
+async function catalogItemFetch(url:string,token:string):Promise<Response> {
+  for(let attempt=0;attempt<3;attempt++){
+    let response:Response;
+    try {
+      response=await fetch(url,{
+        method:"GET",
+        headers:{"x-amz-access-token":token,Accept:"application/json"},
+        signal:AbortSignal.timeout(30000),redirect:"manual",
+      });
+    }catch{throw new Error("amazon_catalog_details_network_error");}
+    if(response.status!==429||attempt===2)return response;
+    const header=response.headers.get("retry-after")?.trim();
+    let waitMs=attempt===0?500:1250;
+    if(header!==undefined){
+      if(!/^[0-3](?:\.\d{1,3})?$/.test(header))return response;
+      waitMs=Math.floor(Number(header)*1000);
+    }
+    await response.body?.cancel().catch(()=>{});
+    if(waitMs>0)await new Promise<void>(resolve=>setTimeout(resolve,waitMs));
+  }
+  throw new Error("amazon_catalog_details_http_429");
+}
+
 /**
  * Authenticated merchant-only SP-API GET Catalog Item.
  * Never returns access tokens, signed URLs or raw arbitrary Amazon response.
@@ -48,14 +77,7 @@ export async function readAmazonCatalogASINDetails(
     const url=new URL("https://sellingpartnerapi-eu.amazon.com/catalog/2022-04-01/items/"+asin);
     url.searchParams.set("marketplaceIds",marketplaceId);
     url.searchParams.set("includedData","summaries,attributes,images,productTypes,identifiers");
-    let response: Response;
-    try {
-      response=await fetch(url.toString(),{
-        method:"GET",
-        headers:{"x-amz-access-token":token,Accept:"application/json"},
-        signal:AbortSignal.timeout(30000)
-      });
-    } catch { throw new Error("amazon_catalog_details_network_error"); }
+    const response=await catalogItemFetch(url.toString(),token);
     if (response.status===404) {
       results.push({asin,state:"ASIN_NOT_FOUND"});
       continue;
