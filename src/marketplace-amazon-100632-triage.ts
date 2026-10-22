@@ -93,7 +93,7 @@ function restrictions(raw:Row,market:Market,sku:string,asin:string): {
  if(x.status==="NO_RESTRICTIONS_RETURNED_NOT_APPROVAL_PROOF" &&
     x.restriction_count===0 && codes.length===0 && links.length===0)
     return {state:"NONE",url:null};
- if(x.status==="RESTRICTIONS_REPORTED" && x.restriction_count>0){
+ if(x.status==="RESTRICTIONS_REPORTED" && typeof x.restriction_count==="number" && x.restriction_count>0){
     if(codes.includes("ASIN_NOT_FOUND")) return {state:"ASIN_MISSING",url:null};
     if(codes.includes("APPROVAL_REQUIRED")) {
       // Trust only the exact official Amazon link for this seller ASIN.
