@@ -433,12 +433,47 @@ export async function researchAmazonNewAsinProductType(
       discoverySource = "AMAZON_KEYWORDS_SHOPIFY_SNEAKERS";
     }
   }
+  // Amazon itemName recommendations can be unrelated to the actual merchandise.
+  // Observed live 22 Oct: MC2 Christmas Box in Shopify "Pochette e Borselli"
+  // returned ABIS_MUSIC; Sprayground suitcases were mapped to TABLETOP_GAME/
+  // APPAREL elsewhere in Catalog Items. Shopify category is evidence for
+  // MANUAL taxonomy review, not an Amazon-approved product type.
+  const merchantCategory=typeof product.product_type==="string"?
+    product.product_type.trim():"";
+  const accessoryCategories=new Set([
+    "Borse","Borsoni e Valigie","Pochette e Borselli",
+    "Zaini","Beauty Case","Cappelli e berretti","Portafogli",
+  ]);
+  const definitelyUnrelated=new Set([
+    "ABIS_MUSIC","SPEAKERS","DRINK_FLAVORED","TABLETOP_GAME",
+  ]);
+  const unrelated=accessoryCategories.has(merchantCategory)?
+    candidates.filter(c=>definitelyUnrelated.has(c.name)||
+      (merchantCategory==="Borsoni e Valigie"&&c.name==="APPAREL")):[];
+  if(unrelated.length>0){
+    titleCategoryConflict=true;
+    candidates=candidates.filter(c=>!unrelated.some(u=>u.name===c.name));
+    discoverySource="AMAZON_ITEM_NAME_CATEGORY_GUARDED";
+  }
+  const rejectedTypes=unrelated.map(c=>c.name);
   const unique = candidates;
   const discoveryEvidence = {
+    rejected_unrelated_product_type_names:rejectedTypes,
+    shopify_category_is_manual_review_evidence_only:true,
     product_type_discovery_source: discoverySource,
     title_category_conflict_detected: titleCategoryConflict,
     seller_selected_product_type_not_automatically_approved: true,
   };
+  if (rejectedTypes.length>0 && unique.length===0 && !input.product_type)
+    return {ok:true,status:"PRODUCT_TYPE_CATEGORY_REVIEW_REQUIRED",
+      product_type_candidates:[],candidates_truncated:false,candidate_count:0,
+      next_step:"VERIFY_ACTUAL_PRODUCT_AND_FIND_RELEVANT_AMAZON_PRODUCT_TYPE",
+      ...discoveryEvidence,...base};
+  if (input.product_type && rejectedTypes.includes(input.product_type))
+    return {ok:false,status:"BLOCKED_DEFINITIONS",
+      blocker:"item_name_product_type_conflicts_with_shopify_category",
+      product_type_candidates:unique.slice(0,MAX_OUTPUT_TYPES),
+      ...discoveryEvidence,...base};
   if (!input.product_type) return {
     ok: true, status: "PRODUCT_TYPE_SELECTION_REQUIRED",
     product_type_candidates: unique.slice(0, MAX_OUTPUT_TYPES),
