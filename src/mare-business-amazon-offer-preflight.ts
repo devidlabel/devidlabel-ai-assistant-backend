@@ -3,6 +3,7 @@ import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
+import { resolveAmazonListingBrand } from "./marketplace-amazon-listing-brand.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
@@ -204,6 +205,7 @@ export async function readAmazonOfferOnlyPreflight(
   const stock = variant.inventory_quantity;
   const price = variant.price;
   const vendor = string(product.vendor);
+  const brandIdentity=resolveAmazonListingBrand(product.vendor);
   if (product.status !== "ACTIVE" || vendor.toLowerCase() === "p448" ||
       typeof stock !== "number" || !Number.isSafeInteger(stock) || stock <= 0 ||
       typeof price !== "string" || !MONEY_RE.test(price) || Number(price) <= 0 ||
@@ -232,8 +234,8 @@ export async function readAmazonOfferOnlyPreflight(
   const item = obj(Array.isArray(details.results) ? details.results[0] : null);
   if (details.ok !== true || details.marketplace !== marketplace ||
       item.state !== "READ_ONLY_DETAILS_COMPLETE" || item.asin !== asin ||
-      !vendor || !string(item.brand) ||
-      normalizeOption(string(item.brand)) !== normalizeOption(vendor) ||
+      !vendor || !brandIdentity || !string(item.brand) ||
+      normalizeOption(string(item.brand)) !== normalizeOption(brandIdentity.amazon_brand) ||
       !Array.isArray(item.product_types) || item.product_types.length === 0) {
     return blocked(marketplace, sku, asin, "BLOCKED_CATALOG_ATTRIBUTES", "brand_asin_or_product_type_mismatch");
   }
@@ -339,6 +341,10 @@ export async function readAmazonOfferOnlyPreflight(
   }
   return {
     ok: true, marketplace, sku, ean, asin,
+    // Merchant-confirmed display-name alias is NOT Seller Central approval.
+    amazon_brand_expected:brandIdentity.amazon_brand,
+    brand_mapping_source:brandIdentity.source,
+    brand_eligibility_proven:false,
     status: "REVIEW_REQUIRED",
     exact_ean_asin: true,
     seller_listing_absence_result: "NOT_FOUND_VERIFIED_BY_LISTINGS_API",
