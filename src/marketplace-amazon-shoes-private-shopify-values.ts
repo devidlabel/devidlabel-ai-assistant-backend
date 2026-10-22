@@ -26,7 +26,7 @@ function safeText(raw:unknown,max=95):raw is string {
  * Never derive GTIN, materials, origin, compliance, or pricing from this text.
  * Unsafe/ambiguous HTML simply omits these optional attributes.
  */
-function merchantDescription(raw:unknown):{product_description?:string;model_number?:string;bullet_point?:string;closure_laces?:true}{
+function merchantDescription(raw:unknown,identity?:{sku:string;productTitle:string;shopifyVendor:string}):{product_description?:string;model_number?:string;bullet_point?:string;closure_laces?:true}{
   if(typeof raw!=="string"||raw.length<60||raw.length>8000||
      /<\s*(?:script|style|iframe|object|embed|svg|form|input|textarea)\b/i.test(raw)||
      /<[^>]*$/.test(raw))return {};
@@ -69,10 +69,34 @@ function merchantDescription(raw:unknown):{product_description?:string;model_num
   if(description.length<60||description.length>2000||
      /[\u0000-\u001f\u007f<>]/.test(description)||
      /&(?:#\w+|\w+);/.test(description))return {};
+  // A narrowly scoped merchant-copy fallback for the Shopify Hyper D-4006
+  // style: model appears in BOTH an exact title/SKU and free-text body, while
+  // technical bullet and laces appear as explicit, unambiguous HTML list lines.
+  // Marketing evidence for Amazon VALIDATION_PREVIEW only; NEVER manufacturer,
+  // material composition, origin, GPSR, retail price or live publication proof.
+  const dSeries=identity?.shopifyVendor==="4B12"?
+    /^4B12_HYPER_(D[0-9]{4})_(?:3[4-9]|4[0-9]|50)_EU$/.exec(identity.sku):null;
+  const dCode=dSeries?.[1]??"";
+  const dDisplay=dCode?dCode[0]+"-"+dCode.slice(1):"";
+  const names=[...description.matchAll(/\b[DU]-?[0-9]{4}\b/gi)]
+    .map(m=>m[0].toUpperCase().replace("-",""));
+  const modelConsistent=dCode.length>0&&
+    identity?.productTitle.toLowerCase()==="sneaker hyper-"+dCode.toLowerCase()&&
+    new RegExp("\\bSneaker\\s+4B12\\s+Hyper\\s+"+dDisplay+"\\b","i").test(description)&&
+    new RegExp("\\bmodello\\s+"+dDisplay+"\\b","i").test(description)&&
+    names.length>=2&&names.every(m=>m===dCode);
+  const technicalHeader=/<h3>\s*Caratteristiche tecniche\s*<\/h3>/i.test(raw);
+  const technicalBullet=listLines.filter(line=>line==="Suola platform effetto vintage");
+  const technicalLaces=listLines.filter(line=>line==="Lacci brillanti");
+  const supportingLaces=listLines.filter(line=>line==="Lacci con finitura brillante");
+  const dSource=modelConsistent&&technicalHeader&&
+    technicalBullet.length===1&&technicalLaces.length===1&&
+    supportingLaces.length===1&&
+    closureLines.length===0&&!/\b(?:velcro|zip|cerniera|fibbia)\b/i.test(description);
   return {product_description:description,
-    ...(codeNumber?{model_number:codeNumber}:{}),
-    ...(bulletPoint?{bullet_point:bulletPoint}:{}),
-    ...(closureLaces?{closure_laces:true as const}:{})};
+    ...(codeNumber?{model_number:codeNumber}:dSource?{model_number:dDisplay}:{}),
+    ...(bulletPoint?{bullet_point:bulletPoint}:dSource?{bullet_point:technicalBullet[0]}:{}),
+    ...(closureLaces?{closure_laces:true as const}:dSource?{closure_laces:true as const}:{})};
 }
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
@@ -189,7 +213,7 @@ export async function readAmazonShoesPrivateShopifyValues(
       if(match){selectedSize=match[1];sizeNeedsSystemEvidence=true;}
     }
   }
-  const descriptionEvidence=merchantDescription(product.descriptionHtml);
+  const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
