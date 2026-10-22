@@ -1,0 +1,9 @@
+# Amazon sneakers SKU state — zero stock != EAN error
+
+Live finding 22/10/2026: `4B12_PLAYNEW_U1035_42_EU` was classified `SHOPIFY_EAN_BLOCKED` by `amazon.sneakers.sku_state.readonly` even though Shopify Admin shows original EAN `8057270149283` and unique ACTIVE variant with **available stock 0**. The classifier exited before reading the EAN due to its `available<=0` guard, then used a generic EAN blocker. This incorrectly inflated the GTIN-error worklist.
+
+The new read-only classification returns `SHOPIFY_OUT_OF_STOCK` for a uniquely verified ACTIVE SKU whose Shopify quantity `available===0`, with `blocker=shopify_available_zero`, `shopify_available=0`, and `ean_not_checked_due_to_zero_stock=true`. It never claims EAN validation has succeeded when it has not run. It does **not** attempt fresh catalog matching, listing creation or publishing. Negatives, non-integer stock and missing/ambiguous Shopify identity remain fail-closed as before.
+
+This avoids requesting GS1/GTIN corrections for sold-out SKUs while keeping true missing/invalid EAN cases in `SHOPIFY_EAN_BLOCKED`. Tests added to `scripts/test-amazon-sneaker-state-classifier.mjs`. No Shopify stock edit, frontend edit, seller listing change, Channable takeover or override of low-stock rules.
+
+After deploy, rerun the 8-SKU 4B12 sample to verify expected country counts: 2 SELLER_BUYABLE IT/DE/FR, 2 existing NOT BUYABLE ES, 5 NEW_ASIN_RESEARCH_REQUIRED and 1 SHOPIFY_OUT_OF_STOCK for U-1035 size 42. Do not treat the previously observed 15 SKU with null EAN as restocked or corrected: 15/15 still missing EAN (ACTIVE, stock>0 in latest Shopify observation).
