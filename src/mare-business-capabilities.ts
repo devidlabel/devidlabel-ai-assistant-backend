@@ -298,6 +298,22 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
+      id:"amazon.orders.channable_identity_audit.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,
+      approval:"none",
+      description:"Merchant-private Amazon Orders versus Channable-imported Shopify order identity reconciliation. Uses distinct Amazon LAST UPDATED and Shopify CREATED windows, counts exact ID matches without exposing order IDs; unmatched observations are never proof of missing imports or authorization to create duplicate orders. No order, stock, customer or tracking writes.",
+      request_schema:{...schema({
+        marketplaces:{type:"array",minItems:1,maxItems:4,uniqueItems:true,items:{type:"string",enum:["IT","DE","FR","ES"]}},
+        amazon_updated_after:{type:"string"},amazon_updated_before:{type:"string"},
+        shopify_created_after:{type:"string"},shopify_created_before:{type:"string"},
+        amazon_max_pages:{type:"integer",minimum:1,maximum:5},
+        shopify_max_pages:{type:"integer",minimum:1,maximum:10}
+      },["marketplaces","amazon_updated_after","amazon_updated_before","shopify_created_after","shopify_created_before"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id:"amazon.orders.observe.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
