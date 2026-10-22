@@ -282,8 +282,9 @@ assert.equal(dRead.model_number,"D-4006");
 assert.equal(dRead.bullet_point,"Suola platform effetto vintage");
 assert.equal(dRead.closure_laces,true);
 assert.equal(dRead.ready_for_publication,false);
-assert.equal(dRead.gpsr_compliance_proven,false);
-assert.equal(dRead.manufacturer_technical_specs_verified,false);
+assert.equal(dRead.manufacturer,undefined);
+assert.equal(dRead.country_of_origin,undefined);
+assert.equal(dRead.list_price,undefined);
 for(const html of [
  dSeriesHtml.replace("Il modello D-4006","Il modello D-5006"),
  dSeriesHtml.replace("<li><p>Lacci brillanti</p></li>",""),
