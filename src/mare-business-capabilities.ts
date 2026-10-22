@@ -193,6 +193,26 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.existing_offers.qualification_triage.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Live read-only diagnostic for up to 3 existing seller SKUs with 100632: joins seller status, Catalog Items EAN and ASIN, Listings Restrictions and optional other-market BUYABLE comparison; separates official approval links from catalog mismatch and support cases. Never creates offers, applications or brand approval.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        items:{type:"array",minItems:1,maxItems:3,items:{
+          type:"object",additionalProperties:false,required:["sku","ean"],
+          properties:{
+            sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+            ean:{type:"string",pattern:"^[0-9]{13}$"}
+          }
+        }},
+        compare_marketplace:{type:"string",enum:["IT","DE","FR","ES"]}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.qualification.restrictions.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
