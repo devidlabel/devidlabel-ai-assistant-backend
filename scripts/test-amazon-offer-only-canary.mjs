@@ -48,17 +48,46 @@ const preflight = (patch = {}) => ({
   ...patch,
 });
 const authorization = (patch = {}) => ({
-  verified: true, plan_reference: "APPROVAL-20261022-001", reviewed_at: iso,
+  source: "SERVER_VERIFIED_IMMUTABLE_REVIEW", verified: true,
+  seller_id: seller, marketplace: input.marketplace, sku: input.sku,
+  ean: input.ean, asin: input.asin,
+  shopify_variant_id: "gid://shopify/ProductVariant/123456",
+  schema_version: "synthetic-v1",
+  schema_checksum: "c3ludGhldGljLXRlc3QxMg==",
+  plan_reference: "APPROVAL-20261022-001", reviewed_at: iso,
+  reviewer_reference: "AUDITOR-TEST-001",
+  signed_review_digest_sha256: "a".repeat(64),
+  brand_name: "Synthetic Brand",
+  seller_central_brand_approval_reference: "SELLER-CENTRAL-SYNTH-001",
+  seller_central_marketplace_verified: true,
+  gpsr_document_digest_sha256: "b".repeat(64),
+  manufacturer_evidence_reference: "MANUFACTURER-TEST-001",
+  pt_definitions_reference: "PTD-TEST-001",
+  amazon_validation_submission_reference: "VALIDATION-TEST-001",
   exact_identity_reviewed: true, brand_authorization_verified: true,
   gpsr_and_compliance_verified: true, schema_and_valid_preview_verified: true,
   price_policy_verified: true, approved_price_minor: 2599,
   order_and_tracking_pilot_ready: true,
+  order_tracking_proof_reference: "ORDERS-TEST-001",
+  commercial_price_review_reference: "PRICE-TEST-001",
   ...patch,
 });
 const isolation = (patch = {}) => ({
-  verified: true, scope: "AMAZON_EU_OFFER_WRITERS",
-  marketplace: "IT", sku: input.sku,
+  source: "CHANNABLE_API_EXPORT_READBACK", verified: true,
+  seller_id: seller, scope: "AMAZON_EU_OFFER_WRITERS",
+  marketplace: input.marketplace, sku: input.sku,
+  company_id: 99008, project_id: 328207,
   all_competing_writers_disabled: true,
+  provider_export_inventory_complete: true,
+  independently_checked_other_writers: true,
+  other_live_writers_for_sku: 0,
+  export_count: 1,
+  exports: [{
+    export_id: "SYNTHETIC-EXPORT-IT",
+    marketplace: "IT", seller_sku_excluded: true,
+    sku_exclusion_rule_reference: "RULE-SYNTHETIC-001",
+    last_export_status: "SUCCESS", last_completed_at: iso
+  }],
   evidence_reference: "CHANNABLE_PROOF_SYNTH_123",
   verified_at: iso,
   ...patch,
@@ -133,6 +162,18 @@ await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: asy
 await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: async () => authorization({ price_policy_verified: false }) })), /approval_evidence_not_verified/);
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ all_competing_writers_disabled: false }) })), /writer_isolation_not_verified/);
 await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ verified_at: "2026-10-22T11:45:00.000Z" }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: async () => authorization({ seller_id: "A987654321" }) })), /approval_evidence_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: async () => authorization({ asin: "B0OTHER001" }) })), /approval_evidence_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: async () => authorization({ seller_central_brand_approval_reference: "" }) })), /approval_evidence_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: async () => authorization({ gpsr_document_digest_sha256: null }) })), /approval_evidence_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyApprovedPlan: async () => authorization({ source: "CALLER_ATTESTATION" }) })), /approval_evidence_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ source: "CALLER_ATTESTATION" }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ company_id: 12345 }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ export_count: 0 }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ provider_export_inventory_complete: false }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ exports: [{...isolation().exports[0], seller_sku_excluded: false}] }) })), /writer_isolation_not_verified/);
+await assert.rejects(() => execute(prepared, env, deps({ verifyWriterIsolation: async () => isolation({ other_live_writers_for_sku: 1 }) })), /writer_isolation_not_verified/);
+
 await assert.rejects(() => execute({ ...prepared, prepared_at: "2026-10-22T11:00:00.000Z" }, env, deps()), /prepared_expired/);
 assert.equal(putCount, 0);
 const success = await execute(prepared, env, deps());
