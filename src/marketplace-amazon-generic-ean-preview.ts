@@ -37,7 +37,7 @@ function safeItalianDescription(raw:unknown):string|undefined{
   if(typeof raw!=="string")return undefined;
   const value=raw.trim();
   return value.length>=30&&value.length<=2000&&
-    !/[\\u0000-\\u001f\\u007f<>]/.test(value)?value:undefined;
+    !/[\u0000-\u001f\u007f<>]/.test(value)?value:undefined;
 }
 // Only the merchant's dedicated, typed marketplace metafield is eligible
 // for bullet points. Amazon bullet arrays are capped at five for this pilot.
@@ -50,7 +50,7 @@ function verifiedMarketplaceBullets(raw:unknown):{ok:boolean;values:string[]}{
   try{parsed=JSON.parse(field.value);}catch{return {ok:false,values:[]};}
   if(!Array.isArray(parsed)||parsed.length<1||parsed.length>8 ||
      parsed.some(v=>typeof v!=="string"||v.length<5||v.length>240||
-       v!==v.trim()||/[\\u0000-\\u001f\\u007f<>]/.test(v))||
+       v!==v.trim()||/[\u0000-\u001f\u007f<>]/.test(v))||
      new Set(parsed.map((v:string)=>v.toLocaleLowerCase("it"))).size!==parsed.length)
     return {ok:false,values:[]};
   return {ok:true,values:(parsed as string[]).slice(0,5)};
