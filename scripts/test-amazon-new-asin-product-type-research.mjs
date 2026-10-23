@@ -82,7 +82,7 @@ function fakeFetch(events, options={}) {
           "Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso":
           "Cappello A Pescatora Buffalo");
         data=options.socksProduct?{productTypes:[
-          {name:"PANTS",displayName:"Trousers",marketplaceIds:[MARKET_ID]},
+          {name:options.socksRecommendedType||"PANTS",displayName:"Wrong category",marketplaceIds:[MARKET_ID]},
         ]}:{productTypes:[
           {name:"HAT",displayName:"Hat",marketplaceIds:[MARKET_ID]},
           {name:"SHOES",displayName:"Shoes",marketplaceIds:[MARKET_ID]},
@@ -325,6 +325,19 @@ const sockPants=await research({...req,product_type:"PANTS"},env,socksDeps);
 assert.equal(sockPants.ok,false);
 assert.equal(sockPants.blocker,"item_name_product_type_conflicts_with_shopify_category");
 assert.equal(sockPants.provider_mutations,0);
+const sockShoesEvents=[];
+const sockShoes=await research(req,env,deps(sockShoesEvents,{
+  readShopify:async()=>{
+    const p=shopify();
+    p.products[0].product_type="Calze";
+    p.products[0].title="Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso";
+    return p;
+  },
+  fetch:fakeFetch(sockShoesEvents,{socksProduct:true,socksRecommendedType:"SHOES"}),
+}));
+assert.equal(sockShoes.status,"PRODUCT_TYPE_CATEGORY_REVIEW_REQUIRED");
+assert.deepEqual(sockShoes.rejected_unrelated_product_type_names,["SHOES"]);
+assert.equal(sockShoes.can_publish,false);
 
 const invalidType=await research({...req,product_type:"BAG"},env,deps());
 assert.equal(invalidType.status,"BLOCKED_DEFINITIONS");
