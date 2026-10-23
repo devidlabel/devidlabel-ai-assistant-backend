@@ -231,7 +231,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
       sourceColor,
       ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
-      ...(explicitAdultAge?["variant.mm-google-shopping.age_group"]:[]),
+      ...(explicitAdultAge?[fields.has("age_range_description")?
+        "product.amazon_ptd_shoes.age_range_description":"variant.mm-google-shopping.age_group"]:[]),
       ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
       ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
