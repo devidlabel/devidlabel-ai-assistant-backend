@@ -285,6 +285,58 @@ function shoesAttributeShapes(schema: Row): Row {
   return result;
 }
 
+
+/** Deterministic missing-attribute worklist for non-SHOES PTD families.
+ * Only source presence is acknowledged. A Shopify title/vendor/GTIN is not
+ * an Amazon-valid field value, brand permission, GPSR approval or payload.
+ * Unknown conditional requirements always remain unresolved. */
+function nonShoesAttributeGapReport(
+  product: Row, variant: Row, productType: string, required: string[],
+  staticDeclared: boolean, conditional: boolean,
+): Row {
+  const reportBase = {
+    product_type: productType, read_only: true, provider_mutations: 0,
+    values_sent_to_amazon: false, product_payload_constructed: false,
+    ready_for_validation_preview: false, ready_for_publication: false,
+    brand_authorization_proven: false, gpsr_compliance_proven: false,
+    schema_checksum_verified: false, full_schema_validated: false,
+  };
+  if (!staticDeclared || required.length === 0 ||
+      required.length > MAX_ATTRIBUTES ||
+      required.some(name => !FIELD_RE.test(name)) ||
+      new Set(required).size !== required.length ||
+      product.status !== "ACTIVE" || typeof variant.sku !== "string" ||
+      !variant.sku)
+    return {report_status:"BLOCKED_SCHEMA_OR_SOURCE_UNVERIFIED",
+      required_attribute_count:0, attributes:[], ...reportBase};
+  const sources: Record<string,string> = {};
+  if (typeof product.title === "string" && product.title.trim())
+    sources.item_name = "product.title";
+  if (typeof product.vendor === "string" && product.vendor.trim())
+    sources.brand = "product.vendor";
+  const barcode = variant.barcode;
+  if (typeof barcode === "string" && (validEAN(barcode) || validUPC(barcode)))
+    sources.externally_assigned_product_identifier = "variant.barcode";
+  const attributes = [...required].sort().map(attribute => ({
+    attribute,
+    status: Object.hasOwn(sources, attribute) ? "SOURCE_VERIFIED" : "MISSING",
+    source_path: sources[attribute] ?? null,
+  }));
+  const verified = attributes.filter(x => x.status === "SOURCE_VERIFIED").length;
+  return {
+    report_status:"GAPS_REQUIRE_REVIEW", ...reportBase,
+    required_attribute_count:attributes.length, attributes,
+    required_status_counts:{SOURCE_VERIFIED:verified,MISSING:attributes.length-verified},
+    conditional_requirements_detected:conditional,
+    conditional_requirements:conditional ? [{
+      attribute:"unmapped_schema_conditions",
+      status:"CONDITIONAL_UNRESOLVED",source_path:null,
+    }] : [],
+    status_semantics:"SOURCE_VERIFIED means Shopify source presence only, not Amazon schema acceptance or authorization",
+    technical_values_inferred:false,
+  };
+}
+
 /** One request, one marketplace, one SKU, optional explicitly selected PTD product type.
  * No request URL, image URL, compliance assertion or product attribute injection. */
 export async function researchAmazonNewAsinProductType(
@@ -574,6 +626,10 @@ export async function researchAmazonNewAsinProductType(
     ? buildAmazonShoesGapReport(product, variant, fields.required,
       fields.staticRequiredDeclared, fields.complex)
     : null;
+  const otherGap = !shoesGap
+    ? nonShoesAttributeGapReport(product, variant, input.product_type,
+      fields.required, fields.staticRequiredDeclared, fields.complex)
+    : null;
   return {
     ok: true, status: "REQUIREMENTS_REVIEW_REQUIRED",
     ...discoveryEvidence,
@@ -598,7 +654,7 @@ export async function researchAmazonNewAsinProductType(
       "item_name", "brand", "externally_assigned_product_identifier",
       "purchasable_offer", "fulfillment_availability",
     ],
-    ...(shoesGap ? {attribute_gap_report: shoesGap} : {}),
+    ...(shoesGap ? {attribute_gap_report: shoesGap} : {attribute_gap_report:otherGap}),
     product_payload_constructed: false, validation_preview_sent: false,
     next_step: "MAP_REQUIRED_ATTRIBUTES_AND_VALIDATE_GPSR_BRAND_AND_GTIN_BEFORE_VALIDATION_PREVIEW",
     ...base,
