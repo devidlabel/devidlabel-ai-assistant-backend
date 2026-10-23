@@ -22,7 +22,7 @@ const REF=/^[A-Za-z0-9._:-]{1,128}$/;
 const ISSUE_CODE=/^[A-Za-z0-9_.-]{1,64}$/;
 const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku inventoryItem{countryCodeOfOrigin} product{title vendor status model:metafield(namespace:"custom",key:"marketplace_model_name"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode inventoryItem{countryCodeOfOrigin} product{title vendor status model:metafield(namespace:"custom",key:"marketplace_model_name"){type value}}}}';
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
@@ -93,7 +93,7 @@ export async function previewAmazonGenericEanValidation(
     env,PRIVATE_QUERY,{variantId:shop.variant_id}));}
   catch{return blocked(marketplace,sku,pt,"shopify_private_attributes_unavailable");}
   const v=obj(privateData.productVariant),p=obj(v.product),m=obj(p.model);
-  if(v.id!==shop.variant_id||v.sku!==sku||p.title!==title||
+  if(v.id!==shop.variant_id||v.sku!==sku||v.barcode!==ean||p.title!==title||
      p.vendor!==shop.brand||p.status!=="ACTIVE"||
      (m.value!==undefined&&m.value!==null&&
        (m.type!=="single_line_text_field"||!safeModel(m.value))))
