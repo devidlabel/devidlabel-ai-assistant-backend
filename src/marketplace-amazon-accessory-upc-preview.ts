@@ -1,6 +1,7 @@
 import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { researchAmazonNewAsinProductType } from "./marketplace-amazon-new-asin-research.js";
+import { shopifyGraphQL } from "./index.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
 /** Strict bounded accessory catalog diagnostic. This service has no publishing mode. */
@@ -10,6 +11,7 @@ type Env=AmazonCredentials & MareBusinessShopifyEnv & {
   AMAZON_SP_API_SELLER_ID?:string;AMAZON_OFFER_PREVIEW_ENABLED?:string;
 };
 type Deps={research?:typeof researchAmazonNewAsinProductType;
+  readShopify?:typeof shopifyGraphQL;
   getAccessToken?:typeof getAmazonAccessToken;fetch?:typeof fetch};
 const PRODUCT_TYPES=new Set(["KEYCHAIN","SUITCASE","BACKPACK"]);
 const MARKET_LOCALE:Record<Market,string>={IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"};
@@ -20,6 +22,11 @@ const REF=/^[A-Za-z0-9._:-]{1,128}$/;
 const ISSUE_CODE=/^[A-Za-z0-9_.-]{1,64}$/;
 const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
+const PRIVATE_QUERY='query AccessoryValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku inventoryItem{countryCodeOfOrigin} product{title vendor status model:metafield(namespace:"custom",key:"marketplace_model_name"){type value}}}}';
+function safeModel(raw:unknown):raw is string {
+  return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
+    !/[\u0000-\u001f\u007f<>]/.test(raw);
+}
 function obj(v:unknown):Row{return v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:{};}
 function upcValid(s:string):boolean{
   if(!UPC.test(s))return false;
@@ -78,11 +85,31 @@ export async function previewAmazonAccessoryUpcValidation(
      typeof shop.variant_id!=="string"||
      !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(shop.variant_id))
     return blocked(marketplace,sku,pt,"accessory_research_or_identity_unverified");
+  // A second merchant-private read must match the SKU/title/vendor from the
+  // fresh Amazon research. No inference from photos, title, HS code or barcode.
+  let privateData:Row;
+  try{privateData=obj(await(deps.readShopify??shopifyGraphQL)(
+    env,PRIVATE_QUERY,{variantId:shop.variant_id}));}
+  catch{return blocked(marketplace,sku,pt,"shopify_private_attributes_unavailable");}
+  const v=obj(privateData.productVariant),p=obj(v.product),m=obj(p.model);
+  if(v.id!==shop.variant_id||v.sku!==sku||p.title!==title||
+     p.vendor!==shop.brand||p.status!=="ACTIVE"||
+     (m.value!==undefined&&m.value!==null&&
+       (m.type!=="single_line_text_field"||!safeModel(m.value))))
+    return blocked(marketplace,sku,pt,"shopify_private_identity_or_model_unverified");
+  const declaredOrigin=obj(v.inventoryItem).countryCodeOfOrigin;
+  if(declaredOrigin!==null&&declaredOrigin!==undefined&&
+     (typeof declaredOrigin!=="string"||!/^[A-Z]{2}$/.test(declaredOrigin)))
+    return blocked(marketplace,sku,pt,"shopify_inventory_origin_invalid");
+  const merchantModel=safeModel(m.value)?m.value:undefined;
+  const merchantOrigin=typeof declaredOrigin==="string"?declaredOrigin:undefined;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,marketplace_id:marketId,language_tag:MARKET_LOCALE[marketplace]}],
     externally_assigned_product_identifier:[{value:upc,type:"upc",marketplace_id:marketId}],
+    ...(merchantModel?{model_name:[{value:merchantModel,marketplace_id:marketId}]}:{}),
+    ...(merchantOrigin?{country_of_origin:[{value:merchantOrigin,marketplace_id:marketId}]}:{}),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
