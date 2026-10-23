@@ -460,9 +460,15 @@ export async function researchAmazonNewAsinProductType(
   const definitelyUnrelated=new Set([
     "ABIS_MUSIC","SPEAKERS","DRINK_FLAVORED","TABLETOP_GAME",
   ]);
+  // Live 23 Oct: Amazon recommended PANTS for Red Sox socks ("Calze").
+  // Reject obvious socks/trousers category inversions; never guess the
+  // correct product type or create a listing from title recommendation.
+  const sockCategories=new Set(["Calze","Calzini"]);
   const unrelated=accessoryCategories.has(merchantCategory)?
     candidates.filter(c=>definitelyUnrelated.has(c.name)||
-      (merchantCategory==="Borsoni e Valigie"&&c.name==="APPAREL")):[];
+      (merchantCategory==="Borsoni e Valigie"&&c.name==="APPAREL")):
+    sockCategories.has(merchantCategory)?
+      candidates.filter(c=>["PANTS","SHORTS","LEGGINGS","TROUSERS"].includes(c.name)):[];
   if(unrelated.length>0){
     titleCategoryConflict=true;
     candidates=candidates.filter(c=>!unrelated.some(u=>u.name===c.name));
