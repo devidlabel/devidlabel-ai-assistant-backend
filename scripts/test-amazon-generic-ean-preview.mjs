@@ -20,7 +20,7 @@ function research(r={},pt="SOCKS",marketplace="IT"){
   title_category_conflict_detected:pt==="SOCKS",
   product_type_discovery_source:pt==="SOCKS"?"AMAZON_KEYWORDS_SHOPIFY_SOCKS":"AMAZON_ITEM_NAME",
   required_attribute_names:["item_name","brand","manufacturer"],
-  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","externally_assigned_product_identifier"],
+  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","target_gender","externally_assigned_product_identifier"],
   shopify:{product_title:"Calza lunga uomo",brand:"Red Sox",amazon_listing_brand:"Red Sox",
    ean,shopify_available:2,variant_id:variantId},
   ...r};
