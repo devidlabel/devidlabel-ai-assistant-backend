@@ -198,8 +198,9 @@ export async function readAmazonShoesPrivateShopifyValues(
   // manufacturer or GPSR claim. Only an exact adult value is supported in
   // non-publishing VALIDATION_PREVIEW; unknown/child values are not inferred.
   const ageSource=obj(variant.googleAgeGroup);
-  const explicitAdultAge=ageSource.type==="single_line_text_field"&&
-    ageSource.value==="adult";
+  const explicitAdultAge=fields.has("age_range_description")?
+    fields.get("age_range_description")==="adult":
+    ageSource.type==="single_line_text_field"&&ageSource.value==="adult";
   // EU shoe size must come from the actual variant option, never from SKU text.
   // For a unitless "Taglia: 41", require a separately declared Shopify EU
   // sizing-system metafield; no assumptions about US/UK sizes.
