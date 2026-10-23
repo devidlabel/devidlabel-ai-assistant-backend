@@ -62,7 +62,8 @@ for(const selectedOptions of [[{name:"Numero",value:"37.5 EU"}],[{name:"Numero",
 const fallbackExpected={sku:"4B12_HYPER_D4006_38_EU",
   variantId:"gid://shopify/ProductVariant/52635806433621",
   productTitle:"Sneaker Hyper-d4006",shopifyVendor:"4B12",amazonBrand:"4B12"};
-const fallback=source();\nfallback.productVariant.googleAgeGroup=undefined;
+const fallback=source();
+fallback.productVariant.googleAgeGroup=undefined;
 fallback.productVariant.id=fallbackExpected.variantId;
 fallback.productVariant.sku=fallbackExpected.sku;
 fallback.productVariant.product.title=fallbackExpected.productTitle;
