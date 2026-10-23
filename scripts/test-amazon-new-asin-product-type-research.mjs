@@ -64,7 +64,14 @@ function fakeFetch(events, options={}) {
     let data;
     if(u.pathname==="/definitions/2020-09-01/productTypes"){
       assert.equal(u.searchParams.get("marketplaceIds"),MARKET_ID);
-      if(options.sneakersFallback){
+      if(options.socksProduct && u.searchParams.has("keywords")){
+        assert.equal(u.searchParams.get("keywords"),"socks");
+        assert.equal(u.searchParams.get("searchLocale"),"en_US");
+        assert.equal(u.searchParams.get("itemName"),null);
+        data={productTypes:options.noSockKeyword?
+          [{name:"PANTS",displayName:"Pants",marketplaceIds:[MARKET_ID]}]:
+          [{name:"SOCKS",displayName:"Socks",marketplaceIds:[MARKET_ID]}]};
+      }else if(options.sneakersFallback){
         if(u.searchParams.has("keywords")){
           assert.equal(u.searchParams.get("itemName"),null);
           assert.equal(u.searchParams.get("keywords"),"shoes");
@@ -316,14 +323,15 @@ const socksDeps=deps(socksEvents,{
 });
 const socks=await research(req,env,socksDeps);
 assert.equal(socks.ok,true);
-assert.equal(socks.status,"PRODUCT_TYPE_CATEGORY_REVIEW_REQUIRED");
-assert.deepEqual(socks.rejected_unrelated_product_type_names,["PANTS"]);
-assert.deepEqual(socks.product_type_candidates,[]);
+assert.equal(socks.status,"PRODUCT_TYPE_SELECTION_REQUIRED");
+assert.deepEqual(socks.product_type_candidates.map(x=>x.name),["SOCKS"]);
+assert.equal(socks.product_type_discovery_source,"AMAZON_KEYWORDS_SHOPIFY_SOCKS");
 assert.equal(socks.title_category_conflict_detected,true);
 assert.equal(socks.can_publish,false);
+assert.equal(socksEvents.length,2);
 const sockPants=await research({...req,product_type:"PANTS"},env,socksDeps);
 assert.equal(sockPants.ok,false);
-assert.equal(sockPants.blocker,"item_name_product_type_conflicts_with_shopify_category");
+assert.equal(sockPants.blocker,"product_type_not_in_marketplace_recommendations");
 assert.equal(sockPants.provider_mutations,0);
 const sockShoesEvents=[];
 const sockShoes=await research(req,env,deps(sockShoesEvents,{
@@ -335,9 +343,34 @@ const sockShoes=await research(req,env,deps(sockShoesEvents,{
   },
   fetch:fakeFetch(sockShoesEvents,{socksProduct:true,socksRecommendedType:"SHOES"}),
 }));
-assert.equal(sockShoes.status,"PRODUCT_TYPE_CATEGORY_REVIEW_REQUIRED");
-assert.deepEqual(sockShoes.rejected_unrelated_product_type_names,["SHOES"]);
+assert.equal(sockShoes.status,"PRODUCT_TYPE_SELECTION_REQUIRED");
+assert.deepEqual(sockShoes.product_type_candidates.map(x=>x.name),["SOCKS"]);
 assert.equal(sockShoes.can_publish,false);
+const noSockEvents=[];
+const noSock=await research(req,env,deps(noSockEvents,{
+  readShopify:async()=>{
+    const p=shopify();p.products[0].product_type="Calze";
+    p.products[0].title="Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso";
+    return p;
+  },
+  fetch:fakeFetch(noSockEvents,{socksProduct:true,noSockKeyword:true}),
+}));
+assert.equal(noSock.status,"BLOCKED_DEFINITIONS");
+assert.equal(noSock.blocker,"socks_product_type_not_recommended");
+assert.equal(noSock.provider_mutations,0);
+const sockDirectEvents=[];
+const sockDirect=await research(req,env,deps(sockDirectEvents,{
+  readShopify:async()=>{
+    const p=shopify();p.products[0].product_type="Calze";
+    p.products[0].title="Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso";
+    return p;
+  },
+  fetch:fakeFetch(sockDirectEvents,{socksProduct:true,socksRecommendedType:"SOCKS"}),
+}));
+assert.equal(sockDirect.status,"PRODUCT_TYPE_SELECTION_REQUIRED");
+assert.deepEqual(sockDirect.product_type_candidates.map(x=>x.name),["SOCKS"]);
+assert.equal(sockDirect.product_type_discovery_source,"AMAZON_ITEM_NAME_SOCKS");
+assert.equal(sockDirectEvents.length,1);
 
 const invalidType=await research({...req,product_type:"BAG"},env,deps());
 assert.equal(invalidType.status,"BLOCKED_DEFINITIONS");
