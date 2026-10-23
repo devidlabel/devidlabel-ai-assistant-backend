@@ -36,6 +36,43 @@ const ok=await read(expected,{}, {queryShopify});
 assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
+// Inventory origin may be sent only from the exact merchant-origin fields.
+const inventoryDeclared=source();
+inventoryDeclared.productVariant.inventoryItem={countryCodeOfOrigin:"IT"};
+const inventoryOrigin=await read(expected,{},{queryShopify:async()=>inventoryDeclared});
+assert.equal(inventoryOrigin.ok,true);
+assert.equal(inventoryOrigin.country_of_origin,"IT");
+assert.ok(inventoryOrigin.verified_paths.includes("variant.inventoryItem.countryCodeOfOrigin"));
+const originOverride=source();
+originOverride.productVariant.inventoryItem={countryCodeOfOrigin:"IT"};
+originOverride.productVariant.product.metafields.nodes.push({
+ namespace:"amazon_ptd_shoes",key:"country_of_origin",type:"single_line_text_field",value:"IT"
+});
+const overrideResult=await read(expected,{},{queryShopify:async()=>originOverride});
+assert.equal(overrideResult.country_of_origin,"IT");
+assert.ok(overrideResult.verified_paths.includes("product.amazon_ptd_shoes.country_of_origin"));
+assert.ok(!overrideResult.verified_paths.includes("variant.inventoryItem.countryCodeOfOrigin"));
+const originConflict=source();
+originConflict.productVariant.inventoryItem={countryCodeOfOrigin:"IT"};
+originConflict.productVariant.product.metafields.nodes.push({
+ namespace:"amazon_ptd_shoes",key:"country_of_origin",type:"single_line_text_field",value:"CN"
+});
+const conflict=await read(expected,{},{queryShopify:async()=>originConflict});
+assert.equal(conflict.ok,false);
+assert.equal(conflict.reason,"shopify_origin_sources_conflict");
+for(const value of ["it","ITALY","", " IT","I1"]){
+ const invalidOrigin=source();
+ invalidOrigin.productVariant.inventoryItem={countryCodeOfOrigin:value};
+ const result=await read(expected,{},{queryShopify:async()=>invalidOrigin});
+ assert.equal(result.ok,false);
+ assert.equal(result.reason,"shopify_inventory_origin_invalid");
+}
+const missingOrigin=source();
+missingOrigin.productVariant.inventoryItem={countryCodeOfOrigin:null};
+const noOrigin=await read(expected,{},{queryShopify:async()=>missingOrigin});
+assert.equal(noOrigin.ok,true);
+assert.equal(noOrigin.country_of_origin,undefined);
+
 assert.equal(ok.age_range_description,"adult");
 assert.ok(ok.verified_paths.includes("variant.mm-google-shopping.age_group"));
 const conflictingAmazonAge=source();
