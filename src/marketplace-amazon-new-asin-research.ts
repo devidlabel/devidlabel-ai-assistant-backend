@@ -446,6 +446,35 @@ export async function researchAmazonNewAsinProductType(
       discoverySource = "AMAZON_KEYWORDS_SHOPIFY_SNEAKERS";
     }
   }
+  // The Shopify product category Calze/Calzini is trustworthy manual category
+  // evidence; item-name PTD sometimes returns PANTS or SHOES for actual socks.
+  // A second Amazon-verified keyword lookup can yield SOCKS without guessing.
+  const isSocks=typeof product.product_type==="string"&&
+    ["calze","calzini"].includes(product.product_type.trim().toLowerCase());
+  if(isSocks){
+    const sockChoices=candidates.filter(c=>c.name==="SOCKS");
+    if(sockChoices.length>0){
+      candidates=sockChoices;
+      discoverySource="AMAZON_ITEM_NAME_SOCKS";
+    }else{
+      titleCategoryConflict=candidates.length>0;
+      const keywordUrl=new URL(HOST+"/definitions/2020-09-01/productTypes");
+      keywordUrl.searchParams.set("marketplaceIds",marketId);
+      keywordUrl.searchParams.set("keywords","socks");
+      keywordUrl.searchParams.set("searchLocale","en_US");
+      let keywordTypes:Row;
+      try{keywordTypes=await readJson(keywordUrl.toString(),token,fetcher);}
+      catch{return {ok:false,status:"BLOCKED_DEFINITIONS",
+        blocker:"socks_keyword_search_unverified",...base};}
+      const verifiedTypes=extractTypes(keywordTypes.productTypes);
+      if(!verifiedTypes)return {ok:false,status:"BLOCKED_DEFINITIONS",
+        blocker:"socks_keyword_search_invalid",...base};
+      candidates=verifiedTypes.filter(c=>c.name==="SOCKS");
+      if(candidates.length===0)return {ok:false,status:"BLOCKED_DEFINITIONS",
+        blocker:"socks_product_type_not_recommended",...base};
+      discoverySource="AMAZON_KEYWORDS_SHOPIFY_SOCKS";
+    }
+  }
   // Amazon itemName recommendations can be unrelated to the actual merchandise.
   // Observed live 22 Oct: MC2 Christmas Box in Shopify "Pochette e Borselli"
   // returned ABIS_MUSIC; Sprayground suitcases were mapped to TABLETOP_GAME/
