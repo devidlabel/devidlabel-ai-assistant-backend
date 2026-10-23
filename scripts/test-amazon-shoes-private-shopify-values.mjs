@@ -50,7 +50,10 @@ explicitAmazonAge.productVariant.googleAgeGroup=undefined;
 explicitAmazonAge.productVariant.product.metafields.nodes.push({
  namespace:"amazon_ptd_shoes",key:"age_range_description",type:"single_line_text_field",value:"adult"
 });
-assert.equal((await read(expected,{},{queryShopify:async()=>explicitAmazonAge})).age_range_description,"adult");
+const verifiedExplicitAge=await read(expected,{},{queryShopify:async()=>explicitAmazonAge});
+assert.equal(verifiedExplicitAge.age_range_description,"adult");
+assert.ok(verifiedExplicitAge.verified_paths.includes("product.amazon_ptd_shoes.age_range_description"));
+assert.ok(!verifiedExplicitAge.verified_paths.includes("variant.mm-google-shopping.age_group"));
 
 for(const [type,value] of [["single_line_text_field","kids"],["single_line_text_field","Adult"],["boolean","adult"],["single_line_text_field"," adult"]]){
  const candidate=source();candidate.productVariant.googleAgeGroup={type,value};
