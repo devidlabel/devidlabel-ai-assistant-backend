@@ -20,7 +20,7 @@ function research(r={},pt="SOCKS",marketplace="IT"){
   title_category_conflict_detected:pt==="SOCKS",
   product_type_discovery_source:pt==="SOCKS"?"AMAZON_KEYWORDS_SHOPIFY_SOCKS":"AMAZON_ITEM_NAME",
   required_attribute_names:["item_name","brand","manufacturer"],
-  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","target_gender","color","externally_assigned_product_identifier"],
+  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","target_gender","color","product_description","bullet_point","externally_assigned_product_identifier"],
   shopify:{product_title:"Calza lunga uomo",brand:"Red Sox",amazon_listing_brand:"Red Sox",
    ean,shopify_available:2,variant_id:variantId},
   ...r};
@@ -29,7 +29,8 @@ function privateData(){
  return {productVariant:{id:variantId,sku,barcode:ean,
   selectedOptions:[{name:"Taglia",value:"M"}],
   inventoryItem:{countryCodeOfOrigin:"IT"},
-  product:{title:"Calza lunga uomo",vendor:"Red Sox",status:"ACTIVE",
+  product:{title:"Calza lunga uomo",description:"Calze uomo morbide e calde, con disegno geometrico.",vendor:"Red Sox",status:"ACTIVE",
+   bullets:{type:"list.single_line_text_field",value:JSON.stringify(["Calze uomo con trama jacquard","Collezione invernale Red Sox"])},
    colorRef:{type:"metaobject_reference",value:"gid://shopify/Metaobject/299395514709"},
    model:{type:"single_line_text_field",value:"Jacquard Zig Zag"},
    gender:{type:"list.single_line_text_field",value:JSON.stringify(["Uomo"])}}}};
@@ -61,7 +62,10 @@ function deps(pt,marketplace,overrides={}){
    assert.equal(body.productType,pt);
    assert.equal(body.requirements,"LISTING");
    assert.deepEqual(Object.keys(body.attributes).sort(),
-    ["item_name","brand","externally_assigned_product_identifier","model_name","country_of_origin","target_gender","color"].sort());
+    (marketplace==="IT"?["item_name","brand","externally_assigned_product_identifier","model_name","country_of_origin","target_gender","color","product_description","bullet_point"]:["item_name","brand","externally_assigned_product_identifier","model_name","country_of_origin","target_gender","color"]).sort());
+   if(marketplace==="IT")assert.deepEqual(body.attributes.product_description,[{value:"Calze uomo morbide e calde, con disegno geometrico.",marketplace_id:markets[marketplace],language_tag:"it_IT"}]);
+   if(marketplace==="IT")assert.equal(body.attributes.bullet_point.length,2);
+   if(marketplace!=="IT"){assert.ok(!body.attributes.product_description);assert.ok(!body.attributes.bullet_point);}
    assert.deepEqual(body.attributes.externally_assigned_product_identifier,
     [{value:ean,type:"ean",marketplace_id:markets[marketplace]}]);
    assert.deepEqual(body.attributes.country_of_origin,
@@ -127,6 +131,8 @@ const privateCases=[
  d=>{d.productVariant.product.colorRef.value="wrong";},
  d=>{d.productVariant.selectedOptions=[{name:"Colore",value:"Blu"}];},
  d=>{d.productVariant.selectedOptions=null;},
+ d=>{d.productVariant.product.bullets.type="single_line_text_field";},
+ d=>{d.productVariant.product.bullets.value="not json";},
 ];
 for(const mutate of privateCases){
  const d=privateData();mutate(d);

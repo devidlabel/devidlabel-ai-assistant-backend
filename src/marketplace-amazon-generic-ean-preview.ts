@@ -24,12 +24,37 @@ const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
 const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title vendor status colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title description vendor status bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
 }
 function obj(v:unknown):Row{return v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:{};}
+// Merchant-authored public Shopify prose is copy, never evidence for
+// material composition, origin, manufacturer, GPSR or package specifications.
+// No automatic translation: the canonical copy is emitted only for Amazon IT.
+function safeItalianDescription(raw:unknown):string|undefined{
+  if(typeof raw!=="string")return undefined;
+  const value=raw.trim();
+  return value.length>=30&&value.length<=2000&&
+    !/[\u0000-\u001f\u007f<>]/.test(value)?value:undefined;
+}
+// Only the merchant's dedicated, typed marketplace metafield is eligible
+// for bullet points. Amazon bullet arrays are capped at five for this pilot.
+function verifiedMarketplaceBullets(raw:unknown):{ok:boolean;values:string[]}{
+  if(raw===null||raw===undefined)return {ok:true,values:[]};
+  const field=obj(raw);
+  if(field.type!=="list.single_line_text_field"||
+     typeof field.value!=="string"||field.value.length>2500)return {ok:false,values:[]};
+  let parsed:unknown;
+  try{parsed=JSON.parse(field.value);}catch{return {ok:false,values:[]};}
+  if(!Array.isArray(parsed)||parsed.length<1||parsed.length>8 ||
+     parsed.some(v=>typeof v!=="string"||v.length<5||v.length>240||
+       v!==v.trim()||/[\u0000-\u001f\u007f<>]/.test(v))||
+     new Set(parsed.map((v:string)=>v.toLocaleLowerCase("it"))).size!==parsed.length)
+    return {ok:false,values:[]};
+  return {ok:true,values:(parsed as string[]).slice(0,5)};
+}
 /** Strict single-value seller-curated Shopify metadata, not title inference.
  * Multiple navigation targets are ambiguous and intentionally omitted. */
 function genderFromMerchant(raw:unknown):{ok:boolean;value?:string}{
@@ -155,6 +180,15 @@ export async function previewAmazonGenericEanValidation(
       return blocked(marketplace,sku,pt,"shopify_variant_color_conflicts_with_product");
     verifiedColor=name;
   }
+  // The Shopify description is merchant-facing marketing copy, not a
+  // supplier-certified attribute. No language-tag laundering in DE/FR/ES.
+  const hasDescriptionSchema=research.available_schema_attribute_names.includes("product_description");
+  const hasBulletSchema=research.available_schema_attribute_names.includes("bullet_point");
+  const merchantDescription=marketplace==="IT"&&hasDescriptionSchema?
+    safeItalianDescription(p.description):undefined;
+  const bullets=marketplace==="IT"&&hasBulletSchema?
+    verifiedMarketplaceBullets(p.bullets):{ok:true,values:[]};
+  if(!bullets.ok)return blocked(marketplace,sku,pt,"shopify_marketplace_bullets_invalid");
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],
@@ -165,6 +199,10 @@ export async function previewAmazonGenericEanValidation(
     ...(gender.value&&research.available_schema_attribute_names.includes("target_gender")?
       {target_gender:[{value:gender.value,marketplace_id:marketId}]}:{}),
     ...(verifiedColor?{color:[{value:verifiedColor,marketplace_id:marketId}]}:{}),
+    ...(merchantDescription?{product_description:[{
+      value:merchantDescription,marketplace_id:marketId,language_tag:"it_IT"}]}:{}),
+    ...(bullets.values.length?{bullet_point:bullets.values.map(value=>({
+      value,marketplace_id:marketId,language_tag:"it_IT"}))}:{}),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
