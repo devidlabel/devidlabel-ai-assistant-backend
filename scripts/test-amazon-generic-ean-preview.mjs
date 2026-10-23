@@ -167,6 +167,7 @@ for(const meta of badColorSources){
 // Multi-valued gender is a navigation facet, never a certified Amazon gender.
 const multi=privateData();
 multi.productVariant.product.gender.value=JSON.stringify(["Uomo","Donna","Unisex"]);
+delete multi.productVariant.product.colorRef;
 const ambiguous=await run(request(),env,deps("SOCKS","IT",{
  readShopify:async()=>multi,
  fetch:async(url,init)=>{
@@ -182,6 +183,7 @@ assert.equal(ambiguous.ok,true);
 assert.ok(!ambiguous.attributes_submitted.includes("target_gender"));
 const absent=privateData();
 delete absent.productVariant.product.gender;
+delete absent.productVariant.product.colorRef;
 const missing=await run(request(),env,deps("SOCKS","IT",{
  readShopify:async()=>absent,
  fetch:async(_url,init)=>{
