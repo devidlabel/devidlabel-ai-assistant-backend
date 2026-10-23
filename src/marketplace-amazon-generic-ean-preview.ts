@@ -22,7 +22,9 @@ const REF=/^[A-Za-z0-9._:-]{1,128}$/;
 const ISSUE_CODE=/^[A-Za-z0-9_.-]{1,64}$/;
 const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode inventoryItem{countryCodeOfOrigin} product{title vendor status model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
+const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title vendor status colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
@@ -124,6 +126,35 @@ export async function previewAmazonGenericEanValidation(
     return blocked(marketplace,sku,pt,"shopify_inventory_origin_invalid");
   const merchantModel=safeModel(m.value)?m.value:undefined;
   const merchantOrigin=typeof declaredOrigin==="string"?declaredOrigin:undefined;
+  // A product-level Shopify feature color is accepted only after a second
+  // bounded metaobject read. Never infer from title, photos or marketing copy.
+  let verifiedColor:string|undefined;
+  if(p.colorRef!==null&&p.colorRef!==undefined&&
+     research.available_schema_attribute_names.includes("color")){
+    const ref=obj(p.colorRef);
+    if(ref.type!=="metaobject_reference"||
+       typeof ref.value!=="string"||!COLOR_GID.test(ref.value))
+      return blocked(marketplace,sku,pt,"shopify_color_reference_invalid");
+    let colorData:Row;
+    try{colorData=obj(await(deps.readShopify??shopifyGraphQL)(
+      env,COLOR_QUERY,{colorId:ref.value}));}
+    catch{return blocked(marketplace,sku,pt,"shopify_feature_color_unavailable");}
+    const meta=obj(colorData.metaobject),fields=meta.fields;
+    const names=Array.isArray(fields)?fields.map(obj).filter(f=>f.key==="name"):[];
+    const name=meta.displayName;
+    if(meta.id!==ref.value||meta.type!=="product_feature_color"||
+       typeof name!=="string"||name.length<2||name.length>60||
+       name!==name.trim()||/[\\u0000-\\u001f\\u007f<>]/.test(name)||
+       names.length!==1||names[0].type!=="single_line_text_field"||
+       names[0].value!==name||!Array.isArray(v.selectedOptions))
+      return blocked(marketplace,sku,pt,"shopify_feature_color_identity_invalid");
+    const colorOptions=v.selectedOptions.map(obj).filter(o=>
+      typeof o.name==="string"&&["colore","color"].includes(o.name.toLowerCase().trim()));
+    if(colorOptions.length>1||colorOptions.some(o=>
+      typeof o.value!=="string"||o.value.toLowerCase().trim()!==name.toLowerCase()))
+      return blocked(marketplace,sku,pt,"shopify_variant_color_conflicts_with_product");
+    verifiedColor=name;
+  }
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],
@@ -133,6 +164,7 @@ export async function previewAmazonGenericEanValidation(
     ...(merchantOrigin?{country_of_origin:[{value:merchantOrigin,marketplace_id:marketId}]}:{}),
     ...(gender.value&&research.available_schema_attribute_names.includes("target_gender")?
       {target_gender:[{value:gender.value,marketplace_id:marketId}]}:{}),
+    ...(verifiedColor?{color:[{value:verifiedColor,marketplace_id:marketId}]}:{}),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
