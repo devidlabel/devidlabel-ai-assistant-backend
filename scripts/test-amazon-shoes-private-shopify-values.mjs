@@ -38,6 +38,20 @@ assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
 assert.equal(ok.age_range_description,"adult");
 assert.ok(ok.verified_paths.includes("variant.mm-google-shopping.age_group"));
+const conflictingAmazonAge=source();
+conflictingAmazonAge.productVariant.product.metafields.nodes.push({
+ namespace:"amazon_ptd_shoes",key:"age_range_description",type:"single_line_text_field",value:"teen"
+});
+const conflictedAge=await read(expected,{},{queryShopify:async()=>conflictingAmazonAge});
+assert.equal(conflictedAge.ok,true);
+assert.equal(conflictedAge.age_range_description,undefined,"Merchant Amazon override blocks Google Shopping fallback");
+const explicitAmazonAge=source();
+explicitAmazonAge.productVariant.googleAgeGroup=undefined;
+explicitAmazonAge.productVariant.product.metafields.nodes.push({
+ namespace:"amazon_ptd_shoes",key:"age_range_description",type:"single_line_text_field",value:"adult"
+});
+assert.equal((await read(expected,{},{queryShopify:async()=>explicitAmazonAge})).age_range_description,"adult");
+
 for(const [type,value] of [["single_line_text_field","kids"],["single_line_text_field","Adult"],["boolean","adult"],["single_line_text_field"," adult"]]){
  const candidate=source();candidate.productVariant.googleAgeGroup={type,value};
  const r=await read(expected,{},{queryShopify:async()=>candidate});
