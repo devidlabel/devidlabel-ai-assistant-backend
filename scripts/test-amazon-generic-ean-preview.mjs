@@ -65,7 +65,6 @@ function deps(pt,marketplace,overrides={}){
      message:"PRIVATE_PROVIDER_TEXT_DO_NOT_RETURN"}]}),
     {status:200,headers:{"content-type":"application/json"}});
   },...overrides};
- }
 }
 for(const pt of TYPES){
  const result=await run(request(pt),env,deps(pt,"IT"));
