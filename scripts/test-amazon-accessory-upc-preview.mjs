@@ -20,8 +20,16 @@ const research=()=>({
   upc,ean:null,identifier_type:"UPC",shopify_available:10,
   variant_id:"gid://shopify/ProductVariant/54372526260565"},
 });
+
+const privateData=()=>({productVariant:{
+ id:"gid://shopify/ProductVariant/54372526260565",sku,
+ inventoryItem:{countryCodeOfOrigin:"CN"},
+ product:{title:"Sharks In Paris Backpack Keychain",vendor:"Sprayground",status:"ACTIVE",
+  model:{type:"single_line_text_field",value:"Sharks In Paris"}},
+}});
 let calls=0;
 const fake={research:async q=>{assert.deepEqual(q,request);return research();},
+ readShopify:async(_env,query,variables)=>{assert.match(query,/productVariant/);assert.deepEqual(variables,{variantId:research().shopify.variant_id});return privateData();},
  getAccessToken:async()=> "SAFE_FAKE_TOKEN",
  fetch:async (url,init)=>{
    calls++;
@@ -35,7 +43,9 @@ const fake={research:async q=>{assert.deepEqual(q,request);return research();},
    assert.equal(b.productType,"KEYCHAIN");
    assert.equal(b.requirements,"LISTING");
    assert.deepEqual(Object.keys(b.attributes).sort(),
-     ["brand","item_name","externally_assigned_product_identifier"].sort());
+     ["brand","item_name","externally_assigned_product_identifier","model_name","country_of_origin"].sort());
+   assert.deepEqual(b.attributes.model_name,[{value:"Sharks In Paris",marketplace_id:"A1PA6795UKMFR9"}]);
+   assert.deepEqual(b.attributes.country_of_origin,[{value:"CN",marketplace_id:"A1PA6795UKMFR9"}]);
    assert.deepEqual(b.attributes.externally_assigned_product_identifier,
      [{value:upc,type:"upc",marketplace_id:"A1PA6795UKMFR9"}]);
    assert.ok(!JSON.stringify(b).includes("fulfillment_availability"));
@@ -61,6 +71,18 @@ assert.equal(result.provider_mutations,0);
 assert.equal(result.brand_authorization_proven,false);
 assert.equal(result.gpsr_compliance_proven,false);
 assert.equal(result.validation_mode,"VALIDATION_PREVIEW");
+assert.ok(result.attributes_submitted.includes("model_name"));
+assert.ok(result.attributes_submitted.includes("country_of_origin"));
+const expectSourceBlocked=async (modify)=>{
+ const data=privateData();modify(data);
+ const r=await run(request,env,{...fake,readShopify:async()=>data});
+ assert.equal(r.status,"BLOCKED_PREVIEW");
+};
+await expectSourceBlocked(s=>{s.productVariant.sku="OTHER";});
+await expectSourceBlocked(s=>{s.productVariant.product.title="Other product";});
+await expectSourceBlocked(s=>{s.productVariant.inventoryItem.countryCodeOfOrigin="China";});
+await expectSourceBlocked(s=>{s.productVariant.product.model.value="<h1>Bad</h1>";});
+
 const reject=async(overrides)=>{
  const r=await run(request,env,{...fake,research:async()=>({...research(),...overrides})});
  assert.equal(r.ok,false);assert.equal(r.status,"BLOCKED_PREVIEW");
