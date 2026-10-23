@@ -22,12 +22,30 @@ const REF=/^[A-Za-z0-9._:-]{1,128}$/;
 const ISSUE_CODE=/^[A-Za-z0-9_.-]{1,64}$/;
 const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode inventoryItem{countryCodeOfOrigin} product{title vendor status model:metafield(namespace:"custom",key:"marketplace_model_name"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode inventoryItem{countryCodeOfOrigin} product{title vendor status model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
 }
 function obj(v:unknown):Row{return v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:{};}
+/** Strict single-value seller-curated Shopify metadata, not title inference.
+ * Multiple navigation targets are ambiguous and intentionally omitted. */
+function genderFromMerchant(raw:unknown):{ok:boolean;value?:string}{
+  if(raw===null||raw===undefined)return {ok:true};
+  const metafield=obj(raw);
+  if(metafield.type!=="list.single_line_text_field"||
+      typeof metafield.value!=="string"||metafield.value.length>200)
+    return {ok:false};
+  let values:unknown;
+  try{values=JSON.parse(metafield.value);}catch{return {ok:false};}
+  if(!Array.isArray(values)||values.length>5||
+     values.some(v=>typeof v!=="string"||
+       !["Uomo","Donna","Unisex"].includes(v)))
+    return {ok:false};
+  if(values.length!==1)return {ok:true};
+  const mapping:Record<string,string>={Uomo:"male",Donna:"female",Unisex:"unisex"};
+  return {ok:true,value:mapping[values[0] as string]};
+}
 function eanValid(s:string):boolean{
   if(!EAN.test(s))return false;
   let total=0;for(let i=0;i<12;i++)total+=Number(s[i])*(i%2===0?1:3);
@@ -93,6 +111,8 @@ export async function previewAmazonGenericEanValidation(
     env,PRIVATE_QUERY,{variantId:shop.variant_id}));}
   catch{return blocked(marketplace,sku,pt,"shopify_private_attributes_unavailable");}
   const v=obj(privateData.productVariant),p=obj(v.product),m=obj(p.model);
+  const gender=genderFromMerchant(p.gender);
+  if(!gender.ok)return blocked(marketplace,sku,pt,"shopify_navigation_gender_invalid");
   if(v.id!==shop.variant_id||v.sku!==sku||v.barcode!==ean||p.title!==title||
      p.vendor!==shop.brand||p.status!=="ACTIVE"||
      (m.value!==undefined&&m.value!==null&&
@@ -111,6 +131,8 @@ export async function previewAmazonGenericEanValidation(
     externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:marketId}],
     ...(merchantModel?{model_name:[{value:merchantModel,marketplace_id:marketId}]}:{}),
     ...(merchantOrigin?{country_of_origin:[{value:merchantOrigin,marketplace_id:marketId}]}:{}),
+    ...(gender.value&&research.available_schema_attribute_names.includes("target_gender")?
+      {target_gender:[{value:gender.value,marketplace_id:marketId}]}:{}),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}

@@ -20,7 +20,7 @@ function research(r={},pt="SOCKS",marketplace="IT"){
   title_category_conflict_detected:pt==="SOCKS",
   product_type_discovery_source:pt==="SOCKS"?"AMAZON_KEYWORDS_SHOPIFY_SOCKS":"AMAZON_ITEM_NAME",
   required_attribute_names:["item_name","brand","manufacturer"],
-  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","externally_assigned_product_identifier"],
+  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","target_gender","externally_assigned_product_identifier"],
   shopify:{product_title:"Calza lunga uomo",brand:"Red Sox",amazon_listing_brand:"Red Sox",
    ean,shopify_available:2,variant_id:variantId},
   ...r};
@@ -29,13 +29,14 @@ function privateData(){
  return {productVariant:{id:variantId,sku,barcode:ean,
   inventoryItem:{countryCodeOfOrigin:"IT"},
   product:{title:"Calza lunga uomo",vendor:"Red Sox",status:"ACTIVE",
-   model:{type:"single_line_text_field",value:"Jacquard Zig Zag"}}}};
+   model:{type:"single_line_text_field",value:"Jacquard Zig Zag"},
+   gender:{type:"list.single_line_text_field",value:JSON.stringify(["Uomo"])}}}};
 }
 let calls=0;
 function deps(pt,marketplace,overrides={}){
  return {research:async input=>{assert.deepEqual(input,request(pt,marketplace));return research({},pt,marketplace);},
   readShopify:async (_env,query,variables)=>{
-   assert.match(query,/barcode/);assert.deepEqual(variables,{variantId});
+   assert.match(query,/barcode/);assert.match(query,/navigation_gender/);assert.deepEqual(variables,{variantId});
    return privateData();
   },
   getAccessToken:async()=>"FAKE_TEST_TOKEN",
@@ -51,11 +52,13 @@ function deps(pt,marketplace,overrides={}){
    assert.equal(body.productType,pt);
    assert.equal(body.requirements,"LISTING");
    assert.deepEqual(Object.keys(body.attributes).sort(),
-    ["item_name","brand","externally_assigned_product_identifier","model_name","country_of_origin"].sort());
+    ["item_name","brand","externally_assigned_product_identifier","model_name","country_of_origin","target_gender"].sort());
    assert.deepEqual(body.attributes.externally_assigned_product_identifier,
     [{value:ean,type:"ean",marketplace_id:markets[marketplace]}]);
    assert.deepEqual(body.attributes.country_of_origin,
     [{value:"IT",marketplace_id:markets[marketplace]}]);
+   assert.deepEqual(body.attributes.target_gender,
+    [{value:"male",marketplace_id:markets[marketplace]}]);
    assert.ok(!JSON.stringify(body).includes("fulfillment_availability"));
    assert.ok(!JSON.stringify(body).includes("purchasable_offer"));
    assert.ok(!JSON.stringify(body).includes("quantity"));
@@ -107,6 +110,9 @@ const privateCases=[
  d=>{d.productVariant.product.title="Wrong item";},
  d=>{d.productVariant.inventoryItem.countryCodeOfOrigin="ITALY";},
  d=>{d.productVariant.product.model.value="<invalid>";},
+ d=>{d.productVariant.product.gender={type:"single_line_text_field",value:"Uomo"};},
+ d=>{d.productVariant.product.gender.value="not-json";},
+ d=>{d.productVariant.product.gender.value=JSON.stringify(["Invalid"]);},
 ];
 for(const mutate of privateCases){
  const d=privateData();mutate(d);
@@ -114,4 +120,34 @@ for(const mutate of privateCases){
  assert.equal(r.status,"BLOCKED_PREVIEW");
 }
 assert.equal(calls,initialCalls,"Failed preflight must not reach Amazon PUT");
+// Multi-valued gender is a navigation facet, never a certified Amazon gender.
+const multi=privateData();
+multi.productVariant.product.gender.value=JSON.stringify(["Uomo","Donna","Unisex"]);
+const ambiguous=await run(request(),env,deps("SOCKS","IT",{
+ readShopify:async()=>multi,
+ fetch:async(url,init)=>{
+  assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+  const payload=JSON.parse(init.body);
+  assert.equal(Object.hasOwn(payload.attributes,"target_gender"),false);
+  return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"preview-ambiguous",
+   issues:[{code:"90220",severity:"ERROR",attributeNames:["target_gender"]}]}),
+   {status:200,headers:{"content-type":"application/json"}});
+ }
+}));
+assert.equal(ambiguous.ok,true);
+assert.ok(!ambiguous.attributes_submitted.includes("target_gender"));
+const absent=privateData();
+delete absent.productVariant.product.gender;
+const missing=await run(request(),env,deps("SOCKS","IT",{
+ readShopify:async()=>absent,
+ fetch:async(_url,init)=>{
+  const payload=JSON.parse(init.body);
+  assert.ok(!Object.hasOwn(payload.attributes,"target_gender"));
+  return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"preview-missing",
+   issues:[{code:"90220",severity:"ERROR",attributeNames:["target_gender"]}]}),
+   {status:200,headers:{"content-type":"application/json"}});
+ }
+}));
+assert.equal(missing.ok,true);
+assert.ok(!missing.attributes_submitted.includes("target_gender"));
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
