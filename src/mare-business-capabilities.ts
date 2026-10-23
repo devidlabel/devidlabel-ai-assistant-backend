@@ -350,6 +350,19 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
+      id:"amazon.it.seasonal_stock_audit.readonly",provider:"amazon",domain:"marketplace",
+      operation:"read",risk:"read_only",approval:"none",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify,
+      description:"Read-only Amazon IT stock audit for exact Shopify A/I 2026-2027 season metaobject and Sprayground/MC2. Distinguishes positive BUYABLE, absent SKUs, unknown and other seasons. Channable schedule not verified; no stock edits.",
+      request_schema:{...schema({
+        skus:{type:"array",minItems:1,maxItems:8,uniqueItems:true,
+          items:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}}
+      },["skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id:"amazon.orders.channable_identity_audit.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,
