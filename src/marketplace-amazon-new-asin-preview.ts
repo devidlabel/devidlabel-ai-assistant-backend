@@ -108,14 +108,19 @@ export async function previewAmazonNewAsinShoesValidation(
   const modelNumber=typeof evidence.model_number==="string"&&
     /^[A-Za-z0-9][A-Za-z0-9._/-]{0,59}$/.test(evidence.model_number)?
     evidence.model_number:undefined;
-  // Important: this intentionally does NOT infer materials, manufacturer,
-  // origin, brand permissions, GPSR or full PTD conditional requirements.
+  // Important: country_of_origin is ONLY submitted if explicitly declared by
+  // Shopify inventoryItem or Amazon-specific merchant metadata; it is NOT
+  // independently manufacturer certified or usable as GPSR/write approval.
+  // No material, manufacturer, brand permission or price is inferred.
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
   const payload={productType:"SHOES",requirements:"LISTING",attributes:{
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
     externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:marketId}],
     model_name:[{value:evidence.model_name,marketplace_id:marketId}],
+    ...(typeof evidence.country_of_origin==="string"&&
+        /^[A-Z]{2}$/.test(evidence.country_of_origin)?
+      {country_of_origin:[{value:evidence.country_of_origin,marketplace_id:marketId}]}:{}),
     // Exact merchant-declared adult age only; optional and validation-only.
     ...(evidence.age_range_description==="adult"?{age_range_description:[{
       value:ADULT_AGE_LABELS[marketplace],language_tag:locale,marketplace_id:marketId,
