@@ -202,4 +202,74 @@ const missing=await run(request(),env,deps("SOCKS","IT",{
 }));
 assert.equal(missing.ok,true);
 assert.ok(!missing.attributes_submitted.includes("target_gender"));
+// Official PTD size-system enum differs by marketplace. Never infer IT as6
+// for DE as3, or FR/ES as4. The Shopify selected option supplies only size.
+const sizeSystems={IT:"as6",DE:"as3",FR:"as4",ES:"as4"};
+const sizeShape=(field,system)=>({[field]:{
+ type:"array",items:{type:"object",properties:{
+  size:{type:"string"},size_class:{type:"string",enum:["alpha","numeric"]},
+  size_system:{type:"string",enum:[system]},
+ },required:["size_class","size_system"]}}});
+const sizeResearch=(pt,market,field,sizeSystemsOverride)=>research({
+  available_schema_attribute_names:[...research({},pt,market).available_schema_attribute_names,field],
+  ptd_size_shapes:sizeShape(field,sizeSystemsOverride||sizeSystems[market]),
+  ptd_size_shapes_are_read_only:true,
+  ptd_size_shapes_not_schema_validation:true,
+  ptd_size_mapping_not_performed:true,
+},pt,market);
+for(const market of Object.keys(sizeSystems)){
+ const pt="SHIRT",field="shirt_size";
+ const x=await run(request(pt,market),env,deps(pt,market,{
+  research:async()=>sizeResearch(pt,market,field),
+  fetch:async(url,init)=>{
+   assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+   const body=JSON.parse(init.body);
+   assert.deepEqual(body.attributes[field],[{
+     size:"M",size_class:"alpha",size_system:sizeSystems[market],
+     marketplace_id:markets[market]}]);
+   return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"preview-size-"+market,
+    issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}]}),
+    {status:200,headers:{"content-type":"application/json"}});
+  },
+ }));
+ assert.equal(x.ok,true);
+ assert.ok(x.attributes_submitted.includes(field));
+}
+for(const market of Object.keys(sizeSystems)){
+ const pt="COAT",field="apparel_size";
+ const defaultDeps=deps(pt,market);
+ const x=await run(request(pt,market),env,{...defaultDeps,
+  research:async()=>sizeResearch(pt,market,field),
+  readShopify:async(e,q,v)=>{
+   const data=await defaultDeps.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))
+     data.productVariant.selectedOptions=[{name:"Taglia",value:"40"}];
+   return data;
+  },
+  fetch:async(url,init)=>{
+   assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+   const body=JSON.parse(init.body);
+   assert.deepEqual(body.attributes[field],[{
+     size:"40",size_class:"numeric",size_system:sizeSystems[market],
+     marketplace_id:markets[market]}]);
+   return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"preview-coat-"+market,
+    issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}]}),
+    {status:200,headers:{"content-type":"application/json"}});
+  },
+ });
+ assert.equal(x.ok,true);
+ assert.ok(x.attributes_submitted.includes(field));
+}
+// Bad PTD size structure cannot reach Amazon PUT.
+const invalidSize=await run(request("COAT"),env,deps("COAT","IT",{
+ research:async()=>research({
+  available_schema_attribute_names:[...research().available_schema_attribute_names,"apparel_size"],
+  ptd_size_shapes:sizeShape("apparel_size","as6"),
+  ptd_size_shapes_are_read_only:false,
+  ptd_size_shapes_not_schema_validation:true,ptd_size_mapping_not_performed:true,
+ }, "COAT","IT"),
+ fetch:async()=>{throw new Error("must never send preview");},
+}));
+assert.equal(invalidSize.status,"BLOCKED_PREVIEW");
+
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
