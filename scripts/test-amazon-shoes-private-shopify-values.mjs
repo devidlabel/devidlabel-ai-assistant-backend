@@ -16,6 +16,7 @@ const source=()=>{
   const values=[["target_gender","Donna"],["color","Camel/Butter"],
     ["model_name","Mohair"],["amazon_brand","Back 70 Streetwear"]];
   return {productVariant:{id:expected.variantId,sku:expected.sku,selectedOptions:[{name:"Numero",value:"37 EU"}],
+    googleAgeGroup:{type:"single_line_text_field",value:"adult"},
     product:{id:"gid://shopify/Product/11464876097877",
       title:expected.productTitle,vendor:expected.shopifyVendor,status:"ACTIVE",
       productType:"Sneakers",metafields:{
@@ -35,6 +36,31 @@ const ok=await read(expected,{}, {queryShopify});
 assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
+assert.equal(ok.age_range_description,"adult");
+assert.ok(ok.verified_paths.includes("variant.mm-google-shopping.age_group"));
+const conflictingAmazonAge=source();
+conflictingAmazonAge.productVariant.product.metafields.nodes.push({
+ namespace:"amazon_ptd_shoes",key:"age_range_description",type:"single_line_text_field",value:"teen"
+});
+const conflictedAge=await read(expected,{},{queryShopify:async()=>conflictingAmazonAge});
+assert.equal(conflictedAge.ok,true);
+assert.equal(conflictedAge.age_range_description,undefined,"Merchant Amazon override blocks Google Shopping fallback");
+const explicitAmazonAge=source();
+explicitAmazonAge.productVariant.googleAgeGroup=undefined;
+explicitAmazonAge.productVariant.product.metafields.nodes.push({
+ namespace:"amazon_ptd_shoes",key:"age_range_description",type:"single_line_text_field",value:"adult"
+});
+const verifiedExplicitAge=await read(expected,{},{queryShopify:async()=>explicitAmazonAge});
+assert.equal(verifiedExplicitAge.age_range_description,"adult");
+assert.ok(verifiedExplicitAge.verified_paths.includes("product.amazon_ptd_shoes.age_range_description"));
+assert.ok(!verifiedExplicitAge.verified_paths.includes("variant.mm-google-shopping.age_group"));
+
+for(const [type,value] of [["single_line_text_field","kids"],["single_line_text_field","Adult"],["boolean","adult"],["single_line_text_field"," adult"]]){
+ const candidate=source();candidate.productVariant.googleAgeGroup={type,value};
+ const r=await read(expected,{},{queryShopify:async()=>candidate});
+ assert.equal(r.ok,true);
+ assert.equal(r.age_range_description,undefined);
+}
 assert.equal(ok.color,"Camel/Butter");
 assert.equal(ok.target_gender,"female");
 assert.deepEqual(ok.footwear_size,{size:"37",size_class:"numeric",size_system:"eu_footwear_size_system"});
@@ -54,6 +80,7 @@ const fallbackExpected={sku:"4B12_HYPER_D4006_38_EU",
   variantId:"gid://shopify/ProductVariant/52635806433621",
   productTitle:"Sneaker Hyper-d4006",shopifyVendor:"4B12",amazonBrand:"4B12"};
 const fallback=source();
+fallback.productVariant.googleAgeGroup=undefined;
 fallback.productVariant.id=fallbackExpected.variantId;
 fallback.productVariant.sku=fallbackExpected.sku;
 fallback.productVariant.product.title=fallbackExpected.productTitle;

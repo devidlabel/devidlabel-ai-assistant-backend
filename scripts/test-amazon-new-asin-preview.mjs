@@ -30,7 +30,7 @@ const deps={
     assert.equal(input.variantId,"gid://shopify/ProductVariant/55555");
     assert.equal(input.amazonBrand,"Back 70 Streetwear");
     return {ok:true,model_name:"Mohair",color:"Camel/Butter",target_gender:"female",
-      model_number:"BK70-108051",
+      model_number:"BK70-108051",age_range_description:"adult",
       bullet_point:"Mohair",
       closure_laces:true,
       product_description:"Sneaker in stile casual con finiture specifiche per la collezione del venditore, testo presente nel catalogo merchant.",
@@ -53,9 +53,13 @@ const deps={
     assert.equal(body.requirements,"LISTING");
     assert.deepEqual(Object.keys(body.attributes).sort(),[
       "brand","externally_assigned_product_identifier","item_name","model_name","model_number",
-      "product_description","bullet_point","closure","color","footwear_size","target_gender"].sort());
+      "product_description","bullet_point","closure","color","footwear_size","target_gender",
+      "age_range_description"].sort());
     assert.equal(body.attributes.footwear_size[0].size,"37");
     assert.equal(body.attributes.target_gender[0].value,"female");
+    assert.deepEqual(body.attributes.age_range_description,[{
+      value:"Erwachsene",language_tag:"de_DE",marketplace_id:"A1PA6795UKMFR9",
+    }]);
     assert.equal(body.attributes.model_name[0].value,"Mohair");
     assert.equal(body.attributes.color[0].value,"Camel/Butter");
     assert.equal(body.attributes.model_number[0].value,"BK70-108051");
@@ -99,6 +103,7 @@ assert.ok(!JSON.stringify(result).includes("Schnürung"));
 assert.ok(!JSON.stringify(result).includes("Sneaker in stile casual"));
 assert.ok(result.attributes_submitted.includes("product_description"));
 assert.ok(result.attributes_submitted.includes("model_number"));
+assert.ok(result.attributes_submitted.includes("age_range_description"));
 assert.ok(result.attributes_submitted.includes("bullet_point"));
 assert.ok(result.attributes_submitted.includes("closure"));
 assert.equal(result.issue_count,1);
