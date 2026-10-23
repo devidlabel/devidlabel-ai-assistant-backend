@@ -1,24 +1,118 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-const compiled = await build({
- entryPoints:["src/marketplace-amazon-generic-ean-preview.ts"],
- bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"
-});
-const module = await import("data:text/javascript;base64,"+
- Buffer.from(compiled.outputFiles[0].text).toString("base64"));
-const run = module.previewAmazonGenericEanValidation;
-const sku = "RSX_64228G_V4928_-_ESPRESSO";
-const request = {marketplace:"IT",sku,product_type:"SOCKS"};
-await assert.rejects(run({...request,product_type:"SHOES"},{}),/invalid_request/);
-await assert.rejects(run({...request,extra:true},{}),/invalid_request/);
-const blocked = await run(request,{AMAZON_OFFER_PREVIEW_ENABLED:"false"});
-assert.equal(blocked.status,"BLOCKED_PREVIEW");
-assert.equal(blocked.product_created,false);
-assert.equal(blocked.can_publish,false);
-assert.equal(blocked.provider_mutations,0);
-const bad = await run(request,{AMAZON_OFFER_PREVIEW_ENABLED:"true",AMAZON_SP_API_SELLER_ID:"A1234567891234"},{
- research:async()=>({ok:false,status:"BLOCKED_SHOPIFY"})
-});
-assert.equal(bad.status,"BLOCKED_PREVIEW");
-assert.equal(bad.provider_mutations,0);
-console.log("amazon generic EAN preview negative safety tests: PASS");
+const compiled=await build({entryPoints:["src/marketplace-amazon-generic-ean-preview.ts"],
+  bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"});
+const {previewAmazonGenericEanValidation:run}=await import("data:text/javascript;base64,"+
+  Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+const sku="RSX_64228G_V4928_-_ESPRESSO",ean="8300193548467";
+const variantId="gid://shopify/ProductVariant/52554517676373";
+const markets={IT:"APJ6JRA9NG5V4",DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"};
+const TYPES=["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT"];
+const env={AMAZON_OFFER_PREVIEW_ENABLED:"true",AMAZON_SP_API_SELLER_ID:"A1234567891234"};
+const request=(pt="SOCKS",marketplace="IT")=>({marketplace,sku,product_type:pt});
+function research(r={},pt="SOCKS",marketplace="IT"){
+ return {ok:true,status:"REQUIREMENTS_REVIEW_REQUIRED",marketplace,sku,product_type:pt,
+  seller_listing_state:"VERIFIED_ABSENT",ean_match_state:"NO_EXACT_MATCH",
+  ean_absence_not_catalog_absence_proof:true,read_only:true,provider_mutations:0,
+  can_publish:false,product_payload_constructed:false,validation_preview_sent:false,
+  schema_enforced:true,schema_requirements:"LISTING",
+  full_schema_validated:false,brand_authorization_proven:false,gpsr_compliance_proven:false,
+  title_category_conflict_detected:pt==="SOCKS",
+  product_type_discovery_source:pt==="SOCKS"?"AMAZON_KEYWORDS_SHOPIFY_SOCKS":"AMAZON_ITEM_NAME",
+  required_attribute_names:["item_name","brand","manufacturer"],
+  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","externally_assigned_product_identifier"],
+  shopify:{product_title:"Calza lunga uomo",brand:"Red Sox",amazon_listing_brand:"Red Sox",
+   ean,shopify_available:2,variant_id:variantId},
+  ...r};
+}
+function privateData(){
+ return {productVariant:{id:variantId,sku,barcode:ean,
+  inventoryItem:{countryCodeOfOrigin:"IT"},
+  product:{title:"Calza lunga uomo",vendor:"Red Sox",status:"ACTIVE",
+   model:{type:"single_line_text_field",value:"Jacquard Zig Zag"}}}};
+}
+let calls=0;
+function deps(pt,marketplace,overrides={}){
+ return {research:async input=>{assert.deepEqual(input,request(pt,marketplace));return research({},pt,marketplace);},
+  readShopify:async (_env,query,variables)=>{
+   assert.match(query,/barcode/);assert.deepEqual(variables,{variantId});
+   return privateData();
+  },
+  getAccessToken:async()=>"FAKE_TEST_TOKEN",
+  fetch:async(url,init)=>{
+   calls++;
+   const u=new URL(url);
+   assert.equal(u.hostname,"sellingpartnerapi-eu.amazon.com");
+   assert.equal(u.searchParams.get("mode"),"VALIDATION_PREVIEW");
+   assert.equal(u.searchParams.get("marketplaceIds"),markets[marketplace]);
+   assert.equal(init.method,"PUT");
+   assert.equal(init.redirect,"manual");
+   const body=JSON.parse(init.body);
+   assert.equal(body.productType,pt);
+   assert.equal(body.requirements,"LISTING");
+   assert.deepEqual(Object.keys(body.attributes).sort(),
+    ["item_name","brand","externally_assigned_product_identifier","model_name","country_of_origin"].sort());
+   assert.deepEqual(body.attributes.externally_assigned_product_identifier,
+    [{value:ean,type:"ean",marketplace_id:markets[marketplace]}]);
+   assert.deepEqual(body.attributes.country_of_origin,
+    [{value:"IT",marketplace_id:markets[marketplace]}]);
+   assert.ok(!JSON.stringify(body).includes("fulfillment_availability"));
+   assert.ok(!JSON.stringify(body).includes("purchasable_offer"));
+   assert.ok(!JSON.stringify(body).includes("quantity"));
+   assert.ok(!JSON.stringify(body).includes("manufacturer"));
+   return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"preview-123",
+    issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"],
+     message:"PRIVATE_PROVIDER_TEXT_DO_NOT_RETURN"}]}),
+    {status:200,headers:{"content-type":"application/json"}});
+  },...overrides};
+ }
+}
+for(const pt of TYPES){
+ const result=await run(request(pt),env,deps(pt,"IT"));
+ assert.equal(result.ok,true);
+ assert.equal(result.provider_validation_status,"INVALID");
+ assert.equal(result.product_type,pt);
+ assert.equal(result.identifier_type,"EAN");
+ assert.equal(result.issue_count,1);
+ assert.deepEqual(result.issues,[{code:"90220",severity:"ERROR",attribute_names:["manufacturer"]}]);
+ assert.equal(result.provider_mutations,0);
+ assert.equal(result.product_created,false);
+ assert.equal(result.can_publish,false);
+ assert.ok(!JSON.stringify(result).includes("PRIVATE_PROVIDER_TEXT"));
+}
+for(const market of Object.keys(markets)){
+ const result=await run(request("SOCKS",market),env,deps("SOCKS",market));
+ assert.equal(result.ok,true);
+ assert.equal(result.marketplace,market);
+}
+const initialCalls=calls;
+await assert.rejects(run(request("SHOES"),env),/invalid_request/);
+await assert.rejects(run({...request(),ean},env),/invalid_request/);
+const disabled=await run(request(),{...env,AMAZON_OFFER_PREVIEW_ENABLED:"false"});
+assert.equal(disabled.status,"BLOCKED_PREVIEW");
+const reject=async (override)=>{
+ const dep=deps("SOCKS","IT");
+ const result=await run(request(),env,{...dep,
+  research:async()=>research(override)});
+ assert.equal(result.status,"BLOCKED_PREVIEW");
+};
+await reject({seller_listing_state:"PRESENT"});
+await reject({ean_match_state:"EXACT_ONE"});
+await reject({schema_enforced:false});
+await reject({title_category_conflict_detected:true,product_type_discovery_source:"AMAZON_ITEM_NAME"});
+await reject({shopify:{...research().shopify,ean:"8300193548460"}});
+await reject({shopify:{...research().shopify,shopify_available:0}});
+const privateCases=[
+ d=>{d.productVariant.sku="MISMATCH";},
+ d=>{d.productVariant.barcode="8300193548460";},
+ d=>{d.productVariant.product.title="Wrong item";},
+ d=>{d.productVariant.inventoryItem.countryCodeOfOrigin="ITALY";},
+ d=>{d.productVariant.product.model.value="<invalid>";},
+];
+for(const mutate of privateCases){
+ const d=privateData();mutate(d);
+ const r=await run(request(),env,deps("SOCKS","IT",{readShopify:async()=>d}));
+ assert.equal(r.status,"BLOCKED_PREVIEW");
+}
+assert.equal(calls,initialCalls,"Failed preflight must not reach Amazon PUT");
+console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
