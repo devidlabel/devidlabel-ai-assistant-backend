@@ -1,33 +1,33 @@
 {
   "ok": true,
-  "generated_at": "2026-10-22T20:33:25.423Z",
+  "generated_at": "2026-10-23T07:55:22.117Z",
   "search_console": {
     "permission_level": "siteFullUser",
     "timeframe": {
-      "since": "2026-10-13",
-      "until": "2026-10-19",
+      "since": "2026-10-14",
+      "until": "2026-10-20",
       "preset": "last_7_days",
       "lag_days": 3
     },
-    "clicks": 868,
-    "impressions": 52923,
-    "query_rows": 3546,
-    "page_rows": 3538
+    "clicks": 876,
+    "impressions": 51980,
+    "query_rows": 3441,
+    "page_rows": 3533
   },
   "ga4": {
     "property_id": "345407658",
     "timeframe": {
-      "since": "2026-10-15",
-      "until": "2026-10-21",
+      "since": "2026-10-16",
+      "until": "2026-10-22",
       "preset": "last_7_days"
     },
-    "active_users": 3071,
-    "sessions": 3561,
-    "ecommerce_purchases": 19,
-    "purchase_revenue": 2304.9900000000002,
+    "active_users": 2887,
+    "sessions": 3374,
+    "ecommerce_purchases": 20,
+    "purchase_revenue": 2455.43,
     "landing_page_rows": 250,
-    "source_medium_rows": 31,
-    "realtime_rows": 3
+    "source_medium_rows": 30,
+    "realtime_rows": 1
   },
   "daily_pulse": {
     "ga4_yesterday_ok": true,
