@@ -144,7 +144,7 @@ export async function previewAmazonGenericEanValidation(
     const name=meta.displayName;
     if(meta.id!==ref.value||meta.type!=="product_feature_color"||
        typeof name!=="string"||name.length<2||name.length>60||
-       name!==name.trim()||/[\\u0000-\\u001f\\u007f<>]/.test(name)||
+       name!==name.trim()||/[\u0000-\u001f\u007f<>]/.test(name)||
        names.length!==1||names[0].type!=="single_line_text_field"||
        names[0].value!==name||!Array.isArray(v.selectedOptions))
       return blocked(marketplace,sku,pt,"shopify_feature_color_identity_invalid");
