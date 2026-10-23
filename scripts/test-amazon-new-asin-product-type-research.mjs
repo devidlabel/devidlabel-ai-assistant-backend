@@ -158,6 +158,41 @@ assert.equal(schemaEvents.length,3);
 assert.deepEqual(schemaEvents.map(x=>x.auth),[true,true,false]);
 assert.equal(JSON.stringify(details).includes("signature=mock"),false);
 
+// A real 12-digit UPC-A is read as UPC, never padded or relabeled as EAN.
+const upc="195029073057",upcEvents=[];
+const upcSource=shopify();
+upcSource.products[0].variants[0].barcode=upc;
+const upcMatch={ok:true,result:{marketplace:"IT",complete:true,
+  identifiers:[{upc,state:"NO_EXACT_MATCH",exact_match_count:0,asins:[]}]}};
+const upcResult=await research(req,env,deps(upcEvents,{
+  readShopify:async args=>{
+    assert.equal(args.persist_artifacts,false);
+    assert.ok(args.query.includes('sku:"'+SKU+'"')||args.query.includes('barcode:"'+upc+'"'));
+    return upcSource;
+  },
+  readCatalogMatch:async args=>{
+    assert.deepEqual(args,{marketplace:"IT",identifier_type:"UPC",identifiers:[upc]});
+    return upcMatch;
+  },
+}));
+assert.equal(upcResult.ok,true);
+assert.equal(upcResult.status,"PRODUCT_TYPE_SELECTION_REQUIRED");
+assert.equal(upcResult.shopify.ean,null);
+assert.equal(upcResult.shopify.upc,upc);
+assert.equal(upcResult.shopify.identifier_type,"UPC");
+assert.equal(upcResult.upc_match_state,"NO_EXACT_MATCH");
+assert.equal(upcResult.ean_match_state,undefined);
+assert.equal(upcResult.can_publish,false);
+const brokenUpc=shopify();
+brokenUpc.products[0].variants[0].barcode="195029073050";
+let matchCalls=0;
+const invalidUpc=await research(req,env,deps([],{
+  readShopify:async()=>brokenUpc,
+  readCatalogMatch:async()=>{matchCalls++;throw Error("must not call");},
+}));
+assert.equal(invalidUpc.status,"BLOCKED_SHOPIFY");
+assert.equal(matchCalls,0);
+
 const s3MimeEvents=[];
 const s3MimeResult=await research({...req,product_type:"HAT"},env,deps(s3MimeEvents,{
   fetch:fakeFetch(s3MimeEvents,{schemaMime:"application/octet-stream"}),
