@@ -32,6 +32,9 @@ const SKU_RE = /^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const TYPE_RE = /^[A-Z][A-Z0-9_]{1,79}$/;
 const SELLER_RE = /^[A-Z0-9]{8,30}$/;
 const EAN_RE = /^\d{13}$/;
+const UPC_RE = /^\d{12}$/;
+// UPC-A is treated as a distinct identifier. Never pad it into an EAN, and
+// never mistake a missing UPC catalog match for permission to publish.
 const FIELD_RE = /^[a-z][a-z0-9_]{0,119}$/;
 const MAX_RESPONSE_BYTES = 2_000_000;
 const MAX_PRODUCT_TYPES = 100;
@@ -62,6 +65,12 @@ function validEAN(s: string): boolean {
   let sum = 0;
   for (let i = 0; i < 12; i++) sum += Number(s[i]) * (i % 2 === 0 ? 1 : 3);
   return (10 - sum % 10) % 10 === Number(s[12]);
+}
+function validUPC(s:string):boolean {
+  if(!UPC_RE.test(s))return false;
+  let sum=0;
+  for(let i=0;i<11;i++)sum+=Number(s[i])*(i%2===0?3:1);
+  return (10-sum%10)%10===Number(s[11]);
 }
 function validate(raw: unknown): Input {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) throw new Error("amazon_new_asin_invalid_request");
@@ -302,16 +311,18 @@ export async function researchAmazonNewAsinProductType(
   const title = typeof product.title === "string" ? product.title : "";
   const code = typeof variant.barcode === "string" ? variant.barcode : "";
   const quantity = variant.inventory_quantity;
+  const identifierType=validEAN(code)?"EAN":validUPC(code)?"UPC":null;
   if (product.status !== "ACTIVE" || brand.toLowerCase() === "p448" ||
       !title || title.length > 200 || !brand || brand.length > 100 ||
-      !validEAN(code) || !Number.isSafeInteger(quantity) || (quantity as number) <= 0 ||
+      !identifierType || !Number.isSafeInteger(quantity) || (quantity as number) <= 0 ||
       variant.inventory_tracked !== true || variant.inventory_levels_complete !== true)
     return blocked(input, at, "BLOCKED_SHOPIFY", "active_gtin_stock_or_inventory_unverified");
   const source = {
     product_title: title, brand, amazon_listing_brand: brandIdentity?.amazon_brand ?? null,
     amazon_brand_mapping_source: brandIdentity?.source ?? null,
     brand_authorization_proven: false, shopify_product_type: product.product_type || null,
-    ean: code, shopify_available: quantity, has_media: (product.media_count as number) > 0,
+    ...(identifierType==="EAN"?{ean:code}:{ean:null,upc:code,identifier_type:"UPC"}),
+    shopify_available: quantity, has_media: (product.media_count as number) > 0,
     variant_id: variant.id, shopify_price: variant.price ?? null,
   };
   try {
@@ -345,24 +356,26 @@ export async function researchAmazonNewAsinProductType(
   let matched: Row;
   try {
     matched = obj(await (dependencies.readCatalogMatch ?? readAmazonExactMatchCandidates)({
-      marketplace: input.marketplace, identifier_type: "EAN", identifiers: [code],
+      marketplace: input.marketplace, identifier_type: identifierType, identifiers: [code],
     }, env));
-  } catch { return blocked(input, at, "BLOCKED_AMAZON", "ean_catalog_lookup_unverified", {shopify: source}); }
+  } catch { return blocked(input, at, "BLOCKED_AMAZON", "gtin_catalog_lookup_unverified", {shopify: source}); }
   const results = obj(matched.result);
   const identities = Array.isArray(results.identifiers) ? results.identifiers.map(obj) : [];
   if (matched.ok !== true || results.complete !== true ||
-      results.marketplace !== input.marketplace || identities.length !== 1 || identities[0].ean !== code)
-    return blocked(input, at, "BLOCKED_AMAZON", "ean_catalog_lookup_incomplete", {shopify: source});
+      results.marketplace !== input.marketplace || identities.length !== 1 ||
+      identities[0][identifierType==="EAN"?"ean":"upc"] !== code)
+    return blocked(input, at, "BLOCKED_AMAZON", "gtin_catalog_lookup_incomplete", {shopify: source});
   const identity = identities[0];
   if (identity.state !== "NO_EXACT_MATCH" || identity.exact_match_count !== 0 ||
       !Array.isArray(identity.asins) || identity.asins.length !== 0)
     return blocked(input, at, "BLOCKED_MATCHING", "existing_or_ambiguous_catalog_candidate", {
-      shopify: source, ean_match_state: identity.state,
+      shopify: source, ...(identifierType==="EAN"?{ean_match_state:identity.state}:{upc_match_state:identity.state}),
     });
   const base = {
     marketplace: input.marketplace, sku: input.sku, observed_at: at,
     shopify: source, seller_listing_state: "VERIFIED_ABSENT",
-    ean_match_state: "NO_EXACT_MATCH", ean_absence_not_catalog_absence_proof: true,
+    ...(identifierType==="EAN"?{ean_match_state:"NO_EXACT_MATCH",ean_absence_not_catalog_absence_proof:true}:
+      {upc_match_state:"NO_EXACT_MATCH",upc_absence_not_catalog_absence_proof:true}),
     ...FLAGS,
   };
 
