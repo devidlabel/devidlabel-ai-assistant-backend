@@ -16,7 +16,7 @@ const research=()=>({
  full_schema_validated:false,brand_authorization_proven:false,gpsr_compliance_proven:false,
  required_attribute_names:["brand","item_name","manufacturer"],
  available_schema_attribute_names:["externally_assigned_product_identifier","brand","item_name"],
- shopify:{product_title:"Sharks In Paris Backpack Keychain",amazon_listing_brand:"Sprayground",
+ shopify:{product_title:"Sharks In Paris Backpack Keychain",brand:"Sprayground",amazon_listing_brand:"Sprayground",
   upc,ean:null,identifier_type:"UPC",shopify_available:10,
   variant_id:"gid://shopify/ProductVariant/54372526260565"},
 });
