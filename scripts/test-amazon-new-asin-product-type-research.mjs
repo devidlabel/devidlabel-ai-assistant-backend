@@ -78,8 +78,12 @@ function fakeFetch(events, options={}) {
           data={productTypes:[{name:"SPEAKERS",displayName:"Speakers",marketplaceIds:[MARKET_ID]}]};
         }
       }else{
-        assert.equal(u.searchParams.get("itemName"),"Cappello A Pescatora Buffalo");
-        data={productTypes:[
+        assert.equal(u.searchParams.get("itemName"),options.socksProduct?
+          "Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso":
+          "Cappello A Pescatora Buffalo");
+        data=options.socksProduct?{productTypes:[
+          {name:"PANTS",displayName:"Trousers",marketplaceIds:[MARKET_ID]},
+        ]}:{productTypes:[
           {name:"HAT",displayName:"Hat",marketplaceIds:[MARKET_ID]},
           {name:"SHOES",displayName:"Shoes",marketplaceIds:[MARKET_ID]},
         ]};
@@ -298,6 +302,29 @@ const sneakerNoFootwear=await research(req,env,sneakerDeps([],{noShoeKeyword:tru
 assert.equal(sneakerNoFootwear.status,"BLOCKED_DEFINITIONS");
 assert.equal(sneakerNoFootwear.blocker,"sneakers_footwear_type_not_recommended");
 assert.equal(sneakerNoFootwear.provider_mutations,0);
+
+// Regression: Red Sox actual Shopify category Calze must not map to PANTS
+// just because Amazon itemName discovery suggests trousers.
+const socksEvents=[];
+const socksDeps=deps(socksEvents,{
+  readShopify:async()=>{
+    const x=shopify();x.products[0].product_type="Calze";
+    x.products[0].title="Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso";
+    return x;
+  },
+  fetch:fakeFetch(socksEvents,{socksProduct:true}),
+});
+const socks=await research(req,env,socksDeps);
+assert.equal(socks.ok,true);
+assert.equal(socks.status,"PRODUCT_TYPE_CATEGORY_REVIEW_REQUIRED");
+assert.deepEqual(socks.rejected_unrelated_product_type_names,["PANTS"]);
+assert.deepEqual(socks.product_type_candidates,[]);
+assert.equal(socks.title_category_conflict_detected,true);
+assert.equal(socks.can_publish,false);
+const sockPants=await research({...req,product_type:"PANTS"},env,socksDeps);
+assert.equal(sockPants.ok,false);
+assert.equal(sockPants.blocker,"item_name_product_type_conflicts_with_shopify_category");
+assert.equal(sockPants.provider_mutations,0);
 
 const invalidType=await research({...req,product_type:"BAG"},env,deps());
 assert.equal(invalidType.status,"BLOCKED_DEFINITIONS");
