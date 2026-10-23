@@ -334,6 +334,22 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
+      id:"amazon.accessory.upc.validation.preview",provider:"amazon",domain:"marketplace",
+      operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Strict server-built accessory KEYCHAIN/SUITCASE/BACKPACK UPC-A VALIDATION_PREVIEW only. Requires verified Shopify active stock, UPC exact no-match, seller SKU absence and enforced Amazon LISTING PTD. No live listing, authorization, stock, price or Channable change.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        product_type:{type:"string",enum:["KEYCHAIN","SUITCASE","BACKPACK"]}
+      },["marketplace","sku","product_type"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV and private plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
+    }),
+    capability({
       id:"amazon.orders.channable_identity_audit.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId&&shopify,
