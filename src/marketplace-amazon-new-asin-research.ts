@@ -468,7 +468,7 @@ export async function researchAmazonNewAsinProductType(
     candidates.filter(c=>definitelyUnrelated.has(c.name)||
       (merchantCategory==="Borsoni e Valigie"&&c.name==="APPAREL")):
     sockCategories.has(merchantCategory)?
-      candidates.filter(c=>["PANTS","SHORTS","LEGGINGS","TROUSERS"].includes(c.name)):[];
+      candidates.filter(c=>["PANTS","SHORTS","LEGGINGS","TROUSERS","SHOES","BOOT","SANDAL","SLIPPER"].includes(c.name)):[];
   if(unrelated.length>0){
     titleCategoryConflict=true;
     candidates=candidates.filter(c=>!unrelated.some(u=>u.name===c.name));
