@@ -231,17 +231,13 @@ function requiredAttributes(schema: Row): {
 /** Bounded, read-only structural hint from Amazon's live SHOES PTD.
  * No signed schema URLs, raw schema, product values or inferred enum choices.
  * A shape is an inspection aid, NOT proof that a draft passes PTD conditions. */
-function shoesAttributeShapes(schema: Row): Row {
+function selectedAttributeShapes(schema: Row, names: readonly string[]): Row {
   const root = obj(schema.properties), wrapper = obj(root.attributes);
   const holder = wrapper.type === "object" &&
     Object.keys(obj(wrapper.properties)).length > 0 ? wrapper : schema;
   const attributes = obj(holder.properties);
-  const names = [
-    "footwear_size", "target_gender", "age_range_description", "closure",
-    "sole_material", "inner", "outer", "leather_type",
-    "item_package_weight", "item_package_dimensions", "list_price",
-    "country_of_origin", "manufacturer", "batteries_required",
-  ];
+  if(names.length>20 || names.some(n=>safeName(n)===null))
+    return {inspection_blocked:true};
   function shape(node: unknown, depth = 0): Row {
     if (depth > 5) return {truncated: true};
     const value = obj(node), result: Row = {};
@@ -284,6 +280,18 @@ function shoesAttributeShapes(schema: Row): Row {
     result[name] = shape(attributes[name]);
   return result;
 }
+const SHOES_INSPECTION_FIELDS=[
+  "footwear_size","target_gender","age_range_description","closure",
+  "sole_material","inner","outer","leather_type",
+  "item_package_weight","item_package_dimensions","list_price",
+  "country_of_origin","manufacturer","batteries_required",
+] as const;
+// Read-only marketplace-specific shape inspection. Enum hints must never be
+// used as default values or allow creation without complete PTD validation.
+const GENERIC_SIZE_INSPECTION_FIELDS=[
+  "apparel_size","shirt_size","headwear_size","size_info",
+] as const;
+
 
 
 /** Deterministic missing-attribute worklist for non-SHOES PTD families.
@@ -646,9 +654,15 @@ export async function researchAmazonNewAsinProductType(
     conditional_requirements_detected: fields.complex,
     static_requirements_not_full_validation: true,
     ...(sneakers && input.product_type === "SHOES" ? {
-      ptd_attribute_shapes: shoesAttributeShapes(rawSchema),
+      ptd_attribute_shapes: selectedAttributeShapes(rawSchema,SHOES_INSPECTION_FIELDS),
       ptd_shapes_are_read_only: true,
       ptd_shapes_are_not_schema_validation: true,
+    } : {}),
+    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT"].includes(input.product_type) ? {
+      ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
+      ptd_size_shapes_are_read_only:true,
+      ptd_size_shapes_not_schema_validation:true,
+      ptd_size_mapping_not_performed:true,
     } : {}),
     supported_shopify_evidence_fields: [
       "item_name", "brand", "externally_assigned_product_identifier",
