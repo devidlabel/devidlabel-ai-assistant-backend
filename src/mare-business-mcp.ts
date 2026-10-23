@@ -19,6 +19,7 @@ import { readAmazonOrdersPilot } from "./marketplace-amazon-orders-readonly.js";
 import { readAmazonChannableOrderIdentityAudit } from "./mare-business-amazon-channable-order-identity-audit.js";
 import { readAmazonEuInventoryShadow } from "./marketplace-amazon-eu-inventory-shadow.js";
 import { readAmazonEuSharedStockGuard } from "./mare-business-amazon-eu-shared-stock-guard.js";
+import { readAmazonItSeasonalStockAudit } from "./mare-business-amazon-it-season-audit.js";
 import { previewAmazonShipmentConfirmation, validateAmazonShipmentConfirmationPreviewRequest } from "./marketplace-amazon-shipment-confirmation-preview.js";
 import { readShopifyAmazonShipmentReconciliation } from "./marketplace-shopify-amazon-shipments.js";
 import { captureLiveMarketplaceOrderEvidence, readStoredMarketplaceOrderEvidence, validateOrderEvidenceCaptureRequest } from "./marketplace-order-evidence-client.js";
@@ -448,6 +449,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.orders.channable_identity_audit.readonly") return textToolResult(await readAmazonChannableOrderIdentityAudit(request, env));
   if (capabilityId === "amazon.inventory.eu.shadow.readonly") return textToolResult(await readAmazonEuInventoryShadow(request, env));
   if (capabilityId === "amazon.inventory.eu.shared_stock_guard.readonly") return textToolResult(await readAmazonEuSharedStockGuard(request, env));
+  if (capabilityId === "amazon.it.seasonal_stock_audit.readonly") return textToolResult(await readAmazonItSeasonalStockAudit(request,env));
   if (capabilityId === "marketplace.amazon.shipment_reconciliation.readonly") return textToolResult(await readShopifyAmazonShipmentReconciliation(request, env));
   if (capabilityId === "marketplace.order.evidence.read") return textToolResult(await readStoredMarketplaceOrderEvidence(request, env));
   if (capabilityId === "shopify.marketplace.scopes.readonly") return textToolResult(await readMarketplaceShopifyPermissionReadiness(env));
