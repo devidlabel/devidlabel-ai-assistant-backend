@@ -55,6 +55,56 @@ function verifiedMarketplaceBullets(raw:unknown):{ok:boolean;values:string[]}{
     return {ok:false,values:[]};
   return {ok:true,values:(parsed as string[]).slice(0,5)};
 }
+// Product Type Definitions are fetched fresh for the marketplace. Never
+// assume IT size_system values apply to DE, FR or ES. No size guessed from SKU.
+function strictSizeOption(raw:unknown):{ok:boolean;size?:string;sizeClass?:string}{
+  if(!Array.isArray(raw))return {ok:false};
+  const matches=raw.map(obj).filter(o=>typeof o.name==="string"&&
+    ["taglia","size"].includes(o.name.toLowerCase().trim()));
+  if(matches.length>1)return {ok:false};
+  if(matches.length===0)return {ok:true};
+  const value=matches[0].value;
+  if(typeof value!=="string"||value!==value.trim()||value.length>12)
+    return {ok:false};
+  if(/^(XXS|XS|S|M|L|XL|XXL|XXXL)$/.test(value))
+    return {ok:true,size:value,sizeClass:"alpha"};
+  if(/^[2-5][0-9]$/.test(value))
+    return {ok:true,size:value,sizeClass:"numeric"};
+  // One-size, mixed units and non-standard labels need explicit mapping.
+  return {ok:true};
+}
+function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
+  {ok:boolean;attribute?:string;value?:Row}{
+  const field=pt==="SHIRT"?"shirt_size":pt==="COAT"?"apparel_size":null;
+  if(!field||!research.available_schema_attribute_names ||
+     !Array.isArray(research.available_schema_attribute_names)||
+     !research.available_schema_attribute_names.includes(field))return {ok:true};
+  const sizeShape=obj(research.ptd_size_shapes)[field];
+  if(sizeShape===undefined)return {ok:true};
+  if(research.ptd_size_shapes_are_read_only!==true||
+     research.ptd_size_shapes_not_schema_validation!==true||
+     research.ptd_size_mapping_not_performed!==true)
+    return {ok:false};
+  const option=strictSizeOption(selectedOptions);
+  if(!option.ok)return {ok:false};
+  if(!option.size||!option.sizeClass)return {ok:true};
+  const shape=obj(sizeShape),item=obj(shape.items),p=obj(item.properties);
+  const systems=obj(p.size_system).enum,classes=obj(p.size_class).enum;
+  const requires=item.required;
+  if(shape.type!=="array"||item.type!=="object"||
+     obj(p.size).type!=="string"||
+     !Array.isArray(systems)||systems.length!==1||
+     typeof systems[0]!=="string"||!/^[a-z0-9_]{1,24}$/.test(systems[0])||
+     !Array.isArray(classes)||!classes.includes(option.sizeClass)||
+     obj(p.size_class).type!=="string"||obj(p.size_system).type!=="string"||
+     !Array.isArray(requires)||!requires.includes("size_class")||
+     !requires.includes("size_system")||
+     shape.conditional_review_required===true||item.conditional_review_required===true)
+    return {ok:false};
+  return {ok:true,attribute:field,value:{
+    size:option.size,size_class:option.sizeClass,size_system:systems[0]}};
+}
+
 /** Strict single-value seller-curated Shopify metadata, not title inference.
  * Multiple navigation targets are ambiguous and intentionally omitted. */
 function genderFromMerchant(raw:unknown):{ok:boolean;value?:string}{
@@ -189,6 +239,8 @@ export async function previewAmazonGenericEanValidation(
   const bullets=marketplace==="IT"&&hasBulletSchema?
     verifiedMarketplaceBullets(p.bullets):{ok:true,values:[]};
   if(!bullets.ok)return blocked(marketplace,sku,pt,"shopify_marketplace_bullets_invalid");
+  const merchantSize=structuredSizeFromPtd(research,v.selectedOptions,pt);
+  if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],
@@ -203,6 +255,8 @@ export async function previewAmazonGenericEanValidation(
       value:merchantDescription,marketplace_id:marketId,language_tag:"it_IT"}]}:{}),
     ...(bullets.values.length?{bullet_point:bullets.values.map(value=>({
       value,marketplace_id:marketId,language_tag:"it_IT"}))}:{}),
+    ...(merchantSize.attribute&&merchantSize.value?{[merchantSize.attribute]:[{
+      ...merchantSize.value,marketplace_id:marketId}]}:{}),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
