@@ -48,7 +48,11 @@ const schema={
   type:"object", properties:{
     attributes:{type:"object",
       properties:{item_name:{type:"array"},brand:{type:"array"},externally_assigned_product_identifier:{type:"array"},
-        material:{type:"array"},manufacturer:{type:"array"}},
+        material:{type:"array"},manufacturer:{type:"array"},
+        headwear_size:{type:"array",items:{type:"object",properties:{
+          size:{type:"object",properties:{value:{type:"string",enum:["One Size","M","L"]}}},
+          size_class:{type:"string",enum:["alpha","numeric"]}},
+          required:["size"]}}},
       required:["item_name","brand","material","manufacturer"],
     },
   },
@@ -169,6 +173,13 @@ assert.equal(details.parentage_level,"NONE");
 assert.equal(details.schema_enforced,true);
 assert.equal(details.schema_checksum_verified,false);
 assert.equal(details.full_schema_validated,false);
+assert.equal(details.ptd_size_shapes_are_read_only,true);
+assert.equal(details.ptd_size_shapes_not_schema_validation,true);
+assert.equal(details.ptd_size_mapping_not_performed,true);
+assert.equal(details.ptd_size_shapes.headwear_size.type,"array");
+assert.deepEqual(details.ptd_size_shapes.headwear_size.items.properties.size.properties.value.enum,["One Size","M","L"]);
+assert.equal(details.ptd_size_shapes.manufacturer,undefined);
+assert.equal(JSON.stringify(details.ptd_size_shapes).includes("signature="),false);
 assert.equal(details.provider_mutations,0);
 assert.equal(details.validation_preview_sent,false);
 assert.equal(schemaEvents.length,3);
@@ -255,6 +266,8 @@ assert.equal(rootSchemaResult.schema_attribute_count,4);
 assert.equal(rootSchemaResult.conditional_requirements_detected,true);
 assert.equal(rootSchemaResult.full_schema_validated,false);
 assert.equal(rootSchemaResult.provider_mutations,0);
+assert.deepEqual(rootSchemaResult.ptd_size_shapes,{});
+assert.equal(rootSchemaResult.ptd_size_mapping_not_performed,true);
 assert.equal(rootSchemaEvents.length,3);
 
 // Live regression: Amazon item-name PTD has called PlayNew a SPEAKERS product.
