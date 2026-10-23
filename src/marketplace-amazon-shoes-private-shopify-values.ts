@@ -10,7 +10,7 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} googleAgeGroup:metafield(namespace:"mm-google-shopping",key:"age_group"){type value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} inventoryItem{countryCodeOfOrigin} googleAgeGroup:metafield(namespace:"mm-google-shopping",key:"age_group"){type value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
 const COLOR_QUERY='query MerchantShoesFeatureColor($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
 function obj(value:unknown):Row {
@@ -194,6 +194,21 @@ export async function readAmazonShoesPrivateShopifyValues(
   }
   const targetGender=rawGender==="Donna"?"female":
     rawGender==="Uomo"?"male":rawGender==="Unisex"?"unisex":undefined;
+  // InventoryItem countryCodeOfOrigin is a merchant-maintained inventory value.
+  // It is never inferred from brand, EAN, HS code, photos or description and
+  // is ONLY used for Amazon VALIDATION_PREVIEW, not GPSR/manufacturer attestation.
+  const shopifyOrigin=obj(variant.inventoryItem).countryCodeOfOrigin;
+  const amazonOrigin=fields.get("country_of_origin");
+  const validOrigin=(v:unknown):v is string=>
+    typeof v==="string"&&/^[A-Z]{2}$/.test(v);
+  if(fields.has("country_of_origin")&&!validOrigin(amazonOrigin))
+    return fail("shopify_amazon_origin_invalid");
+  if(shopifyOrigin!==null&&shopifyOrigin!==undefined&&!validOrigin(shopifyOrigin))
+    return fail("shopify_inventory_origin_invalid");
+  if(validOrigin(amazonOrigin)&&validOrigin(shopifyOrigin)&&amazonOrigin!==shopifyOrigin)
+    return fail("shopify_origin_sources_conflict");
+  const countryOfOrigin=validOrigin(amazonOrigin)?amazonOrigin:
+    validOrigin(shopifyOrigin)?shopifyOrigin:undefined;
   // Google Shopping age is a merchant-declared catalog hint, never a medical,
   // manufacturer or GPSR claim. Only an exact adult value is supported in
   // non-publishing VALIDATION_PREVIEW; unknown/child values are not inferred.
@@ -223,6 +238,7 @@ export async function readAmazonShoesPrivateShopifyValues(
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(explicitAdultAge?{age_range_description:"adult"}:{}),
+    ...(countryOfOrigin?{country_of_origin:countryOfOrigin}:{}),
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
       size:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
@@ -231,6 +247,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
       sourceColor,
       ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
+      ...(countryOfOrigin?[fields.has("country_of_origin")?
+        "product.amazon_ptd_shoes.country_of_origin":"variant.inventoryItem.countryCodeOfOrigin"]:[]),
       ...(explicitAdultAge?[fields.has("age_range_description")?
         "product.amazon_ptd_shoes.age_range_description":"variant.mm-google-shopping.age_group"]:[]),
       ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
