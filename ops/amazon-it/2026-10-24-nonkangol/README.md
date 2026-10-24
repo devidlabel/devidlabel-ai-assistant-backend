@@ -12,6 +12,9 @@
 
 [CSV unico dei 178 SKU](amazon-it-178-nonkangol.csv), colonne: SKU, brand, ASIN report, ASIN live, stock Shopify, FBM Amazon, EAN/UPC, status Amazon, error codes, route. I cinque file `inactive-*.csv` sono i checkpoint originali che costituiscono la matrice.
 
+- [Dossier Seller Support per brand, con tutti i 155 SKU e testo di richiesta pronto](seller-support-100632-by-brand.md)
+- [Lista dei 15 collegamenti ufficiali Seller Central per approvazioni](seller-central-approvals-15.md)
+
 **Validazioni del CSV:** 178 righe, 178 SKU distinti, zero Kangol, 178 ASIN live identici al report, Shopify stock >0 su ogni riga; 0 `BUYABLE`, 177 FBM Amazon >0, 1 FBM Amazon=0.
 
 | Route | SKU | Criterio operativo |
