@@ -193,6 +193,24 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.it.inactive_report.status.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon,
+      approval:"none",
+      description:"Read-only latest merchant-private Amazon IT GET_MERCHANT_LISTINGS_INACTIVE_DATA report metadata, no listing changes, no document URLs or credentials.",
+      request_schema:{...schema({},[]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
+    }),
+    capability({
+      id:"amazon.it.inactive_report.request",
+      provider:"amazon",domain:"marketplace",operation:"artifact",risk:"artifact_only",
+      implemented:true,configured:businessAuth&&amazon,
+      approval:"none",
+      description:"Idempotently queue or reuse Amazon IT GET_MERCHANT_LISTINGS_INACTIVE_DATA report: no Amazon listings, stock or price writes, and never downloads confidential report. External action is a report request only.",
+      request_schema:{...schema({},[]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
+    }),
+    capability({
       id:"amazon.it.existing_gpsr_presence.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
