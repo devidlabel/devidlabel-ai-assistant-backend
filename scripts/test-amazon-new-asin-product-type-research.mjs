@@ -52,7 +52,12 @@ const schema={
         headwear_size:{type:"array",items:{type:"object",properties:{
           size:{type:"object",properties:{value:{type:"string",enum:["One Size","M","L"]}}},
           size_class:{type:"string",enum:["alpha","numeric"]}},
-          required:["size"]}}},
+          required:["size"]}},
+        footwear_size:{type:"array",items:{type:"object",properties:{
+          size:{type:"string"},size_system:{type:"string",enum:["eu"]},
+          size_class:{type:"string",enum:["numeric"]},
+          marketplace_id:{type:"string"}},
+          required:["size","size_system","size_class"]}}},
       required:["item_name","brand","material","manufacturer"],
     },
   },
@@ -91,22 +96,25 @@ function fakeFetch(events, options={}) {
       }else{
         assert.equal(u.searchParams.get("itemName"),options.socksProduct?
           "Calza Lunga Uomo Jacquard Zig Zag Con Cashmere Espresso":
-          "Cappello A Pescatora Buffalo");
+          options.bootProduct?"Stivale test EU":"Cappello A Pescatora Buffalo");
         data=options.socksProduct?{productTypes:[
           {name:options.socksRecommendedType||"PANTS",displayName:"Wrong category",marketplaceIds:[MARKET_ID]},
-        ]}:{productTypes:[
+        ]}:{productTypes:options.bootProduct?[
+          {name:"BOOT",displayName:"Boot",marketplaceIds:[MARKET_ID]},
+        ]:[
           {name:"HAT",displayName:"Hat",marketplaceIds:[MARKET_ID]},
           {name:"SHOES",displayName:"Shoes",marketplaceIds:[MARKET_ID]},
         ]};
       }
     }else if(u.pathname==="/definitions/2020-09-01/productTypes/HAT" ||
+      (options.bootProduct && u.pathname==="/definitions/2020-09-01/productTypes/BOOT") ||
       (options.sneakersFallback && u.pathname==="/definitions/2020-09-01/productTypes/SHOES")){
       assert.equal(u.searchParams.get("requirements"),"LISTING");
       assert.equal(u.searchParams.get("requirementsEnforced"),"ENFORCED");
       assert.equal(u.searchParams.get("parentageLevel"),"NONE");
       assert.equal(u.searchParams.get("sellerId"),"A1234567891234");
       data={
-        productType:u.pathname.endsWith("/SHOES")?"SHOES":"HAT",requirements:"LISTING",requirementsEnforced:"ENFORCED",
+        productType:u.pathname.split("/").at(-1),requirements:"LISTING",requirementsEnforced:"ENFORCED",
         marketplaceIds:[MARKET_ID],
         schema:{link:{resource:options.evilUrl||"https://valid-schema.s3.eu-west-1.amazonaws.com/ptd.json?signature=mock",verb:"GET"},checksum:"abcd1234"},
         productTypeVersion:{version:"2026.10",latest:true},
@@ -180,6 +188,27 @@ assert.equal(details.ptd_size_shapes.headwear_size.type,"array");
 assert.deepEqual(details.ptd_size_shapes.headwear_size.items.properties.size.properties.value.enum,["One Size","M","L"]);
 assert.equal(details.ptd_size_shapes.manufacturer,undefined);
 assert.equal(JSON.stringify(details.ptd_size_shapes).includes("signature="),false);
+const bootEvents=[];
+const boot=await research({...req,product_type:"BOOT"},env,deps(bootEvents,{
+  readShopify:async args=>{
+    assert.equal(args.persist_artifacts,false);
+    const p=shopify();
+    p.products[0].title="Stivale test EU";
+    p.products[0].product_type="Stivaletti e stivali";
+    return p;
+  },
+  fetch:fakeFetch(bootEvents,{bootProduct:true}),
+}));
+assert.equal(boot.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(boot.ptd_size_shapes_are_read_only,true);
+assert.equal(boot.ptd_size_mapping_not_performed,true);
+assert.deepEqual(boot.ptd_size_shapes.footwear_size.items.required,
+  ["size","size_system","size_class"]);
+assert.deepEqual(boot.ptd_size_shapes.footwear_size.items.properties.size_system.enum,["eu"]);
+assert.equal(boot.can_publish,false);
+assert.equal(boot.provider_mutations,0);
+assert.equal(bootEvents.length,3);
+
 assert.equal(details.provider_mutations,0);
 assert.equal(details.validation_preview_sent,false);
 assert.equal(schemaEvents.length,3);
