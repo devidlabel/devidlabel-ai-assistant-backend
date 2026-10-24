@@ -16,16 +16,19 @@ const base=(field)=>({productVariants:connection([{
  }])});
 const mock=async(env,query,variables)=>{
  assert.match(query,/productVariants/);
+ assert(!query.includes(" value"),"metafield values must never be requested");
  assert.equal(variables.search,'sku:"'+sku+'"');
  return base({namespace:"custom",key:"product_safety",type:"single_line_text_field",value:"Test"});
 };
 const out=await read({sku},{},{queryShopify:mock});
 assert.equal(out.ok,true);assert.equal(out.provider_mutations,0);
 assert.equal(out.fields.length,3);
-assert(out.fields.some(z=>z.key==="manufacturer_email"&&z.non_empty));
-assert(out.fields.some(z=>z.key==="eu_responsible_person"&&!z.non_empty));
+assert(out.fields.some(z=>z.key==="manufacturer_email"));
+assert(out.fields.some(z=>z.key==="eu_responsible_person"));
 assert(!out.fields.some(z=>z.key==="size"));
 assert(!JSON.stringify(out).includes(secret));
+assert.equal(out.field_values_not_requested,true);
+assert(!out.fields.some(z=>Object.hasOwn(z,"non_empty")));
 assert(!JSON.stringify(out).includes("example.org"));
 assert.equal(out.manufacturer_verified,false);
 assert.equal(out.eu_responsible_person_verified,false);
