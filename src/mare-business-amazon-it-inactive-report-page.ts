@@ -48,8 +48,8 @@ export async function readAmazonItInactiveReportPage(raw:unknown,env:AmazonCrede
  const list=await readJson(url.toString(),token,fetcher);
  if(!Array.isArray(list.reports)||list.reports.length>20)throw Error("amazon_report_list_invalid");
  const done=list.reports.map(obj).filter(r=>r.reportType===TYPE&&r.processingStatus==="DONE"&&
-    typeof r.reportDocumentId==="string"&&r.reportDocumentId.length<=100&&
-    /^[A-Za-z0-9_-]+$/.test(r.reportDocumentId));
+    typeof r.reportDocumentId==="string"&&r.reportDocumentId.length<=1024&&
+    /^[A-Za-z0-9._:-]+$/.test(r.reportDocumentId));
  done.sort((a,b)=>String(b.createdTime??"").localeCompare(String(a.createdTime??"")));
  if(!done.length)return {ok:false,status:"NO_COMPLETED_REPORT",marketplace:"IT",read_only:true,
    listing_mutations:0,can_publish:false};
