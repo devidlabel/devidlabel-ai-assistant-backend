@@ -223,6 +223,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
     capability({
+      id:"amazon.it.existing_issue_signals.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Read-only, privacy-safe analysis of Amazon issue message wording for 1-3 VERIFIED existing non-BUYABLE IT seller SKUs. Returns only categorical keyword signals for approval, GPSR, responsible person, manufacturer, price bounds, catalog identity and images. No raw provider messages, contact values, listings writes, compliance proof or authorization.",
+      request_schema:{...schema({
+        skus:{type:"array",minItems:1,maxItems:3,uniqueItems:true,items:{
+          type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"
+        }}
+      },["skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.it.existing_gpsr_presence.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
