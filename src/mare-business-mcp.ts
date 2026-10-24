@@ -14,6 +14,7 @@ import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { auditExistingAmazonItGpsrPresence } from "./mare-business-amazon-it-gpsr-presence.js";
 import { readAmazonItInactiveReportStatus, requestAmazonItInactiveReport } from "./mare-business-amazon-it-inactive-report.js";
+import { readAmazonItInactiveReportPage } from "./mare-business-amazon-it-inactive-report-page.js";
 import { readAmazonQualificationRestrictions } from "./mare-business-amazon-qualification-restrictions.js";
 import { readAmazonExistingOfferQualificationTriage } from "./mare-business-amazon-existing-offer-triage.js";
 import { readAmazonExistingOffersBulkCaseWorklist } from "./mare-business-amazon-existing-offers-bulk-worklist.js";
@@ -446,6 +447,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.it.existing_gpsr_presence.readonly") return textToolResult(await auditExistingAmazonItGpsrPresence(request,env));
   if (capabilityId === "amazon.it.inactive_report.status.readonly") return textToolResult(await readAmazonItInactiveReportStatus(request,env));
+  if (capabilityId === "amazon.it.inactive_report.page.readonly") return textToolResult(await readAmazonItInactiveReportPage(request,env));
   if (capabilityId === "amazon.qualification.restrictions.readonly") return textToolResult(await readAmazonQualificationRestrictions(request,env));
   if (capabilityId === "amazon.existing_offers.qualification_triage.readonly") return textToolResult(await readAmazonExistingOfferQualificationTriage(request,env));
   if (capabilityId === "amazon.existing_offers.bulk_case_worklist.readonly") return textToolResult(await readAmazonExistingOffersBulkCaseWorklist(request,env));
