@@ -9,7 +9,7 @@ type Deps={queryShopify?:typeof shopifyGraphQL};
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const KEY=/^[a-zA-Z][a-zA-Z0-9_.-]{0,99}$/;
 const TERMS=/(?:gpsr|dsa|responsib|manufacturer|manufactur|fabbricant|produttor|producer|compliance|safety|sicurezza|importer|legal.?entity|eu.?contact)/i;
-const QUERY='query GpsrFieldLocations($search:String!){productVariants(first:5,query:$search){pageInfo{hasNextPage} nodes{ id sku inventoryQuantity metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type}} product{id vendor status metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type}}}}}}';
+const QUERY='query GpsrFieldLocations($search:String!){productVariants(first:3,query:$search){pageInfo{hasNextPage} nodes{ id sku inventoryQuantity metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type}} product{id vendor status metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type}}}}}}';
 const FLAGS={read_only:true,provider_mutations:0,values_exported:false,
  manufacturer_verified:false,eu_responsible_person_verified:false,
  gpsr_compliance_proven:false,ready_for_amazon_patch:false,
@@ -25,7 +25,7 @@ export async function readShopifyGpsrFieldLocations(raw:unknown,env:MareBusiness
  catch{return blocked(sku,"SHOPIFY_QUERY_FAILED");}
  const root=obj(data.productVariants);
  if(obj(root.pageInfo).hasNextPage!==false||!Array.isArray(root.nodes)||
-   root.nodes.length>5)return blocked(sku,"SHOPIFY_SKU_SEARCH_INCOMPLETE");
+   root.nodes.length>3)return blocked(sku,"SHOPIFY_SKU_SEARCH_INCOMPLETE");
  const hits=root.nodes.map(obj).filter(v=>v.sku===sku);
  if(hits.length!==1)return blocked(sku,"SHOPIFY_SKU_NOT_UNIQUE");
  const v=hits[0],p=obj(v.product);
