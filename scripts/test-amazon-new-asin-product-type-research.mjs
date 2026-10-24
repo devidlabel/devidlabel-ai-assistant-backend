@@ -49,6 +49,10 @@ const schema={
     attributes:{type:"object",
       properties:{item_name:{type:"array"},brand:{type:"array"},externally_assigned_product_identifier:{type:"array"},
         material:{type:"array"},manufacturer:{type:"array"},
+        department:{type:"array",items:{type:"object",properties:{
+          value:{type:"string",enum:["mens","womens"]}},required:["value"]}},
+        fabric_type:{type:"array",items:{type:"object",properties:{
+          material:{type:"string"}}}},
         headwear_size:{type:"array",items:{type:"object",properties:{
           size:{type:"object",properties:{value:{type:"string",enum:["One Size","M","L"]}}},
           size_class:{type:"string",enum:["alpha","numeric"]}},
@@ -187,6 +191,13 @@ assert.equal(details.ptd_size_mapping_not_performed,true);
 assert.equal(details.ptd_size_shapes.headwear_size.type,"array");
 assert.deepEqual(details.ptd_size_shapes.headwear_size.items.properties.size.properties.value.enum,["One Size","M","L"]);
 assert.equal(details.ptd_size_shapes.manufacturer,undefined);
+assert.equal(details.ptd_technical_shapes_read_only,true);
+assert.equal(details.ptd_technical_shapes_no_values_supplied,true);
+assert.deepEqual(details.ptd_technical_shapes.department.items.properties.value.enum,["mens","womens"]);
+assert.equal(details.ptd_technical_shapes.fabric_type.items.properties.material.type,"string");
+assert.equal(details.ptd_technical_shapes.manufacturer.type,"array");
+assert.equal(details.ptd_technical_shapes.headwear_size,undefined);
+assert.equal(JSON.stringify(details.ptd_technical_shapes).includes("signature="),false);
 assert.equal(JSON.stringify(details.ptd_size_shapes).includes("signature="),false);
 const bootEvents=[];
 const boot=await research({...req,product_type:"BOOT"},env,deps(bootEvents,{
