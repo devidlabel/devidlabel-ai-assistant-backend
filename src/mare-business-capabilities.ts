@@ -209,7 +209,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       description:"Read only newest completed <=24h Amazon IT inactive listing report, decode signed private report server-side and expose sanitized paginated SKU/ASIN candidate indicators. No raw issue text, manufacturer or Responsible Person data; stock and current seller identity must be verified separately, never publishes.",
       request_schema:{...schema({
         after:{type:"integer",minimum:0,maximum:100000},
-        limit:{type:"integer",minimum:1,maximum:50}
+        limit:{type:"integer",minimum:1,maximum:1500}
       },[]),additionalProperties:false},
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
