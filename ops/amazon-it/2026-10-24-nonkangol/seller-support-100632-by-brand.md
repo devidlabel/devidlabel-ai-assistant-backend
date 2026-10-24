@@ -1,6 +1,6 @@
 # Seller Support — 100632 senza link approvativo (Amazon IT, 24/10/2026)
 
-**Dossier di preparazione, NON inviato.** Fonte: Shopify ACTIVE + stock positivo + report Amazon IT #250479020750 + seller listing live. Questi 155 SKU hanno un errore `100632` e non sono BUYABLE; nel controllo `getListingsRestrictions` non è stato trovato un URL approvativo per tali SKU. **Questo NON prova approvazione, né dimostra che la causa sia GPSR.** I codici `8541` eventualmente presenti vanno trattati separatamente.
+**Dossier di preparazione, NON inviato.** Fonte: Shopify ACTIVE + stock positivo + report Amazon IT #250479020750 + seller listing live. Questi 154 SKU hanno un errore `100632` e non sono BUYABLE; nel controllo `getListingsRestrictions` non è stato trovato un URL approvativo per tali SKU. **Questo NON prova approvazione, né dimostra che la causa sia GPSR.** I codici `8541` eventualmente presenti vanno trattati separatamente.
 
 ## Testo da utilizzare nei casi Seller Central
 
@@ -137,7 +137,7 @@ Allegare a ogni pratica la sezione relativa al brand sottostante. Prima di invia
 | `RPY_W0550_000_800_261_C007_27_L28` | `B0H954J8ST` | `8053816828285` | 1 | `100632` |
 | `RPY_W0550_000_800_261_C007_28_L28` | `B0H95B384B` | `8053816828292` | 1 | `100632` |
 
-## Sprayground — 11 SKU
+## Sprayground — 10 SKU
 
 | SKU | ASIN | EAN/UPC | Stock Shopify | Errori Amazon |
 |---|---|---|---:|---|
@@ -149,7 +149,6 @@ Allegare a ogni pratica la sezione relativa al brand sottostante. Prima di invia
 | `SPR_910B9099NSZ` | `B0HBR78DG7` | `195029070544` | 2 | `100632` |
 | `SPR_910B9138NSZ` | `B0H8X8ZWHD` | `195029070742` | 1 | `100632` |
 | `SPR_910B9286NSZ` | `B0H8WRCCMB` | `195029070995` | 2 | `100632` |
-| `SPR_910CL290NSZ` | `B0GPRKLH83` | `0195029063867` | 2 | `100632, 8541` |
 | `SPR_910CL305NSZ` | `B0H8FBQF5Z` | `0195029068916` | 1 | `100632, 20015, 8541` |
 | `SPR_910D8910NSZ` | `B0H5XCHN3F` | `0195029065885` | 2 | `100632` |
 
