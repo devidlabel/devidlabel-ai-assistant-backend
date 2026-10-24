@@ -67,15 +67,37 @@ export async function readAmazonItInactiveReportPage(raw:unknown,env:AmazonCrede
  const doc=await readJson(ROOT+"/reports/2021-06-30/documents/"+
    encodeURIComponent(documentId),token,fetcher);
  if(typeof doc.url!=="string"||doc.url.length>4096)throw Error("amazon_report_document_invalid");
- const signed=new URL(doc.url);
- if(signed.protocol!=="https:"||signed.port||signed.username||signed.password||
-    !(signed.hostname.endsWith(".amazonaws.com")||
-      signed.hostname.endsWith(".cloudfront.net")))
-   throw Error("amazon_report_document_host_invalid");
- let download:Response;
- try{download=await fetcher(signed.toString(),{method:"GET",redirect:"error",signal:AbortSignal.timeout(22000)});}
- catch{throw Error("amazon_report_signed_download_unavailable");}
- if(download.status!==200||!download.body)throw Error("amazon_report_download_failed");
+ // Signed document URLs have no SP-API token attached. Allow only Amazon S3
+ // or CloudFront hosts, even after a provider redirect; never auto-follow an
+ // unverified Location and never log or expose a pre-signed URL.
+ function trustedDownloadHost(u:URL):boolean{
+   return u.protocol==="https:"&&!u.port&&!u.username&&!u.password&&
+     (u.hostname.endsWith(".amazonaws.com")||u.hostname.endsWith(".cloudfront.net"));
+ }
+ let signed:URL;
+ try{signed=new URL(doc.url);}catch{throw Error("amazon_report_document_url_invalid");}
+ if(!trustedDownloadHost(signed))throw Error("amazon_report_document_host_invalid");
+ let download:Response|undefined;
+ for(let hop=0;hop<=2;hop++){
+   try{
+     download=await fetcher(signed.toString(),{method:"GET",redirect:"manual",
+       signal:AbortSignal.timeout(22000)});
+   }catch(e){
+     const type=e instanceof Error?e.name:"Unknown";
+     throw Error(type==="TimeoutError"||type==="AbortError"?
+       "amazon_report_signed_download_timeout":
+       "amazon_report_signed_download_network_failed");
+   }
+   if(![301,302,303,307,308].includes(download.status))break;
+   if(hop===2)throw Error("amazon_report_download_redirect_limit");
+   const loc=download.headers.get("location");
+   if(!loc||loc.length>8192)throw Error("amazon_report_download_redirect_unverified");
+   try{signed=new URL(loc,signed);}catch{
+     throw Error("amazon_report_download_redirect_unverified");
+   }
+   if(!trustedDownloadHost(signed))throw Error("amazon_report_download_redirect_host_invalid");
+ }
+ if(download?.status!==200||!download.body)throw Error("amazon_report_download_failed");
  let bytes=await limited(download.body,MAX_BYTES);
  if(doc.compressionAlgorithm==="GZIP"){
    bytes=await limited(new Blob([bytes.buffer as ArrayBuffer]).stream().pipeThrough(

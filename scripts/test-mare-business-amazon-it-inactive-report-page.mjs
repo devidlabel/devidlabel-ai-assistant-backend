@@ -66,6 +66,28 @@ const noStatus=await read({}, {}, {...deps,fetch:async(url,init)=>{
 }});
 assert.equal(noStatus.asin_candidate_rows,3);
 assert.equal(noStatus.rows[0].classification,"GPSR_INDICATION");
+// Amazon can redirect a pre-signed document URL: follow only trusted Amazon
+// download hosts, without forwarding access-token headers.
+const redirected=await read({}, {}, {...deps,fetch:async(url,init)=>{
+ const host=new URL(url).hostname;
+ if(host==="reports.s3.amazonaws.com")return new Response(null,{status:307,
+   headers:{location:"https://regional.s3.amazonaws.com/signed-document?X-Amz-Signature=test"}});
+ if(host==="regional.s3.amazonaws.com"){
+   assert.equal(init.headers,undefined);assert.equal(init.redirect,"manual");
+   return new Response(tsv,{status:200});
+ }
+ return deps.fetch(url,init);
+}});
+assert.equal(redirected.ok,true);
+await assert.rejects(()=>read({}, {}, {...deps,fetch:async(url,init)=>{
+ if(new URL(url).hostname==="reports.s3.amazonaws.com")return new Response(null,{status:302,
+   headers:{location:"https://evil.example.com/private"}});
+ return deps.fetch(url,init);
+}}),/amazon_report_download_redirect_host_invalid/);
+await assert.rejects(()=>read({}, {}, {...deps,fetch:async(url,init)=>{
+ if(new URL(url).hostname==="reports.s3.amazonaws.com")throw new TypeError("secret signed URL must not appear");
+ return deps.fetch(url,init);
+}}),/amazon_report_signed_download_network_failed/);
 const next=await read({after:2,limit:2},{},deps);
 assert.deepEqual(next.rows.map(x=>x.sku),["SPR_910B9099NSZ"]);
 assert.equal(next.has_more,false);
