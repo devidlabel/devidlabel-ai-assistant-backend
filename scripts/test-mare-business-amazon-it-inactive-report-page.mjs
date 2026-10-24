@@ -53,6 +53,16 @@ assert.equal(out.can_publish,false);
 assert.equal(out.document_url_exposed,false);
 assert(!JSON.stringify(out).includes("reports.s3.amazonaws.com"));
 assert(calls.every(c=>c.method==="GET"));
+// Amazon's official inactive report can omit Status/Reason columns.
+const compact=tsv.split("\n").map((line,i)=>line.split("\t")
+ .filter((_,col)=>col!==0&&col!==1).join("\t")).join("\n");
+const noStatus=await read({}, {}, {...deps,fetch:async(url,init)=>{
+ if(new URL(url).hostname==="reports.s3.amazonaws.com")
+  return new Response(compact,{status:200});
+ return deps.fetch(url,init);
+}});
+assert.equal(noStatus.asin_candidate_rows,3);
+assert.equal(noStatus.rows[0].classification,"GPSR_INDICATION");
 const next=await read({after:2,limit:2},{},deps);
 assert.deepEqual(next.rows.map(x=>x.sku),["SPR_910B9099NSZ"]);
 assert.equal(next.has_more,false);
