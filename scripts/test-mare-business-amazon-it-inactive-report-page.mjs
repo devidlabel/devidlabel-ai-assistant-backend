@@ -91,9 +91,12 @@ await assert.rejects(()=>read({}, {}, {...deps,fetch:async(url,init)=>{
 const next=await read({after:2,limit:2},{},deps);
 assert.deepEqual(next.rows.map(x=>x.sku),["SPR_910B9099NSZ"]);
 assert.equal(next.has_more,false);
-for(const input of [{after:-1},{after:1.2},{limit:51},{page:1},null]){
+for(const input of [{after:-1},{after:1.2},{limit:1501},{page:1},null]){
  await assert.rejects(()=>read(input,{},deps),/amazon_inactive_report_page_invalid_request/);
 }
+const allInOne=await read({after:0,limit:1500},{},deps);
+assert.equal(allInOne.rows.length,3);
+assert.equal(allInOne.has_more,false);
 const stale=await read({}, {}, {...deps,clock:()=>Date.parse("2026-10-30T00:00:00Z")});
 assert.equal(stale.status,"REPORT_TOO_OLD");
 console.log("amazon it inactive report safe paginated audit: PASS");
