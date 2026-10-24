@@ -237,6 +237,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.it.gpsr_existing_manufacturer.validation.preview",
+      provider:"amazon",domain:"marketplace",operation:"prepare",risk:"artifact_only",
+      implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      approval:"none",
+      description:"Amazon PATCH mode=VALIDATION_PREVIEW on a single existing non-BUYABLE positive-stock IT seller SKU with 100632. Reuses ONLY a verified original Amazon manufacturer reference; no new emails/values; no catalog persistence, no live patches, no RP/safety assertions or price/stock changes. Returns issue codes only, never contact values.",
+      request_schema:{...schema({
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}
+      },["sku"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+       [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+       [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (non-persisting)"]]
+    }),
+    capability({
       id:"amazon.it.existing_gpsr_ptd.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
