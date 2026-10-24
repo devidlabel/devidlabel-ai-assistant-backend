@@ -43,14 +43,18 @@ const dependencies={
   assert(!init.body.includes("dsa_responsible_party_address"));
   assert(!init.body.includes("gpsr_safety_attestation"));
   return new Response(JSON.stringify({sku,status:"INVALID",
-    issues:[{code:"100632",severity:"ERROR",message:"Private "+manufacturer}]}),
+    issues:[{code:"8541",severity:"ERROR",attributeNames:["brand"],categories:["PRODUCT"],message:"Brand conflict. Private "+manufacturer}]}),
     {status:200,headers:{"content-type":"application/json"}});
  }
 };
 const out=await run({sku},env,dependencies);
 assert.equal(out.ok,true);
 assert.equal(out.response_status,"INVALID");
-assert.deepEqual(out.issue_codes,["100632"]);
+assert.deepEqual(out.issue_codes,["8541"]);
+assert.deepEqual(out.issue_signals[0].attribute_names,["brand"]);
+assert.deepEqual(out.issue_signals[0].categories,["PRODUCT"]);
+assert(out.issue_signals[0].wording_clues.includes("BRAND_WORDING"));
+assert.equal(out.raw_provider_messages_exposed,false);
 assert.equal(out.provider_mutations,0);
 assert.equal(out.can_publish,false);
 assert.equal(out.gpsr_compliance_proven,false);
@@ -85,10 +89,18 @@ assert.equal(conflicting.status,"AMAZON_ASIN_IDENTITY_MISMATCH");
 const unknown=await run({sku},env,{...dependencies,fetch:async(url,init)=>{
  if(init.method==="GET")return new Response(JSON.stringify(detail),
  {status:200,headers:{"content-type":"application/json"}});
- return new Response(JSON.stringify({sku,status:"ACCEPTED",issues:[]}),
+ return new Response(JSON.stringify({sku,status:"VALID",issues:[]}),
  {status:200,headers:{"content-type":"application/json"}});
 }});
 assert.equal(unknown.ok,true);
-assert.equal(unknown.response_status,"ACCEPTED");
+assert.equal(unknown.response_status,"VALID");
 assert.equal(unknown.gpsr_compliance_proven,false);
+const fakeAccepted=await run({sku},env,{...dependencies,fetch:async(url,init)=>{
+ if(init.method==="GET")return new Response(JSON.stringify(detail),
+ {status:200,headers:{"content-type":"application/json"}});
+ return new Response(JSON.stringify({sku,status:"ACCEPTED",issues:[]}),
+ {status:200,headers:{"content-type":"application/json"}});
+}});
+assert.equal(fakeAccepted.ok,false);
+assert.equal(fakeAccepted.status,"AMAZON_VALIDATION_PREVIEW_RESPONSE_UNVERIFIED");
 console.log("Existing-value GPSR preview remains non-persisting and PII-safe: PASS");
