@@ -102,7 +102,7 @@ export async function readAmazonQualificationRestrictions(
   const results:Row[]=[];
   for(const t of targets){
     if(!t.eligible||!t.asin){results.push({sku:t.sku,asin:t.asin,
-      status:"NO_CONFIRMED_NONBUYABLE_100632"});continue;}
+      status:"NO_CONFIRMED_NONBUYABLE_QUALIFICATION"});continue;}
     const q=new URLSearchParams({asin:t.asin,sellerId:seller,
       marketplaceIds:AMAZON_EU_MARKETPLACES[marketplace],conditionType:"new_new"});
     const url=HOST+"/listings/2021-08-01/restrictions?"+q.toString();
