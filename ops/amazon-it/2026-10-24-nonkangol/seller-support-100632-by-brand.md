@@ -1,6 +1,8 @@
 # Seller Support — 100632 senza link approvativo (Amazon IT, 24/10/2026)
 
-**Dossier di preparazione, NON inviato.** Fonte: Shopify ACTIVE + stock positivo + report Amazon IT #250479020750 + seller listing live. Questi 154 SKU hanno un errore `100632` e non sono BUYABLE; nel controllo `getListingsRestrictions` non è stato trovato un URL approvativo per tali SKU. **Questo NON prova approvazione, né dimostra che la causa sia GPSR.** I codici `8541` eventualmente presenti vanno trattati separatamente.
+**Dossier di preparazione, NON inviato.** **Aggiornamento 24/10/2026:** la nuova diagnostica live dei messaggi Amazon ha verificato **154/154 SKU** di questo elenco con `100632` e segnale `GPSR_WORDING`. Prima di creare ticket generici per ogni brand, utilizzare la [procedura GPSR con verifica Account Health e contatti ufficiali](gpsr-154-remediation-playbook.md). Utilizzare questo dossier Seller Support solo per anomalie GPSR non risolte dopo i tentativi ufficiali, precisando gli stati approvativi effettivi. Nessun valore di Responsabile UE o fabbricante è stato ipotizzato. 
+
+ Fonte: Shopify ACTIVE + stock positivo + report Amazon IT #250479020750 + seller listing live. Questi 154 SKU hanno un errore `100632` e non sono BUYABLE; nel controllo `getListingsRestrictions` non è stato trovato un URL approvativo per tali SKU. **Questo NON prova approvazione, né dimostra che la causa sia GPSR.** I codici `8541` eventualmente presenti vanno trattati separatamente.
 
 ## Testo da utilizzare nei casi Seller Central
 

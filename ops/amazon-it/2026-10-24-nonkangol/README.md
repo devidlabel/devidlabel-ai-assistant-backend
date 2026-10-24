@@ -12,7 +12,9 @@
 
 [CSV unico dei 178 SKU](amazon-it-178-nonkangol.csv), colonne: SKU, brand, ASIN report, ASIN live, stock Shopify, FBM Amazon, EAN/UPC, status Amazon, error codes, route. I cinque file `inactive-*.csv` sono i checkpoint originali che costituiscono la matrice.
 
-- [Dossier Seller Support per brand, con tutti i 154 SKU e testo di richiesta pronto](seller-support-100632-by-brand.md)
+- **[Audit GPSR completo 154/154 e procedura di remediation](gpsr-154-remediation-playbook.md)**
+- [Matrice 154 issue Amazon con segnale GPSR_WORDING](gpsr-100632-154-wording-audit.csv)
+- [Dossier Seller Support per brand, con tutti i 154 SKU e testo di richiesta pronto](seller-support-100632-by-brand.md) (da usare come fallback, dopo la verifica GPSR in Seller Central)
 - [Lista dei 15 collegamenti ufficiali Seller Central per approvazioni](seller-central-approvals-15.md)
 
 **Validazioni del CSV:** 178 righe, 178 SKU distinti, zero Kangol, 178 ASIN live identici al report, Shopify stock >0 su ogni riga; 0 `BUYABLE`, 177 FBM Amazon >0, 1 FBM Amazon=0.
