@@ -21,9 +21,9 @@ const deps={clock:()=>Date.parse("2026-10-24T09:01:55Z"),getAccessToken:async()=
   if(u.pathname.endsWith("/reports")&&u.hostname==="sellingpartnerapi-eu.amazon.com")
    return new Response(JSON.stringify({reports:[{
      reportId:"250479020750",reportType:"GET_MERCHANT_LISTINGS_INACTIVE_DATA",
-     processingStatus:"DONE",reportDocumentId:"DOC1234",createdTime:timestamp
+     processingStatus:"DONE",reportDocumentId:"amzn1.spdoc.1.4.eu-test",createdTime:timestamp
    }]}),{status:200,headers:{"content-type":"application/json"}});
-  if(u.pathname.endsWith("/DOC1234"))
+  if(decodeURIComponent(u.pathname).endsWith("/amzn1.spdoc.1.4.eu-test"))
    return new Response(JSON.stringify({url:"https://reports.s3.amazonaws.com/download-file"}),
     {status:200,headers:{"content-type":"application/json"}});
   if(u.hostname==="reports.s3.amazonaws.com"){
