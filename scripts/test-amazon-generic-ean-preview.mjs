@@ -357,4 +357,72 @@ const unverifiedUnit=await run(request("BOOT"),env,{...badBoot,
 assert.equal(unverifiedUnit.ok,true);
 assert.equal(unverifiedUnit.attributes_submitted.includes("footwear_size"),false);
 
+// Technical fabric field only from merchant-authored single-component
+// marketplace.fabric_composition and verified live Amazon PTD structure.
+const fabShape={fabric_type:{type:"array",items:{type:"object",properties:{
+ value:{type:"string"},language_tag:{reference_resolution_required:true},
+ marketplace_id:{reference_resolution_required:true},
+},required:["value","language_tag"]}}};
+const fabResearch=(market)=>research({
+ available_schema_attribute_names:[...research({},"SHIRT",market).available_schema_attribute_names,"fabric_type"],
+ ptd_technical_shapes:fabShape,ptd_technical_shapes_read_only:true,
+ ptd_technical_shapes_no_values_supplied:true,
+},"SHIRT",market);
+for(const market of Object.keys(markets)){
+ const base=deps("SHIRT",market);
+ const x=await run(request("SHIRT",market),env,{...base,
+  research:async()=>fabResearch(market),
+  readShopify:async(e,q,v)=>{
+   const data=await base.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))data.productVariant.product.fabric={
+    type:"single_line_text_field",value:"100% cotone"};
+   return data;
+  },
+  fetch:async(url,init)=>{
+   assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+   const body=JSON.parse(init.body);
+   if(market==="IT")assert.deepEqual(body.attributes.fabric_type,[{
+     value:"100% cotone",language_tag:"it_IT",marketplace_id:markets.IT}]);
+   else assert.ok(!body.attributes.fabric_type);
+   return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"fabric-"+market,
+     issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}]}),
+     {status:200,headers:{"content-type":"application/json"}});
+  },
+ });
+ assert.equal(x.ok,true);
+ assert.equal(x.attributes_submitted.includes("fabric_type"),market==="IT");
+}
+const complexFabricDeps=deps("SHIRT","IT");
+const complexFab=await run(request("SHIRT"),env,{...complexFabricDeps,
+ research:async()=>fabResearch("IT"),
+ readShopify:async(e,q,v)=>{
+  const data=await complexFabricDeps.readShopify(e,q,v);
+  if(!q.includes("metaobject(id:"))data.productVariant.product.fabric={
+    type:"single_line_text_field",value:"Esterno: 70% poliammide; fodera 100% poliestere"};
+  return data;
+ },
+ fetch:async(url,init)=>{
+  assert.ok(!JSON.parse(init.body).attributes.fabric_type);
+  return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"fabric-complex",
+   issues:[{code:"90220",severity:"ERROR",attributeNames:["fabric_type"]}]}),
+   {status:200,headers:{"content-type":"application/json"}});
+ }
+});
+assert.equal(complexFab.ok,true);
+assert.ok(!complexFab.attributes_submitted.includes("fabric_type"));
+for(const invalidFabric of [
+ {type:"single_line_text_field",value:"<script>unsafe</script>"},
+ {type:"list.single_line_text_field",value:"100% cotone"}
+]){
+ const blockedFab=await run(request("SHIRT"),env,{...complexFabricDeps,
+  research:async()=>fabResearch("IT"),
+  readShopify:async(e,q,v)=>{
+   const data=await complexFabricDeps.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))data.productVariant.product.fabric=invalidFabric;
+   return data;
+  },fetch:async()=>{throw Error("must never reach Amazon");}
+ });
+ assert.equal(blockedFab.status,"BLOCKED_PREVIEW");
+}
+
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
