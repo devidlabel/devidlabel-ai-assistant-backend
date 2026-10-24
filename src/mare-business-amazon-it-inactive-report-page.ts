@@ -32,7 +32,8 @@ export async function readAmazonItInactiveReportPage(raw:unknown,env:AmazonCrede
  const input=obj(raw),keys=Object.keys(input);
  if(keys.some(k=>!["after","limit"].includes(k))||raw===null||typeof raw!=="object"||
     Array.isArray(raw)||keys.length>2)throw Error("amazon_inactive_report_page_invalid_request");
- const after=input.after??0,limit=input.limit??30;
+ const after: number=typeof input.after==="number"?input.after:input.after===undefined?0:NaN;
+ const limit: number=typeof input.limit==="number"?input.limit:input.limit===undefined?30:NaN;
  if(!Number.isSafeInteger(after)||after<0||after>100000||
     !Number.isSafeInteger(limit)||limit<1||limit>50)
    throw Error("amazon_inactive_report_page_invalid_request");
