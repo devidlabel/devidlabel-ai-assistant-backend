@@ -122,8 +122,7 @@ export async function readAmazonItExistingIssueSignals(raw:unknown,env:Env,deps:
    .map(z=>({
      code:z.code,
      wording_signals:categorySignals(z.message),
-     attributes:Array.isArray(z.attributeNames)?z.attributeNames.filter(v=>typeof v==="string"&&ATTR.test(v)).slice(0,6):[],
-     enforcement_actions:Array.isArray(z.enforcements?.value)?[]:[]
+     attributes:Array.isArray(z.attributeNames)?z.attributeNames.filter(v=>typeof v==="string"&&ATTR.test(v)).slice(0,6):[]
    }));
   results.push({sku,asin:a.asin,state:"EXISTING_NONBUYABLE_ISSUE_WORDING_SIGNALS",
     error_count:issues.length,issues,raw_messages_exposed:false,
