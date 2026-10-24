@@ -240,7 +240,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       id:"shopify.gpsr.field_locations.readonly",
       provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&shopify,approval:"none",
-      description:"Read-only exact-SKU Shopify product and variant metafield key-location discovery for manufacturer, GPSR, responsible person, compliance and safety. Returns ONLY key names and a non-empty flag, never raw contact/attribute values, legal claims, or storefront changes. Key presence is not compliance.",
+      description:"Read-only exact-SKU Shopify product and variant metafield key-location discovery for manufacturer, GPSR, responsible person, compliance and safety. Returns ONLY key names and types; no raw contact/attribute values are queried, legal claims, or storefront changes. Key presence is not compliance.",
       request_schema:{...schema({
         sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}
       },["sku"]),additionalProperties:false},
