@@ -73,9 +73,25 @@ function strictSizeOption(raw:unknown):{ok:boolean;size?:string;sizeClass?:strin
   // One-size, mixed units and non-standard labels need explicit mapping.
   return {ok:true};
 }
+// BOOT accepts only an exact, merchant-declared EU footwear number. A
+// US/UK size, a SKU suffix, a title or a one-size label is not convertible.
+function strictEuBootOption(raw:unknown):{ok:boolean;size?:string;sizeClass?:string}{
+  if(!Array.isArray(raw))return {ok:false};
+  const opts=raw.map(obj).filter(o=>typeof o.name==="string"&&
+    ["numero","taglia","size","shoe size"].includes(o.name.toLowerCase().trim()));
+  if(opts.length>1)return {ok:false};
+  if(opts.length===0)return {ok:true};
+  const value=opts[0].value;
+  if(typeof value!=="string"||value.length>12||value!==value.trim())
+    return {ok:false};
+  const match=/^((?:3[0-9]|4[0-9]|50)) EU$/.exec(value);
+  if(!match)return {ok:true};
+  return {ok:true,size:match[1],sizeClass:"numeric"};
+}
 function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
   {ok:boolean;attribute?:string;value?:Row}{
-  const field=pt==="SHIRT"?"shirt_size":pt==="COAT"?"apparel_size":null;
+  const field=pt==="SHIRT"?"shirt_size":pt==="COAT"?"apparel_size":
+    pt==="BOOT"?"footwear_size":null;
   if(!field||!research.available_schema_attribute_names ||
      !Array.isArray(research.available_schema_attribute_names)||
      !research.available_schema_attribute_names.includes(field))return {ok:true};
@@ -85,7 +101,8 @@ function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
      research.ptd_size_shapes_not_schema_validation!==true||
      research.ptd_size_mapping_not_performed!==true)
     return {ok:false};
-  const option=strictSizeOption(selectedOptions);
+  const option=pt==="BOOT"?strictEuBootOption(selectedOptions):
+    strictSizeOption(selectedOptions);
   if(!option.ok)return {ok:false};
   if(!option.size||!option.sizeClass)return {ok:true};
   const shape=obj(sizeShape),item=obj(shape.items),p=obj(item.properties);
@@ -99,6 +116,11 @@ function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
      obj(p.size_class).type!=="string"||obj(p.size_system).type!=="string"||
      !Array.isArray(requires)||!requires.includes("size_class")||
      !requires.includes("size_system")||
+     (pt==="BOOT"&&(
+       systems[0]!=="eu_footwear_size_system"||
+       !requires.includes("size")||
+       obj(p.marketplace_id).reference_resolution_required!==true
+     ))||
      shape.conditional_review_required===true||item.conditional_review_required===true)
     return {ok:false};
   return {ok:true,attribute:field,value:{
