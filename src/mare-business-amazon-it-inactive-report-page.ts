@@ -3,7 +3,7 @@ type Row=Record<string,unknown>;
 type Deps={getAccessToken?:typeof getAmazonAccessToken;fetch?:typeof fetch;clock?:()=>number};
 const ROOT="https://sellingpartnerapi-eu.amazon.com",MARKET="APJ6JRA9NG5V4";
 const TYPE="GET_MERCHANT_LISTINGS_INACTIVE_DATA";
-const MAX_BYTES=8*1024*1024,MAX_UNZIP=24*1024*1024;
+const MAX_BYTES=8*1024*1024,MAX_UNZIP=24*1024*1024,MAX_PAGE=1500;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/,ASIN=/^[A-Z0-9]{10}$/;
 function obj(v:unknown):Row{return v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:{};}
 async function limited(stream:ReadableStream<Uint8Array>,max:number):Promise<Uint8Array>{
@@ -35,7 +35,7 @@ export async function readAmazonItInactiveReportPage(raw:unknown,env:AmazonCrede
  const after: number=typeof input.after==="number"?input.after:input.after===undefined?0:NaN;
  const limit: number=typeof input.limit==="number"?input.limit:input.limit===undefined?30:NaN;
  if(!Number.isSafeInteger(after)||after<0||after>100000||
-    !Number.isSafeInteger(limit)||limit<1||limit>50)
+    !Number.isSafeInteger(limit)||limit<1||limit>MAX_PAGE)
    throw Error("amazon_inactive_report_page_invalid_request");
  const token=await(deps.getAccessToken??getAmazonAccessToken)(env);
  if(typeof token!=="string"||!token||token.length>16000||/[\u0000-\u0020\u007f]/.test(token))
