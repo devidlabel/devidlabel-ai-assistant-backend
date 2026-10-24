@@ -87,14 +87,17 @@ export async function readAmazonItInactiveReportPage(raw:unknown,env:AmazonCrede
  const statusCol=headerIndex(headings,["status","stato"]);
  const reasonCol=headerIndex(headings,["reason","motivo"]);
  const issueCol=headerIndex(headings,["issue description","descrizione del problema"]);
- if(skuCol<0||asinCol<0||statusCol<0)throw Error("amazon_report_headers_unverified");
+ // This is already the Amazon INACTIVE report type: some official templates
+ // have no status or reason columns. Never turn their absence into ACTIVE.
+ if(skuCol<0||asinCol<0)throw Error("amazon_report_headers_unverified");
  const entries:Row[]=[],seen=new Set<string>();
  let malformed=0,duplicate=0,missingAsin=0,deleted=0;
  const codes:Record<string,number>={};
  for(const line of lines.slice(1)){
    const cells=line.split("\t");
    if(cells.length!==headings.length){malformed++;continue;}
-   const sku=cells[skuCol]?.trim(),asin=cells[asinCol]?.trim(),status=cells[statusCol]?.trim();
+   const sku=cells[skuCol]?.trim(),asin=cells[asinCol]?.trim(),
+     status=statusCol<0?"INACTIVE":cells[statusCol]?.trim();
    if(!SKU.test(sku??"")){malformed++;continue;}
    if(seen.has(sku)){duplicate++;continue;}seen.add(sku);
    if(/delet|eliminat|cancel/i.test(status??"")){deleted++;continue;}
