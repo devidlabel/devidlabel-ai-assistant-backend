@@ -237,6 +237,16 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"shopify.gpsr.field_locations.readonly",
+      provider:"shopify",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&shopify,approval:"none",
+      description:"Read-only exact-SKU Shopify product and variant metafield key-location discovery for manufacturer, GPSR, responsible person, compliance and safety. Returns ONLY key names and a non-empty flag, never raw contact/attribute values, legal claims, or storefront changes. Key presence is not compliance.",
+      request_schema:{...schema({
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}
+      },["sku"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[shopify,"Shopify OAuth/KV"]]
+    }),
+    capability({
       id:"amazon.it.existing_gpsr_presence.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
