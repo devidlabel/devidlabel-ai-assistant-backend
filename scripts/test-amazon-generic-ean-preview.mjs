@@ -272,4 +272,89 @@ const invalidSize=await run(request("COAT"),env,deps("COAT","IT",{
 }));
 assert.equal(invalidSize.status,"BLOCKED_PREVIEW");
 
+// BOOT: the variant states its own exact EU size, while Amazon's PTD
+// provides the marketplace-specific structure. No SKU or US/UK inference.
+const bootShape=(system="eu_footwear_size_system")=>({footwear_size:{
+  type:"array",items:{type:"object",properties:{
+    size:{type:"string"},size_class:{type:"string",enum:["numeric","alpha"]},
+    size_system:{type:"string",enum:[system]},
+    marketplace_id:{reference_resolution_required:true}
+  },required:["size","size_class","size_system"]}}});
+for(const market of Object.keys(markets)){
+ const baseDeps=deps("BOOT",market);
+ const result=await run(request("BOOT",market),env,{...baseDeps,
+  research:async()=>research({
+   available_schema_attribute_names:[...research({},"BOOT",market).available_schema_attribute_names,"footwear_size"],
+   ptd_size_shapes:bootShape(),ptd_size_shapes_are_read_only:true,
+   ptd_size_shapes_not_schema_validation:true,ptd_size_mapping_not_performed:true,
+  },"BOOT",market),
+  readShopify:async(e,q,v)=>{
+   const data=await baseDeps.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))
+     data.productVariant.selectedOptions=[{name:"Numero",value:"37 EU"}];
+   return data;
+  },
+  fetch:async(url,init)=>{
+   assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+   const body=JSON.parse(init.body);
+   assert.deepEqual(body.attributes.footwear_size,[{size:"37",size_class:"numeric",
+     size_system:"eu_footwear_size_system",marketplace_id:markets[market]}]);
+   assert.ok(!JSON.stringify(body).includes("purchasable_offer"));
+   return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"boot-"+market,
+     issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}]}),
+     {status:200,headers:{"content-type":"application/json"}});
+  },
+ });
+ assert.equal(result.ok,true);
+ assert.equal(result.preview_only,true);
+ assert.ok(result.attributes_submitted.includes("footwear_size"));
+}
+const bootResearch=(system="eu_footwear_size_system")=>research({
+ available_schema_attribute_names:[...research({},"BOOT","IT").available_schema_attribute_names,"footwear_size"],
+ ptd_size_shapes:bootShape(system),ptd_size_shapes_are_read_only:true,
+ ptd_size_shapes_not_schema_validation:true,ptd_size_mapping_not_performed:true,
+},"BOOT","IT");
+const badBoot=deps("BOOT","IT"),bootCheck={name:"Numero",value:"37 EU"};
+for(const invalidOptions of [
+ [{name:"Numero",value:"37 EU"},bootCheck],null
+]){
+ const blocked=await run(request("BOOT"),env,{...badBoot,
+  research:async()=>bootResearch(),
+  readShopify:async(e,q,v)=>{
+   const d=await badBoot.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))d.productVariant.selectedOptions=invalidOptions;
+   return d;
+  },fetch:async()=>{throw new Error("must not call Amazon PUT");},
+ });
+ assert.equal(blocked.status,"BLOCKED_PREVIEW");
+}
+const badBootSchema=await run(request("BOOT"),env,{...badBoot,
+ research:async()=>bootResearch("uk_footwear_size_system"),
+ readShopify:async(e,q,v)=>{
+  const d=await badBoot.readShopify(e,q,v);
+  if(!q.includes("metaobject(id:"))d.productVariant.selectedOptions=[bootCheck];
+  return d;
+ },
+ fetch:async()=>{throw new Error("must not call Amazon PUT");}
+});
+assert.equal(badBootSchema.status,"BLOCKED_PREVIEW");
+// A UK-labeled merchant option must NOT be silently converted into EU.
+const unverifiedUnit=await run(request("BOOT"),env,{...badBoot,
+ research:async()=>bootResearch(),
+ readShopify:async(e,q,v)=>{
+  const d=await badBoot.readShopify(e,q,v);
+  if(!q.includes("metaobject(id:"))
+   d.productVariant.selectedOptions=[{name:"Numero",value:"37 UK"}];
+  return d;
+ },
+ fetch:async(_url,init)=>{
+  assert.ok(!JSON.parse(init.body).attributes.footwear_size);
+  return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"boot-no-unit",
+   issues:[{code:"90220",severity:"ERROR",attributeNames:["footwear_size"]}]}),
+   {status:200,headers:{"content-type":"application/json"}});
+ }
+});
+assert.equal(unverifiedUnit.ok,true);
+assert.equal(unverifiedUnit.attributes_submitted.includes("footwear_size"),false);
+
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
