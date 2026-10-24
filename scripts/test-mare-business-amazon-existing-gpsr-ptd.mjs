@@ -68,7 +68,7 @@ const malicious=await read({sku},env,{...deps,
  fetch:async(url)=>{
   if(url.includes("/definitions/"))return new Response(JSON.stringify({
    ...metadata,schema:{...metadata.schema,link:{verb:"GET",resource:"https://evil.example.org/take-private"}}}
-  }),{status:200,headers:{"content-type":"application/json"}});
+  ),{status:200,headers:{"content-type":"application/json"}});
   throw Error("SSRF: should not reach arbitrary origin");
  }});
 assert.equal(malicious.status,"PTD_METADATA_IDENTITY_UNVERIFIED");
