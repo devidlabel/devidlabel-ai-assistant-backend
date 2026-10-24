@@ -290,6 +290,7 @@ const SHOES_INSPECTION_FIELDS=[
 // used as default values or allow creation without complete PTD validation.
 const GENERIC_SIZE_INSPECTION_FIELDS=[
   "apparel_size","shirt_size","headwear_size","size_info",
+  "footwear_size",
 ] as const;
 
 
