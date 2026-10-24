@@ -24,7 +24,7 @@ const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
 const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title description vendor status bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title description vendor status fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
@@ -55,6 +55,37 @@ function verifiedMarketplaceBullets(raw:unknown):{ok:boolean;values:string[]}{
     return {ok:false,values:[]};
   return {ok:true,values:(parsed as string[]).slice(0,5)};
 }
+// Only explicit single-component merchant composition can be a fabric_type
+// preview hint. This is not supplier-certified composition or GPSR evidence.
+function singleMerchantFabric(raw:unknown):{ok:boolean;value?:string}{
+  if(raw===null||raw===undefined)return {ok:true};
+  const field=obj(raw);
+  if(field.type!=="single_line_text_field"||typeof field.value!=="string"||
+     field.value!==field.value.trim()||field.value.length>280||
+     /[\u0000-\u001f\u007f<>]/.test(field.value))
+    return {ok:false};
+  // Never flatten multilayer, mixed or percentage-unknown garments into
+  // a false single-fabric assertion. Those require supplier evidence.
+  const match=/^100% ([\p{L}]+(?: [\p{L}]+)?)$/u.exec(field.value);
+  if(!match||match[1].length>60)return {ok:true};
+  return {ok:true,value:field.value};
+}
+function fabricShapeVerified(research:Row):boolean{
+  if(research.ptd_technical_shapes_read_only!==true||
+     research.ptd_technical_shapes_no_values_supplied!==true)return false;
+  const shape=obj(obj(research.ptd_technical_shapes).fabric_type);
+  const item=obj(shape.items),p=obj(item.properties),required=item.required;
+  return shape.type==="array"&&item.type==="object"&&
+    obj(p.value).type==="string"&&
+    obj(p.value).conditional_review_required!==true&&
+    obj(p.language_tag).reference_resolution_required===true&&
+    obj(p.marketplace_id).reference_resolution_required===true&&
+    Array.isArray(required)&&required.includes("value")&&
+    required.includes("language_tag")&&
+    item.conditional_review_required!==true&&
+    shape.conditional_review_required!==true;
+}
+
 // Product Type Definitions are fetched fresh for the marketplace. Never
 // assume IT size_system values apply to DE, FR or ES. No size guessed from SKU.
 function strictSizeOption(raw:unknown):{ok:boolean;size?:string;sizeClass?:string}{
@@ -261,6 +292,12 @@ export async function previewAmazonGenericEanValidation(
   const bullets=marketplace==="IT"&&hasBulletSchema?
     verifiedMarketplaceBullets(p.bullets):{ok:true,values:[]};
   if(!bullets.ok)return blocked(marketplace,sku,pt,"shopify_marketplace_bullets_invalid");
+  const merchantFabric=marketplace==="IT"&&
+    research.available_schema_attribute_names.includes("fabric_type")?
+    singleMerchantFabric(p.fabric):{ok:true};
+  if(!merchantFabric.ok)return blocked(marketplace,sku,pt,"shopify_merchant_fabric_invalid");
+  if(merchantFabric.value&&!fabricShapeVerified(research))
+    return blocked(marketplace,sku,pt,"amazon_ptd_fabric_schema_unverified");
   const merchantSize=structuredSizeFromPtd(research,v.selectedOptions,pt);
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
@@ -279,6 +316,8 @@ export async function previewAmazonGenericEanValidation(
       value,marketplace_id:marketId,language_tag:"it_IT"}))}:{}),
     ...(merchantSize.attribute&&merchantSize.value?{[merchantSize.attribute]:[{
       ...merchantSize.value,marketplace_id:marketId}]}:{}),
+    ...(merchantFabric.value?{fabric_type:[{
+      value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
