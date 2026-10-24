@@ -30,9 +30,6 @@ assert(!JSON.stringify(out).includes("example.org"));
 assert.equal(out.manufacturer_verified,false);
 assert.equal(out.eu_responsible_person_verified,false);
 assert.equal(out.ready_for_amazon_patch,false);
-for(const [data,status] of [
- [base({namespace:"custom",key:"non_gpsr",type:"single_line_text_field",value:secret}).productVariants.nodes[0].product.status="DRAFT","SHOPIFY_SKU_NOT_ACTIVE_OR_IN_STOCK"]
-]){/* no-op: negative fixtures below are isolated */}
 const duplicate=await read({sku},{},{queryShopify:async()=>({productVariants:connection([
  base({namespace:"custom",key:"manufacturer",type:"single_line_text_field",value:"test"}).productVariants.nodes[0],
  base({namespace:"custom",key:"manufacturer",type:"single_line_text_field",value:"test"}).productVariants.nodes[0]
