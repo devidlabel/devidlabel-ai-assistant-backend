@@ -46,7 +46,7 @@ assert.deepEqual(result.results[0].reason_codes,["APPROVAL_REQUIRED"]);
 assert.deepEqual(result.results[0].seller_central_links,
   ["https://sellercentral.amazon.es/abis/listing/apply"]);
 for(const x of result.results.slice(1))
-  assert.equal(x.status,"NO_CONFIRMED_NONBUYABLE_100632");
+  assert.equal(x.status,"NO_CONFIRMED_NONBUYABLE_QUALIFICATION");
 assert.equal(result.provider_mutations,0);
 assert.equal(result.brand_approval_proven,false);
 assert.equal(result.applications_created,0);
@@ -71,11 +71,45 @@ const noBlocked=await read({marketplace:"ES",skus},env,{...deps,
     ...z,issue_signals:[],statuses:["BUYABLE"]}))}),
   getAccessToken:async()=>{throw Error("should not be called");},
   fetch:async()=>{throw Error("should not be called");}});
-assert.equal(noBlocked.status,"NO_VERIFIED_100632_TARGETS");
+assert.equal(noBlocked.status,"NO_VERIFIED_QUALIFICATION_TARGETS");
 for(const raw of [{},{marketplace:"US",skus}, {marketplace:"ES",skus:["../bad"]},
   {marketplace:"ES",skus:["REPEAT","REPEAT"]},
   {marketplace:"ES",skus:["a","b","c","d","e"]},
   {marketplace:"ES",skus,mode:"LIVE"}]){
   await assert.rejects(()=>read(raw,env,deps),/amazon_qualification_invalid_request/);
 }
-console.log("Amazon 100632 restrictions read-only safety tests passed.");
+// Cover the distinct Amazon QUALIFICATION_REQUIRED error families without
+// weakening the existing seller SKU / ASIN / BUYABLE fail-closed checks.
+for(const code of ["18299","18304","18669"]){
+ let queried=0;
+ const single=await read({marketplace:"ES",skus:["TEST_BLOCKED"]},env,{
+  readListings:async()=>({ok:true,marketplace:"ES",results:[{
+   sku:"TEST_BLOCKED",state:"PRESENT",asin:"B0HMPR8T18",statuses:["DISCOVERABLE"],
+   issue_signals:[{code,severity:"ERROR",categories:["QUALIFICATION_REQUIRED"]}]
+  }]}),
+  getAccessToken:async()=>"test-access-token",
+  fetch:async(url,init)=>{queried++;assert.equal(init.method,"GET");
+   return new Response(JSON.stringify({restrictions:[{
+    marketplaceId:"A1RKKUPIHCS9HS",reasons:[{reasonCode:"APPROVAL_REQUIRED"}]
+   }]}),{status:200,headers:{"content-type":"application/json"}});}
+ });
+ assert.equal(queried,1,code+" must allow verified qualification lookup");
+ assert.equal(single.results[0].status,"RESTRICTIONS_REPORTED");
+ assert.deepEqual(single.results[0].reason_codes,["APPROVAL_REQUIRED"]);
+ assert.equal(single.provider_mutations,0);
+}
+// An unrelated issue or one lacking a qualification category must never call Amazon.
+for(const signal of [
+ {code:"8541",severity:"ERROR",categories:["INVALID_ATTRIBUTE","LISTING"]},
+ {code:"18299",severity:"ERROR",categories:["LISTING"]}
+]){
+ const ignored=await read({marketplace:"ES",skus:["TEST_BLOCKED"]},env,{
+  readListings:async()=>({ok:true,marketplace:"ES",results:[{
+   sku:"TEST_BLOCKED",state:"PRESENT",asin:"B0HMPR8T18",statuses:["DISCOVERABLE"],
+   issue_signals:[signal]
+  }]}),
+  getAccessToken:async()=>{throw Error("not called");}
+ });
+ assert.equal(ignored.status,"NO_VERIFIED_QUALIFICATION_TARGETS");
+}
+console.log("Amazon qualification restrictions read-only safety tests passed.");

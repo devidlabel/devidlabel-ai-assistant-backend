@@ -282,7 +282,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
       approval:"none",
-      description:"For up to four existing seller offers with verified 100632 and no BUYABLE status, read Amazon Listings Restrictions condition new_new, return bounded reason codes and trusted Seller Central links. Empty restrictions never implies approval. No application or offer mutation.",
+      description:"For up to four existing seller offers with a verified qualification error (100632/18299/18304/18669) and no BUYABLE status, read Amazon Listings Restrictions condition new_new, return bounded reason codes and trusted Seller Central links. Empty restrictions never implies approval. No application or offer mutation.",
       request_schema:{...schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         skus:{type:"array",minItems:1,maxItems:4,uniqueItems:true,
