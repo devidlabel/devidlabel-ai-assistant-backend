@@ -6,7 +6,7 @@ const {readAmazonItExistingIssueSignals:read}=await import(
  "data:text/javascript;base64,"+Buffer.from(built.outputFiles[0].text).toString("base64"));
 const env={AMAZON_SP_API_SELLER_ID:"A1234567891234"};
 const skus=["ECO_SAMPLE","MC2_SAMPLE","BUYABLE_SAMPLE"];
-const sellerRead=async()=>({ok:true,read_only:true,provider_mutations:0,
+const sellerRead=async({skus:requested})=>({ok:true,read_only:true,provider_mutations:0,
  marketplace:"IT",results:[
  {sku:"ECO_SAMPLE",state:"PRESENT",identity_state:"VERIFIED",
   asin:"B0HGM56H31",statuses:["DISCOVERABLE"],
@@ -17,7 +17,7 @@ const sellerRead=async()=>({ok:true,read_only:true,provider_mutations:0,
  {sku:"BUYABLE_SAMPLE",state:"PRESENT",identity_state:"VERIFIED",
   asin:"B0GVXHVPLH",statuses:["BUYABLE"],
   issue_signals:[{code:"100632",severity:"ERROR"}]}
-]});
+].filter(z=>requested.includes(z.sku))});
 const privateValue="Private Merchant 10 Secret Avenue seller@example.org";
 let calls=0;
 const deps={sellerRead,getAccessToken:async()=>"SECRET_ACCESS_TOKEN",
