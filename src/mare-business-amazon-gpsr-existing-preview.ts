@@ -13,6 +13,8 @@ const SELLER=/^[A-Z0-9]{8,30}$/;
 const ASIN=/^[A-Z0-9]{10}$/;
 const TYPE=/^[A-Z][A-Z0-9_]{1,79}$/;
 const CODE=/^[A-Z0-9_]{1,72}$/;
+const ATTR=/^[a-z][a-z0-9_]{0,119}$/;
+const CATEGORY=/^[A-Z][A-Z0-9_]{0,79}$/;
 const EMAIL=/^[^\s@]{1,100}@[^\s@.]{1,130}(?:\.[^\s@.]{2,30})+$/;
 const MAX_BYTES=256000;
 const FLAGS={preview_only:true,read_only_effect:true,provider_mutations:0,
@@ -110,10 +112,26 @@ export async function previewExistingItManufacturerReference(raw:unknown,env:Env
     !Array.isArray(feedback.issues)||feedback.issues.length>64)
   return fail("AMAZON_VALIDATION_PREVIEW_RESPONSE_UNVERIFIED",sku);
  const issuesFromPreview=feedback.issues.map(obj);
- const codes=[...new Set(issuesFromPreview.filter(x=>x.severity==="ERROR"&&typeof x.code==="string"&&CODE.test(x.code)).map(x=>x.code))].sort();
+ const safeIssues=issuesFromPreview.filter(x=>x.severity==="ERROR"&&typeof x.code==="string"&&CODE.test(x.code)).slice(0,24).map(x=>{
+  const message=typeof x.message==="string"?x.message:"";
+  const clues=[
+   ["BRAND_WORDING",/\bbrand\b|marchio|marca/i],
+   ["PRODUCT_IDENTIFIER_WORDING",/\basin\b|\bean\b|\bupc\b|product.?id/i],
+   ["SIZE_WORDING",/\bsize\b|taglia|taille|größe/i],
+   ["MANUFACTURER_WORDING",/manufacturer|produttore|fabbricante/i],
+   ["PRODUCT_TYPE_WORDING",/product.?type|tipo.prodotto/i],
+   ["COLOR_WORDING",/\bcolou?r\b|colore/i]
+  ].filter(([,re])=>(re as RegExp).test(message)).map(([name])=>name as string);
+  return {code:x.code,attribute_names:Array.isArray(x.attributeNames)?
+   x.attributeNames.filter(v=>typeof v==="string"&&ATTR.test(v)).slice(0,8):[],
+   categories:Array.isArray(x.categories)?x.categories.filter(v=>typeof v==="string"&&CATEGORY.test(v)).slice(0,8):[],
+   wording_clues:clues};
+ });
+ const codes=[...new Set(safeIssues.map(x=>x.code))].sort();
  return {ok:true,status:"AMAZON_MANUFACTURER_EXISTING_VALUE_PREVIEW_ONLY",
   sku,asin:l.asin,product_type:l.product_type,marketplace:"IT",
-  response_status:feedback.status,issue_codes:codes,
+  response_status:feedback.status,issue_codes:codes,issue_signals:safeIssues,
+  raw_provider_messages_exposed:false,issue_wording_clues_are_not_root_cause_proof:true,
   preview_attribute:"gpsr_manufacturer_reference",
   email_address_exposed:false,existing_value_reused_without_changes:true,
   validation_is_not_listing_publication:true,...FLAGS};
