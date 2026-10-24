@@ -47,23 +47,30 @@ export async function readAmazonItInactiveReportPage(raw:unknown,env:AmazonCrede
  url.searchParams.set("pageSize","20");
  const list=await readJson(url.toString(),token,fetcher);
  if(!Array.isArray(list.reports)||list.reports.length>20)throw Error("amazon_report_list_invalid");
+ // The SP-API report document ID is opaque; Amazon uses IDs with dots and hyphens
+ // (for example amzn1.spdoc.1.4.eu...). Do not silently reject valid DONE reports.
  const done=list.reports.map(obj).filter(r=>r.reportType===TYPE&&r.processingStatus==="DONE"&&
-    typeof r.reportDocumentId==="string"&&r.reportDocumentId.length<=100&&
-    /^[A-Za-z0-9_-]+$/.test(r.reportDocumentId));
+    typeof r.reportDocumentId==="string");
  done.sort((a,b)=>String(b.createdTime??"").localeCompare(String(a.createdTime??"")));
  if(!done.length)return {ok:false,status:"NO_COMPLETED_REPORT",marketplace:"IT",read_only:true,
    listing_mutations:0,can_publish:false};
  const report=done[0];
+ const documentId=String(report.reportDocumentId);
+ // Safe bounded path segment: periods are allowed, but slashes, query chars and
+ // control characters must never be interpolated into an API URL.
+ if(!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/.test(documentId))
+   throw Error("amazon_report_document_id_invalid");
  const now=(deps.clock??Date.now)(),created=Date.parse(String(report.createdTime));
  if(!Number.isFinite(created)||!Number.isFinite(now)||now-created<0||now-created>24*3600000)
    return {ok:false,status:"REPORT_TOO_OLD",marketplace:"IT",read_only:true,
      listing_mutations:0,can_publish:false};
  const doc=await readJson(ROOT+"/reports/2021-06-30/documents/"+
-   encodeURIComponent(String(report.reportDocumentId)),token,fetcher);
+   encodeURIComponent(documentId),token,fetcher);
  if(typeof doc.url!=="string"||doc.url.length>4096)throw Error("amazon_report_document_invalid");
  const signed=new URL(doc.url);
  if(signed.protocol!=="https:"||signed.port||signed.username||signed.password||
-    !signed.hostname.endsWith(".amazonaws.com"))
+    !(signed.hostname.endsWith(".amazonaws.com")||
+      signed.hostname.endsWith(".cloudfront.net")))
    throw Error("amazon_report_document_host_invalid");
  let download:Response;
  try{download=await fetcher(signed.toString(),{method:"GET",redirect:"error",signal:AbortSignal.timeout(22000)});}
