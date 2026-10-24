@@ -106,7 +106,7 @@ export async function previewExistingItManufacturerReference(raw:unknown,env:Env
   body:JSON.stringify(payload),redirect:"manual",signal:AbortSignal.timeout(20000)
  }));}catch{return fail("AMAZON_VALIDATION_PREVIEW_UNAVAILABLE",sku);}
  if(!feedback)return fail("AMAZON_VALIDATION_PREVIEW_UNAVAILABLE",sku);
- if(feedback.sku!==sku||!["ACCEPTED","INVALID"].includes(String(feedback.status))||
+ if(feedback.sku!==sku||!["VALID","INVALID"].includes(String(feedback.status))||
     !Array.isArray(feedback.issues)||feedback.issues.length>64)
   return fail("AMAZON_VALIDATION_PREVIEW_RESPONSE_UNVERIFIED",sku);
  const issuesFromPreview=feedback.issues.map(obj);
