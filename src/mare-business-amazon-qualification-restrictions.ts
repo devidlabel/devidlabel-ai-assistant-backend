@@ -2,7 +2,7 @@ import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 
-/** Merchant-private, read-only evidence for existing listing error 100632.
+/** Merchant-private, read-only evidence for verified existing listing qualification errors.
  * Amazon's restrictions API may disagree with Listings Items issues; an empty
  * restrictions array is NOT approval, buyability or permission to publish.
  * Never sends mutations, starts applications or changes Channable ownership. */
@@ -19,6 +19,7 @@ const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const ASIN=/^[A-Z0-9]{10}$/;
 const SELLER=/^[A-Z0-9]{8,30}$/;
 const CODE=/^[A-Z0-9_]{1,64}$/;
+const QUALIFICATION_CODES=new Set(["100632","18299","18304","18669"]);
 const MAX_BYTES=65_536;
 const FLAGS={read_only:true,provider_mutations:0,applications_created:0,
   has_created_offer:false,brand_approval_proven:false,can_publish:false,
@@ -82,14 +83,16 @@ export async function readAmazonQualificationRestrictions(
   const targets=skus.map(sku=>{
     const item=observedMap.get(sku)||{};
     const issues=Array.isArray(item.issue_signals)?item.issue_signals:[];
-    const hasQualification=issues.some(x=>{const i=obj(x);return i.code==="100632"&&i.severity==="ERROR";});
+    const hasQualification=issues.some(x=>{const i=obj(x);return typeof i.code==="string"&&
+      QUALIFICATION_CODES.has(i.code)&&i.severity==="ERROR"&&
+      Array.isArray(i.categories)&&i.categories.includes("QUALIFICATION_REQUIRED");});
     const buyable=Array.isArray(item.statuses)&&item.statuses.includes("BUYABLE");
     const asin=typeof item.asin==="string"&&ASIN.test(item.asin)?item.asin:null;
     return {sku,asin,eligible:item.state==="PRESENT"&&hasQualification&&!buyable};
   });
   if(!targets.some(t=>t.eligible))
-    return {ok:true,marketplace,status:"NO_VERIFIED_100632_TARGETS",
-      results:targets.map(t=>({sku:t.sku,asin:t.asin,status:"NO_CONFIRMED_NONBUYABLE_100632"})),...FLAGS};
+    return {ok:true,marketplace,status:"NO_VERIFIED_QUALIFICATION_TARGETS",
+      results:targets.map(t=>({sku:t.sku,asin:t.asin,status:"NO_CONFIRMED_NONBUYABLE_QUALIFICATION"})),...FLAGS};
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
   catch{return {ok:false,marketplace,status:"AMAZON_AUTH_UNAVAILABLE",results:[],...FLAGS};}
