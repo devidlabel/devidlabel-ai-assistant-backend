@@ -13,6 +13,7 @@ import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-access
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonItExistingIssueSignals } from "./mare-business-amazon-it-issue-signals.js";
+import { readExistingItGpsrPtd } from "./mare-business-amazon-existing-gpsr-ptd.js";
 import { auditExistingAmazonItGpsrPresence } from "./mare-business-amazon-it-gpsr-presence.js";
 import { readAmazonItInactiveReportStatus, requestAmazonItInactiveReport } from "./mare-business-amazon-it-inactive-report.js";
 import { readAmazonItInactiveReportPage } from "./mare-business-amazon-it-inactive-report-page.js";
@@ -447,6 +448,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.offer.preflight") return textToolResult(await readAmazonOfferOnlyPreflight(request,env));
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
   if (capabilityId === "amazon.it.existing_issue_signals.readonly") return textToolResult(await readAmazonItExistingIssueSignals(request,env));
+  if (capabilityId === "amazon.it.existing_gpsr_ptd.readonly") return textToolResult(await readExistingItGpsrPtd(request,env));
   if (capabilityId === "amazon.it.existing_gpsr_presence.readonly") return textToolResult(await auditExistingAmazonItGpsrPresence(request,env));
   if (capabilityId === "amazon.it.inactive_report.status.readonly") return textToolResult(await readAmazonItInactiveReportStatus(request,env));
   if (capabilityId === "amazon.it.inactive_report.page.readonly") return textToolResult(await readAmazonItInactiveReportPage(request,env));

@@ -237,6 +237,18 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.it.existing_gpsr_ptd.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Inspect only the GPSR schema attribute keys (never private enum/contact values) for exactly one verified existing non-BUYABLE Amazon IT seller SKU with error 100632. Reads current product type and Amazon LISTING PTD NOT_ENFORCED; does not publish, approve Account Health or mutate Channable/Shopify.",
+      request_schema:{...schema({
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"}
+      },["sku"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+       [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.it.existing_gpsr_presence.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
