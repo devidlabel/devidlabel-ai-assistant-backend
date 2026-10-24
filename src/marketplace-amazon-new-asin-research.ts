@@ -292,6 +292,14 @@ const GENERIC_SIZE_INSPECTION_FIELDS=[
   "apparel_size","shirt_size","headwear_size","size_info",
   "footwear_size",
 ] as const;
+// These are *schema* hints only. Merchant Shopify copy, a material facet,
+// product vendor or missing shipping weight is not manufacturer/GPSR proof.
+// Never send provider values or defaults through this read-only inspection.
+const GENERIC_TECHNICAL_INSPECTION_FIELDS=[
+  "department","age_range_description","fabric_type","outer","manufacturer",
+  "item_package_weight","item_package_dimensions","care_instructions",
+  "water_resistance_level",
+] as const;
 
 
 
@@ -664,6 +672,9 @@ export async function researchAmazonNewAsinProductType(
       ptd_size_shapes_are_read_only:true,
       ptd_size_shapes_not_schema_validation:true,
       ptd_size_mapping_not_performed:true,
+      ptd_technical_shapes: selectedAttributeShapes(rawSchema,GENERIC_TECHNICAL_INSPECTION_FIELDS),
+      ptd_technical_shapes_read_only:true,
+      ptd_technical_shapes_no_values_supplied:true,
     } : {}),
     supported_shopify_evidence_fields: [
       "item_name", "brand", "externally_assigned_product_identifier",
