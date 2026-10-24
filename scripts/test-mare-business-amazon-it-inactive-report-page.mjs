@@ -54,7 +54,8 @@ assert.equal(out.document_url_exposed,false);
 assert(!JSON.stringify(out).includes("reports.s3.amazonaws.com"));
 assert(calls.every(c=>c.method==="GET"));
 // Amazon's official inactive report can omit Status/Reason columns.
-const compact=tsv.split("\n").map((line,i)=>line.split("\t")
+const compact=tsv.split("\n").filter(line=>!line.startsWith("DELETED\t"))
+ .map((line,i)=>line.split("\t")
  .filter((_,col)=>col!==0&&col!==1).join("\t")).join("\n");
 const noStatus=await read({}, {}, {...deps,fetch:async(url,init)=>{
  if(new URL(url).hostname==="reports.s3.amazonaws.com")
