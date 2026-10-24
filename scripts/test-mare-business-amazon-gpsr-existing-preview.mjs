@@ -43,14 +43,18 @@ const dependencies={
   assert(!init.body.includes("dsa_responsible_party_address"));
   assert(!init.body.includes("gpsr_safety_attestation"));
   return new Response(JSON.stringify({sku,status:"INVALID",
-    issues:[{code:"100632",severity:"ERROR",message:"Private "+manufacturer}]}),
+    issues:[{code:"8541",severity:"ERROR",attributeNames:["brand"],categories:["PRODUCT"],message:"Brand conflict. Private "+manufacturer}]}),
     {status:200,headers:{"content-type":"application/json"}});
  }
 };
 const out=await run({sku},env,dependencies);
 assert.equal(out.ok,true);
 assert.equal(out.response_status,"INVALID");
-assert.deepEqual(out.issue_codes,["100632"]);
+assert.deepEqual(out.issue_codes,["8541"]);
+assert.deepEqual(out.issue_signals[0].attribute_names,["brand"]);
+assert.deepEqual(out.issue_signals[0].categories,["PRODUCT"]);
+assert(out.issue_signals[0].wording_clues.includes("BRAND_WORDING"));
+assert.equal(out.raw_provider_messages_exposed,false);
 assert.equal(out.provider_mutations,0);
 assert.equal(out.can_publish,false);
 assert.equal(out.gpsr_compliance_proven,false);
