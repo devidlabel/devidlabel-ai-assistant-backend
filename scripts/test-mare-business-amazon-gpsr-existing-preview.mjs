@@ -85,10 +85,18 @@ assert.equal(conflicting.status,"AMAZON_ASIN_IDENTITY_MISMATCH");
 const unknown=await run({sku},env,{...dependencies,fetch:async(url,init)=>{
  if(init.method==="GET")return new Response(JSON.stringify(detail),
  {status:200,headers:{"content-type":"application/json"}});
- return new Response(JSON.stringify({sku,status:"ACCEPTED",issues:[]}),
+ return new Response(JSON.stringify({sku,status:"VALID",issues:[]}),
  {status:200,headers:{"content-type":"application/json"}});
 }});
 assert.equal(unknown.ok,true);
-assert.equal(unknown.response_status,"ACCEPTED");
+assert.equal(unknown.response_status,"VALID");
 assert.equal(unknown.gpsr_compliance_proven,false);
+const fakeAccepted=await run({sku},env,{...dependencies,fetch:async(url,init)=>{
+ if(init.method==="GET")return new Response(JSON.stringify(detail),
+ {status:200,headers:{"content-type":"application/json"}});
+ return new Response(JSON.stringify({sku,status:"ACCEPTED",issues:[]}),
+ {status:200,headers:{"content-type":"application/json"}});
+}});
+assert.equal(fakeAccepted.ok,false);
+assert.equal(fakeAccepted.status,"AMAZON_VALIDATION_PREVIEW_RESPONSE_UNVERIFIED");
 console.log("Existing-value GPSR preview remains non-persisting and PII-safe: PASS");
