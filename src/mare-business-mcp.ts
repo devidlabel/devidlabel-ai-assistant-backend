@@ -13,6 +13,7 @@ import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-access
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonItExistingIssueSignals } from "./mare-business-amazon-it-issue-signals.js";
+import { previewExistingItManufacturerReference } from "./mare-business-amazon-gpsr-existing-preview.js";
 import { readExistingItGpsrPtd } from "./mare-business-amazon-existing-gpsr-ptd.js";
 import { auditExistingAmazonItGpsrPresence } from "./mare-business-amazon-it-gpsr-presence.js";
 import { readAmazonItInactiveReportStatus, requestAmazonItInactiveReport } from "./mare-business-amazon-it-inactive-report.js";
@@ -504,6 +505,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
 async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv): Promise<JsonObject> {
   const request = { ...plan.request };
   if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
+  if (plan.capability_id === "amazon.it.gpsr_existing_manufacturer.validation.preview") return textToolResult(await previewExistingItManufacturerReference(request,env));
   if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
   if (plan.capability_id === "amazon.shoes.new_asin.validation.preview") return textToolResult(await previewAmazonNewAsinShoesValidation(request,env));
   if (plan.capability_id === "amazon.accessory.upc.validation.preview") return textToolResult(await previewAmazonAccessoryUpcValidation(request,env));
