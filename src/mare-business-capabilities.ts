@@ -193,6 +193,21 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
     }),
     capability({
+      id:"amazon.it.existing_gpsr_presence.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Read-only Amazon IT existing seller listings GPSR attribute presence for 1-3 SKUs with verified current Shopify and Amazon positive stock, identical SKU/ASIN and safe issue code projection. Returns presence flags only, NEVER raw emails/addresses or compliance approval. Missing attribute in seller response is NOT proof of absence from Account Health. No listings, quantity or price writes.",
+      request_schema:{...schema({
+        skus:{type:"array",minItems:1,maxItems:3,uniqueItems:true,items:{
+          type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"
+        }}
+      },["skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.existing_offers.bulk_case_worklist.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
