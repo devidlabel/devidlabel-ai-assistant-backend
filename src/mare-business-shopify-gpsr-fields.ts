@@ -9,7 +9,7 @@ type Deps={queryShopify?:typeof shopifyGraphQL};
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const KEY=/^[a-zA-Z][a-zA-Z0-9_.-]{0,99}$/;
 const TERMS=/(?:gpsr|dsa|responsib|manufacturer|manufactur|fabbricant|produttor|producer|compliance|safety|sicurezza|importer|legal.?entity|eu.?contact)/i;
-const QUERY='query GpsrFieldLocations($search:String!){productVariants(first:5,query:$search){pageInfo{hasNextPage} nodes{ id sku inventoryQuantity metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type value}} product{id vendor status metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type value}}}}}}';
+const QUERY='query GpsrFieldLocations($search:String!){productVariants(first:5,query:$search){pageInfo{hasNextPage} nodes{ id sku inventoryQuantity metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type}} product{id vendor status metafields(first:100){pageInfo{hasNextPage} nodes{namespace key type}}}}}}';
 const FLAGS={read_only:true,provider_mutations:0,values_exported:false,
  manufacturer_verified:false,eu_responsible_person_verified:false,
  gpsr_compliance_proven:false,ready_for_amazon_patch:false,
@@ -32,7 +32,7 @@ export async function readShopifyGpsrFieldLocations(raw:unknown,env:MareBusiness
  if(p.status!=="ACTIVE"||typeof p.vendor!=="string"||!p.vendor||
     !Number.isSafeInteger(v.inventoryQuantity)||(v.inventoryQuantity as number)<=0)
    return blocked(sku,"SHOPIFY_SKU_NOT_ACTIVE_OR_IN_STOCK");
- const evidence:Array<{owner:string;namespace:string;key:string;type:string;non_empty:boolean}>=[];
+ const evidence:Array<{owner:string;namespace:string;key:string;type:string}>=[];
  for(const [owner,source] of [["product",p],["variant",v]] as const){
    const conn=obj(source.metafields),page=obj(conn.pageInfo);
    if(page.hasNextPage!==false||!Array.isArray(conn.nodes)||conn.nodes.length>100)
@@ -43,14 +43,13 @@ export async function readShopifyGpsrFieldLocations(raw:unknown,env:MareBusiness
        typeof f.key!=="string"||!KEY.test(f.key)||
        typeof f.type!=="string"||!KEY.test(f.type))continue;
      if(!TERMS.test(f.namespace+"."+f.key))continue;
-     evidence.push({owner,namespace:f.namespace,key:f.key,type:f.type,
-       non_empty:typeof f.value==="string"&&f.value.trim().length>0});
+     evidence.push({owner,namespace:f.namespace,key:f.key,type:f.type});
    }
  }
  return {ok:true,status:evidence.length?"GPSR_RELATED_FIELD_LOCATIONS_OBSERVED":"NO_GPSR_RELATED_FIELD_KEYS_OBSERVED",
    sku,vendor:p.vendor,shopify_quantity:v.inventoryQuantity,
    fields:evidence.slice(0,80),fields_truncated:evidence.length>80,
-   search_scope:"PRODUCT_AND_VARIANT_METAFIELDS",
+   search_scope:"PRODUCT_AND_VARIANT_METAFIELDS",field_values_not_requested:true,
    field_key_presence_does_not_prove_valid_compliance:true,
    ...FLAGS};
 }
