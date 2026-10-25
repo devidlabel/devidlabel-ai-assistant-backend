@@ -133,7 +133,7 @@ function harness(options = {}) {
         return json({ sku: input.sku, status: "INVALID" });
       }
       calls.push("LIVE_DEFAULT_PUT");
-      assert.equal(u.searchParams.get("mode"), "DEFAULT");
+      assert.equal(u.searchParams.has("mode"), false);
       assert.equal(u.searchParams.get("marketplaceIds"), marketId);
       assert.equal(init.headers["x-amz-access-token"], "synthetic-token");
       const p = JSON.parse(init.body);
@@ -271,7 +271,7 @@ await test(async () => {
       if (new URL(String(url)).searchParams.get("mode") === "VALIDATION_PREVIEW")
         return json({ sku: input.sku, status: "INVALID" });
       return new Response(JSON.stringify({
-        errors: [{ code: "InvalidInput", message: "private contact and token must stay hidden" }]
+        errors: [{ code: "InvalidInput", message: "Missing required attribute: item_package_weight; contact support@example.com at https://secret.example.com token=abcdef987654321" }]
       }), { status: 400, headers: {
         "content-type": "application/json",
         "x-amzn-requestid": "request-test-001"
@@ -281,7 +281,10 @@ await test(async () => {
   assert.equal(result.http_status, 400);
   assert.deepEqual(result.amazon_error_codes, ["InvalidInput"]);
   assert.equal(result.amazon_request_id, "request-test-001");
-  assert.equal(JSON.stringify(result).includes("private contact"), false);
+  assert.match(result.amazon_error_descriptions_redacted?.[0] ?? "", /item_package_weight/);
+  assert.equal(JSON.stringify(result).includes("support@example.com"), false);
+  assert.equal(JSON.stringify(result).includes("secret.example.com"), false);
+  assert.equal(JSON.stringify(result).includes("abcdef987654321"), false);
   assert.equal(result.asin_created_verified, false);
 });
 console.log(JSON.stringify({

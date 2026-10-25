@@ -56,7 +56,7 @@ function harness(config = {}) {
       assert.equal(url.origin, "https://sellingpartnerapi-eu.amazon.com");
       assert.equal(url.pathname, "/listings/2021-08-01/items/A123456789/SYNTHETIC_OFFER_001");
       assert.equal(url.searchParams.get("marketplaceIds"), "APJ6JRA9NG5V4");
-      assert.equal(url.searchParams.get("mode"), "DEFAULT");
+      assert.equal(url.searchParams.has("mode"), false);
       assert.equal(init.method, "PUT");
       assert.equal(init.redirect, "manual");
       assert.equal(init.headers["x-amz-access-token"], "test-access-token");
