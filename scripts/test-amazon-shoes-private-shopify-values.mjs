@@ -181,11 +181,11 @@ const play=await read(playExpected,{},{queryShopify:playQuery});
 assert.equal(play.ok,true);
 assert.equal(play.age_range_description,"adult");
 assert.deepEqual(play.footwear_size,{
-  size:"39",size_class:"numeric",size_system:"eu_footwear_size_system",
+  size:"numeric_39",size_class:"numeric",size_system:"eu_footwear_size_system",
   age_group:"adult",gender:"women",width:"medium"
 });
 assert.deepEqual(play.pilot_assumptions,[
-  "EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT"
+  "EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"
 ]);
 
 // Reject HTML carrying executable elements. No hidden body fields are inferred.
