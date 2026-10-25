@@ -138,11 +138,12 @@ export async function previewAmazonNewAsinShoesValidation(
     ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         obj(evidence.pilot_commercial_assumptions).source==="MERCHANT_REVIEW_PROVISIONAL_SKU39"&&
-        obj(evidence.pilot_commercial_assumptions).package_weight_kg===1.2?{
+        obj(evidence.pilot_commercial_assumptions).package_weight_kg===1.2&&
+        obj(evidence.pilot_commercial_assumptions).shaft_height_cm===6?{
       lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}],
       style:[{value:"Sneaker",language_tag:locale,marketplace_id:marketId}],
       leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}],
-      shaft:[{value:"Low-top",language_tag:locale,marketplace_id:marketId}],
+      shaft:[{height:[{value:"6",unit:"centimeters",language_tag:locale}],marketplace_id:marketId}],
       height_map:[{value:"low-top",marketplace_id:marketId}],
       strap_type:[{value:"no-strap",marketplace_id:marketId}],
       water_resistance_level:[{value:"not_water_resistant",marketplace_id:marketId}],
