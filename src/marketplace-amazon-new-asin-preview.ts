@@ -137,7 +137,21 @@ export async function previewAmazonNewAsinShoesValidation(
         evidence.target_gender==="unisex"?
       {target_gender:[{value:evidence.target_gender,marketplace_id:marketId}]}:{}),
     ...(typeof obj(evidence.footwear_size).size==="string"&&
-        /^[34][0-9]$|^50$/.test(obj(evidence.footwear_size).size as string)&&
+        (
+          /^[34][0-9]$|^50$/.test(obj(evidence.footwear_size).size as string) ||
+          (
+            /^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku) &&
+            brand==="4B12" &&
+            title==="PlayNew D-2045 White/Bronze" &&
+            Array.isArray(evidence.pilot_assumptions) &&
+            evidence.pilot_assumptions.includes("AMAZON_NUMERIC_SIZE_LABEL_REVIEW") &&
+            obj(evidence.footwear_size).age_group==="adult" &&
+            obj(evidence.footwear_size).gender==="women" &&
+            obj(evidence.footwear_size).width==="medium" &&
+            obj(evidence.footwear_size).size===
+              "numeric_"+sku.match(/_([34][0-9])_EU$/)?.[1]
+          )
+        )&&
         obj(evidence.footwear_size).size_class==="numeric"&&
         obj(evidence.footwear_size).size_system==="eu_footwear_size_system"?
       {footwear_size:[{...evidence.footwear_size as Row,marketplace_id:marketId}]}:{}),
