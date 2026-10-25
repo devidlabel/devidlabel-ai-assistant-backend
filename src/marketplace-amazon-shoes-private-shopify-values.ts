@@ -245,12 +245,12 @@ export async function readAmazonShoesPrivateShopifyValues(
     targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   return {ok:true,model_name:model,color,...descriptionEvidence,
-    ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT"]}:{}),
+    ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"]}:{}),
     ...(explicitAdultAge||playNewPilot?{age_range_description:"adult"}:{}),
     ...(countryOfOrigin?{country_of_origin:countryOfOrigin}:{}),
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
-      size:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
+      size:playNewPilot?"numeric_"+selectedSize:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
       ...(playNewPilot?{age_group:"adult",gender:"women",width:"medium"}:{}),
     }}:{}),
     verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":"product.vendor",
