@@ -212,6 +212,10 @@ export async function previewAmazonNewAsinShoesValidation(
     issue_count:sanitized.length,issues:sanitized,
     preview_submission_reference:response.submissionId,
     attributes_submitted:Object.keys(payload.attributes),
+    ...(Array.isArray(evidence.pilot_assumptions)?{
+      pilot_size_value_submitted:obj(evidence.footwear_size).size,
+      pilot_assumptions:evidence.pilot_assumptions
+    }:{}),
     private_shopify_metafields_used:true,private_shopify_values_exported_in_response:false,
     storefront_unchanged:true,
     listing_brand_from_merchant_mapping:obj(research.shopify).amazon_brand_mapping_source,
