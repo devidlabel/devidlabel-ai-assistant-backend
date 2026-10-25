@@ -133,7 +133,7 @@ function harness(options = {}) {
         return json({ sku: input.sku, status: "INVALID" });
       }
       calls.push("LIVE_DEFAULT_PUT");
-      assert.equal(u.searchParams.get("mode"), "DEFAULT");
+      assert.equal(u.searchParams.has("mode"), false);
       assert.equal(u.searchParams.get("marketplaceIds"), marketId);
       assert.equal(init.headers["x-amz-access-token"], "synthetic-token");
       const p = JSON.parse(init.body);
