@@ -133,6 +133,29 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    // One controlled SKU39 market-IT pilot: merchandising and shipping-box
+    // estimates, labelled non-certified and deliberately restricted.
+    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+        brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
+        obj(evidence.pilot_commercial_assumptions).source==="MERCHANT_REVIEW_PROVISIONAL_SKU39"&&
+        obj(evidence.pilot_commercial_assumptions).package_weight_kg===1.2?{
+      lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}],
+      style:[{value:"Sneaker",language_tag:locale,marketplace_id:marketId}],
+      leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}],
+      shaft:[{value:"Low-top",language_tag:locale,marketplace_id:marketId}],
+      height_map:[{value:"low-top",marketplace_id:marketId}],
+      strap_type:[{value:"no-strap",marketplace_id:marketId}],
+      water_resistance_level:[{value:"not_water_resistant",marketplace_id:marketId}],
+      batteries_required:[{value:false,marketplace_id:marketId}],
+      item_package_weight:[{value:1.2,unit:"kilograms",marketplace_id:marketId}],
+      item_package_dimensions:[{
+        length:{value:34,unit:"centimeters"},
+        width:{value:23,unit:"centimeters"},
+        height:{value:13,unit:"centimeters"},
+        marketplace_id:marketId
+      }],
+    }:{}),
+
     // Exact model/operator on 4b12.it/contattaci; this brand-operator
     // identification does not prove manufacturer GPSR certification.
     ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&

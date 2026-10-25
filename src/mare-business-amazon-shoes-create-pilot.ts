@@ -48,7 +48,9 @@ const attributesAllowed = new Set([
   "model_name", "color", "country_of_origin", "age_range_description",
   "product_description", "model_number", "bullet_point", "closure",
   "target_gender", "footwear_size", "outer", "inner", "sole_material",
-  "manufacturer", "list_price"
+  "manufacturer", "list_price", "lifestyle", "style", "leather_type",
+  "shaft", "height_map", "strap_type", "water_resistance_level",
+  "batteries_required", "item_package_weight", "item_package_dimensions"
 ]);
 function obj(value: unknown): Row {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -202,7 +204,9 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
     return false;
   // Extra product facts must match EXACT observed pilot source/market identity.
   // Never accept an arbitrary manufacturer/list price through a mock/plan.
-  const extraFields=["outer","inner","sole_material","manufacturer","list_price"];
+  const extraFields=["outer","inner","sole_material","manufacturer","list_price",
+    "lifestyle","style","leather_type","shaft","height_map","strap_type",
+    "water_resistance_level","batteries_required","item_package_weight","item_package_dimensions"];
   if (extraFields.some(k => Object.hasOwn(attrs,k))) {
     if(input.marketplace!=="IT"||
        input.sku!=="4B12_PLAYNEW_D2045_39_EU"||
@@ -215,7 +219,21 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       inner:[{material:[{value:"Pelle e spugna",language_tag:"it_IT"}],marketplace_id:marketId}],
       sole_material:[{value:"Gomma",language_tag:"it_IT",marketplace_id:marketId}],
       manufacturer:[{value:"Medusa s.r.l.",language_tag:"it_IT",marketplace_id:marketId}],
-      list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}]
+      list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}],
+      lifestyle:[{value:"Casual",language_tag:"it_IT",marketplace_id:marketId}],
+      style:[{value:"Sneaker",language_tag:"it_IT",marketplace_id:marketId}],
+      leather_type:[{value:"Pelle scamosciata",language_tag:"it_IT",marketplace_id:marketId}],
+      shaft:[{value:"Low-top",language_tag:"it_IT",marketplace_id:marketId}],
+      height_map:[{value:"low-top",marketplace_id:marketId}],
+      strap_type:[{value:"no-strap",marketplace_id:marketId}],
+      water_resistance_level:[{value:"not_water_resistant",marketplace_id:marketId}],
+      batteries_required:[{value:false,marketplace_id:marketId}],
+      item_package_weight:[{value:1.2,unit:"kilograms",marketplace_id:marketId}],
+      item_package_dimensions:[{
+        length:{value:34,unit:"centimeters"},
+        width:{value:23,unit:"centimeters"},
+        height:{value:13,unit:"centimeters"},marketplace_id:marketId
+      }]
     };
     for(const key of extraFields)if(Object.hasOwn(attrs,key)&&
        JSON.stringify(attrs[key])!==JSON.stringify(expectedExtras[key])) return false;

@@ -125,6 +125,8 @@ let pilotSubmittedSize=null;
 let pilotSubmittedMaterials=null;
 let pilotSubmittedOperator=null;
 let pilotSubmittedListPrice=null;
+let pilotSubmittedPackage=null;
+let pilotSubmittedLifestyle=null;
 const pilotResearch=()=>({
   ...research(),marketplace:pilotMarket,sku:pilotSku,
   shopify:{
@@ -143,6 +145,7 @@ const pilotDeps={
     pilot_materials:{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"},
     pilot_brand_operator:{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"},
     pilot_list_price_eur:199,
+    pilot_commercial_assumptions:{source:"MERCHANT_REVIEW_PROVISIONAL_SKU39",package_weight_kg:1.2},
     draft_values_review_only:true,public_storefront_access_used:false,
     ready_for_publication:false
   }),
@@ -153,6 +156,8 @@ const pilotDeps={
     pilotSubmittedMaterials={outer:payload.attributes.outer?.[0]?.material?.[0]?.value,inner:payload.attributes.inner?.[0]?.material?.[0]?.value,sole:payload.attributes.sole_material?.[0]?.value};
     pilotSubmittedOperator=payload.attributes.manufacturer?.[0]?.value;
     pilotSubmittedListPrice=payload.attributes.list_price?.[0]?.value_with_tax;
+    pilotSubmittedPackage=payload.attributes.item_package_dimensions?.[0];
+    pilotSubmittedLifestyle=payload.attributes.lifestyle?.[0]?.value;
     return new Response(JSON.stringify({sku:pilotSku,status:"INVALID",submissionId:"abc-129",
       issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}]}),
       {status:200,headers:{"content-type":"application/json"}});
@@ -163,6 +168,9 @@ assert.equal(pilotSubmittedSize,"numeric_39");
 assert.deepEqual(pilotSubmittedMaterials,{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma"});
 assert.equal(pilotSubmittedOperator,"Medusa s.r.l.");
 assert.equal(pilotSubmittedListPrice,199);
+assert.equal(pilotSubmittedLifestyle,"Casual");
+assert.equal(pilotSubmittedPackage?.length?.value,34);
+assert.equal(pilotSubmittedPackage?.height?.value,13);
 assert.equal(pilotResult.pilot_size_value_submitted,"numeric_39");
 assert.ok(pilotResult.attributes_submitted.includes("footwear_size"));
 // The normalized spelling remains forbidden on unrelated SKU identities.

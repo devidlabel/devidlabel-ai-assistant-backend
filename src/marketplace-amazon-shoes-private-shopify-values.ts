@@ -252,6 +252,17 @@ export async function readAmazonShoesPrivateShopifyValues(
     // RETAILER descriptions, NOT manufacturer-certified materials/GPSR.
     ...(playNewPilot&&expected.sku==="4B12_PLAYNEW_D2045_39_EU"?{
       pilot_brand_operator:{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"},
+      // Merchandising pilot ONLY. Exact D2045 SKU39. Package data are
+      // provisional shoe-box estimates, NOT measured or manufacturer values.
+      // Do not propagate to other SKUs or claim GPSR compliance.
+      pilot_commercial_assumptions:{
+        source:"MERCHANT_REVIEW_PROVISIONAL_SKU39",
+        lifestyle:"Casual",style:"Sneaker",leather_type:"Pelle scamosciata",
+        shaft:"Low-top",height_map:"low-top",strap_type:"no-strap",
+        water_resistance_level:"not_water_resistant",batteries_required:false,
+        package_weight_kg:1.2,package_length_cm:34,package_width_cm:23,package_height_cm:13
+      },
+
       ...(variant.price==="179.10"&&variant.compareAtPrice==="199.00"?{pilot_list_price_eur:199}:{}),
       pilot_materials:{
         outer:"Pelle e suede", inner:"Pelle e spugna", sole:"Gomma",
