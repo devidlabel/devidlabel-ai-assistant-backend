@@ -155,6 +155,39 @@ assert.deepEqual(fallbackOk.footwear_size,{size:"38",size_class:"numeric",size_s
 assert.equal(fallbackOk.ready_for_publication,false);
 assert.equal(fallbackOk.public_storefront_access_used,false);
 assert.ok(fallbackOk.verified_paths.includes("product.features.color.metaobject.name"));
+
+// 4B12 PlayNew D2045 canary: conditional PTD EU size must include age_group,
+// gender and shoe width. This is a labelled regular-width assumption limited
+// to the exact four women's SKU variants (not a global shoe-width guess).
+const playExpected={
+  sku:"4B12_PLAYNEW_D2045_39_EU",
+  variantId:"gid://shopify/ProductVariant/54713971048789",
+  productTitle:"PlayNew D-2045 White/Bronze",
+  shopifyVendor:"4B12",amazonBrand:"4B12"
+};
+const playSource=structuredClone(fallback);
+playSource.productVariant.id=playExpected.variantId;
+playSource.productVariant.sku=playExpected.sku;
+playSource.productVariant.selectedOptions=[{name:"Numero",value:"39 EU"}];
+playSource.productVariant.product.title=playExpected.productTitle;
+playSource.productVariant.product.fallbackModel={
+  type:"single_line_text_field",value:"PlayNew D-2045"
+};
+const playQuery=async (_env,q,vars)=>q.includes("metaobject(id:$colorId)")?
+  {metaobject:{id:vars.colorId,type:"product_feature_color",
+    displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+  playSource;
+const play=await read(playExpected,{},{queryShopify:playQuery});
+assert.equal(play.ok,true);
+assert.equal(play.age_range_description,"adult");
+assert.deepEqual(play.footwear_size,{
+  size:"39",size_class:"numeric",size_system:"eu_footwear_size_system",
+  age_group:"adult",gender:"women",width:"medium"
+});
+assert.deepEqual(play.pilot_assumptions,[
+  "EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT"
+]);
+
 // Reject HTML carrying executable elements. No hidden body fields are inferred.
 const dangerous=structuredClone(fallback);
 dangerous.productVariant.product.descriptionHtml='<script>alert(1)</script>'+fallback.productVariant.product.descriptionHtml;
