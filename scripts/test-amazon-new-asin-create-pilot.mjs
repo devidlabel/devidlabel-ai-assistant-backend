@@ -148,7 +148,7 @@ function harness(options = {}) {
       return json(options.ack ?? {
         sku: input.sku, status: "INVALID",
         submissionId: "SYNTHETIC_SUBMISSION_001",
-        issues: [{ code: "90220", severity: "ERROR", message: "Private provider details" }]
+        issues: [{ code: "90220", severity: "ERROR", attributeNames: ["manufacturer"], message: "Required manufacturer missing; user@example.com" }, { code: "90004205", severity: "ERROR", attributeNames: ["footwear_size"], message: "Invalid value conditional for footwear_size" }]
       });
     }
   };
@@ -164,8 +164,11 @@ await test(async () => {
   assert.equal(r.status, "AMAZON_REJECTED_NEW_ASIN_SUBMISSION");
   assert.equal(r.provider_write_attempted, true);
   assert.equal(r.asin_created_verified, false);
-  assert.deepEqual(r.issue_codes, ["90220"]);
-  assert.equal(JSON.stringify(r).includes("Private provider details"), false);
+  assert.deepEqual(r.issue_codes, ["90220", "90004205"]);
+  assert.deepEqual(r.issue_details_redacted?.[0]?.attribute_names, ["manufacturer"]);
+  assert.deepEqual(r.issue_details_redacted?.[1]?.attribute_names, ["footwear_size"]);
+  assert.equal(JSON.stringify(r).includes("user@example.com"), false);
+  assert.match(r.issue_details_redacted?.[0]?.message_redacted ?? "", /Required manufacturer missing/);
   assert.deepEqual(h.calls, [
     "preview", "PREVIEW_PUT", "research", "seller", "token", "LIVE_DEFAULT_PUT"
   ]);

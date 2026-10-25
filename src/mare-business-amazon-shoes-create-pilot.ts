@@ -331,11 +331,26 @@ export async function createAmazonNewAsinShoesPilot(
       typeof ack.submissionId !== "string" || !SUBMISSION.test(ack.submissionId))
     throw new Error("new_asin_pilot_untrusted_ack_reconcile_before_retry");
   const issues = errorCodes(ack.issues ?? []);
+  const validationDetails = (Array.isArray(ack.issues) ? ack.issues : [])
+    .slice(0, 40).map((raw: unknown) => {
+      const issue = obj(raw);
+      const names = Array.isArray(issue.attributeNames) ? issue.attributeNames :
+        typeof issue.attributeName === "string" ? [issue.attributeName] : [];
+      return {
+        code: issue.code,
+        severity: issue.severity,
+        attribute_names: names.slice(0, 12).filter(
+          (name: unknown): name is string => typeof name === "string" && ATTRIBUTE.test(name)
+        ),
+        message_redacted: safeAmazonDiagnostic(issue.message)
+      };
+    });
   if (ack.status === "INVALID" || issues.length > 0) {
     return {
       ok: false, status: "AMAZON_REJECTED_NEW_ASIN_SUBMISSION",
       marketplace: input.marketplace, sku: input.sku,
       submission_reference: ack.submissionId, issue_codes: issues,
+      issue_details_redacted: validationDetails,
       trial_incomplete_attributes: input.allow_known_missing_attributes,
       provider_write_attempted: true, asin_created_verified: false,
       buyable_verified: false, no_channable_changes: true,
