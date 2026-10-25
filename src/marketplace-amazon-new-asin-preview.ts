@@ -133,6 +133,18 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    // Narrow 4B12 D2045 size39 retail-evidence pilot (not GPSR evidence).
+    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+        brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
+        obj(evidence.pilot_materials).source==="RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"&&
+        obj(evidence.pilot_materials).outer==="Pelle e suede"&&
+        obj(evidence.pilot_materials).inner==="Pelle e spugna"&&
+        obj(evidence.pilot_materials).sole==="Gomma"?{
+      outer:[{material:[{value:"Pelle e suede",language_tag:locale}],marketplace_id:marketId}],
+      inner:[{material:[{value:"Pelle e spugna",language_tag:locale}],marketplace_id:marketId}],
+      sole_material:[{value:"Gomma",language_tag:locale,marketplace_id:marketId}],
+    }:{}),
+
     ...(evidence.target_gender==="female"||evidence.target_gender==="male"||
         evidence.target_gender==="unisex"?
       {target_gender:[{value:evidence.target_gender,marketplace_id:marketId}]}:{}),
