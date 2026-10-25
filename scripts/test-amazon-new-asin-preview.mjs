@@ -117,6 +117,60 @@ assert.equal(JSON.stringify(result).includes("sensitive original provider"),fals
 assert.equal(JSON.stringify(result).includes(ean),false);
 assert.equal(JSON.stringify(result).includes("Mock Sneaker Ivory"),false);
 
+// Pilot regression: normalized numeric_39 must reach the Amazon preview,
+// rather than be silently dropped by our generic two-digit size guard.
+const pilotSku="4B12_PLAYNEW_D2045_39_EU";
+const pilotMarket="IT";
+let pilotSubmittedSize=null;
+const pilotResearch=()=>({
+  ...research(),marketplace:pilotMarket,sku:pilotSku,
+  shopify:{
+    ...research().shopify,product_title:"PlayNew D-2045 White/Bronze",
+    brand:"4B12",amazon_listing_brand:"4B12",
+    variant_id:"gid://shopify/ProductVariant/54713971048789"
+  }
+});
+const pilotDeps={
+  research:async()=>pilotResearch(),
+  readPrivateFields:async()=>({
+    ok:true,model_name:"PlayNew D-2045",color:"White/Bronze",target_gender:"female",
+    footwear_size:{size:"numeric_39",size_class:"numeric",
+      size_system:"eu_footwear_size_system",age_group:"adult",gender:"women",width:"medium"},
+    pilot_assumptions:["AMAZON_NUMERIC_SIZE_LABEL_REVIEW"],
+    draft_values_review_only:true,public_storefront_access_used:false,
+    ready_for_publication:false
+  }),
+  getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
+  fetch:async(_url,init)=>{
+    const payload=JSON.parse(init.body);
+    pilotSubmittedSize=payload.attributes.footwear_size?.[0]?.size;
+    return new Response(JSON.stringify({sku:pilotSku,status:"INVALID",submissionId:"abc-129",
+      issues:[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}]}),
+      {status:200,headers:{"content-type":"application/json"}});
+  }
+};
+const pilotResult=await run({marketplace:pilotMarket,sku:pilotSku},env,pilotDeps);
+assert.equal(pilotSubmittedSize,"numeric_39");
+assert.equal(pilotResult.pilot_size_value_submitted,"numeric_39");
+assert.ok(pilotResult.attributes_submitted.includes("footwear_size"));
+// The normalized spelling remains forbidden on unrelated SKU identities.
+const outOfScope=await run(request,env,{
+  ...deps,
+  readPrivateFields:async()=>({
+    ok:true,model_name:"Mohair",color:"Camel/Butter",
+    footwear_size:{size:"numeric_39",size_class:"numeric",size_system:"eu_footwear_size_system"},
+    pilot_assumptions:["AMAZON_NUMERIC_SIZE_LABEL_REVIEW"],
+    draft_values_review_only:true,public_storefront_access_used:false,
+    ready_for_publication:false
+  }),
+  fetch:async(_url,init)=>{
+    assert.equal(JSON.parse(init.body).attributes.footwear_size,undefined);
+    return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"abc-130",issues:[]}),
+      {status:200,headers:{"content-type":"application/json"}});
+  }
+});
+assert.equal(outOfScope.attributes_submitted.includes("footwear_size"),false);
+
 for(const bad of [{},{sku,marketplace,attributes:{}},{sku:"../bad",marketplace},{sku,marketplace:"US"}])
   await assert.rejects(()=>run(bad,env,deps),/amazon_new_asin_preview_invalid_request/);
 const disabled=await run(request,{...env,AMAZON_OFFER_PREVIEW_ENABLED:"false"},deps);
