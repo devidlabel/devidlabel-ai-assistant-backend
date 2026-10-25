@@ -273,10 +273,30 @@ export async function createAmazonNewAsinShoesPilot(
     throw new Error("new_asin_pilot_uncertain_submission_reconcile_before_retry");
   }
   if (res.status !== 200) {
-    void res.body?.cancel().catch(() => {});
+    // Amazon can return useful structured error codes for 400 responses.
+    // Do not return raw messages, links, or request payloads to callers.
+    const requestId = (res.headers.get("x-amzn-requestid") ||
+      res.headers.get("x-amzn-request-id") || "").trim();
+    let providerCodes: string[] = [];
+    if (res.status === 400 && /^application\/json(?:\s*;|$)/i.test(
+      res.headers.get("content-type") || "")) {
+      try {
+        const rejection = await boundedJson(res);
+        if (Array.isArray(rejection.errors) && rejection.errors.length <= 25) {
+          providerCodes = [...new Set(rejection.errors.map((entry: unknown) => {
+            const code = obj(entry).code;
+            return typeof code === "string" && ISSUE.test(code) ? code : "UNCLASSIFIED";
+          }))];
+        }
+      } catch { /* Unreadable body remains an unknown rejection. */ }
+    } else {
+      void res.body?.cancel().catch(() => {});
+    }
     return {
       ok: false, status: "PROVIDER_HTTP_REJECTED_OR_UNKNOWN",
       marketplace: input.marketplace, sku: input.sku, http_status: res.status,
+      amazon_error_codes: providerCodes,
+      ...(SUBMISSION.test(requestId) ? { amazon_request_id: requestId } : {}),
       provider_write_attempted: true, asin_created_verified: false,
       buyable_verified: false, reconciliation_required: true,
       no_channable_changes: true

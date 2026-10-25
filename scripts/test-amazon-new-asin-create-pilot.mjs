@@ -239,6 +239,51 @@ await test(async () => {
   assert.equal(r.status, "BLOCKED_NEW_ASIN_PILOT");
   assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"), false);
 });
+await test(async () => {
+  const h = harness({ ack: null });
+  const originalFetch = h.run;
+  // Synthetic 400 uses the same validated preview but returns only bounded
+  // Amazon error codes. Raw message/contact values must not escape.
+  const result = await create(input, env, {
+    preview: async (raw, e, deps) => {
+      await deps.fetch(
+        "https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/" +
+        sellerId + "/" + input.sku + "?marketplaceIds=" + marketId + "&mode=VALIDATION_PREVIEW",
+        { method: "PUT", body: JSON.stringify(payload) }
+      );
+      return {
+        ok: true, status: "VALIDATION_ONLY_REVIEW_REQUIRED",
+        marketplace: input.marketplace, sku: input.sku,
+        product_type: "SHOES", validation_mode: "VALIDATION_PREVIEW",
+        provider_validation_performed: true, preview_only: true,
+        provider_mutations: 0, product_created: false,
+        listing_write_enabled: false, provider_validation_status: "INVALID",
+        issue_count: 1, issues: [{ code: "90220", severity: "ERROR" }]
+      };
+    },
+    research: async () => source(),
+    sellerReader: async () => ({
+      ok: true, marketplace: input.marketplace,
+      results: [{ sku: input.sku, state: "VERIFIED_ABSENT" }]
+    }),
+    accessToken: async () => "synthetic-token",
+    fetch: async (url, init) => {
+      if (new URL(String(url)).searchParams.get("mode") === "VALIDATION_PREVIEW")
+        return json({ sku: input.sku, status: "INVALID" });
+      return new Response(JSON.stringify({
+        errors: [{ code: "InvalidInput", message: "private contact and token must stay hidden" }]
+      }), { status: 400, headers: {
+        "content-type": "application/json",
+        "x-amzn-requestid": "request-test-001"
+      } });
+    }
+  });
+  assert.equal(result.http_status, 400);
+  assert.deepEqual(result.amazon_error_codes, ["InvalidInput"]);
+  assert.equal(result.amazon_request_id, "request-test-001");
+  assert.equal(JSON.stringify(result).includes("private contact"), false);
+  assert.equal(result.asin_created_verified, false);
+});
 console.log(JSON.stringify({
   ok: true, tests: count,
   zero_live_provider_calls: true, live_default_put_mocked: true,
