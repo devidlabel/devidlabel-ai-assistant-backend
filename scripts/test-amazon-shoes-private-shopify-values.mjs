@@ -184,6 +184,7 @@ assert.equal(play.ok,true);
 assert.equal(play.age_range_description,"adult");
 assert.equal(play.pilot_list_price_eur,199);
 assert.equal(play.pilot_commercial_assumptions.package_weight_kg,1.2);
+assert.equal(play.pilot_commercial_assumptions.shaft_height_cm,6);
 assert.equal(play.pilot_commercial_assumptions.source,"MERCHANT_REVIEW_PROVISIONAL_SKU39");
 assert.deepEqual(play.pilot_brand_operator,{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"});
 assert.deepEqual(play.pilot_materials,{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"});
