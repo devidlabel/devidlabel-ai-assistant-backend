@@ -168,6 +168,8 @@ const playExpected={
 const playSource=structuredClone(fallback);
 playSource.productVariant.id=playExpected.variantId;
 playSource.productVariant.sku=playExpected.sku;
+playSource.productVariant.price="179.10";
+playSource.productVariant.compareAtPrice="199.00";
 playSource.productVariant.selectedOptions=[{name:"Numero",value:"39 EU"}];
 playSource.productVariant.product.title=playExpected.productTitle;
 playSource.productVariant.product.fallbackModel={
@@ -180,6 +182,8 @@ const playQuery=async (_env,q,vars)=>q.includes("metaobject(id:$colorId)")?
 const play=await read(playExpected,{},{queryShopify:playQuery});
 assert.equal(play.ok,true);
 assert.equal(play.age_range_description,"adult");
+assert.equal(play.pilot_list_price_eur,199);
+assert.deepEqual(play.pilot_brand_operator,{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"});
 assert.deepEqual(play.pilot_materials,{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"});
 assert.deepEqual(play.footwear_size,{
   size:"numeric_39",size_class:"numeric",size_system:"eu_footwear_size_system",

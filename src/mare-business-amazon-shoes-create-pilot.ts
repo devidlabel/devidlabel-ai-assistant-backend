@@ -47,7 +47,8 @@ const attributesAllowed = new Set([
   "brand", "item_name", "externally_assigned_product_identifier",
   "model_name", "color", "country_of_origin", "age_range_description",
   "product_description", "model_number", "bullet_point", "closure",
-  "target_gender", "footwear_size", "outer", "inner", "sole_material"
+  "target_gender", "footwear_size", "outer", "inner", "sole_material",
+  "manufacturer", "list_price"
 ]);
 function obj(value: unknown): Row {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -184,7 +185,7 @@ function researchVerified(r: Row, input: Input): boolean {
     typeof s.variant_id === "string" &&
     /^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(s.variant_id);
 }
-function payloadVerified(body: Row, marketId: string, research: Row): boolean {
+function payloadVerified(body: Row, marketId: string, research: Row, input: Input): boolean {
   const attrs = obj(body.attributes), s = obj(research.shopify);
   if (body.productType !== "SHOES" || body.requirements !== "LISTING" ||
       Object.keys(body).sort().join("|") !== "attributes|productType|requirements" ||
@@ -199,6 +200,26 @@ function payloadVerified(body: Row, marketId: string, research: Row): boolean {
       single("externally_assigned_product_identifier").value !== s.ean ||
       single("externally_assigned_product_identifier").type !== "ean")
     return false;
+  // Extra product facts must match EXACT observed pilot source/market identity.
+  // Never accept an arbitrary manufacturer/list price through a mock/plan.
+  const extraFields=["outer","inner","sole_material","manufacturer","list_price"];
+  if (extraFields.some(k => Object.hasOwn(attrs,k))) {
+    if(input.marketplace!=="IT"||
+       input.sku!=="4B12_PLAYNEW_D2045_39_EU"||
+       s.ean!=="8057270148101"||
+       s.amazon_listing_brand!=="4B12"||
+       s.product_title!=="PlayNew D-2045 White/Bronze"||
+       s.shopify_price!=="179.10") return false;
+    const expectedExtras:Record<string,unknown>={
+      outer:[{material:[{value:"Pelle e suede",language_tag:"it_IT"}],marketplace_id:marketId}],
+      inner:[{material:[{value:"Pelle e spugna",language_tag:"it_IT"}],marketplace_id:marketId}],
+      sole_material:[{value:"Gomma",language_tag:"it_IT",marketplace_id:marketId}],
+      manufacturer:[{value:"Medusa s.r.l.",language_tag:"it_IT",marketplace_id:marketId}],
+      list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}]
+    };
+    for(const key of extraFields)if(Object.hasOwn(attrs,key)&&
+       JSON.stringify(attrs[key])!==JSON.stringify(expectedExtras[key])) return false;
+  }
   for (const a of Object.values(attrs)) {
     if (!Array.isArray(a) || a.length < 1 || a.length > 5 ||
         a.some(v => obj(v).marketplace_id !== marketId)) return false;
@@ -246,7 +267,7 @@ export async function createAmazonNewAsinShoesPilot(
   const source = obj(await (deps.research ?? researchAmazonNewAsinProductType)(
     { marketplace: input.marketplace, sku: input.sku, product_type: "SHOES" }, env
   ));
-  if (!researchVerified(source, input) || !payloadVerified(validatedCapture, marketId, source))
+  if (!researchVerified(source, input) || !payloadVerified(validatedCapture, marketId, source, input))
     return blocked(input, "fresh_identity_or_product_facts_changed");
   const seller = obj(await (deps.sellerReader ?? readAmazonSellerListingsDirect)(
     { marketplace: input.marketplace, skus: [input.sku] }, env

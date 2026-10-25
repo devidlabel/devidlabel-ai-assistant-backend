@@ -133,6 +133,21 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    // Exact model/operator on 4b12.it/contattaci; this brand-operator
+    // identification does not prove manufacturer GPSR certification.
+    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+        brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
+        obj(evidence.pilot_brand_operator).name==="Medusa s.r.l."&&
+        obj(evidence.pilot_brand_operator).source==="OFFICIAL_4B12_CONTACTS_NOT_GPSR"?{
+      manufacturer:[{value:"Medusa s.r.l.",language_tag:locale,marketplace_id:marketId}]
+    }:{}),
+    // Compare-at 199.00 on the exact Shopify variant, NOT a guessed MSRP.
+    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+        brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
+        evidence.pilot_list_price_eur===199?{
+      list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}]
+    }:{}),
+
     // Narrow 4B12 D2045 size39 retail-evidence pilot (not GPSR evidence).
     ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
