@@ -246,6 +246,16 @@ export async function readAmazonShoesPrivateShopifyValues(
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"]}:{}),
+    // Pilot SKU39 only: exact EAN 8057270148101 cross-checked with
+    // https://www.loggishop.com/products/4b12-playnew-d2045-white-bronze
+    // and https://stimm.com/collections/scarpe-da-donna/products/4b12sneakers-in-pelle-playnew-white-bronze
+    // RETAILER descriptions, NOT manufacturer-certified materials/GPSR.
+    ...(playNewPilot&&expected.sku==="4B12_PLAYNEW_D2045_39_EU"?{
+      pilot_materials:{
+        outer:"Pelle e suede", inner:"Pelle e spugna", sole:"Gomma",
+        source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"
+      }
+    }:{}),
     ...(explicitAdultAge||playNewPilot?{age_range_description:"adult"}:{}),
     ...(countryOfOrigin?{country_of_origin:countryOfOrigin}:{}),
     ...(targetGender?{target_gender:targetGender}:{}),
