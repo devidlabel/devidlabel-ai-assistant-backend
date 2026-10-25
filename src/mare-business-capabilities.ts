@@ -421,6 +421,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.shoes.new_asin.create.pilot",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"EXPERIMENTAL single-SKU new ASIN SHOES live PUT. Requires a real Shopify-backed Amazon VALIDATION_PREVIEW, fresh EAN NO_EXACT_MATCH + seller absence, exact marketplace identity, zero FBM quantity and readback. Explicit allow_known_missing_attributes boolean permits Amazon 90220-only preview gaps (trial may be rejected). Never invents manufacturer/GPSR/product specs, never changes Channable or Shopify, no bulk and no auto retry.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        allow_known_missing_attributes:{type:"boolean"}
+      },["marketplace","sku","allow_known_missing_attributes"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.shoes.new_asin.validation.preview",provider:"amazon",domain:"marketplace",
       operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
