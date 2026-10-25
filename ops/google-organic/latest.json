@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-10-25T17:58:08.378Z",
+  "generated_at": "2026-10-25T18:05:58.385Z",
   "search_console": {
     "permission_level": "siteFullUser",
     "timeframe": {
@@ -27,7 +27,7 @@
     "purchase_revenue": 2222.39,
     "landing_page_rows": 250,
     "source_medium_rows": 28,
-    "realtime_rows": 4
+    "realtime_rows": 9
   },
   "daily_pulse": {
     "ga4_yesterday_ok": true,
