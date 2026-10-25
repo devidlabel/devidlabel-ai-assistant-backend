@@ -285,6 +285,7 @@ const SHOES_INSPECTION_FIELDS=[
   "sole_material","inner","outer","leather_type",
   "item_package_weight","item_package_dimensions","list_price",
   "country_of_origin","manufacturer","batteries_required",
+  "shaft","height_map","strap_type","style","lifestyle","water_resistance_level",
 ] as const;
 // Read-only marketplace-specific shape inspection. Enum hints must never be
 // used as default values or allow creation without complete PTD validation.
