@@ -200,13 +200,14 @@ export async function createAmazonNewAsinShoesPilot(
   if (!SELLER.test(sellerId ?? "") || env.AMAZON_OFFER_PREVIEW_ENABLED !== "true")
     return blocked(input, "seller_or_preview_not_configured");
   const marketId = AMAZON_EU_MARKETPLACES[input.marketplace];
+  const verifiedSellerId = sellerId as string;
   let captured: Row | null = null;
   const transport = deps.fetch ?? fetch;
   const captureTransport: typeof fetch = async (url, init) => {
     const u = new URL(String(url));
     if (u.origin !== HOST ||
         u.pathname !== "/listings/2021-08-01/items/" +
-          encodeURIComponent(sellerId) + "/" + encodeURIComponent(input.sku) ||
+          encodeURIComponent(verifiedSellerId) + "/" + encodeURIComponent(input.sku) ||
         u.searchParams.get("mode") !== "VALIDATION_PREVIEW" ||
         u.searchParams.get("marketplaceIds") !== marketId ||
         init?.method !== "PUT" || typeof init.body !== "string" ||
@@ -219,7 +220,8 @@ export async function createAmazonNewAsinShoesPilot(
     { marketplace: input.marketplace, sku: input.sku }, env,
     { fetch: captureTransport, ...(deps.research ? { research: deps.research } : {}) }
   ));
-  if (!previewAccepted(preview, input) || !captured)
+  const validatedCapture: Row = obj(captured);
+  if (!previewAccepted(preview, input) || !Object.keys(validatedCapture).length)
     return blocked(input, "preview_not_accepted_or_payload_missing", {
       preview_status: preview.provider_validation_status ?? null,
       preview_issue_codes: Array.isArray(preview.issues) ? errorCodes(preview.issues) : []
@@ -229,7 +231,7 @@ export async function createAmazonNewAsinShoesPilot(
   const source = obj(await (deps.research ?? researchAmazonNewAsinProductType)(
     { marketplace: input.marketplace, sku: input.sku, product_type: "SHOES" }, env
   ));
-  if (!researchVerified(source, input) || !payloadVerified(captured, marketId, source))
+  if (!researchVerified(source, input) || !payloadVerified(validatedCapture, marketId, source))
     return blocked(input, "fresh_identity_or_product_facts_changed");
   const seller = obj(await (deps.sellerReader ?? readAmazonSellerListingsDirect)(
     { marketplace: input.marketplace, skus: [input.sku] }, env
@@ -243,7 +245,7 @@ export async function createAmazonNewAsinShoesPilot(
   // Same merchant-authored product facts as the real Amazon preview.
   // Zero quantity; no price, manufacture or safety values are invented.
   const attributes = {
-    ...obj(captured.attributes),
+    ...obj(validatedCapture.attributes),
     fulfillment_availability: [{
       fulfillment_channel_code: "DEFAULT", quantity: 0, marketplace_id: marketId
     }]
@@ -253,7 +255,7 @@ export async function createAmazonNewAsinShoesPilot(
   if (typeof token !== "string" || !token.trim() || token.length > 16384 ||
       /[\u0000-\u0020\u007f]/.test(token)) throw new Error("new_asin_pilot_auth_failed");
   const url = new URL(HOST + "/listings/2021-08-01/items/" +
-    encodeURIComponent(sellerId) + "/" + encodeURIComponent(input.sku));
+    encodeURIComponent(verifiedSellerId) + "/" + encodeURIComponent(input.sku));
   url.searchParams.set("marketplaceIds", marketId);
   url.searchParams.set("mode", "DEFAULT");
   let res: Response;
