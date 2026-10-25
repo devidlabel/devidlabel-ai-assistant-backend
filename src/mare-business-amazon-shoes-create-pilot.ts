@@ -47,7 +47,8 @@ const attributesAllowed = new Set([
   "brand", "item_name", "externally_assigned_product_identifier",
   "model_name", "color", "country_of_origin", "age_range_description",
   "product_description", "model_number", "bullet_point", "closure",
-  "target_gender", "footwear_size", "outer", "inner", "sole_material"
+  "target_gender", "footwear_size", "outer", "inner", "sole_material",
+  "manufacturer", "list_price"
 ]);
 function obj(value: unknown): Row {
   return value !== null && typeof value === "object" && !Array.isArray(value)
