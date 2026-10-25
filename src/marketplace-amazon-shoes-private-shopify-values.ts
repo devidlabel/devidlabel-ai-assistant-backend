@@ -10,7 +10,7 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku selectedOptions{name value} inventoryItem{countryCodeOfOrigin} googleAgeGroup:metafield(namespace:"mm-google-shopping",key:"age_group"){type value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} googleAgeGroup:metafield(namespace:"mm-google-shopping",key:"age_group"){type value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
 const COLOR_QUERY='query MerchantShoesFeatureColor($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
 function obj(value:unknown):Row {
@@ -251,6 +251,8 @@ export async function readAmazonShoesPrivateShopifyValues(
     // and https://stimm.com/collections/scarpe-da-donna/products/4b12sneakers-in-pelle-playnew-white-bronze
     // RETAILER descriptions, NOT manufacturer-certified materials/GPSR.
     ...(playNewPilot&&expected.sku==="4B12_PLAYNEW_D2045_39_EU"?{
+      pilot_brand_operator:{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"},
+      ...(variant.price==="179.10"&&variant.compareAtPrice==="199.00"?{pilot_list_price_eur:199}:{}),
       pilot_materials:{
         outer:"Pelle e suede", inner:"Pelle e spugna", sole:"Gomma",
         source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"
