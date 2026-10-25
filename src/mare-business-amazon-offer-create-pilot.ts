@@ -165,7 +165,7 @@ export async function createAmazonOfferOnlyPilot(
   const url = new URL(HOST + "/listings/2021-08-01/items/" +
     encodeURIComponent(sellerId) + "/" + encodeURIComponent(input.sku));
   url.searchParams.set("marketplaceIds", marketId);
-  url.searchParams.set("mode", "DEFAULT");
+  // Production submission omits mode. Amazon accepts only VALIDATION_PREVIEW as an explicit mode.
   let response: Response;
   try {
     response = await (deps.fetch ?? fetch)(url.toString(), {
