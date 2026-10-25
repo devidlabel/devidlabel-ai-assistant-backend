@@ -235,13 +235,23 @@ export async function readAmazonShoesPrivateShopifyValues(
       if(match){selectedSize=match[1];sizeNeedsSystemEvidence=true;}
     }
   }
+  // Pilot-specific sizing bridge for the 4B12 PlayNew D2045 women's range.
+  // The brand's PlayNew family is sold in regular width; "medium" is a
+  // merchant review assumption, NOT a manufacturer-certified shoe width.
+  // Do not propagate this guess to other models/brands.
+  const playNewPilot=expected.shopifyVendor==="4B12"&&
+    expected.productTitle==="PlayNew D-2045 White/Bronze"&&
+    /^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(expected.sku)&&
+    targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   return {ok:true,model_name:model,color,...descriptionEvidence,
-    ...(explicitAdultAge?{age_range_description:"adult"}:{}),
+    ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT"]}:{}),
+    ...(explicitAdultAge||playNewPilot?{age_range_description:"adult"}:{}),
     ...(countryOfOrigin?{country_of_origin:countryOfOrigin}:{}),
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
       size:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
+      ...(playNewPilot?{age_group:"adult",gender:"women",width:"medium"}:{}),
     }}:{}),
     verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":"product.vendor",
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
