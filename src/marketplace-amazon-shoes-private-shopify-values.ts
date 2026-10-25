@@ -258,7 +258,7 @@ export async function readAmazonShoesPrivateShopifyValues(
       pilot_commercial_assumptions:{
         source:"MERCHANT_REVIEW_PROVISIONAL_SKU39",
         lifestyle:"Casual",style:"Sneaker",leather_type:"Pelle scamosciata",
-        shaft:"Low-top",height_map:"low-top",strap_type:"no-strap",
+        shaft_height_cm:6,height_map:"low-top",strap_type:"no-strap",
         water_resistance_level:"not_water_resistant",batteries_required:false,
         package_weight_kg:1.2,package_length_cm:34,package_width_cm:23,package_height_cm:13
       },
