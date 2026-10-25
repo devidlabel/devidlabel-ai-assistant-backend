@@ -1,13 +1,13 @@
 {
-  "date": "2026-10-23",
+  "date": "2026-10-24",
   "complete": false,
-  "generated_at": "2026-10-24T10:15:28.891Z",
+  "generated_at": "2026-10-25T08:15:28.891Z",
   "missing_required_sources": [
     "sales_1d",
     "sales_3d",
     "sales_7d"
   ],
   "commerce_reconciled": false,
-  "run_id": 40096065242,
-  "artifact_name": "daily-business-report-40096065242"
+  "run_id": 40179176874,
+  "artifact_name": "daily-business-report-40179176874"
 }
