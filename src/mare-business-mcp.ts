@@ -8,6 +8,7 @@ import { readAmazonShoesCrossSourceReadiness } from "./marketplace-amazon-shoes-
 import { classifyAmazonSneakerSkuStates } from "./marketplace-amazon-sneaker-state-classifier.js";
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest } from "./mare-business-amazon-offer-preview.js";
+import { createAmazonOfferOnlyPilot } from "./mare-business-amazon-offer-create-pilot.js";
 import { previewAmazonNewAsinShoesValidation } from "./marketplace-amazon-new-asin-preview.js";
 import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-accessory-upc-preview.js";
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
@@ -507,6 +508,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
   if (plan.capability_id === "amazon.it.gpsr_existing_manufacturer.validation.preview") return textToolResult(await previewExistingItManufacturerReference(request,env));
   if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
+  if (plan.capability_id === "amazon.offer.create.pilot") return textToolResult(await createAmazonOfferOnlyPilot(request, env));
   if (plan.capability_id === "amazon.shoes.new_asin.validation.preview") return textToolResult(await previewAmazonNewAsinShoesValidation(request,env));
   if (plan.capability_id === "amazon.accessory.upc.validation.preview") return textToolResult(await previewAmazonAccessoryUpcValidation(request,env));
   if (plan.capability_id === "amazon.generic.ean.validation.preview") return textToolResult(await previewAmazonGenericEanValidation(request,env));
@@ -579,7 +581,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
 async function prepareCapability(capability: MareBusinessCapability, request: JsonObject, env: MareBusinessEnv): Promise<JsonObject> {
   // Reject caller-supplied observations before even persisting a local plan.
   if (capability.id === "marketplace.order.evidence.capture") request = validateOrderEvidenceCaptureRequest(request);
-  if (capability.id === "amazon.offer.validation.preview") request = validateAmazonOfferPreviewRequest(request);
+  if (capability.id === "amazon.offer.validation.preview" || capability.id === "amazon.offer.create.pilot") request = validateAmazonOfferPreviewRequest(request);
   if (capability.id === "amazon.shipment.confirmation.preview") request = validateAmazonShipmentConfirmationPreviewRequest(request);
   assertRequestSafe(request);
   if (!capability.implemented) throw new Error("capability_not_implemented");
