@@ -278,7 +278,7 @@ export async function createAmazonNewAsinShoesPilot(
     const requestId = (res.headers.get("x-amzn-requestid") ||
       res.headers.get("x-amzn-request-id") || "").trim();
     let providerCodes: string[] = [];
-    if (res.status === 400 && /^application\\/json(?:\\s*;|$)/i.test(
+    if (res.status === 400 && /^application\/json(?:\s*;|$)/i.test(
       res.headers.get("content-type") || "")) {
       try {
         const rejection = await boundedJson(res);
