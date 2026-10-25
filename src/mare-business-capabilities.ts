@@ -406,6 +406,21 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
+      id:"amazon.offer.create.pilot",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"ONE existing-ASIN OFFER_ONLY live creation pilot. Reruns real Amazon VALIDATION_PREVIEW, verifies fresh Shopify EAN/ASIN, seller absence, catalog brand and restrictions; submits PUT mode=DEFAULT with quantity=0 and returns independent seller readback. Never modifies stock, price of existing offers, product facts, Channable ownership or orders. Requires immutable MARE live-write plan confirmation; no bulk publisher.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        ean:{type:"string",pattern:"^[0-9]{13}$"},
+        asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+      },["marketplace","sku","ean","asin"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.shoes.new_asin.validation.preview",provider:"amazon",domain:"marketplace",
       operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
