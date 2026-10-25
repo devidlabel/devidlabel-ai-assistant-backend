@@ -120,6 +120,21 @@ async function boundedJson(response: Response): Promise<Row> {
     throw new Error("new_asin_pilot_response_unparseable");
   return obj(decoded);
 }
+function safeAmazonDiagnostic(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 3 || value.length > 16000)
+    return null;
+  let s = value
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "[URL]")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[EMAIL]")
+    .replace(/\b(?:Bearer|Basic)\s+\S+/gi, "[AUTH]")
+    .replace(/\b(?:token|secret|password|authorization|refresh_token|access_token)\s*[:=]\s*\S+/gi, "[SECRET]")
+    .replace(/\b[A-Za-z0-9_-]{48,}\b/g, "[OPAQUE]")
+    .replace(/\b\d{12,}\b/g, "[LONG_NUMBER]")
+    .replace(/[\x00-\x1f\x7f<>]/g, " ")
+    .replace(/\s+/g, " ").trim();
+  if (!s || s.length > 600) s = s.slice(0, 600).trim();
+  return s || null;
+}
 function errorCodes(issues: unknown): string[] {
   if (!Array.isArray(issues) || issues.length > 100)
     throw new Error("new_asin_pilot_invalid_issue_list");
@@ -278,6 +293,7 @@ export async function createAmazonNewAsinShoesPilot(
     const requestId = (res.headers.get("x-amzn-requestid") ||
       res.headers.get("x-amzn-request-id") || "").trim();
     let providerCodes: string[] = [];
+    let providerDescriptions: string[] = [];
     if (res.status === 400 && /^application\/json(?:\s*;|$)/i.test(
       res.headers.get("content-type") || "")) {
       try {
@@ -287,6 +303,10 @@ export async function createAmazonNewAsinShoesPilot(
             const code = obj(entry).code;
             return typeof code === "string" && ISSUE.test(code) ? code : "UNCLASSIFIED";
           }))];
+          providerDescriptions = [...new Set(rejection.errors
+            .map((entry: unknown) => safeAmazonDiagnostic(obj(entry).message))
+            .filter((message: string | null): message is string => message !== null))]
+            .slice(0, 5);
         }
       } catch { /* Unreadable body remains an unknown rejection. */ }
     } else {
@@ -296,6 +316,7 @@ export async function createAmazonNewAsinShoesPilot(
       ok: false, status: "PROVIDER_HTTP_REJECTED_OR_UNKNOWN",
       marketplace: input.marketplace, sku: input.sku, http_status: res.status,
       amazon_error_codes: providerCodes,
+      amazon_error_descriptions_redacted: providerDescriptions,
       ...(SUBMISSION.test(requestId) ? { amazon_request_id: requestId } : {}),
       provider_write_attempted: true, asin_created_verified: false,
       buyable_verified: false, reconciliation_required: true,
