@@ -140,11 +140,14 @@ export async function readAmazonShoesPrivateShopifyValues(
     if(typeof field.value!=="string")return fail("shopify_metafields_unverified");
     fields.set(key,field.value);
   }
-  // Existing merchant-approved Amazon brand wins. Never fall back to Shopify
-  // vendor if this brand requires a special Amazon mapping (e.g. Back70).
+  // An explicit Shopify Amazon metafield has priority. Without one, permit
+  // ONLY the exact merchant-confirmed listing-brand mapping resolved above.
+  // This is label evidence, not Amazon seller-brand authorization.
   if(fields.has("amazon_brand")?
      fields.get("amazon_brand")!==expected.amazonBrand:
-     expected.shopifyVendor!==expected.amazonBrand)
+     identity.source==="MERCHANT_CONFIRMED_MAPPING"?
+       identity.amazon_brand!==expected.amazonBrand:
+       expected.shopifyVendor!==expected.amazonBrand)
     return fail("shopify_brand_field_mismatch");
   const modelSource=obj(product.fallbackModel);
   const model=fields.has("model_name")?fields.get("model_name"):
@@ -290,7 +293,7 @@ export async function readAmazonShoesPrivateShopifyValues(
       size:playNewPilot?"numeric_"+selectedSize:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
       ...(playNewPilot?{age_group:"adult",gender:"women",width:"medium"}:{}),
     }}:{}),
-    verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":"product.vendor",
+    verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":identity.source==="MERCHANT_CONFIRMED_MAPPING"?"merchant_confirmed_vendor_brand_mapping":"product.vendor",
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
       sourceColor,
       ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
