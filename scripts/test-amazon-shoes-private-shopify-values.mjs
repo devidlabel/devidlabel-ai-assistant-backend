@@ -36,6 +36,61 @@ const ok=await read(expected,{}, {queryShopify});
 assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
+// Pro-Keds structured merchant composition: all labels must match the
+// exact variant SKU, product title and percentages before preview evidence.
+const proExpected={sku:"PROKEDS_RC426SLM_LL_WB00006_41",
+ variantId:"gid://shopify/ProductVariant/5555555555",
+ productTitle:"Royal Classic White/Blue",shopifyVendor:"Pro-Keds",
+ amazonBrand:"Pro-Keds"};
+const proHtml=`<p>La sneaker Royal Classic di Pro-Keds unisce comfort e stile per la collezione invernale 2026-27, con composizione commerciale dichiarata dal negozio.</p>
+<p><strong>Caratteristiche principali</strong></p><ul>
+<li><strong>Modello:</strong> Royal Classic</li>
+<li><strong>Genere:</strong> Uomo</li>
+<li><strong>Colore:</strong> White/Blue</li>
+<li><strong>Tomaia:</strong> 100% pelle</li>
+<li><strong>Suola:</strong> 100% gomma</li>
+<li><strong>Vestibilità:</strong> wide, con maggiore spazio nella zona dell'avampiede</li>
+<li><strong>Codice modello:</strong> RC426SLM</li>
+<li><strong>Codice materiale:</strong> LL</li>
+<li><strong>Codice colore:</strong> WB00006</li>
+<li><strong>Stagione:</strong> Autunno / Inverno 2026-2027</li></ul>
+<p><strong>Composizione:</strong> Tomaia 100% pelle; fodera 50% pelle, 15% microfibra, 35% materiale tessile; soletta interna 100% tessuto; suola esterna 100% gomma.</p>
+<p>Una sneaker premium di Pro-Keds, dal carattere pulito e versatile, adatta a pantaloni casual e a look urban.</p>`;
+function proSource(){
+  const s=source();
+  s.productVariant.id=proExpected.variantId;
+  s.productVariant.sku=proExpected.sku;
+  s.productVariant.product.title=proExpected.productTitle;
+  s.productVariant.product.vendor="Pro-Keds";
+  s.productVariant.product.metafields.nodes=[];
+  s.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Royal Classic"};
+  s.productVariant.product.fallbackColorText={type:"single_line_text_field",value:"White/Blue"};
+  s.productVariant.product.fallbackGender={type:"list.single_line_text_field",value:'["Uomo"]'};
+  s.productVariant.product.descriptionHtml=proHtml;
+  return s;
+}
+const proOk=await read(proExpected,{},{queryShopify:async()=>proSource()});
+assert.equal(proOk.ok,true);
+assert.equal(proOk.model_number,"RC426SLM");
+assert.equal(proOk.bullet_point,"Royal Classic");
+assert.equal(proOk.merchant_shoes_composition?.outer,"100% pelle");
+assert.equal(proOk.merchant_shoes_composition?.inner,
+ "50% pelle, 15% microfibra, 35% materiale tessile");
+assert.equal(proOk.merchant_shoes_composition?.sole,"Gomma");
+assert.ok(proOk.verified_paths.includes("product.descriptionHtml.ProKedsStructuredComposition"));
+// Even a nearly identical description must not override exact model evidence.
+for(const corrupt of [
+ proHtml.replace("Codice materiale:</strong> LL","Codice materiale:</strong> SL"),
+ proHtml.replace("Tomaia 100% pelle;","Tomaia 85% pelle;"),
+ proHtml.replace("Suola:</strong> 100% gomma","Suola:</strong> 100% EVA"),
+ proHtml.replace("Colore:</strong> White/Blue","Colore:</strong> Wrong Color")
+]){
+  const bad=proSource();bad.productVariant.product.descriptionHtml=corrupt;
+  const result=await read(proExpected,{},{queryShopify:async()=>bad});
+  assert.equal(result.ok,true);
+  assert.equal(result.merchant_shoes_composition,undefined);
+}
+
 // Back70's merchant-confirmed listing label must resolve even when an older
 // Shopify product has no redundant amazon_ptd_shoes.amazon_brand metafield.
 const merchantMapped=source();
