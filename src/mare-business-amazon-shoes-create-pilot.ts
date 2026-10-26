@@ -358,6 +358,28 @@ export async function createAmazonNewAsinShoesPilot(
       obj(rows[0]).state !== "VERIFIED_ABSENT")
     return blocked(input, "seller_sku_not_independently_verified_absent");
 
+  // A zero-FBM availability sent for one EU marketplace can affect
+  // another marketplace sharing this seller SKU. Fail closed if ANY other
+  // EU marketplace already has a seller listing, even when its quantity is
+  // currently unknown or zero. Only the Channable stock owner can approve
+  // a coordinated shared-pool write; this pilot has no such integration.
+  for(const other of ["IT","DE","FR","ES"] as const){
+    if(other===input.marketplace)continue;
+    let cross:Row;
+    try{cross=obj(await (deps.sellerReader??readAmazonSellerListingsDirect)(
+      {marketplace:other,skus:[input.sku]},env));}
+    catch{return blocked(input,"cross_market_stock_identity_read_failed");}
+    const crossResults=Array.isArray(cross.results)?cross.results:[];
+    const listing=obj(crossResults[0]);
+    if(cross.ok!==true||cross.marketplace!==other||
+       crossResults.length!==1||listing.sku!==input.sku)
+      return blocked(input,"cross_market_stock_identity_unverified");
+    if(listing.state!=="VERIFIED_ABSENT")
+      return blocked(input,"cross_market_seller_listing_present_uncoordinated",{
+        other_marketplace:other,other_seller_state:listing.state
+      });
+  }
+
   // Same merchant-authored product facts as the real Amazon preview.
   // Zero quantity; no price, manufacture or safety values are invented.
   const attributes = {
