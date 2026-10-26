@@ -232,12 +232,54 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       JSON.stringify([{value:supported,language_tag:locale,marketplace_id:marketId}]))
       return false;
   }
+  // Merchant-sourced generic attributes need a fresh exact Shopify read and
+  // a value-by-value match to the previously submitted validation preview.
+  const confirmedShared=new Set<string>();
+  const sole=obj(freshEvidence.merchant_shoes_sole);
+  if(Object.hasOwn(attrs,"sole_material")&&
+     sole.source==="MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT"){
+    const mapped={
+      IT:{"Gomma":"Gomma","EVA e gomma":"EVA e gomma"},
+      DE:{"Gomma":"Gummi","EVA e gomma":"EVA und Gummi"},
+      FR:{"Gomma":"Caoutchouc","EVA e gomma":"EVA et caoutchouc"},
+      ES:{"Gomma":"Goma","EVA e gomma":"EVA y goma"}
+    }[input.marketplace];
+    if(typeof sole.value!=="string"||!Object.hasOwn(mapped,sole.value)||
+       JSON.stringify(attrs.sole_material)!==JSON.stringify([{
+         value:mapped[sole.value as keyof typeof mapped],
+         language_tag:locale,marketplace_id:marketId}]))return false;
+    confirmedShared.add("sole_material");
+  }
+  const styleSource=obj(freshEvidence.merchant_shoes_style);
+  const styleConfirmed=styleSource.source==="SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION";
+  if(styleConfirmed&&Object.hasOwn(attrs,"lifestyle")){
+    if(styleSource.casual!==true||JSON.stringify(attrs.lifestyle)!==
+       JSON.stringify([{value:"Casual",language_tag:locale,marketplace_id:marketId}]))
+      return false;
+    confirmedShared.add("lifestyle");
+  }
+  if(styleConfirmed&&Object.hasOwn(attrs,"height_map")){
+    if(styleSource.low_top!==true||JSON.stringify(attrs.height_map)!==
+       JSON.stringify([{value:"low-top",marketplace_id:marketId}]))
+      return false;
+    confirmedShared.add("height_map");
+  }
+  if(Object.hasOwn(attrs,"closure")){
+    const direct=freshEvidence.closure_laces===true||
+      (styleConfirmed&&styleSource.closure_laces===true);
+    const lace=({IT:"Lacci",DE:"Schnürung",FR:"Lacets",ES:"Cordones"} as const)[input.marketplace];
+    if(!direct||JSON.stringify(attrs.closure)!==
+       JSON.stringify([{type:[{value:lace,language_tag:locale}],marketplace_id:marketId}]))
+      return false;
+  }
+  // Any unsupported or ambiguous product fact is still guarded by the
+  // narrow 4B12 pilot branch below, not a free-form product metadata write.
   // Extra product facts must match EXACT observed pilot source/market identity.
   // Never accept an arbitrary manufacturer/list price through a mock/plan.
   const extraFields=["outer","inner","sole_material",
     "lifestyle","leather_type","shaft","height_map","strap_type",
     "water_resistance_level","batteries_required","item_package_weight","item_package_dimensions"];
-  if (extraFields.some(k => Object.hasOwn(attrs,k))) {
+  if (extraFields.some(k => Object.hasOwn(attrs,k)&&!confirmedShared.has(k))) {
     const verifiedPlayNewGTIN:Record<string,string>={
       "4B12_PLAYNEW_D2045_37_EU":"8057270148088",
       "4B12_PLAYNEW_D2045_38_EU":"8057270148095",
@@ -276,7 +318,7 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
         height:{value:13,unit:"centimeters"},marketplace_id:marketId
       }]
     };
-    for(const key of extraFields)if(Object.hasOwn(attrs,key)&&
+    for(const key of extraFields)if(Object.hasOwn(attrs,key)&&!confirmedShared.has(key)&&
        JSON.stringify(attrs[key])!==JSON.stringify(expectedExtras[key])) return false;
   }
   for (const a of Object.values(attrs)) {
@@ -329,7 +371,8 @@ export async function createAmazonNewAsinShoesPilot(
   if (!researchVerified(source, input))
     return blocked(input, "fresh_identity_or_product_facts_changed");
   const shop=obj(source.shopify),capturedAttributes=obj(validatedCapture.attributes);
-  const requiresEvidence=["style","list_price","manufacturer"].some(k=>
+  const requiresEvidence=["style","list_price","manufacturer","sole_material",
+    "lifestyle","height_map","closure"].some(k=>
     Object.hasOwn(capturedAttributes,k));
   let freshEvidence: Row={};
   if(requiresEvidence){
