@@ -201,6 +201,34 @@ assert.equal(submittedOtherSize,"numeric_38");
 assert.equal(otherOuter,"Pelle e suede");
 assert.equal(otherPlay.provider_validation_status,"VALID");
 
+// Preview-only shared style facts translated for EU countries. No live writes.
+for(const entry of [
+  {market:"DE",marketId:"A1PA6795UKMFR9",outer:"Leder und Veloursleder",
+    inner:"Leder und Schaumstoff",sole:"Gummi"},
+  {market:"FR",marketId:"A13V1IB3VIYZZH",outer:"Cuir et daim",
+    inner:"Cuir et mousse",sole:"Caoutchouc"},
+  {market:"ES",marketId:"A1RKKUPIHCS9HS",outer:"Piel y ante",
+    inner:"Piel y espuma",sole:"Goma"}
+]){
+  let shown=null;
+  const resultEU=await run({marketplace:entry.market,sku:pilotSku},env,{
+    ...pilotDeps,
+    research:async()=>({...pilotResearch(),marketplace:entry.market}),
+    fetch:async(url,init)=>{
+      assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+      assert.equal(new URL(url).searchParams.get("marketplaceIds"),entry.marketId);
+      const p=JSON.parse(init.body),a=p.attributes;
+      shown={outer:a.outer?.[0]?.material?.[0]?.value,
+        inner:a.inner?.[0]?.material?.[0]?.value,sole:a.sole_material?.[0]?.value,
+        size:a.footwear_size?.[0]?.size};
+      return new Response(JSON.stringify({sku:pilotSku,status:"VALID",issues:[]}),
+        {status:200,headers:{"content-type":"application/json"}});
+    }
+  });
+  assert.deepEqual(shown,{outer:entry.outer,inner:entry.inner,
+    sole:entry.sole,size:"numeric_39"});
+  assert.equal(resultEU.provider_validation_status,"VALID");
+}
 // The normalized spelling remains forbidden on unrelated SKU identities.
 const outOfScope=await run(request,env,{
   ...deps,
