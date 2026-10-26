@@ -364,11 +364,12 @@ for(const sizeSystem of [undefined,{type:"single_line_text_field",value:"US"},{t
   assert.equal(actual.ok,true);
   assert.equal(actual.footwear_size,undefined,"No unitless EU inference without explicit Shopify evidence");
 }
-// A brand with a different confirmed Amazon mapping can never silently use vendor.
+// Brand-label fallback is permitted for a confirmed mapping, but missing
+// model and color still fail: these fields cannot be invented.
 const missingMappedBrand=source();
 missingMappedBrand.productVariant.product.metafields.nodes=[];
 assert.equal((await read(expected,{}, {queryShopify:async()=>missingMappedBrand})).reason,
-  "shopify_brand_field_mismatch");
+  "shopify_pilot_model_or_color_missing");
 const colorConflict=structuredClone(fallback);
 colorConflict.productVariant.product.fallbackColorText={type:"single_line_text_field",value:"Verde"};
 assert.equal((await read(fallbackExpected,{}, {queryShopify:async (_env,q,v)=>
