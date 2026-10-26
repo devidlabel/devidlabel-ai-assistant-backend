@@ -60,6 +60,7 @@ function proSource(){
   const s=source();
   s.productVariant.id=proExpected.variantId;
   s.productVariant.sku=proExpected.sku;
+  s.productVariant.selectedOptions=[{name:"Numero",value:"41 EU"}];
   s.productVariant.product.title=proExpected.productTitle;
   s.productVariant.product.vendor="Pro-Keds";
   s.productVariant.product.metafields.nodes=[];
@@ -77,6 +78,9 @@ assert.equal(proOk.merchant_shoes_composition?.outer,"100% pelle");
 assert.equal(proOk.merchant_shoes_composition?.inner,
  "50% pelle, 15% microfibra, 35% materiale tessile");
 assert.equal(proOk.merchant_shoes_composition?.sole,"Gomma");
+assert.equal(proOk.merchant_shoes_composition?.merchant_width,"wide");
+assert.deepEqual(proOk.footwear_size,{size:"numeric_41",size_class:"numeric",
+  size_system:"eu_footwear_size_system",age_group:"adult",gender:"men",width:"wide"});
 assert.ok(proOk.verified_paths.includes("product.descriptionHtml.ProKedsStructuredComposition"));
 // Even a nearly identical description must not override exact model evidence.
 for(const corrupt of [
