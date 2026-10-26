@@ -3,6 +3,7 @@ import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { researchAmazonNewAsinProductType } from "./marketplace-amazon-new-asin-research.js";
 import { previewAmazonNewAsinShoesValidation } from "./marketplace-amazon-new-asin-preview.js";
+import { readAmazonShoesPrivateShopifyValues } from "./marketplace-amazon-shoes-private-shopify-values.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
 /**
@@ -24,6 +25,7 @@ type Env = AmazonCredentials & MareBusinessShopifyEnv & {
 };
 export type NewAsinPilotDeps = {
   preview?: typeof previewAmazonNewAsinShoesValidation;
+  readPrivateFields?: typeof readAmazonShoesPrivateShopifyValues;
   research?: typeof researchAmazonNewAsinProductType;
   sellerReader?: typeof readAmazonSellerListingsDirect;
   accessToken?: typeof getAmazonAccessToken;
@@ -187,7 +189,7 @@ function researchVerified(r: Row, input: Input): boolean {
     typeof s.variant_id === "string" &&
     /^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(s.variant_id);
 }
-function payloadVerified(body: Row, marketId: string, research: Row, input: Input): boolean {
+function payloadVerified(body: Row, marketId: string, research: Row, input: Input, freshEvidence: Row): boolean {
   const attrs = obj(body.attributes), s = obj(research.shopify);
   if (body.productType !== "SHOES" || body.requirements !== "LISTING" ||
       Object.keys(body).sort().join("|") !== "attributes|productType|requirements" ||
@@ -202,10 +204,38 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       single("externally_assigned_product_identifier").value !== s.ean ||
       single("externally_assigned_product_identifier").type !== "ean")
     return false;
+  // Generic shared attributes require fresh exact Shopify variant evidence.
+  const locale=({IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"} as const)[input.marketplace];
+  if (Object.hasOwn(attrs,"style")){
+    if(freshEvidence.catalog_style!=="Sneaker"||JSON.stringify(attrs.style)!==
+       JSON.stringify([{value:"Sneaker",language_tag:locale,marketplace_id:marketId}]))
+      return false;
+  }
+  if (Object.hasOwn(attrs,"list_price")){
+    const price=freshEvidence.shopify_list_price_eur;
+    if(typeof price!=="number"||!Number.isFinite(price)||price<=0||
+       price>99999||JSON.stringify(attrs.list_price)!==
+       JSON.stringify([{currency:"EUR",value_with_tax:price,marketplace_id:marketId}]))
+      return false;
+    if(freshEvidence.shopify_snapshot_price!==s.shopify_price)return false;
+  }
+  if (Object.hasOwn(attrs,"manufacturer")){
+    const pilotOperator=obj(freshEvidence.pilot_brand_operator);
+    const modelPilot=/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(input.sku)&&
+      s.amazon_listing_brand==="4B12"&&s.product_title==="PlayNew D-2045 White/Bronze"&&
+      pilotOperator.name==="Medusa s.r.l."&&
+      pilotOperator.source==="OFFICIAL_4B12_CONTACTS_NOT_GPSR";
+    const manufacturer=freshEvidence.merchant_manufacturer_name;
+    const supported=typeof manufacturer==="string"&&manufacturer.length>1?
+      manufacturer:modelPilot?"Medusa s.r.l.":null;
+    if(!supported||JSON.stringify(attrs.manufacturer)!==
+      JSON.stringify([{value:supported,language_tag:locale,marketplace_id:marketId}]))
+      return false;
+  }
   // Extra product facts must match EXACT observed pilot source/market identity.
   // Never accept an arbitrary manufacturer/list price through a mock/plan.
-  const extraFields=["outer","inner","sole_material","manufacturer","list_price",
-    "lifestyle","style","leather_type","shaft","height_map","strap_type",
+  const extraFields=["outer","inner","sole_material",
+    "lifestyle","leather_type","shaft","height_map","strap_type",
     "water_resistance_level","batteries_required","item_package_weight","item_package_dimensions"];
   if (extraFields.some(k => Object.hasOwn(attrs,k))) {
     const verifiedPlayNewGTIN:Record<string,string>={
@@ -214,22 +244,27 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       "4B12_PLAYNEW_D2045_39_EU":"8057270148101",
       "4B12_PLAYNEW_D2045_40_EU":"8057270148118"
     };
-    if(input.marketplace!=="IT"||
-       !Object.hasOwn(verifiedPlayNewGTIN,input.sku)||
+    if(!Object.hasOwn(verifiedPlayNewGTIN,input.sku)||
        s.ean!==verifiedPlayNewGTIN[input.sku]||
        s.amazon_listing_brand!=="4B12"||
        s.product_title!=="PlayNew D-2045 White/Bronze"||
        s.shopify_price!=="179.10") return false;
+    const lc={
+      IT:{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",leather:"Pelle scamosciata"},
+      DE:{outer:"Leder und Veloursleder",inner:"Leder und Schaumstoff",sole:"Gummi",leather:"Veloursleder"},
+      FR:{outer:"Cuir et daim",inner:"Cuir et mousse",sole:"Caoutchouc",leather:"Cuir suédé"},
+      ES:{outer:"Piel y ante",inner:"Piel y espuma",sole:"Goma",leather:"Ante"}
+    }[input.marketplace];
     const expectedExtras:Record<string,unknown>={
-      outer:[{material:[{value:"Pelle e suede",language_tag:"it_IT"}],marketplace_id:marketId}],
-      inner:[{material:[{value:"Pelle e spugna",language_tag:"it_IT"}],marketplace_id:marketId}],
-      sole_material:[{value:"Gomma",language_tag:"it_IT",marketplace_id:marketId}],
-      manufacturer:[{value:"Medusa s.r.l.",language_tag:"it_IT",marketplace_id:marketId}],
+      outer:[{material:[{value:lc.outer,language_tag:locale}],marketplace_id:marketId}],
+      inner:[{material:[{value:lc.inner,language_tag:locale}],marketplace_id:marketId}],
+      sole_material:[{value:lc.sole,language_tag:locale,marketplace_id:marketId}],
+      manufacturer:[{value:"Medusa s.r.l.",language_tag:locale,marketplace_id:marketId}],
       list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}],
-      lifestyle:[{value:"Casual",language_tag:"it_IT",marketplace_id:marketId}],
-      style:[{value:"Sneaker",language_tag:"it_IT",marketplace_id:marketId}],
-      leather_type:[{value:"Pelle scamosciata",language_tag:"it_IT",marketplace_id:marketId}],
-      shaft:[{height:[{value:"6",unit:"centimeters",language_tag:"it_IT"}],marketplace_id:marketId}],
+      lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}],
+      style:[{value:"Sneaker",language_tag:locale,marketplace_id:marketId}],
+      leather_type:[{value:lc.leather,language_tag:locale,marketplace_id:marketId}],
+      shaft:[{height:[{value:"6",unit:"centimeters",language_tag:locale}],marketplace_id:marketId}],
       height_map:[{value:"low-top",marketplace_id:marketId}],
       strap_type:[{value:"no-strap",marketplace_id:marketId}],
       water_resistance_level:[{value:"not_water_resistant",marketplace_id:marketId}],
@@ -291,8 +326,29 @@ export async function createAmazonNewAsinShoesPilot(
   const source = obj(await (deps.research ?? researchAmazonNewAsinProductType)(
     { marketplace: input.marketplace, sku: input.sku, product_type: "SHOES" }, env
   ));
-  if (!researchVerified(source, input) || !payloadVerified(validatedCapture, marketId, source, input))
+  if (!researchVerified(source, input))
     return blocked(input, "fresh_identity_or_product_facts_changed");
+  const shop=obj(source.shopify),capturedAttributes=obj(validatedCapture.attributes);
+  const requiresEvidence=["style","list_price","manufacturer"].some(k=>
+    Object.hasOwn(capturedAttributes,k));
+  let freshEvidence: Row={};
+  if(requiresEvidence){
+    freshEvidence=obj(await(deps.readPrivateFields??readAmazonShoesPrivateShopifyValues)({
+      sku:input.sku,variantId:shop.variant_id as string,
+      productTitle:shop.product_title as string,shopifyVendor:shop.brand as string,
+      amazonBrand:shop.amazon_listing_brand as string
+    },env).catch(():Row=>({ok:false})));
+    const model=Array.isArray(capturedAttributes.model_name)?
+      obj(capturedAttributes.model_name[0]).value:null;
+    const color=Array.isArray(capturedAttributes.color)?
+      obj(capturedAttributes.color[0]).value:null;
+    if(freshEvidence.ok!==true||freshEvidence.draft_values_review_only!==true||
+       freshEvidence.ready_for_publication!==false||
+       freshEvidence.model_name!==model||freshEvidence.color!==color)
+      return blocked(input,"fresh_private_evidence_changed_or_unavailable");
+  }
+  if(!payloadVerified(validatedCapture, marketId, source, input,freshEvidence))
+    return blocked(input,"fresh_identity_or_product_facts_changed");
   const seller = obj(await (deps.sellerReader ?? readAmazonSellerListingsDirect)(
     { marketplace: input.marketplace, skus: [input.sku] }, env
   ));

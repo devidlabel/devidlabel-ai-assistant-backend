@@ -36,6 +36,18 @@ const ok=await read(expected,{}, {queryShopify});
 assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
+assert.equal(ok.catalog_style,"Sneaker");
+const priced=source();
+priced.productVariant.price="118.30";
+priced.productVariant.compareAtPrice="169.00";
+const priceEvidence=await read(expected,{},{queryShopify:async()=>priced});
+assert.equal(priceEvidence.shopify_list_price_eur,169);
+const reversed=source();
+reversed.productVariant.price="179.00";
+reversed.productVariant.compareAtPrice="169.00";
+const reversedEvidence=await read(expected,{},{queryShopify:async()=>reversed});
+assert.equal(reversedEvidence.shopify_list_price_eur,undefined);
+
 // Inventory origin may be sent only from the exact merchant-origin fields.
 const inventoryDeclared=source();
 inventoryDeclared.productVariant.inventoryItem={countryCodeOfOrigin:"IT"};

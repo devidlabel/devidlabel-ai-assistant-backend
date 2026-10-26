@@ -1,0 +1,35 @@
+name: Amazon SHOES PTD CI
+on:
+  pull_request:
+    paths:
+      - 'src/marketplace-amazon-new-asin-preview.ts'
+      - 'src/marketplace-amazon-shoes-private-shopify-values.ts'
+      - 'src/mare-business-amazon-shoes-create-pilot.ts'
+      - 'scripts/test-amazon-new-asin-preview.mjs'
+      - 'scripts/test-amazon-new-asin-create-pilot.mjs'
+      - 'scripts/test-amazon-shoes-private-shopify-values.mjs'
+      - '.github/workflows/amazon-shoes-ptd-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/marketplace-amazon-new-asin-preview.ts'
+      - 'src/marketplace-amazon-shoes-private-shopify-values.ts'
+      - 'src/mare-business-amazon-shoes-create-pilot.ts'
+      - '.github/workflows/amazon-shoes-ptd-ci.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:amazon-shoes-private-shopify-values
+      - run: npm run test:amazon-new-asin-validation
+      - run: npm run test:amazon-new-asin-create-pilot
