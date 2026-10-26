@@ -142,6 +142,19 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    // Shared Shopify Sneakers category: a merchandising style, not a
+    // statement about boot shaft, materials or product safety.
+    ...(evidence.catalog_style==="Sneaker"?{
+      style:[{value:"Sneaker",language_tag:locale,marketplace_id:marketId}]
+    }:{}),
+    // Shopify compareAtPrice is a LIST PRICE candidate. It must never be
+    // used as an Amazon purchasable_offer; Channable owns live offer prices.
+    ...(typeof evidence.shopify_list_price_eur==="number"&&
+        Number.isFinite(evidence.shopify_list_price_eur)&&
+        evidence.shopify_list_price_eur>0&&evidence.shopify_list_price_eur<=99999?{
+      list_price:[{currency:"EUR",value_with_tax:evidence.shopify_list_price_eur,
+        marketplace_id:marketId}]
+    }:{}),
     // One controlled SKU39 market-IT pilot: merchandising and shipping-box
     // estimates, labelled non-certified and deliberately restricted.
     ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
