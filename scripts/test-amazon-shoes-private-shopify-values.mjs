@@ -109,6 +109,26 @@ assert.equal(mismatch.ok,false);
 assert.equal(mismatch.reason,"shopify_brand_field_mismatch");
 
 assert.equal(ok.catalog_style,"Sneaker");
+const styleSource=source();
+styleSource.productVariant.product.descriptionHtml=
+  "<p>Le sneakers basse sono ideali per uno stile casual. I lacci trek assicurano una calzata stabile e precisa per l'uso quotidiano.</p>";
+const styleRead=await read(expected,{},{queryShopify:async()=>styleSource});
+assert.equal(styleRead.merchant_shoes_style?.casual,true);
+assert.equal(styleRead.merchant_shoes_style?.closure_laces,true);
+assert.equal(styleRead.merchant_shoes_style?.low_top,true);
+assert.ok(styleRead.verified_paths.includes("product.descriptionHtml.ExplicitShoeStyle"));
+const conflictSource=source();
+conflictSource.productVariant.product.descriptionHtml=
+  "<p>Le sneakers sono pensate per uno stile casual. I lacci trek assicurano la calzata, ma il sistema comprende anche una zip laterale.</p>";
+const conflictStyle=await read(expected,{},{queryShopify:async()=>conflictSource});
+assert.equal(conflictStyle.merchant_shoes_style?.casual,true);
+assert.equal(conflictStyle.merchant_shoes_style?.closure_laces,undefined);
+const silentStyle=source();
+silentStyle.productVariant.product.descriptionHtml=
+  "<p>Scarpa dal design contemporaneo in una colorazione originale, con dettagli estetici raffinati e carattere moderno per tutte le stagioni.</p>";
+const absentStyle=await read(expected,{},{queryShopify:async()=>silentStyle});
+assert.equal(absentStyle.merchant_shoes_style,undefined);
+
 // Explicit merchant outsole text can be reused across shoe brands, but
 // conflicting or unsupported phrases must never generate PTD materials.
 const rubberSource=source();
