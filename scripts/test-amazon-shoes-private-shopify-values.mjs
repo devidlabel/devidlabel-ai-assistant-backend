@@ -109,6 +109,30 @@ assert.equal(mismatch.ok,false);
 assert.equal(mismatch.reason,"shopify_brand_field_mismatch");
 
 assert.equal(ok.catalog_style,"Sneaker");
+// Explicit merchant outsole text can be reused across shoe brands, but
+// conflicting or unsupported phrases must never generate PTD materials.
+const rubberSource=source();
+rubberSource.productVariant.product.descriptionHtml=
+  "<p>Una sneaker classica a profilo basso con suola in gomma, per uso quotidiano e stile urbano, come dichiarato nella scheda Shopify del venditore.</p>";
+const rubberResult=await read(expected,{},{queryShopify:async()=>rubberSource});
+assert.equal(rubberResult.merchant_shoes_sole?.value,"Gomma");
+assert.ok(rubberResult.verified_paths.includes("product.descriptionHtml.ExplicitSoleMaterial"));
+const evaSource=source();
+evaSource.productVariant.product.descriptionHtml=
+  "<p>Una sneaker in pelle di montone con dettagli artigianali e suola EVA &amp; gomma, descritta nella scheda commerciale del negozio.</p>";
+const evaResult=await read(expected,{},{queryShopify:async()=>evaSource});
+assert.equal(evaResult.merchant_shoes_sole?.value,"EVA e gomma");
+const mixedSoles=source();
+mixedSoles.productVariant.product.descriptionHtml=
+  "<p>Scarpa con suola EVA &amp; gomma e battistrada in gomma; composizione mista che richiede verifica della scheda tecnica dal fornitore.</p>";
+const conflictingSole=await read(expected,{},{queryShopify:async()=>mixedSoles});
+assert.equal(conflictingSole.merchant_shoes_sole,undefined);
+const leatherSole=source();
+leatherSole.productVariant.product.descriptionHtml=
+  "<p>Sneaker in cuoio con suola in cuoio e battistrada in gomma, composizione non disambiguata commercialmente e da verificare.</p>";
+const leatherSoleResult=await read(expected,{},{queryShopify:async()=>leatherSole});
+assert.equal(leatherSoleResult.merchant_shoes_sole,undefined);
+
 const priced=source();
 priced.productVariant.price="118.30";
 priced.productVariant.compareAtPrice="169.00";
