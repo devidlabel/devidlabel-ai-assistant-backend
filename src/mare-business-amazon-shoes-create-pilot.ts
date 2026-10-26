@@ -334,10 +334,13 @@ export async function createAmazonNewAsinShoesPilot(
       productTitle:shop.product_title as string,shopifyVendor:shop.brand as string,
       amazonBrand:shop.amazon_listing_brand as string
     },env).catch(():Row=>({ok:false})));
+    const model=Array.isArray(capturedAttributes.model_name)?
+      obj(capturedAttributes.model_name[0]).value:null;
+    const color=Array.isArray(capturedAttributes.color)?
+      obj(capturedAttributes.color[0]).value:null;
     if(freshEvidence.ok!==true||freshEvidence.draft_values_review_only!==true||
        freshEvidence.ready_for_publication!==false||
-       freshEvidence.model_name!==obj(capturedAttributes.model_name?.[0]).value||
-       freshEvidence.color!==obj(capturedAttributes.color?.[0]).value)
+       freshEvidence.model_name!==model||freshEvidence.color!==color)
       return blocked(input,"fresh_private_evidence_changed_or_unavailable");
   }
   if(!payloadVerified(validatedCapture, marketId, source, input,freshEvidence))
