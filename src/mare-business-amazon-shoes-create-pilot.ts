@@ -221,8 +221,7 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
   }
   if (Object.hasOwn(attrs,"manufacturer")){
     const pilotOperator=obj(freshEvidence.pilot_brand_operator);
-    const modelPilot=input.marketplace==="IT"&&
-      /^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(input.sku)&&
+    const modelPilot=/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(input.sku)&&
       s.amazon_listing_brand==="4B12"&&s.product_title==="PlayNew D-2045 White/Bronze"&&
       pilotOperator.name==="Medusa s.r.l."&&
       pilotOperator.source==="OFFICIAL_4B12_CONTACTS_NOT_GPSR";
@@ -245,22 +244,27 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       "4B12_PLAYNEW_D2045_39_EU":"8057270148101",
       "4B12_PLAYNEW_D2045_40_EU":"8057270148118"
     };
-    if(input.marketplace!=="IT"||
-       !Object.hasOwn(verifiedPlayNewGTIN,input.sku)||
+    if(!Object.hasOwn(verifiedPlayNewGTIN,input.sku)||
        s.ean!==verifiedPlayNewGTIN[input.sku]||
        s.amazon_listing_brand!=="4B12"||
        s.product_title!=="PlayNew D-2045 White/Bronze"||
        s.shopify_price!=="179.10") return false;
+    const lc={
+      IT:{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",leather:"Pelle scamosciata"},
+      DE:{outer:"Leder und Veloursleder",inner:"Leder und Schaumstoff",sole:"Gummi",leather:"Veloursleder"},
+      FR:{outer:"Cuir et daim",inner:"Cuir et mousse",sole:"Caoutchouc",leather:"Cuir suédé"},
+      ES:{outer:"Piel y ante",inner:"Piel y espuma",sole:"Goma",leather:"Ante"}
+    }[input.marketplace];
     const expectedExtras:Record<string,unknown>={
-      outer:[{material:[{value:"Pelle e suede",language_tag:"it_IT"}],marketplace_id:marketId}],
-      inner:[{material:[{value:"Pelle e spugna",language_tag:"it_IT"}],marketplace_id:marketId}],
-      sole_material:[{value:"Gomma",language_tag:"it_IT",marketplace_id:marketId}],
-      manufacturer:[{value:"Medusa s.r.l.",language_tag:"it_IT",marketplace_id:marketId}],
+      outer:[{material:[{value:lc.outer,language_tag:locale}],marketplace_id:marketId}],
+      inner:[{material:[{value:lc.inner,language_tag:locale}],marketplace_id:marketId}],
+      sole_material:[{value:lc.sole,language_tag:locale,marketplace_id:marketId}],
+      manufacturer:[{value:"Medusa s.r.l.",language_tag:locale,marketplace_id:marketId}],
       list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}],
-      lifestyle:[{value:"Casual",language_tag:"it_IT",marketplace_id:marketId}],
-      style:[{value:"Sneaker",language_tag:"it_IT",marketplace_id:marketId}],
-      leather_type:[{value:"Pelle scamosciata",language_tag:"it_IT",marketplace_id:marketId}],
-      shaft:[{height:[{value:"6",unit:"centimeters",language_tag:"it_IT"}],marketplace_id:marketId}],
+      lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}],
+      style:[{value:"Sneaker",language_tag:locale,marketplace_id:marketId}],
+      leather_type:[{value:lc.leather,language_tag:locale,marketplace_id:marketId}],
+      shaft:[{height:[{value:"6",unit:"centimeters",language_tag:locale}],marketplace_id:marketId}],
       height_map:[{value:"low-top",marketplace_id:marketId}],
       strap_type:[{value:"no-strap",marketplace_id:marketId}],
       water_resistance_level:[{value:"not_water_resistant",marketplace_id:marketId}],
