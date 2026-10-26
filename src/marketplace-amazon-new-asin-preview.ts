@@ -135,9 +135,9 @@ export async function previewAmazonNewAsinShoesValidation(
     color:[{value:evidence.color,marketplace_id:marketId}],
     // One controlled SKU39 market-IT pilot: merchandising and shipping-box
     // estimates, labelled non-certified and deliberately restricted.
-    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
-        obj(evidence.pilot_commercial_assumptions).source==="MERCHANT_REVIEW_PROVISIONAL_SKU39"&&
+        obj(evidence.pilot_commercial_assumptions).source==="MERCHANT_REVIEW_PROVISIONAL_PLAYNEW_D2045"&&
         obj(evidence.pilot_commercial_assumptions).package_weight_kg===1.2&&
         obj(evidence.pilot_commercial_assumptions).shaft_height_cm===6?{
       lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}],
@@ -159,21 +159,21 @@ export async function previewAmazonNewAsinShoesValidation(
 
     // Exact model/operator on 4b12.it/contattaci; this brand-operator
     // identification does not prove manufacturer GPSR certification.
-    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         obj(evidence.pilot_brand_operator).name==="Medusa s.r.l."&&
         obj(evidence.pilot_brand_operator).source==="OFFICIAL_4B12_CONTACTS_NOT_GPSR"?{
       manufacturer:[{value:"Medusa s.r.l.",language_tag:locale,marketplace_id:marketId}]
     }:{}),
     // Compare-at 199.00 on the exact Shopify variant, NOT a guessed MSRP.
-    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         evidence.pilot_list_price_eur===199?{
       list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}]
     }:{}),
 
     // Narrow 4B12 D2045 size39 retail-evidence pilot (not GPSR evidence).
-    ...(marketplace==="IT"&&sku==="4B12_PLAYNEW_D2045_39_EU"&&
+    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         obj(evidence.pilot_materials).source==="RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"&&
         obj(evidence.pilot_materials).outer==="Pelle e suede"&&
