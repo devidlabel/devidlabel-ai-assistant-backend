@@ -185,7 +185,7 @@ assert.equal(play.age_range_description,"adult");
 assert.equal(play.pilot_list_price_eur,199);
 assert.equal(play.pilot_commercial_assumptions.package_weight_kg,1.2);
 assert.equal(play.pilot_commercial_assumptions.shaft_height_cm,6);
-assert.equal(play.pilot_commercial_assumptions.source,"MERCHANT_REVIEW_PROVISIONAL_SKU39");
+assert.equal(play.pilot_commercial_assumptions.source,"MERCHANT_REVIEW_PROVISIONAL_PLAYNEW_D2045");
 assert.deepEqual(play.pilot_brand_operator,{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"});
 assert.deepEqual(play.pilot_materials,{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"});
 assert.deepEqual(play.footwear_size,{
@@ -195,6 +195,27 @@ assert.deepEqual(play.footwear_size,{
 assert.deepEqual(play.pilot_assumptions,[
   "EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"
 ]);
+
+// Shared Shopify product style: size38 must inherit the same documented
+// material/brand evidence but retains its own SKU/variant/size identity.
+const play38Expected={...playExpected,sku:"4B12_PLAYNEW_D2045_38_EU",
+  variantId:"gid://shopify/ProductVariant/54713971016021"};
+const play38Source=structuredClone(playSource);
+play38Source.productVariant.id=play38Expected.variantId;
+play38Source.productVariant.sku=play38Expected.sku;
+play38Source.productVariant.selectedOptions=[{name:"Numero",value:"38 EU"}];
+const play38Read=await read(play38Expected,{},{
+  queryShopify:async(_env,q,vars)=>q.includes("metaobject(id:$colorId)")?
+    {metaobject:{id:vars.colorId,type:"product_feature_color",displayName:"Bianco",
+      fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+    play38Source
+});
+assert.equal(play38Read.ok,true);
+assert.equal(play38Read.footwear_size.size,"numeric_38");
+assert.equal(play38Read.pilot_materials.sole,"Gomma");
+assert.equal(play38Read.pilot_list_price_eur,199);
+assert.equal(play38Read.pilot_commercial_assumptions.source,
+  "MERCHANT_REVIEW_PROVISIONAL_PLAYNEW_D2045");
 
 // Reject HTML carrying executable elements. No hidden body fields are inferred.
 const dangerous=structuredClone(fallback);
