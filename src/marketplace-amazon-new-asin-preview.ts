@@ -168,6 +168,8 @@ export async function previewAmazonNewAsinShoesValidation(
   const explicitSoleValid=explicitSole.source==="MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT"&&
     typeof explicitSole.value==="string"&&
     Object.hasOwn(soleMap[marketplace],explicitSole.value);
+  const merchantStyle=obj(evidence.merchant_shoes_style);
+  const sourcedStyle=merchantStyle.source==="SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION";
   const payload={productType:"SHOES",requirements:"LISTING",attributes:{
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
@@ -188,6 +190,18 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    // Merchant-documented footwear style, not physical measurements or GPSR.
+    ...(sourcedStyle&&merchantStyle.casual===true?{
+      lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]
+    }:{}),
+    ...(sourcedStyle&&merchantStyle.closure_laces===true?{
+      closure:[{type:[{value:LACE_CLOSURE_LABELS[marketplace],
+        language_tag:locale}],marketplace_id:marketId}]
+    }:{}),
+    ...(sourcedStyle&&merchantStyle.low_top===true?{
+      height_map:[{value:"low-top",marketplace_id:marketId}]
+    }:{}),
+
     ...(explicitSoleValid?{sole_material:[{
       value:soleMap[marketplace][explicitSole.value as string],
       language_tag:locale,marketplace_id:marketId
