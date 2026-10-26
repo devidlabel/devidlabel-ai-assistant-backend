@@ -134,7 +134,7 @@ function proKedsComposition(raw:unknown,identity:{sku:string;productTitle:string
   const composition=/<p><strong>Composizione:<\/strong>\s*([^<>]{70,380})<\/p>/i.exec(raw)?.[1];
   const normalize=(x:string)=>x.toLowerCase().replace(/,\s*|\s+e\s+/g," ").replace(/\s+/g," ").trim();
   const outerFromComposition=composition?.match(/^Tomaia\s+([^;]+);\s*fodera\s+/i)?.[1];
-  if(!composition||!outerFromComposition||
+  if(!outer||!composition||!outerFromComposition||
      normalize(outerFromComposition)!==normalize(outer)||
      !/;\s*fodera 50% pelle, 15% microfibra, 35% materiale tessile;\s*soletta interna 100% tessuto;\s*suola esterna 100% gomma\./i.test(composition))
     return {};
