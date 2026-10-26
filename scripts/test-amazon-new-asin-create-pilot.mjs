@@ -108,9 +108,12 @@ function harness(options = {}) {
     },
     sellerReader: async raw => {
       calls.push("seller");
-      assert.deepEqual(raw, {
-        marketplace: input.marketplace, skus: [input.sku]
-      });
+      assert.deepEqual(raw.skus,[input.sku]);
+      if(raw.marketplace!==input.marketplace){
+        const state=options.crossMarketStates?.[raw.marketplace]??"VERIFIED_ABSENT";
+        return {ok:true,marketplace:raw.marketplace,
+          results:[{sku:input.sku,state}]};
+      }
       sellerReads++;
       if (sellerReads === 1) return {
         ok: true, marketplace: input.marketplace,
@@ -201,7 +204,8 @@ await test(async () => {
   assert.equal(JSON.stringify(r).includes("user@example.com"), false);
   assert.match(r.issue_details_redacted?.[0]?.message_redacted ?? "", /Required manufacturer missing/);
   assert.deepEqual(h.calls, [
-    "preview", "PREVIEW_PUT", "research", "seller", "token", "LIVE_DEFAULT_PUT"
+    "preview", "PREVIEW_PUT", "research", "seller",
+    "seller", "seller", "seller", "token", "LIVE_DEFAULT_PUT"
   ]);
 });
 await test(async () => {
@@ -244,6 +248,20 @@ await test(async () => {
   const r = await h.run();
   assert.equal(r.status, "BLOCKED_NEW_ASIN_PILOT");
   assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"), false);
+});
+await test(async () => {
+  const h=harness({crossMarketStates:{DE:"PRESENT"}});
+  const r=await h.run();
+  assert.equal(r.status,"BLOCKED_NEW_ASIN_PILOT");
+  assert.equal(r.blocker,"cross_market_seller_listing_present_uncoordinated");
+  assert.equal(r.other_marketplace,"DE");
+  assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"),false);
+});
+await test(async () => {
+  const h=harness({crossMarketStates:{FR:"PRESENT_ATTRIBUTES_UNKNOWN"}});
+  const r=await h.run();
+  assert.equal(r.blocker,"cross_market_seller_listing_present_uncoordinated");
+  assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"),false);
 });
 await test(async () => {
   const h = harness({ currentSellerState: "PRESENT" });
@@ -296,9 +314,8 @@ await test(async () => {
       };
     },
     research: async () => source(),
-    sellerReader: async () => ({
-      ok: true, marketplace: input.marketplace,
-      results: [{ sku: input.sku, state: "VERIFIED_ABSENT" }]
+    sellerReader: async ({marketplace}) => ({
+      ok:true, marketplace,results:[{sku:input.sku,state:"VERIFIED_ABSENT"}]
     }),
     accessToken: async () => "synthetic-token",
     fetch: async (url, init) => {
