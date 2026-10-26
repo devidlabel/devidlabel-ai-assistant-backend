@@ -155,6 +155,14 @@ export async function previewAmazonNewAsinShoesValidation(
       list_price:[{currency:"EUR",value_with_tax:evidence.shopify_list_price_eur,
         marketplace_id:marketId}]
     }:{}),
+    // Only a merchant-entered operator name, without any GPSR inference.
+    ...(typeof evidence.merchant_manufacturer_name==="string"&&
+        evidence.merchant_manufacturer_name.length>1&&
+        evidence.merchant_manufacturer_name.length<=100&&
+        !/[<>]/.test(evidence.merchant_manufacturer_name)?{
+      manufacturer:[{value:evidence.merchant_manufacturer_name,
+        language_tag:locale,marketplace_id:marketId}]
+    }:{}),
     // One controlled SKU39 market-IT pilot: merchandising and shipping-box
     // estimates, labelled non-certified and deliberately restricted.
     ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
