@@ -142,6 +142,70 @@ assert.equal(commonAttributes.fulfillment_availability,undefined);
 assert.ok(crossBrand.attributes_submitted.includes("style"));
 assert.ok(crossBrand.attributes_submitted.includes("list_price"));
 
+// Cross-brand source-backed materials: Pro-Keds Royal Classic is merchant
+// HTML composition evidence, not GPSR and never a live product update.
+const proSku="PROKEDS_RC426SLM_LL_WB00006_41";
+const proComposition={source:"SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML",
+  model_number:"RC426SLM",model_bullet:"Royal Classic",
+  outer:"100% pelle",inner:"50% pelle, 15% microfibra, 35% materiale tessile",
+  sole:"Gomma",merchant_gender:"Uomo"};
+for(const [market,outer,inner,sole] of [
+  ["IT","100% pelle","50% pelle, 15% microfibra, 35% materiale tessile","Gomma"],
+  ["DE","100% Leder","50% Leder, 15% Mikrofaser, 35% Textil","Gummi"],
+  ["FR","100% cuir","50% cuir, 15% microfibre, 35% textile","Caoutchouc"],
+  ["ES","100% piel","50% piel, 15% microfibra, 35% tejido","Goma"],
+]){
+  let shown=null;
+  const r=await run({marketplace:market,sku:proSku},env,{
+    research:async()=>({...research(),marketplace:market,sku:proSku,
+      shopify:{...research().shopify,brand:"Pro-Keds",
+        amazon_listing_brand:"Pro-Keds",product_title:"Royal Classic White/Blue"}}),
+    readPrivateFields:async()=>({ok:true,model_name:"Royal Classic",color:"White/Blue",
+      model_number:"RC426SLM",bullet_point:"Royal Classic",
+      merchant_shoes_composition:proComposition,
+      draft_values_review_only:true,public_storefront_access_used:false,
+      ready_for_publication:false}),
+    getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
+    fetch:async(_url,init)=>{
+      const a=JSON.parse(init.body).attributes;
+      shown={outer:a.outer?.[0]?.material?.[0]?.value,
+        inner:a.inner?.[0]?.material?.[0]?.value,
+        sole:a.sole_material?.[0]?.value,
+        model:a.model_number?.[0]?.value};
+      assert.equal(a.purchasable_offer,undefined);
+      assert.equal(a.fulfillment_availability,undefined);
+      return new Response(JSON.stringify({sku:proSku,status:"VALID",
+        submissionId:"pro-001",issues:[]}),{status:200,
+        headers:{"content-type":"application/json"}});
+    }
+  });
+  assert.equal(r.provider_validation_status,"VALID");
+  assert.deepEqual(shown,{outer,inner,sole,model:"RC426SLM"});
+  for(const key of ["outer","inner","sole_material","model_number"])
+    assert.ok(r.attributes_submitted.includes(key));
+}
+// A model-code mismatch must not pass product composition into PTD.
+let wrongMaterials=null;
+await run({marketplace:"IT",sku:proSku},env,{
+  research:async()=>({...research(),marketplace:"IT",sku:proSku,
+    shopify:{...research().shopify,brand:"Pro-Keds",
+      amazon_listing_brand:"Pro-Keds",product_title:"Royal Classic White/Blue"}}),
+  readPrivateFields:async()=>({ok:true,model_name:"Royal Classic",color:"White/Blue",
+    merchant_shoes_composition:{...proComposition,model_number:"WRONG"},
+    draft_values_review_only:true,public_storefront_access_used:false,
+    ready_for_publication:false}),
+  getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
+  fetch:async(_url,init)=>{
+    wrongMaterials=JSON.parse(init.body).attributes;
+    return new Response(JSON.stringify({sku:proSku,status:"INVALID",
+      submissionId:"pro-002",issues:[]}),{status:200,
+      headers:{"content-type":"application/json"}});
+  }
+});
+assert.equal(wrongMaterials.outer,undefined);
+assert.equal(wrongMaterials.inner,undefined);
+assert.equal(wrongMaterials.sole_material,undefined);
+
 // Pilot regression: normalized numeric_39 must reach the Amazon preview,
 // rather than be silently dropped by our generic two-digit size guard.
 const pilotSku="4B12_PLAYNEW_D2045_39_EU";
