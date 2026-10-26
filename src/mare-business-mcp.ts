@@ -11,6 +11,7 @@ import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest }
 import { createAmazonOfferOnlyPilot } from "./mare-business-amazon-offer-create-pilot.js";
 import { previewAmazonNewAsinShoesValidation } from "./marketplace-amazon-new-asin-preview.js";
 import { createAmazonNewAsinShoesPilot } from "./mare-business-amazon-shoes-create-pilot.js";
+import { patchFirstAmazonAsinImagePrice } from "./mare-business-amazon-first-asin-media-price-pilot.js";
 import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-accessory-upc-preview.js";
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
@@ -512,6 +513,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "amazon.offer.create.pilot") return textToolResult(await createAmazonOfferOnlyPilot(request, env));
   if (plan.capability_id === "amazon.shoes.new_asin.validation.preview") return textToolResult(await previewAmazonNewAsinShoesValidation(request,env));
   if (plan.capability_id === "amazon.shoes.new_asin.create.pilot") return textToolResult(await createAmazonNewAsinShoesPilot(request,env));
+  if (plan.capability_id === "amazon.shoes.first_asin.image_price.pilot") return textToolResult(await patchFirstAmazonAsinImagePrice(request,env));
   if (plan.capability_id === "amazon.accessory.upc.validation.preview") return textToolResult(await previewAmazonAccessoryUpcValidation(request,env));
   if (plan.capability_id === "amazon.generic.ean.validation.preview") return textToolResult(await previewAmazonGenericEanValidation(request,env));
   if (plan.capability_id === "amazon.it.inactive_report.request") return textToolResult(await requestAmazonItInactiveReport(request,env));

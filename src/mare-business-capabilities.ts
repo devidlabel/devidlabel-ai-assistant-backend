@@ -421,6 +421,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.shoes.first_asin.image_price.pilot",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Exact SKU/ASIN first 4B12 canary only: Amazon PATCH VALIDATION_PREVIEW then LIVE PATCH of Shopify main product photo and current B2C price €179.10. Source is verified again in Shopify and Amazon seller identity is checked twice. DOES NOT write quantity, GPSR, Shopify, Channable or other marketplaces; acceptance is not BUYABLE proof.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT"]},
+        sku:{type:"string",enum:["4B12_PLAYNEW_D2045_39_EU"]},
+        asin:{type:"string",enum:["B0HPBKM8SL"]}
+      },["marketplace","sku","asin"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.shoes.new_asin.create.pilot",provider:"amazon",domain:"marketplace",
       operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
