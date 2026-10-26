@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "generated_at": "2026-10-26T19:59:49.450Z",
+  "generated_at": "2026-10-26T20:03:22.144Z",
   "kind": "amazon_eu_direct_s3_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
@@ -43,11 +43,11 @@
       "rows": 2104,
       "unique_skus": 2104,
       "duplicate_sku_rows": 0,
-      "active": 696,
-      "inactive": 1408,
+      "active": 700,
+      "inactive": 1404,
       "status_unknown": 0,
-      "report_created_at": "2026-10-26T19:48:42.000Z",
-      "report_age_hours": 0.2,
+      "report_created_at": "2026-10-26T20:02:18.000Z",
+      "report_age_hours": 0,
       "fresh_within_24h": true,
       "snapshot_complete": true,
       "safe_for_missing_sku_classification": true,
