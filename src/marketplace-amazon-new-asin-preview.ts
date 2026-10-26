@@ -158,6 +158,16 @@ export async function previewAmazonNewAsinShoesValidation(
     ES:"50% piel, 15% microfibra, 35% tejido",
   };
   const proKedsSole:Record<string,string>={IT:"Gomma",DE:"Gummi",FR:"Caoutchouc",ES:"Goma"};
+  const explicitSole=obj(evidence.merchant_shoes_sole);
+  const soleMap:Record<string,Record<string,string>>={
+    IT:{"Gomma":"Gomma","EVA e gomma":"EVA e gomma"},
+    DE:{"Gomma":"Gummi","EVA e gomma":"EVA und Gummi"},
+    FR:{"Gomma":"Caoutchouc","EVA e gomma":"EVA et caoutchouc"},
+    ES:{"Gomma":"Goma","EVA e gomma":"EVA y goma"},
+  };
+  const explicitSoleValid=explicitSole.source==="MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT"&&
+    typeof explicitSole.value==="string"&&
+    Object.hasOwn(soleMap[marketplace],explicitSole.value);
   const payload={productType:"SHOES",requirements:"LISTING",attributes:{
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
@@ -178,6 +188,10 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    ...(explicitSoleValid?{sole_material:[{
+      value:soleMap[marketplace][explicitSole.value as string],
+      language_tag:locale,marketplace_id:marketId
+    }]}:{}),
     // Provenance: product-level merchant HTML fields matched against exact SKU
     // and full composition. Do not infer GPSR/manufacturer or package measures.
     ...(proKedsValid&&verifiedRoyal?{
