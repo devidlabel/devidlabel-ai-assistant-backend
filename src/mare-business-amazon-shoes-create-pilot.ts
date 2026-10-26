@@ -322,8 +322,26 @@ export async function createAmazonNewAsinShoesPilot(
   const source = obj(await (deps.research ?? researchAmazonNewAsinProductType)(
     { marketplace: input.marketplace, sku: input.sku, product_type: "SHOES" }, env
   ));
-  if (!researchVerified(source, input) || !payloadVerified(validatedCapture, marketId, source, input))
+  if (!researchVerified(source, input))
     return blocked(input, "fresh_identity_or_product_facts_changed");
+  const shop=obj(source.shopify),capturedAttributes=obj(validatedCapture.attributes);
+  const requiresEvidence=["style","list_price","manufacturer"].some(k=>
+    Object.hasOwn(capturedAttributes,k));
+  let freshEvidence: Row={};
+  if(requiresEvidence){
+    freshEvidence=obj(await(deps.readPrivateFields??readAmazonShoesPrivateShopifyValues)({
+      sku:input.sku,variantId:shop.variant_id as string,
+      productTitle:shop.product_title as string,shopifyVendor:shop.brand as string,
+      amazonBrand:shop.amazon_listing_brand as string
+    },env).catch(():Row=>({ok:false})));
+    if(freshEvidence.ok!==true||freshEvidence.draft_values_review_only!==true||
+       freshEvidence.ready_for_publication!==false||
+       freshEvidence.model_name!==obj(capturedAttributes.model_name?.[0]).value||
+       freshEvidence.color!==obj(capturedAttributes.color?.[0]).value)
+      return blocked(input,"fresh_private_evidence_changed_or_unavailable");
+  }
+  if(!payloadVerified(validatedCapture, marketId, source, input,freshEvidence))
+    return blocked(input,"fresh_identity_or_product_facts_changed");
   const seller = obj(await (deps.sellerReader ?? readAmazonSellerListingsDirect)(
     { marketplace: input.marketplace, skus: [input.sku] }, env
   ));
