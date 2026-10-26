@@ -98,6 +98,51 @@ function merchantDescription(raw:unknown,identity?:{sku:string;productTitle:stri
     ...(bulletPoint?{bullet_point:bulletPoint}:dSource?{bullet_point:technicalBullet[0]}:{}),
     ...(closureLaces?{closure_laces:true as const}:dSource?{closure_laces:true as const}:{})};
 }
+/**
+ * Merchant-authored model-specific composition for Royal Classic Pro-Keds.
+ * This is strict exact-product HTML extraction for Amazon validation previews.
+ * It is NOT a supplier certificate, GPSR attestation or live-write permission.
+ */
+function proKedsComposition(raw:unknown,identity:{sku:string;productTitle:string;shopifyVendor:string}):Row {
+  if(identity.shopifyVendor!=="Pro-Keds"||typeof raw!=="string"||
+     raw.length<500||raw.length>8000||!/^Royal Classic [A-Za-z/ ]{3,65}$/.test(identity.productTitle))
+    return {};
+  const codes=/^PROKEDS_(RC426SL[MW])_(SL|LL|LG|SG)_([A-Z]{2}[0-9]{5})_(?:3[5-9]|4[0-9]|50)$/.exec(identity.sku);
+  if(!codes)return {};
+  const labels=new Map<string,string>();
+  for(const m of raw.matchAll(/<li>\s*<strong>([A-Za-zÀ-ÿ ]{3,35}):<\/strong>\s*([^<>]{1,120})<\/li>/gi)){
+    const key=m[1].trim().toLowerCase(),val=m[2].trim();
+    if(labels.has(key))return {};
+    labels.set(key,val);
+  }
+  const code=codes[1],materialCode=codes[2],colorCode=codes[3];
+  const male=code.endsWith("M");
+  const gender=male?"Uomo":"Donna";
+  const color=identity.productTitle.slice("Royal Classic ".length);
+  const outer=labels.get("tomaia"),sole=labels.get("suola");
+  const availableOuters=new Map<string,string>([
+    ["SL","83% suede, 17% pelle"],
+    ["LL","100% pelle"],
+    ["LG","73% pelle, 22% suede, 5% tessuto glitter"],
+    ["SG","83% suede, 12% pelle, 5% tessuto glitter"]
+  ]);
+  if(labels.get("modello")!=="Royal Classic"||
+     labels.get("genere")!==gender||labels.get("colore")!==color||
+     labels.get("codice modello")!==code||labels.get("codice materiale")!==materialCode||
+     labels.get("codice colore")!==colorCode||outer!==availableOuters.get(materialCode)||
+     sole!=="100% gomma")return {};
+  const composition=/<p><strong>Composizione:<\/strong>\s*([^<>]{70,380})<\/p>/i.exec(raw)?.[1];
+  const normalize=(x:string)=>x.toLowerCase().replace(/,\s*|\s+e\s+/g," ").replace(/\s+/g," ").trim();
+  const outerFromComposition=composition?.match(/^Tomaia\s+([^;]+);\s*fodera\s+/i)?.[1];
+  if(!composition||!outerFromComposition||
+     normalize(outerFromComposition)!==normalize(outer)||
+     !/;\s*fodera 50% pelle, 15% microfibra, 35% materiale tessile;\s*soletta interna 100% tessuto;\s*suola esterna 100% gomma\./i.test(composition))
+    return {};
+  return {source:"SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML",
+    model_number:code,model_bullet:"Royal Classic",outer,
+    inner:"50% pelle, 15% microfibra, 35% materiale tessile",
+    sole:"Gomma",merchant_gender:gender};
+}
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
 }
@@ -247,6 +292,7 @@ export async function readAmazonShoesPrivateShopifyValues(
     /^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(expected.sku)&&
     targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
+  const proKeds=proKedsComposition(product.descriptionHtml,expected);
   // Catalog compare-at is list-price evidence, not an Amazon sell price.
   const comparison=variant.compareAtPrice,now=variant.price;
   const priceFormat=/^[0-9]{1,5}\.[0-9]{2}$/;
@@ -255,6 +301,9 @@ export async function readAmazonShoesPrivateShopifyValues(
     Number(comparison)>=Number(now)&&Number(comparison)>0)?
     Number(comparison):undefined;
   return {ok:true,model_name:model,color,...descriptionEvidence,
+    ...(proKeds.source?{merchant_shoes_composition:proKeds,
+      model_number:descriptionEvidence.model_number??proKeds.model_number,
+      bullet_point:descriptionEvidence.bullet_point??proKeds.model_bullet}:{}),
     ...(listPrice!==undefined?{shopify_list_price_eur:listPrice}:{}),
     catalog_style:"Sneaker",
     ...(typeof variant.price==="string"?{shopify_snapshot_price:variant.price}:{}),
@@ -302,7 +351,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       ...(explicitAdultAge?[fields.has("age_range_description")?
         "product.amazon_ptd_shoes.age_range_description":"variant.mm-google-shopping.age_group"]:[]),
       ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
-      ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[])],
+      ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[]),
+      ...(proKeds.source?["product.descriptionHtml.ProKedsStructuredComposition"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
 }
