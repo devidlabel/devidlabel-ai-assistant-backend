@@ -306,6 +306,21 @@ export async function previewAmazonNewAsinShoesValidation(
             obj(evidence.footwear_size).width==="medium" &&
             obj(evidence.footwear_size).size===
               "numeric_"+sku.match(/_([34][0-9])_EU$/)?.[1]
+          ) ||
+          (
+            brand==="Pro-Keds"&&
+            /^PROKEDS_(RC426SL[MW])_(SL|LL|LG|SG)_[A-Z]{2}[0-9]{5}_(?:3[5-9]|4[0-9]|50)$/.test(sku)&&
+            obj(evidence.merchant_shoes_composition).source===
+              "SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML"&&
+            obj(evidence.merchant_shoes_composition).merchant_width==="wide"&&
+            obj(evidence.merchant_shoes_composition).model_number===
+              sku.match(/^PROKEDS_(RC426SL[MW])_/)?.[1]&&
+            obj(evidence.footwear_size).age_group==="adult"&&
+            obj(evidence.footwear_size).width==="wide"&&
+            obj(evidence.footwear_size).gender===
+              (sku.includes("_RC426SLM_")?"men":"women")&&
+            obj(evidence.footwear_size).size===
+              "numeric_"+sku.match(/_([34][0-9]|50)$/)?.[1]
           )
         )&&
         obj(evidence.footwear_size).size_class==="numeric"&&
