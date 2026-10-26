@@ -254,6 +254,7 @@ export async function readAmazonShoesPrivateShopifyValues(
   return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(listPrice!==undefined?{shopify_list_price_eur:listPrice}:{}),
     catalog_style:"Sneaker",
+    ...(typeof variant.price==="string"?{shopify_snapshot_price:variant.price}:{}),
     // Only explicitly entered merchant manufacturer; NOT a GPSR claim.
     ...(safeText(fields.get("manufacturer"),100)?{
       merchant_manufacturer_name:fields.get("manufacturer")
