@@ -36,6 +36,23 @@ const ok=await read(expected,{}, {queryShopify});
 assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
+// Back70's merchant-confirmed listing label must resolve even when an older
+// Shopify product has no redundant amazon_ptd_shoes.amazon_brand metafield.
+const merchantMapped=source();
+merchantMapped.productVariant.product.metafields.nodes=
+  merchantMapped.productVariant.product.metafields.nodes.filter(v=>v.key!=="amazon_brand");
+const resolved=await read(expected,{}, {queryShopify:async()=>merchantMapped});
+assert.equal(resolved.ok,true);
+assert.equal(resolved.model_name,"Mohair");
+assert.ok(resolved.verified_paths.includes("merchant_confirmed_vendor_brand_mapping"));
+const badMapping=source();
+badMapping.productVariant.product.metafields.nodes=
+  badMapping.productVariant.product.metafields.nodes.map(v=>v.key==="amazon_brand"?
+    {...v,value:"Back70"}:v);
+const mismatch=await read(expected,{}, {queryShopify:async()=>badMapping});
+assert.equal(mismatch.ok,false);
+assert.equal(mismatch.reason,"shopify_brand_field_mismatch");
+
 assert.equal(ok.catalog_style,"Sneaker");
 const priced=source();
 priced.productVariant.price="118.30";
