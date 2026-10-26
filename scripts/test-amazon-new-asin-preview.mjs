@@ -146,7 +146,7 @@ const pilotDeps={
     pilot_materials:{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"},
     pilot_brand_operator:{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"},
     pilot_list_price_eur:199,
-    pilot_commercial_assumptions:{source:"MERCHANT_REVIEW_PROVISIONAL_SKU39",package_weight_kg:1.2,shaft_height_cm:6},
+    pilot_commercial_assumptions:{source:"MERCHANT_REVIEW_PROVISIONAL_PLAYNEW_D2045",package_weight_kg:1.2,shaft_height_cm:6},
     draft_values_review_only:true,public_storefront_access_used:false,
     ready_for_publication:false
   }),
@@ -177,6 +177,30 @@ assert.equal(pilotSubmittedPackage?.length?.value,34);
 assert.equal(pilotSubmittedPackage?.height?.value,13);
 assert.equal(pilotResult.pilot_size_value_submitted,"numeric_39");
 assert.ok(pilotResult.attributes_submitted.includes("footwear_size"));
+// Reuse the exact model's catalogue fields for a second genuine Shopify size.
+const otherPlaySku="4B12_PLAYNEW_D2045_38_EU";
+let submittedOtherSize=null,otherOuter=null;
+const otherPlay=await run({marketplace:"IT",sku:otherPlaySku},env,{
+  research:async()=>({...pilotResearch(),sku:otherPlaySku,
+    shopify:{...pilotResearch().shopify,
+      ean:"8057270148095",variant_id:"gid://shopify/ProductVariant/54713971016021"}}),
+  readPrivateFields:async()=>({...await pilotDeps.readPrivateFields(),
+    footwear_size:{size:"numeric_38",size_class:"numeric",
+      size_system:"eu_footwear_size_system",age_group:"adult",gender:"women",width:"medium"}}),
+  getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
+  fetch:async(_url,init)=>{
+    const a=JSON.parse(init.body).attributes;
+    submittedOtherSize=a.footwear_size?.[0]?.size;
+    otherOuter=a.outer?.[0]?.material?.[0]?.value;
+    return new Response(JSON.stringify({sku:otherPlaySku,status:"VALID",
+      submissionId:"abc-38",issues:[]}),{status:200,
+      headers:{"content-type":"application/json"}});
+  }
+});
+assert.equal(submittedOtherSize,"numeric_38");
+assert.equal(otherOuter,"Pelle e suede");
+assert.equal(otherPlay.provider_validation_status,"VALID");
+
 // The normalized spelling remains forbidden on unrelated SKU identities.
 const outOfScope=await run(request,env,{
   ...deps,
