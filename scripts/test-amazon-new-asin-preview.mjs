@@ -117,6 +117,31 @@ assert.equal(JSON.stringify(result).includes("sensitive original provider"),fals
 assert.equal(JSON.stringify(result).includes(ean),false);
 assert.equal(JSON.stringify(result).includes("Mock Sneaker Ivory"),false);
 
+// Shared evidence applies across brands in preview mode only.
+let commonAttributes;
+const crossBrand=await run(request,env,{
+  ...deps,
+  readPrivateFields:async()=>({
+    ok:true,model_name:"Mohair",color:"Camel/Butter",
+    draft_values_review_only:true,public_storefront_access_used:false,
+    ready_for_publication:false,catalog_style:"Sneaker",
+    shopify_list_price_eur:169
+  }),
+  fetch:async(_url,init)=>{
+    commonAttributes=JSON.parse(init.body).attributes;
+    return new Response(JSON.stringify({sku,status:"VALID",
+      submissionId:"crossbrand-001",issues:[]}),{status:200,
+      headers:{"content-type":"application/json"}});
+  }
+});
+assert.equal(crossBrand.provider_validation_status,"VALID");
+assert.equal(commonAttributes.style[0].value,"Sneaker");
+assert.equal(commonAttributes.list_price[0].value_with_tax,169);
+assert.equal(commonAttributes.purchasable_offer,undefined);
+assert.equal(commonAttributes.fulfillment_availability,undefined);
+assert.ok(crossBrand.attributes_submitted.includes("style"));
+assert.ok(crossBrand.attributes_submitted.includes("list_price"));
+
 // Pilot regression: normalized numeric_39 must reach the Amazon preview,
 // rather than be silently dropped by our generic two-digit size guard.
 const pilotSku="4B12_PLAYNEW_D2045_39_EU";
