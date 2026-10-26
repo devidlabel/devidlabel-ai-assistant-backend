@@ -122,6 +122,42 @@ export async function previewAmazonNewAsinShoesValidation(
     ES:{outer:"Piel y ante",inner:"Piel y espuma",sole:"Goma",leather:"Ante"}
   };
   const localized=playNewLocalized[marketplace]??playNewLocalized.IT;
+  // Every Pro-Keds model's materials originate from exact SKU + product HTML
+  // with consistent merchant-maintained composition labels. Only preview.
+  const proKeds=obj(evidence.merchant_shoes_composition);
+  const verifiedRoyal=/^PROKEDS_(RC426SL[MW])_(SL|LL|LG|SG)_([A-Z]{2}[0-9]{5})_(?:3[5-9]|4[0-9]|50)$/.exec(sku);
+  const uppers:Record<string,string>={
+    SL:"83% suede, 17% pelle",LL:"100% pelle",
+    LG:"73% pelle, 22% suede, 5% tessuto glitter",
+    SG:"83% suede, 12% pelle, 5% tessuto glitter"
+  };
+  const proKedsValid=brand==="Pro-Keds"&&title.startsWith("Royal Classic ")&&
+    proKeds.source==="SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML"&&
+    !!verifiedRoyal&&proKeds.model_number===verifiedRoyal?.[1]&&
+    proKeds.outer===uppers[verifiedRoyal?.[2]??""]&&
+    proKeds.inner==="50% pelle, 15% microfibra, 35% materiale tessile"&&
+    proKeds.sole==="Gomma";
+  const proKedsOuter:Record<string,Record<string,string>>={
+    IT:{SL:"83% suede, 17% pelle",LL:"100% pelle",
+      LG:"73% pelle, 22% suede, 5% tessuto glitter",
+      SG:"83% suede, 12% pelle, 5% tessuto glitter"},
+    DE:{SL:"83% Veloursleder, 17% Leder",LL:"100% Leder",
+      LG:"73% Leder, 22% Veloursleder, 5% Glitzertextil",
+      SG:"83% Veloursleder, 12% Leder, 5% Glitzertextil"},
+    FR:{SL:"83% daim, 17% cuir",LL:"100% cuir",
+      LG:"73% cuir, 22% daim, 5% textile pailleté",
+      SG:"83% daim, 12% cuir, 5% textile pailleté"},
+    ES:{SL:"83% ante, 17% piel",LL:"100% piel",
+      LG:"73% piel, 22% ante, 5% tejido brillante",
+      SG:"83% ante, 12% piel, 5% tejido brillante"},
+  };
+  const proKedsInner:Record<string,string>={
+    IT:"50% pelle, 15% microfibra, 35% materiale tessile",
+    DE:"50% Leder, 15% Mikrofaser, 35% Textil",
+    FR:"50% cuir, 15% microfibre, 35% textile",
+    ES:"50% piel, 15% microfibra, 35% tejido",
+  };
+  const proKedsSole:Record<string,string>={IT:"Gomma",DE:"Gummi",FR:"Caoutchouc",ES:"Goma"};
   const payload={productType:"SHOES",requirements:"LISTING",attributes:{
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
@@ -142,6 +178,17 @@ export async function previewAmazonNewAsinShoesValidation(
       value:LACE_CLOSURE_LABELS[marketplace],language_tag:locale,
     }],marketplace_id:marketId}]}:{}),
     color:[{value:evidence.color,marketplace_id:marketId}],
+    // Provenance: product-level merchant HTML fields matched against exact SKU
+    // and full composition. Do not infer GPSR/manufacturer or package measures.
+    ...(proKedsValid&&verifiedRoyal?{
+      outer:[{material:[{value:proKedsOuter[marketplace][verifiedRoyal[2]],
+        language_tag:locale}],marketplace_id:marketId}],
+      inner:[{material:[{value:proKedsInner[marketplace],
+        language_tag:locale}],marketplace_id:marketId}],
+      sole_material:[{value:proKedsSole[marketplace],
+        language_tag:locale,marketplace_id:marketId}],
+    }:{}),
+
     // Shared Shopify Sneakers category: a merchandising style, not a
     // statement about boot shaft, materials or product safety.
     ...(evidence.catalog_style==="Sneaker"?{
