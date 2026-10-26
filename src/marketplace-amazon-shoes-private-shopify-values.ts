@@ -143,6 +143,25 @@ function proKedsComposition(raw:unknown,identity:{sku:string;productTitle:string
     inner:"50% pelle, 15% microfibra, 35% materiale tessile",
     sole:"Gomma",merchant_gender:gender};
 }
+/**
+ * Sourced outsole material for SHOES VALIDATION_PREVIEW only.
+ * A retailer's explicit description is not a supplier laboratory report.
+ * Do not extrapolate other materials, water resistance, shaft or GPSR.
+ */
+function merchantExplicitSole(raw:unknown):Row{
+  if(typeof raw!=="string"||raw.length<60||raw.length>14000||
+     /<\s*(?:script|style|iframe|object|embed|svg|form)\b/i.test(raw))
+    return {};
+  const text=raw.replace(/<[^>]*>/g," ").replace(/&amp;/gi,"&")
+    .replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
+  if(text.length<60||/\b(?:suola (?:in|di) (?:pelle|cuoio)|suola esterna in cuoio)\b/i.test(text))
+    return {};
+  const mixed=/\bsuola\s+(?:esterna\s+)?(?:in\s+)?EVA\s*(?:&|e)\s*gomma\b/i.test(text);
+  const rubber=/\b(?:suola\s+(?:esterna\s+)?(?:in|di)\s+gomma|fondo\s+in\s+gomma|battistrada\s+in\s+gomma)\b/i.test(text);
+  if(mixed===rubber)return {};
+  return {source:"MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT",
+    value:mixed?"EVA e gomma":"Gomma"};
+}
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
 }
@@ -293,6 +312,7 @@ export async function readAmazonShoesPrivateShopifyValues(
     targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   const proKeds=proKedsComposition(product.descriptionHtml,expected);
+  const merchantSole=merchantExplicitSole(product.descriptionHtml);
   // Catalog compare-at is list-price evidence, not an Amazon sell price.
   const comparison=variant.compareAtPrice,now=variant.price;
   const priceFormat=/^[0-9]{1,5}\.[0-9]{2}$/;
@@ -301,6 +321,7 @@ export async function readAmazonShoesPrivateShopifyValues(
     Number(comparison)>=Number(now)&&Number(comparison)>0)?
     Number(comparison):undefined;
   return {ok:true,model_name:model,color,...descriptionEvidence,
+    ...(merchantSole.source?{merchant_shoes_sole:merchantSole}:{}),
     ...(proKeds.source?{merchant_shoes_composition:proKeds,
       model_number:descriptionEvidence.model_number??proKeds.model_number,
       bullet_point:descriptionEvidence.bullet_point??proKeds.model_bullet}:{}),
@@ -352,7 +373,8 @@ export async function readAmazonShoesPrivateShopifyValues(
         "product.amazon_ptd_shoes.age_range_description":"variant.mm-google-shopping.age_group"]:[]),
       ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
       ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[]),
-      ...(proKeds.source?["product.descriptionHtml.ProKedsStructuredComposition"]:[])],
+      ...(proKeds.source?["product.descriptionHtml.ProKedsStructuredComposition"]:[]),
+      ...(merchantSole.source?["product.descriptionHtml.ExplicitSoleMaterial"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
 }
