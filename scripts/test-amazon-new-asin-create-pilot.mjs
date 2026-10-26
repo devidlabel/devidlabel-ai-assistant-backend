@@ -36,7 +36,8 @@ const source = patch => ({
     shopify_product_type: "Sneakers",
     ean, amazon_listing_brand: "4B12",
     product_title: "Synthetic PlayNew White Bronze",
-    shopify_available: 3, variant_id: "gid://shopify/ProductVariant/1234567890"
+    shopify_available: 3, variant_id: "gid://shopify/ProductVariant/1234567890",
+    shopify_price:"118.30", brand:"4B12"
   }, ...patch
 });
 const payload = {
@@ -99,6 +100,12 @@ function harness(options = {}) {
       });
       return source(options.source);
     },
+    readPrivateFields:async () => {
+      calls.push("private");
+      return options.freshEvidence ?? {ok:true,model_name:"PlayNew",color:"White Bronze",
+        shopify_snapshot_price:"118.30",shopify_list_price_eur:169,
+        catalog_style:"Sneaker",draft_values_review_only:true,ready_for_publication:false};
+    },
     sellerReader: async raw => {
       calls.push("seller");
       assert.deepEqual(raw, {
@@ -141,7 +148,7 @@ function harness(options = {}) {
       assert.equal(p.requirements, "LISTING");
       assert.equal(p.attributes.fulfillment_availability[0].quantity, 0);
       assert.deepEqual(Object.keys(p.attributes).sort(),
-        [...Object.keys(payload.attributes), "fulfillment_availability"].sort());
+        [...Object.keys((options.previewPayload ?? payload).attributes), "fulfillment_availability"].sort());
       assert.equal(p.attributes.purchasable_offer, undefined);
       assert.equal(p.attributes.manufacturer, undefined);
       if (options.transportError) throw Error("synthetic failure after send");
@@ -156,8 +163,32 @@ function harness(options = {}) {
     options.input ?? input, options.env ?? env, fake
   ) };
 }
+// A shared model style and compare-at list price are allowed only after
+// a fresh, identical merchant Shopify read. Never attach offer price.
+const commonPayload={...payload,attributes:{
+  ...payload.attributes,
+  style:[{value:"Sneaker",language_tag:"it_IT",marketplace_id:marketId}],
+  list_price:[{currency:"EUR",value_with_tax:169,marketplace_id:marketId}]
+}};
 let count = 0;
 const test = async run => { await run(); count++; };
+await test(async () => {
+  const h=harness({previewPayload:commonPayload});
+  const r=await h.run();
+  assert.equal(r.status,"AMAZON_REJECTED_NEW_ASIN_SUBMISSION");
+  assert.ok(h.calls.includes("private"));
+  assert.ok(h.calls.includes("LIVE_DEFAULT_PUT"));
+});
+await test(async () => {
+  const h=harness({previewPayload:commonPayload,
+    freshEvidence:{ok:true,model_name:"PlayNew",color:"White Bronze",
+      shopify_snapshot_price:"118.30",shopify_list_price_eur:170,
+      catalog_style:"Sneaker",draft_values_review_only:true,
+      ready_for_publication:false}});
+  const r=await h.run();
+  assert.equal(r.status,"BLOCKED_NEW_ASIN_PILOT");
+  assert.ok(!h.calls.includes("LIVE_DEFAULT_PUT"));
+});
 await test(async () => {
   const h = harness();
   const r = await h.run();
