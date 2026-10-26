@@ -254,6 +254,10 @@ export async function readAmazonShoesPrivateShopifyValues(
   return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(listPrice!==undefined?{shopify_list_price_eur:listPrice}:{}),
     catalog_style:"Sneaker",
+    // Only explicitly entered merchant manufacturer; NOT a GPSR claim.
+    ...(safeText(fields.get("manufacturer"),100)?{
+      merchant_manufacturer_name:fields.get("manufacturer")
+    }:{}),
     ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"]}:{}),
     // PlayNew D2045 style evidence for the four exact Shopify variants (37-40): retail size-independent materials cross-checked with
     // https://www.loggishop.com/products/4b12-playnew-d2045-white-bronze
