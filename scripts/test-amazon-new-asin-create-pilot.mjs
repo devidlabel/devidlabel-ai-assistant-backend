@@ -173,6 +173,20 @@ const commonPayload={...payload,attributes:{
   style:[{value:"Sneaker",language_tag:"it_IT",marketplace_id:marketId}],
   list_price:[{currency:"EUR",value_with_tax:169,marketplace_id:marketId}]
 }};
+const sourcedPayload={...commonPayload,attributes:{
+  ...commonPayload.attributes,
+  sole_material:[{value:"Gomma",language_tag:"it_IT",marketplace_id:marketId}],
+  lifestyle:[{value:"Casual",language_tag:"it_IT",marketplace_id:marketId}],
+  closure:[{type:[{value:"Lacci",language_tag:"it_IT"}],marketplace_id:marketId}],
+  height_map:[{value:"low-top",marketplace_id:marketId}]
+}};
+const sourcedFresh={ok:true,model_name:"PlayNew",color:"White Bronze",
+  shopify_snapshot_price:"118.30",shopify_list_price_eur:169,
+  catalog_style:"Sneaker",
+  merchant_shoes_sole:{source:"MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT",value:"Gomma"},
+  merchant_shoes_style:{source:"SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION",
+    casual:true,closure_laces:true,low_top:true},
+  draft_values_review_only:true,ready_for_publication:false};
 let count = 0;
 const test = async run => { await run(); count++; };
 await test(async () => {
@@ -191,6 +205,32 @@ await test(async () => {
   const r=await h.run();
   assert.equal(r.status,"BLOCKED_NEW_ASIN_PILOT");
   assert.ok(!h.calls.includes("LIVE_DEFAULT_PUT"));
+});
+await test(async () => {
+  const h=harness({previewPayload:sourcedPayload,freshEvidence:sourcedFresh});
+  const r=await h.run();
+  assert.equal(r.status,"AMAZON_REJECTED_NEW_ASIN_SUBMISSION");
+  assert.equal(r.provider_write_attempted,true);
+  assert.ok(h.calls.includes("LIVE_DEFAULT_PUT"));
+});
+await test(async () => {
+  const h=harness({previewPayload:sourcedPayload,freshEvidence:{
+    ...sourcedFresh,merchant_shoes_sole:{
+      source:"MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT",value:"EVA e gomma"}
+  }});
+  const r=await h.run();
+  assert.equal(r.status,"BLOCKED_NEW_ASIN_PILOT");
+  assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"),false);
+});
+await test(async () => {
+  const h=harness({previewPayload:sourcedPayload,freshEvidence:{
+    ...sourcedFresh,merchant_shoes_style:{
+      source:"SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION",
+      casual:true,low_top:true}
+  }});
+  const r=await h.run();
+  assert.equal(r.status,"BLOCKED_NEW_ASIN_PILOT");
+  assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"),false);
 });
 await test(async () => {
   const h = harness();
