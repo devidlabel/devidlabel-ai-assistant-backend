@@ -162,6 +162,26 @@ function merchantExplicitSole(raw:unknown):Row{
   return {source:"MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT",
     value:mixed?"EVA e gomma":"Gomma"};
 }
+/** Marketing category hints explicitly visible in Shopify description.
+ * They are optional preview-only labels, NOT factory or GPSR attestations.
+ */
+function merchantExplicitShoeStyle(raw:unknown):Row{
+  if(typeof raw!=="string"||raw.length<60||raw.length>14000||
+     /<\s*(?:script|style|iframe|object|embed|svg|form)\b/i.test(raw))
+    return {};
+  const text=raw.replace(/<[^>]*>/g," ").replace(/&amp;/gi,"&")
+    .replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
+  if(text.length<60)return {};
+  const casual=/\b(?:stile|look|outfit|abbigliamento)\s+(?:\w+\s+){0,2}casual\b|\bcasual\s+(?:urbano|premium|lifestyle)\b/i.test(text);
+  const laces=!/\b(?:velcro|zip|cerniera|fibbia)\b/i.test(text)&&
+    /\b(?:chiusura con lacci|lacci\s+(?:trek|in cotone|a contrasto|assicurano))\b/i.test(text);
+  const low=/\b(?:sneakers? basse|sneaker low-top|profilo basso)\b/i.test(text)&&
+    !/\b(?:high-top|alta alla caviglia|stivaletto)\b/i.test(text);
+  if(!casual&&!laces&&!low)return {};
+  return {source:"SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION",
+    ...(casual?{casual:true}:{}),...(laces?{closure_laces:true}:{}),
+    ...(low?{low_top:true}:{})};
+}
 function fail(reason:string):{ok:false;reason:string}{
   return {ok:false,reason};
 }
@@ -313,6 +333,7 @@ export async function readAmazonShoesPrivateShopifyValues(
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   const proKeds=proKedsComposition(product.descriptionHtml,expected);
   const merchantSole=merchantExplicitSole(product.descriptionHtml);
+  const styleEvidence=merchantExplicitShoeStyle(product.descriptionHtml);
   // Catalog compare-at is list-price evidence, not an Amazon sell price.
   const comparison=variant.compareAtPrice,now=variant.price;
   const priceFormat=/^[0-9]{1,5}\.[0-9]{2}$/;
@@ -321,6 +342,7 @@ export async function readAmazonShoesPrivateShopifyValues(
     Number(comparison)>=Number(now)&&Number(comparison)>0)?
     Number(comparison):undefined;
   return {ok:true,model_name:model,color,...descriptionEvidence,
+    ...(styleEvidence.source?{merchant_shoes_style:styleEvidence}:{}),
     ...(merchantSole.source?{merchant_shoes_sole:merchantSole}:{}),
     ...(proKeds.source?{merchant_shoes_composition:proKeds,
       model_number:descriptionEvidence.model_number??proKeds.model_number,
@@ -374,7 +396,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
       ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[]),
       ...(proKeds.source?["product.descriptionHtml.ProKedsStructuredComposition"]:[]),
-      ...(merchantSole.source?["product.descriptionHtml.ExplicitSoleMaterial"]:[])],
+      ...(merchantSole.source?["product.descriptionHtml.ExplicitSoleMaterial"]:[]),
+      ...(styleEvidence.source?["product.descriptionHtml.ExplicitShoeStyle"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
     product_created:false,ready_for_publication:false};
 }
