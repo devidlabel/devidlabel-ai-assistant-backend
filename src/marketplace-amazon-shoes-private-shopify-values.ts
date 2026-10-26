@@ -244,7 +244,16 @@ export async function readAmazonShoesPrivateShopifyValues(
     /^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(expected.sku)&&
     targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
+  // Catalog compare-at is list-price evidence, not an Amazon sell price.
+  const comparison=variant.compareAtPrice,now=variant.price;
+  const priceFormat=/^[0-9]{1,5}\.[0-9]{2}$/;
+  const listPrice=(typeof comparison==="string"&&priceFormat.test(comparison)&&
+    typeof now==="string"&&priceFormat.test(now)&&
+    Number(comparison)>=Number(now)&&Number(comparison)>0)?
+    Number(comparison):undefined;
   return {ok:true,model_name:model,color,...descriptionEvidence,
+    ...(listPrice!==undefined?{shopify_list_price_eur:listPrice}:{}),
+    catalog_style:"Sneaker",
     ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"]}:{}),
     // PlayNew D2045 style evidence for the four exact Shopify variants (37-40): retail size-independent materials cross-checked with
     // https://www.loggishop.com/products/4b12-playnew-d2045-white-bronze
