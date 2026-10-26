@@ -221,7 +221,7 @@ for(const entry of [
       shown={outer:a.outer?.[0]?.material?.[0]?.value,
         inner:a.inner?.[0]?.material?.[0]?.value,sole:a.sole_material?.[0]?.value,
         size:a.footwear_size?.[0]?.size};
-      return new Response(JSON.stringify({sku:pilotSku,status:"VALID",issues:[]}),
+      return new Response(JSON.stringify({sku:pilotSku,status:"VALID",submissionId:"mock-eu-preview-001",issues:[]}),
         {status:200,headers:{"content-type":"application/json"}});
     }
   });
