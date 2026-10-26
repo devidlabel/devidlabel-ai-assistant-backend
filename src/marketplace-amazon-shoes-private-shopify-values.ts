@@ -246,17 +246,17 @@ export async function readAmazonShoesPrivateShopifyValues(
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   return {ok:true,model_name:model,color,...descriptionEvidence,
     ...(playNewPilot?{pilot_assumptions:["EU_REGULAR_WIDTH_MEDIUM","ADULT_FROM_WOMENS_DEPARTMENT","AMAZON_NUMERIC_SIZE_LABEL_REVIEW"]}:{}),
-    // Pilot SKU39 only: exact EAN 8057270148101 cross-checked with
+    // PlayNew D2045 style evidence for the four exact Shopify variants (37-40): retail size-independent materials cross-checked with
     // https://www.loggishop.com/products/4b12-playnew-d2045-white-bronze
     // and https://stimm.com/collections/scarpe-da-donna/products/4b12sneakers-in-pelle-playnew-white-bronze
     // RETAILER descriptions, NOT manufacturer-certified materials/GPSR.
-    ...(playNewPilot&&expected.sku==="4B12_PLAYNEW_D2045_39_EU"?{
+    ...(playNewPilot?{
       pilot_brand_operator:{name:"Medusa s.r.l.",source:"OFFICIAL_4B12_CONTACTS_NOT_GPSR"},
-      // Merchandising pilot ONLY. Exact D2045 SKU39. Package data are
+      // Dry-run SKU37-40 pilot ONLY. Package data are
       // provisional shoe-box estimates, NOT measured or manufacturer values.
-      // Do not propagate to other SKUs or claim GPSR compliance.
+      // Do not propagate to other styles or claim GPSR compliance.
       pilot_commercial_assumptions:{
-        source:"MERCHANT_REVIEW_PROVISIONAL_SKU39",
+        source:"MERCHANT_REVIEW_PROVISIONAL_PLAYNEW_D2045",
         lifestyle:"Casual",style:"Sneaker",leather_type:"Pelle scamosciata",
         shaft_height_cm:6,height_map:"low-top",strap_type:"no-strap",
         water_resistance_level:"not_water_resistant",batteries_required:false,
