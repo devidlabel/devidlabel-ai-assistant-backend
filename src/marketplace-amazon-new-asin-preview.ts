@@ -113,6 +113,15 @@ export async function previewAmazonNewAsinShoesValidation(
   // independently manufacturer certified or usable as GPSR/write approval.
   // No material, manufacturer, brand permission or price is inferred.
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
+  // Preview-only locale texts for exact PlayNew style. Live writer remains
+  // restricted to IT until per-country PTD and commercial eligibility proven.
+  const playNewLocalized:Record<string,{outer:string,inner:string,sole:string,leather:string}>={
+    IT:{outer:"Pelle e suede",inner:"Pelle e spugna",sole:"Gomma",leather:"Pelle scamosciata"},
+    DE:{outer:"Leder und Veloursleder",inner:"Leder und Schaumstoff",sole:"Gummi",leather:"Veloursleder"},
+    FR:{outer:"Cuir et daim",inner:"Cuir et mousse",sole:"Caoutchouc",leather:"Cuir suédé"},
+    ES:{outer:"Piel y ante",inner:"Piel y espuma",sole:"Goma",leather:"Ante"}
+  };
+  const localized=playNewLocalized[marketplace]??playNewLocalized.IT;
   const payload={productType:"SHOES",requirements:"LISTING",attributes:{
     brand:[{value:brand,marketplace_id:marketId}],
     item_name:[{value:title,language_tag:locale,marketplace_id:marketId}],
@@ -135,14 +144,14 @@ export async function previewAmazonNewAsinShoesValidation(
     color:[{value:evidence.color,marketplace_id:marketId}],
     // One controlled SKU39 market-IT pilot: merchandising and shipping-box
     // estimates, labelled non-certified and deliberately restricted.
-    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
+    ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         obj(evidence.pilot_commercial_assumptions).source==="MERCHANT_REVIEW_PROVISIONAL_PLAYNEW_D2045"&&
         obj(evidence.pilot_commercial_assumptions).package_weight_kg===1.2&&
         obj(evidence.pilot_commercial_assumptions).shaft_height_cm===6?{
       lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}],
       style:[{value:"Sneaker",language_tag:locale,marketplace_id:marketId}],
-      leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}],
+      leather_type:[{value:localized.leather,language_tag:locale,marketplace_id:marketId}],
       shaft:[{height:[{value:"6",unit:"centimeters",language_tag:locale}],marketplace_id:marketId}],
       height_map:[{value:"low-top",marketplace_id:marketId}],
       strap_type:[{value:"no-strap",marketplace_id:marketId}],
@@ -159,29 +168,29 @@ export async function previewAmazonNewAsinShoesValidation(
 
     // Exact model/operator on 4b12.it/contattaci; this brand-operator
     // identification does not prove manufacturer GPSR certification.
-    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
+    ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         obj(evidence.pilot_brand_operator).name==="Medusa s.r.l."&&
         obj(evidence.pilot_brand_operator).source==="OFFICIAL_4B12_CONTACTS_NOT_GPSR"?{
       manufacturer:[{value:"Medusa s.r.l.",language_tag:locale,marketplace_id:marketId}]
     }:{}),
     // Compare-at 199.00 on the exact Shopify variant, NOT a guessed MSRP.
-    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
+    ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         evidence.pilot_list_price_eur===199?{
       list_price:[{currency:"EUR",value_with_tax:199,marketplace_id:marketId}]
     }:{}),
 
     // Narrow 4B12 D2045 size39 retail-evidence pilot (not GPSR evidence).
-    ...(marketplace==="IT"&&/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
+    ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
         brand==="4B12"&&title==="PlayNew D-2045 White/Bronze"&&
         obj(evidence.pilot_materials).source==="RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"&&
         obj(evidence.pilot_materials).outer==="Pelle e suede"&&
         obj(evidence.pilot_materials).inner==="Pelle e spugna"&&
         obj(evidence.pilot_materials).sole==="Gomma"?{
-      outer:[{material:[{value:"Pelle e suede",language_tag:locale}],marketplace_id:marketId}],
-      inner:[{material:[{value:"Pelle e spugna",language_tag:locale}],marketplace_id:marketId}],
-      sole_material:[{value:"Gomma",language_tag:locale,marketplace_id:marketId}],
+      outer:[{material:[{value:localized.outer,language_tag:locale}],marketplace_id:marketId}],
+      inner:[{material:[{value:localized.inner,language_tag:locale}],marketplace_id:marketId}],
+      sole_material:[{value:localized.sole,language_tag:locale,marketplace_id:marketId}],
     }:{}),
 
     ...(evidence.target_gender==="female"||evidence.target_gender==="male"||
