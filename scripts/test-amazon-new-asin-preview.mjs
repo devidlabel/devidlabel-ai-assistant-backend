@@ -206,6 +206,38 @@ assert.equal(wrongMaterials.outer,undefined);
 assert.equal(wrongMaterials.inner,undefined);
 assert.equal(wrongMaterials.sole_material,undefined);
 
+// Cross-brand merchant outsole materials are localized for preview, with no
+// FBM quantity, purchase price or manufacturer/GPSR claims.
+for(const [market,expectedRubber,expectedEva] of [
+  ["IT","Gomma","EVA e gomma"],
+  ["DE","Gummi","EVA und Gummi"],
+  ["FR","Caoutchouc","EVA et caoutchouc"],
+  ["ES","Goma","EVA y goma"]
+]){
+ for(const [material,expectedValue] of [["Gomma",expectedRubber],
+   ["EVA e gomma",expectedEva]]){
+  let shown=null;
+  const result=await run({marketplace:market,sku},env,{
+   research:async()=>({...research(),marketplace:market}),
+   readPrivateFields:async()=>({ok:true,model_name:"Mohair",color:"Camel/Butter",
+     merchant_shoes_sole:{source:"MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT",value:material},
+     draft_values_review_only:true,public_storefront_access_used:false,
+     ready_for_publication:false}),
+   getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
+   fetch:async(_url,init)=>{
+     const a=JSON.parse(init.body).attributes;
+     shown=a.sole_material?.[0]?.value;
+     assert.equal(a.purchasable_offer,undefined);
+     assert.equal(a.fulfillment_availability,undefined);
+     return new Response(JSON.stringify({sku,status:"VALID",submissionId:"sole-001",
+       issues:[]}),{status:200,headers:{"content-type":"application/json"}});
+   }
+  });
+  assert.equal(result.provider_validation_status,"VALID");
+  assert.equal(shown,expectedValue);
+  assert.ok(result.attributes_submitted.includes("sole_material"));
+ }
+}
 // Pilot regression: normalized numeric_39 must reach the Amazon preview,
 // rather than be silently dropped by our generic two-digit size guard.
 const pilotSku="4B12_PLAYNEW_D2045_39_EU";
