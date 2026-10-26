@@ -130,7 +130,8 @@ function proKedsComposition(raw:unknown,identity:{sku:string;productTitle:string
      labels.get("genere")!==gender||labels.get("colore")!==color||
      labels.get("codice modello")!==code||labels.get("codice materiale")!==materialCode||
      labels.get("codice colore")!==colorCode||outer!==availableOuters.get(materialCode)||
-     sole!=="100% gomma")return {};
+     sole!=="100% gomma"||
+     !/^wide, con maggiore spazio/i.test(labels.get("vestibilità")??""))return {};
   const composition=/<p><strong>Composizione:<\/strong>\s*([^<>]{70,380})<\/p>/i.exec(raw)?.[1];
   const normalize=(x:string)=>x.toLowerCase().replace(/,\s*|\s+e\s+/g," ").replace(/\s+/g," ").trim();
   const outerFromComposition=composition?.match(/^Tomaia\s+([^;]+);\s*fodera\s+/i)?.[1];
@@ -141,7 +142,7 @@ function proKedsComposition(raw:unknown,identity:{sku:string;productTitle:string
   return {source:"SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML",
     model_number:code,model_bullet:"Royal Classic",outer,
     inner:"50% pelle, 15% microfibra, 35% materiale tessile",
-    sole:"Gomma",merchant_gender:gender};
+    sole:"Gomma",merchant_gender:gender,merchant_width:"wide"};
 }
 /**
  * Sourced outsole material for SHOES VALIDATION_PREVIEW only.
@@ -332,6 +333,10 @@ export async function readAmazonShoesPrivateShopifyValues(
     targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
   const proKeds=proKedsComposition(product.descriptionHtml,expected);
+  const proKedsAdultWidth=proKeds.source==="SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML"&&
+    proKeds.merchant_width==="wide"&&typeof selectedSize==="string"&&
+    (proKeds.merchant_gender==="Uomo"&&targetGender==="male"||
+     proKeds.merchant_gender==="Donna"&&targetGender==="female");
   const merchantSole=merchantExplicitSole(product.descriptionHtml);
   const styleEvidence=merchantExplicitShoeStyle(product.descriptionHtml);
   // Catalog compare-at is list-price evidence, not an Amazon sell price.
@@ -378,12 +383,14 @@ export async function readAmazonShoesPrivateShopifyValues(
         source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"
       }
     }:{}),
-    ...(explicitAdultAge||playNewPilot?{age_range_description:"adult"}:{}),
+    ...(explicitAdultAge||playNewPilot||proKedsAdultWidth?{age_range_description:"adult"}:{}),
     ...(countryOfOrigin?{country_of_origin:countryOfOrigin}:{}),
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
-      size:playNewPilot?"numeric_"+selectedSize:selectedSize,size_class:"numeric",size_system:"eu_footwear_size_system",
+      size:playNewPilot||proKedsAdultWidth?"numeric_"+selectedSize:selectedSize,
+      size_class:"numeric",size_system:"eu_footwear_size_system",
       ...(playNewPilot?{age_group:"adult",gender:"women",width:"medium"}:{}),
+      ...(proKedsAdultWidth?{age_group:"adult",gender:targetGender==="male"?"men":"women",width:"wide"}:{}),
     }}:{}),
     verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":identity.source==="MERCHANT_CONFIRMED_MAPPING"?"merchant_confirmed_vendor_brand_mapping":"product.vendor",
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",

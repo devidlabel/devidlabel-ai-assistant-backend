@@ -148,7 +148,7 @@ const proSku="PROKEDS_RC426SLM_LL_WB00006_41";
 const proComposition={source:"SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML",
   model_number:"RC426SLM",model_bullet:"Royal Classic",
   outer:"100% pelle",inner:"50% pelle, 15% microfibra, 35% materiale tessile",
-  sole:"Gomma",merchant_gender:"Uomo"};
+  sole:"Gomma",merchant_gender:"Uomo",merchant_width:"wide"};
 for(const [market,outer,inner,sole] of [
   ["IT","100% pelle","50% pelle, 15% microfibra, 35% materiale tessile","Gomma"],
   ["DE","100% Leder","50% Leder, 15% Mikrofaser, 35% Textil","Gummi"],
@@ -163,6 +163,7 @@ for(const [market,outer,inner,sole] of [
     readPrivateFields:async()=>({ok:true,model_name:"Royal Classic",color:"White/Blue",
       model_number:"RC426SLM",bullet_point:"Royal Classic",
       merchant_shoes_composition:proComposition,
+      footwear_size:{size:"numeric_41",size_class:"numeric",size_system:"eu_footwear_size_system",age_group:"adult",gender:"men",width:"wide"},
       draft_values_review_only:true,public_storefront_access_used:false,
       ready_for_publication:false}),
     getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
@@ -171,7 +172,8 @@ for(const [market,outer,inner,sole] of [
       shown={outer:a.outer?.[0]?.material?.[0]?.value,
         inner:a.inner?.[0]?.material?.[0]?.value,
         sole:a.sole_material?.[0]?.value,
-        model:a.model_number?.[0]?.value};
+        model:a.model_number?.[0]?.value,
+        footwear:a.footwear_size?.[0]};
       assert.equal(a.purchasable_offer,undefined);
       assert.equal(a.fulfillment_availability,undefined);
       return new Response(JSON.stringify({sku:proSku,status:"VALID",
@@ -180,7 +182,14 @@ for(const [market,outer,inner,sole] of [
     }
   });
   assert.equal(r.provider_validation_status,"VALID");
-  assert.deepEqual(shown,{outer,inner,sole,model:"RC426SLM"});
+  assert.equal(shown.outer,outer);
+  assert.equal(shown.inner,inner);
+  assert.equal(shown.sole,sole);
+  assert.equal(shown.model,"RC426SLM");
+  assert.equal(shown.footwear?.size,"numeric_41");
+  assert.equal(shown.footwear?.width,"wide");
+  assert.equal(shown.footwear?.gender,"men");
+  assert.equal(shown.footwear?.age_group,"adult");
   for(const key of ["outer","inner","sole_material","model_number"])
     assert.ok(r.attributes_submitted.includes(key));
 }
