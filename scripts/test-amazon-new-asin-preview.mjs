@@ -238,6 +238,32 @@ for(const [market,expectedRubber,expectedEva] of [
   assert.ok(result.attributes_submitted.includes("sole_material"));
  }
 }
+// Source-backed casual, laces and low-top labels: preview only, every locale.
+for(const market of ["IT","DE","FR","ES"]){
+  let a=null;
+  const r=await run({marketplace:market,sku},env,{
+    research:async()=>({...research(),marketplace:market}),
+    readPrivateFields:async()=>({ok:true,model_name:"Mohair",color:"Camel/Butter",
+      merchant_shoes_style:{source:"SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION",
+        casual:true,closure_laces:true,low_top:true},
+      draft_values_review_only:true,public_storefront_access_used:false,
+      ready_for_publication:false}),
+    getAccessToken:async()=> "MOCK_VALID_SPAPI_TOKEN",
+    fetch:async(_url,init)=>{
+      a=JSON.parse(init.body).attributes;
+      assert.equal(a.purchasable_offer,undefined);
+      assert.equal(a.fulfillment_availability,undefined);
+      return new Response(JSON.stringify({sku,status:"VALID",submissionId:"style-001",
+        issues:[]}),{status:200,headers:{"content-type":"application/json"}});
+    }
+  });
+  assert.equal(r.provider_validation_status,"VALID");
+  assert.equal(a.lifestyle[0].value,"Casual");
+  assert.equal(a.height_map[0].value,"low-top");
+  assert.ok(a.closure[0].type[0].value.length>3);
+  for(const k of ["lifestyle","height_map","closure"])
+    assert.ok(r.attributes_submitted.includes(k));
+}
 // Pilot regression: normalized numeric_39 must reach the Amazon preview,
 // rather than be silently dropped by our generic two-digit size guard.
 const pilotSku="4B12_PLAYNEW_D2045_39_EU";
