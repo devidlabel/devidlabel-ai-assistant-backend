@@ -208,9 +208,15 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
     "lifestyle","style","leather_type","shaft","height_map","strap_type",
     "water_resistance_level","batteries_required","item_package_weight","item_package_dimensions"];
   if (extraFields.some(k => Object.hasOwn(attrs,k))) {
+    const verifiedPlayNewGTIN:Record<string,string>={
+      "4B12_PLAYNEW_D2045_37_EU":"8057270148088",
+      "4B12_PLAYNEW_D2045_38_EU":"8057270148095",
+      "4B12_PLAYNEW_D2045_39_EU":"8057270148101",
+      "4B12_PLAYNEW_D2045_40_EU":"8057270148118"
+    };
     if(input.marketplace!=="IT"||
-       input.sku!=="4B12_PLAYNEW_D2045_39_EU"||
-       s.ean!=="8057270148101"||
+       !Object.hasOwn(verifiedPlayNewGTIN,input.sku)||
+       s.ean!==verifiedPlayNewGTIN[input.sku]||
        s.amazon_listing_brand!=="4B12"||
        s.product_title!=="PlayNew D-2045 White/Bronze"||
        s.shopify_price!=="179.10") return false;
