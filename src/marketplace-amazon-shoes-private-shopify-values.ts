@@ -10,9 +10,21 @@ import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 type Row=Record<string,unknown>;
 const GID=/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/;
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
-const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} googleAgeGroup:metafield(namespace:"mm-google-shopping",key:"age_group"){type value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:20,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
+const QUERY='query MerchantPrivateShoesValues($variantId:ID!){productVariant(id:$variantId){id sku price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} googleAgeGroup:metafield(namespace:"mm-google-shopping",key:"age_group"){type value} googleSizeSystem:metafield(namespace:"mm-google-shopping",key:"size_system"){type value} product{id title vendor status productType descriptionHtml metafields(first:40,namespace:"amazon_ptd_shoes"){nodes{key namespace type value} pageInfo{hasNextPage endCursor}} fallbackModel:metafield(namespace:"custom",key:"marketplace_model_name"){type value} fallbackGender:metafield(namespace:"custom",key:"navigation_gender"){type value} fallbackColorText:metafield(namespace:"agentic",key:"color"){type value} fallbackColorRef:metafield(namespace:"features",key:"color"){type value}}}}';
 const COLOR_QUERY='query MerchantShoesFeatureColor($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
+// Merchant-approved *estimated* footwear box, never manufacturer-certified
+// packaging or GPSR evidence. Restrict every value and provenance token.
+const STANDARD_PACKAGING:Record<string,{type:string;values:string[]}>={
+  package_length_cm:{type:"number_decimal",values:["35","35.0"]},
+  package_width_cm:{type:"number_decimal",values:["22","22.0"]},
+  package_height_cm:{type:"number_decimal",values:["12","12.0"]},
+  package_weight_kg:{type:"number_decimal",values:["1","1.0"]},
+  batteries_required:{type:"boolean",values:["false"]},
+  package_data_source:{type:"single_line_text_field",values:["merchant_standard_estimate_2026_10_27"]},
+};
+const DEFAULT_PTDS=new Set(["amazon_brand","model_name","color","target_gender",
+  "model_number","age_range_description","country_of_origin","manufacturer"]);
 function obj(value:unknown):Row {
   return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Row:{};
 }
@@ -211,20 +223,33 @@ export async function readAmazonShoesPrivateShopifyValues(
      product.title!==expected.productTitle||product.vendor!==expected.shopifyVendor)
     return fail("shopify_identity_changed");
   const connection=obj(product.metafields),page=obj(connection.pageInfo);
-  if(page.hasNextPage!==false||!Array.isArray(connection.nodes)||connection.nodes.length>20)
+  if(page.hasNextPage!==false||!Array.isArray(connection.nodes)||connection.nodes.length>40)
     return fail("shopify_metafields_incomplete");
   const fields=new Map<string,string>();
   for(const item of connection.nodes){
     const field=obj(item),key=field.key;
     if(field.namespace!=="amazon_ptd_shoes"||
        typeof key!=="string"||
-       !["amazon_brand","model_name","color","target_gender","model_number",
-         "age_range_description","country_of_origin","manufacturer"].includes(key)||
-       field.type!=="single_line_text_field"||fields.has(key))
+       (!DEFAULT_PTDS.has(key)&&!Object.hasOwn(STANDARD_PACKAGING,key))||
+       fields.has(key))
+      return fail("shopify_metafields_unverified");
+    const estimate=STANDARD_PACKAGING[key];
+    if(estimate?
+       field.type!==estimate.type||!estimate.values.includes(String(field.value)):
+       field.type!=="single_line_text_field")
       return fail("shopify_metafields_unverified");
     if(typeof field.value!=="string")return fail("shopify_metafields_unverified");
     fields.set(key,field.value);
   }
+  const estimatedKeys=Object.keys(STANDARD_PACKAGING);
+  const estimatedCount=estimatedKeys.filter(k=>fields.has(k)).length;
+  if(estimatedCount!==0&&estimatedCount!==estimatedKeys.length)
+    return fail("shopify_standard_package_incomplete");
+  const merchantStandardPackage=estimatedCount===estimatedKeys.length?{
+    source:"MERCHANT_STANDARD_ESTIMATE_2026_10_27" as const,
+    length_cm:35,width_cm:22,height_cm:12,weight_kg:1,
+    batteries_required:false as const,manufacturer_certified:false as const,
+  }:undefined;
   // An explicit Shopify Amazon metafield has priority. Without one, permit
   // ONLY the exact merchant-confirmed listing-brand mapping resolved above.
   // This is label evidence, not Amazon seller-brand authorization.
@@ -354,6 +379,7 @@ export async function readAmazonShoesPrivateShopifyValues(
       bullet_point:descriptionEvidence.bullet_point??proKeds.model_bullet}:{}),
     ...(listPrice!==undefined?{shopify_list_price_eur:listPrice}:{}),
     catalog_style:"Sneaker",
+    ...(merchantStandardPackage?{merchant_standard_package:merchantStandardPackage}:{}),
     ...(typeof variant.price==="string"?{shopify_snapshot_price:variant.price}:{}),
     // Only explicitly entered merchant manufacturer; NOT a GPSR claim.
     ...(safeText(fields.get("manufacturer"),100)?{
@@ -392,7 +418,8 @@ export async function readAmazonShoesPrivateShopifyValues(
       ...(playNewPilot?{age_group:"adult",gender:"women",width:"medium"}:{}),
       ...(proKedsAdultWidth?{age_group:"adult",gender:targetGender==="male"?"men":"women",width:"wide"}:{}),
     }}:{}),
-    verified_paths:[fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":identity.source==="MERCHANT_CONFIRMED_MAPPING"?"merchant_confirmed_vendor_brand_mapping":"product.vendor",
+    verified_paths:[...(merchantStandardPackage?["product.amazon_ptd_shoes.merchant_standard_estimated_package"]:[]),
+      fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":identity.source==="MERCHANT_CONFIRMED_MAPPING"?"merchant_confirmed_vendor_brand_mapping":"product.vendor",
       fields.has("model_name")?"product.amazon_ptd_shoes.model_name":"product.custom.marketplace_model_name",
       sourceColor,
       ...(targetGender?[fields.has("target_gender")?"product.amazon_ptd_shoes.target_gender":"product.custom.navigation_gender"]:[]),
