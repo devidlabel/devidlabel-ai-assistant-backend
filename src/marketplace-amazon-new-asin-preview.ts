@@ -217,6 +217,25 @@ export async function previewAmazonNewAsinShoesValidation(
         language_tag:locale,marketplace_id:marketId}],
     }:{}),
 
+    // Merchant-standard estimate, not a certified package measurement.
+    // Preserve the explicit provenance and never use this as GPSR evidence.
+    ...(obj(evidence.merchant_standard_package).source===
+        "MERCHANT_STANDARD_ESTIMATE_2026_10_27"&&
+        obj(evidence.merchant_standard_package).length_cm===35&&
+        obj(evidence.merchant_standard_package).width_cm===22&&
+        obj(evidence.merchant_standard_package).height_cm===12&&
+        obj(evidence.merchant_standard_package).weight_kg===1&&
+        obj(evidence.merchant_standard_package).batteries_required===false&&
+        obj(evidence.merchant_standard_package).manufacturer_certified===false?{
+      batteries_required:[{value:false,marketplace_id:marketId}],
+      item_package_weight:[{value:1,unit:"kilograms",marketplace_id:marketId}],
+      item_package_dimensions:[{
+        length:{value:35,unit:"centimeters"},
+        width:{value:22,unit:"centimeters"},
+        height:{value:12,unit:"centimeters"},
+        marketplace_id:marketId
+      }]
+    }:{}),
     // Shared Shopify Sneakers category: a merchandising style, not a
     // statement about boot shaft, materials or product safety.
     ...(evidence.catalog_style==="Sneaker"?{
