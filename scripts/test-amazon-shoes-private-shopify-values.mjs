@@ -36,6 +36,35 @@ const ok=await read(expected,{}, {queryShopify});
 assert.equal(hits,1);
 assert.equal(ok.ok,true);
 assert.equal(ok.model_name,"Mohair");
+const merchantPackageNodes=[
+ ["package_length_cm","number_decimal","35.0"],
+ ["package_width_cm","number_decimal","22.0"],
+ ["package_height_cm","number_decimal","12.0"],
+ ["package_weight_kg","number_decimal","1.0"],
+ ["batteries_required","boolean","false"],
+ ["package_data_source","single_line_text_field","merchant_standard_estimate_2026_10_27"]
+].map(([key,type,value])=>({namespace:"amazon_ptd_shoes",key,type,value}));
+const withMerchantBox=source();
+withMerchantBox.productVariant.product.metafields.nodes.push(...merchantPackageNodes);
+const withBox=await read(expected,{}, {queryShopify:async()=>withMerchantBox});
+assert.equal(withBox.ok,true);
+assert.deepEqual(withBox.merchant_standard_package,{
+ source:"MERCHANT_STANDARD_ESTIMATE_2026_10_27",length_cm:35,width_cm:22,
+ height_cm:12,weight_kg:1,batteries_required:false,manufacturer_certified:false
+});
+assert.ok(withBox.verified_paths.includes("product.amazon_ptd_shoes.merchant_standard_estimated_package"));
+const incompleteBox=source();
+incompleteBox.productVariant.product.metafields.nodes.push(...merchantPackageNodes.slice(0,-1));
+const incomplete=await read(expected,{}, {queryShopify:async()=>incompleteBox});
+assert.equal(incomplete.ok,false);
+assert.equal(incomplete.reason,"shopify_standard_package_incomplete");
+const wrongBox=source();
+wrongBox.productVariant.product.metafields.nodes.push(...merchantPackageNodes.map(x=>
+ x.key==="package_weight_kg"?{...x,value:"1.8"}:x));
+const rejectedBox=await read(expected,{}, {queryShopify:async()=>wrongBox});
+assert.equal(rejectedBox.ok,false);
+assert.equal(rejectedBox.reason,"shopify_metafields_unverified");
+
 // Pro-Keds structured merchant composition: all labels must match the
 // exact variant SKU, product title and percentages before preview evidence.
 const proExpected={sku:"PROKEDS_RC426SLM_LL_WB00006_41",
