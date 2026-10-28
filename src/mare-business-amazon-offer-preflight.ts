@@ -4,6 +4,7 @@ import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.
 import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
 import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import { resolveAmazonListingBrand } from "./marketplace-amazon-listing-brand.js";
+import { approvedRainsOneSizeFormFactor } from "./marketplace-rains-size-mapping.js";
 import { readShopifyCatalogComplete } from "./mare-business-shopify-complete.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
@@ -81,7 +82,7 @@ const COLOR_ALIASES:Record<string,string>={
 };
 const ONE_SIZE=new Set([
   "one size","one size fits all","taglia unica",
-  "taille unique","talla única","einheitsgröße"
+  "taille unique","talla única","einheitsgröße","einheitsgröße für alle"
 ]);
 function sameLocalizedColor(a:string,b:string):boolean{
   const left=normalizeOption(a),right=normalizeOption(b);
@@ -264,7 +265,13 @@ export async function readAmazonOfferOnlyPreflight(
   if ((desiredColor && string(item.color) &&
        !sameLocalizedColor(desiredColor,string(item.color))) ||
       (desiredSize && string(item.size) &&
-       !sameLocalizedSize(desiredSize,string(item.size)))) {
+       !sameLocalizedSize(desiredSize,string(item.size)) &&
+       !approvedRainsOneSizeFormFactor({
+         sku,asin,marketplace,
+         shopifySize:desiredSize,amazonSize:string(item.size),
+         brand:vendor,amazonModel:string(item.model_number),
+         productTypes:catalogTypes,shopifyProductType:string(product.product_type)
+       }))) {
     return blocked(marketplace, sku, asin, "BLOCKED_CATALOG_ATTRIBUTES", "variant_attributes_mismatch");
   }
 
