@@ -421,6 +421,29 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.offer.create.batch", provider:"amazon", domain:"marketplace",
+      operation:"execute", risk:"live_write", approval:"explicit", implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Controlled direct Amazon SP-API creation of 1-12 independent existing-ASIN OFFER_ONLY SKU/market combinations. Serial validation and live PUT at zero quantity only. Stops after uncertain write; no retries. No new ASIN, no Channable creation or stock-price writes. Requires immutable MARE live-write plan.",
+      request_schema:{
+        type:"object",additionalProperties:false,required:["items"],
+        properties:{items:{type:"array",minItems:1,maxItems:12,
+          items:{type:"object",additionalProperties:false,
+            required:["marketplace","sku","ean","asin"],
+            properties:{
+              marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+              sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+              ean:{type:"string",pattern:"^[0-9]{13}$"},
+              asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+            }
+          }
+        }}
+      },
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.shoes.first_asin.image_price.pilot",provider:"amazon",domain:"marketplace",
       operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
