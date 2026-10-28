@@ -9,6 +9,7 @@ import { classifyAmazonSneakerSkuStates } from "./marketplace-amazon-sneaker-sta
 import { readAmazonOfferOnlyPreflight } from "./mare-business-amazon-offer-preflight.js";
 import { previewAmazonOfferOnlyZeroQuantity, validateAmazonOfferPreviewRequest } from "./mare-business-amazon-offer-preview.js";
 import { createAmazonOfferOnlyPilot } from "./mare-business-amazon-offer-create-pilot.js";
+import { executeDirectAmazonBatch, validateDirectAmazonBatch } from "./marketplace-amazon-direct-bulk.js";
 import { previewAmazonNewAsinShoesValidation } from "./marketplace-amazon-new-asin-preview.js";
 import { createAmazonNewAsinShoesPilot } from "./mare-business-amazon-shoes-create-pilot.js";
 import { patchFirstAmazonAsinImagePrice } from "./mare-business-amazon-first-asin-media-price-pilot.js";
@@ -511,6 +512,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "amazon.it.gpsr_existing_manufacturer.validation.preview") return textToolResult(await previewExistingItManufacturerReference(request,env));
   if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
   if (plan.capability_id === "amazon.offer.create.pilot") return textToolResult(await createAmazonOfferOnlyPilot(request, env));
+  if (plan.capability_id === "amazon.offer.create.batch") return textToolResult(await executeDirectAmazonBatch(request, env));
   if (plan.capability_id === "amazon.shoes.new_asin.validation.preview") return textToolResult(await previewAmazonNewAsinShoesValidation(request,env));
   if (plan.capability_id === "amazon.shoes.new_asin.create.pilot") return textToolResult(await createAmazonNewAsinShoesPilot(request,env));
   if (plan.capability_id === "amazon.shoes.first_asin.image_price.pilot") return textToolResult(await patchFirstAmazonAsinImagePrice(request,env));
@@ -586,6 +588,7 @@ async function prepareCapability(capability: MareBusinessCapability, request: Js
   // Reject caller-supplied observations before even persisting a local plan.
   if (capability.id === "marketplace.order.evidence.capture") request = validateOrderEvidenceCaptureRequest(request);
   if (capability.id === "amazon.offer.validation.preview" || capability.id === "amazon.offer.create.pilot") request = validateAmazonOfferPreviewRequest(request);
+  if (capability.id === "amazon.offer.create.batch") request = { items: validateDirectAmazonBatch(request) };
   if (capability.id === "amazon.shipment.confirmation.preview") request = validateAmazonShipmentConfirmationPreviewRequest(request);
   assertRequestSafe(request);
   if (!capability.implemented) throw new Error("capability_not_implemented");
