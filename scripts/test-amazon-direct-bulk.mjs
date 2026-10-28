@@ -17,6 +17,11 @@ const uncertain=async x=>{called.push(x.sku);return {ok:true,status:"SUBMITTED_A
 result=await executeDirectAmazonBatch({items:[make("A"),make("B")]},{},uncertain);
 assert.deepEqual(called,["A"]);assert.equal(result.halted_for_uncertain_write,true);
 called=[];
+const acknowledged=async x=>{called.push(x.sku);return {ok:true,status:"SUBMITTED_AWAITING_SELLER_READBACK",submission_reference:"ABCD1234",offer_created_verified:false,live_write_attempted:true};};
+result=await executeDirectAmazonBatch({items:[make("A"),make("B")]},{},acknowledged);
+assert.deepEqual(called,["A","B"]);assert.equal(result.halted_for_uncertain_write,false);
+assert.equal(result.accepted_pending,2);
+called=[];
 const blocked=async x=>{called.push(x.sku);return {ok:false,status:"BLOCKED_CREATE",offer_created_verified:false,live_write_attempted:false};};
 result=await executeDirectAmazonBatch({items:[make("A"),make("B")]},{},blocked);
 assert.deepEqual(called,["A","B"]);assert.equal(result.halted_for_uncertain_write,false);
