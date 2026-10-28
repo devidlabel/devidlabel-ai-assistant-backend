@@ -40,16 +40,24 @@ export async function executeDirectAmazonBatch(
   create: typeof createAmazonOfferOnlyPilot = createAmazonOfferOnlyPilot
 ): Promise<Result> {
   const items = validateDirectAmazonBatch(raw);
-  const results: Array<{marketplace: Market; sku:string; asin:string; outcome:string; offer_created_verified:boolean; live_write_attempted:boolean}> = [];
+  const results: Array<{marketplace: Market; sku:string; asin:string; outcome:string; offer_created_verified:boolean; live_write_attempted:boolean; submission_reference?:string}> = [];
   let halted = false;
   for (const item of items) {
     try {
       const r = await create(item, env);
       const success = r.ok === true && r.status === "SELLER_OFFER_CREATED_VERIFIED" && r.offer_created_verified === true;
       const attempted = r.live_write_attempted === true;
-      results.push({marketplace:item.marketplace,sku:item.sku,asin:item.asin,outcome:String(r.status ?? "UNKNOWN"),offer_created_verified:success,live_write_attempted:attempted});
-      // A submitted-but-unverified PUT must NEVER be repeated or followed by more writes.
-      if (!success && attempted) { halted = true; break; }
+      // A provider-acknowledged PUT is a durable outcome for THIS SKU, even if
+      // catalogue propagation is pending. Acknowledge and move to a DIFFERENT SKU;
+      // NEVER retry the acknowledged SKU inside this batch.
+      const reference = typeof r.submission_reference === "string" && /^[A-Za-z0-9_-]{8,160}$/.test(r.submission_reference)
+        ? r.submission_reference : undefined;
+      const acceptedPending = r.ok === true && r.status === "SUBMITTED_AWAITING_SELLER_READBACK" &&
+        attempted && reference !== undefined && r.submission_outcome_unknown !== true;
+      results.push({marketplace:item.marketplace,sku:item.sku,asin:item.asin,outcome:String(r.status ?? "UNKNOWN"),offer_created_verified:success,live_write_attempted:attempted,...(reference ? {submission_reference:reference}: {})});
+      // Halt on unknown network / ambiguous provider outcome. Distinct acknowledged
+      // pending SKUs are safe to continue serially but require later readback.
+      if (!success && attempted && !acceptedPending) { halted = true; break; }
       // Preview or preflight failure is isolated; continue with the remaining independent SKUs.
     } catch {
       results.push({marketplace:item.marketplace,sku:item.sku,asin:item.asin,outcome:"UNKNOWN_RECONCILE_BEFORE_RETRY",offer_created_verified:false,live_write_attempted:true});
@@ -57,5 +65,5 @@ export async function executeDirectAmazonBatch(
       break;
     }
   }
-  return {ok:true,mode:"SEQUENTIAL_NO_RETRY",requested:items.length,processed:results.length,halted_for_uncertain_write:halted,results,provider_readback_required:true,channable_writer_unchanged:true,stock_or_price_changed:false};
+  return {ok:true,mode:"SEQUENTIAL_NO_RETRY",requested:items.length,processed:results.length,halted_for_uncertain_write:halted,accepted_pending:results.filter(x=>x.outcome==="SUBMITTED_AWAITING_SELLER_READBACK"&&!!x.submission_reference).length,verified:results.filter(x=>x.offer_created_verified).length,results,provider_readback_required:true,channable_writer_unchanged:true,stock_or_price_changed:false};
 }
