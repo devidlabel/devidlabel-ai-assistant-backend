@@ -508,7 +508,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       request_schema:{...schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
-        product_type:{type:"string",enum:["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE"]}
+        product_type:{type:"string",enum:["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG"]}
       },["marketplace","sku","product_type"]),additionalProperties:false},
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
         [amazon,"Amazon SP-API credentials"],
