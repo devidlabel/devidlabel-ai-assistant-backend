@@ -7,7 +7,7 @@ const {previewAmazonGenericEanValidation:run}=await import("data:text/javascript
 const sku="RSX_64228G_V4928_-_ESPRESSO",ean="8300193548467";
 const variantId="gid://shopify/ProductVariant/52554517676373";
 const markets={IT:"APJ6JRA9NG5V4",DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"};
-const TYPES=["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT"];
+const TYPES=["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE"];
 const env={AMAZON_OFFER_PREVIEW_ENABLED:"true",AMAZON_SP_API_SELLER_ID:"A1234567891234"};
 const request=(pt="SOCKS",marketplace="IT")=>({marketplace,sku,product_type:pt});
 function research(r={},pt="SOCKS",marketplace="IT"){
