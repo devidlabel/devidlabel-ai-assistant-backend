@@ -63,7 +63,7 @@ assert.equal(attrs.item_package_dimensions[0].length.value,30);
 assert.equal(attrs.item_package_dimensions[0].height.value,5);
 assert.equal(attrs.list_price[0].value_with_tax,32.9);
 assert.equal(attrs.headwear_size[0].size,"Taglia unica");
-assert.equal(attrs.special_size_type[0].value,"One size fits all");
+assert.equal(attrs.special_size_type[0].value,"Standard");
 assert.equal(attrs.country_of_origin,undefined);
 assert.equal(attrs.purchasable_offer,undefined);
 assert.equal(attrs.fulfillment_availability,undefined);
