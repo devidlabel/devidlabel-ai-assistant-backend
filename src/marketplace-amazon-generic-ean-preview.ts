@@ -24,7 +24,90 @@ const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
 const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title description vendor status fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title description vendor status amazonPtd:metafield(namespace:"custom",key:"amazon_product_attributes"){type value} fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+
+/** Product-specific merchant evidence only. Never infer origin or safety certification.
+ * Commercially authorized package defaults are NOT measured product dimensions.
+ */
+function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
+  marketplace:string,marketId:string,available:string[]):Row{
+  if(!["COAT","HAT","SHIRT","BACKPACK"].includes(pt)||
+     marketplace!=="IT"||!sku.startsWith("RFR_")||
+     product.vendor!=="Refrigiwear")return {};
+  const mf=obj(product.amazonPtd);
+  if(mf.type!=="json"||typeof mf.value!=="string")return {};
+  let fields:Row;
+  try{fields=obj(obj(JSON.parse(mf.value)).amazon_ptd_evidence);}
+  catch{return {};}
+  const enriched=obj(JSON.parse(mf.value));
+  const sourceId=obj(enriched).source_product_id;
+  const isClark=fields.source_scope==="Clark Hat B31908 MA9083 A00010 WHITE ONLY";
+  if((isClark&&(sku!=="RFR_B31908_MA9083_A00010_UN"||
+       product.title!=="Berretto Clark White"||pt!=="HAT"))||
+     (!isClark&&typeof sourceId!=="string"))return {};
+  const val=(name:string):string|undefined=>{
+    const s=fields[name];
+    return typeof s==="string"&&s.length>1&&s.length<250&&
+      !/[\u0000-\u001f<>]/.test(s)?s:undefined;
+  };
+  const attrs:Row={};
+  const set=(name:string,value:unknown)=>{
+    if(available.includes(name))attrs[name]=value;
+  };
+  const locale="it_IT";
+  const text=(value:string)=>[{value,language_tag:locale,marketplace_id:marketId}];
+  for(const [key,source] of [
+    ["item_type_name","item_type_name"],
+    ["department","department"],
+    ["age_range_description","age_range_description"],
+    ["care_instructions","care_instructions"],
+    ["style","style"],["weave_type","weave_type"]
+  ]){
+    const v=val(source);
+    if(v)set(key,text(v));
+  }
+  const operator=val("manufacturer_brand_operator");
+  if(operator&&fields.manufacturer_status===
+    "LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN")
+    set("manufacturer",text(operator));
+  const outer=val("outer_material");
+  if(outer)set("outer",[{material:[{value:outer,language_tag:locale}],
+    marketplace_id:marketId}]);
+  // Amazon's as6/alpha schema is explicitly researched for this product.
+  const size=val("headwear_size");
+  if(size)set("headwear_size",[{size:"One Size",size_system:"as6",
+    size_class:"alpha",marketplace_id:marketId}]);
+  if(fields.batteries_required===false)
+    set("batteries_required",[{value:false,marketplace_id:marketId}]);
+  const dg=val("supplier_declared_dg_hz_regulation");
+  if(dg)set("supplier_declared_dg_hz_regulation",[{value:dg,
+    marketplace_id:marketId}]);
+  const logistics=obj(fields.logistics_defaults);
+  const dimensions=obj(logistics.item_package_dimensions_cm);
+  const weight=logistics.item_package_weight_kg;
+  if(["MERCHANT_GLOBAL_DEFAULT_FROM_2026_10_28_MARKETPLACE_PROJECT",
+       "MERCHANT_GLOBAL_DEFAULT_MARKETPLACE_2026_10_27_AND_28_UNMEASURED_ESTIMATE"].includes(String(logistics.source))&&
+     [dimensions.length,dimensions.width,dimensions.height].every(x=>
+       typeof x==="number"&&Number.isFinite(x)&&x>0&&x<=80)&&
+     typeof weight==="number"&&Number.isFinite(weight)&&weight>0&&weight<=3){
+    set("item_package_dimensions",[{
+      length:{value:dimensions.length,unit:"centimeters"},
+      width:{value:dimensions.width,unit:"centimeters"},
+      height:{value:dimensions.height,unit:"centimeters"},
+      marketplace_id:marketId
+    }]);
+    set("item_package_weight",[{value:weight,unit:"kilograms",
+      marketplace_id:marketId}]);
+  }
+  // MSRP only; no purchasable_offer, seller price or stock mutation.
+  const list=typeof variant.compareAtPrice==="string"?
+    Number(variant.compareAtPrice):NaN;
+  if(Number.isFinite(list)&&list>0&&list<10000)
+    set("list_price",[{currency:"EUR",value_with_tax:list,
+      marketplace_id:marketId}]);
+  return attrs;
+}
+
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
@@ -318,6 +401,8 @@ export async function previewAmazonGenericEanValidation(
       ...merchantSize.value,marketplace_id:marketId}]}:{}),
     ...(merchantFabric.value?{fabric_type:[{
       value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
+    ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
+      research.available_schema_attribute_names as string[]),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
