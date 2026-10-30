@@ -32,7 +32,15 @@ const ATTRS = new Set([
   "brand", "item_name", "externally_assigned_product_identifier",
   "model_name", "color", "country_of_origin", "target_gender",
   "product_description", "bullet_point", "apparel_size", "shirt_size",
-  "fabric_type"
+  "fabric_type", "item_type_name", "department", "age_range_description",
+  "care_instructions", "manufacturer", "outer", "headwear_size",
+  "special_size_type", "batteries_required",
+  "supplier_declared_dg_hz_regulation", "item_package_dimensions",
+  "item_package_weight", "list_price", "style", "weave_type",
+  "closure", "water_resistance_level", "material", "fit_type",
+  "collar_style", "strap_type", "lining_description", "storage_volume",
+  "item_depth_width_height", "number_of_compartments", "size",
+  "apparel_size", "shirt_size"
 ]);
 function obj(value: unknown): Row {
   return value && typeof value === "object" && !Array.isArray(value) ?
