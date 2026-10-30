@@ -496,6 +496,7 @@ export async function previewAmazonGenericEanValidation(
   if(issues.length>80)return blocked(marketplace,sku,pt,"amazon_preview_issues_invalid");
   const sanitized:Array<{code:string;severity:string;attribute_names:string[]}>=[];
   const headwearDiagnostics:Array<{field:string;rejected_value:string;preconditions:string[]}>=[];
+  const sizeIssueHints:string[]=[];
   for(const rawIssue of issues){
     const issue=obj(rawIssue);
     if(typeof issue.code!=="string"||!ISSUE_CODE.test(issue.code)||
@@ -510,6 +511,12 @@ export async function previewAmazonGenericEanValidation(
        (issue.attributeNames as string[]|undefined)?.includes("headwear_size")&&
        typeof issue.message==="string"&&issue.message.length<5000){
       const raw=issue.message as string;
+      const normalized=raw.replace(/https?:\/\/[^\s]+/gi,"[url]")
+        .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g,"[email]")
+        .replace(/\b\d{7,}\b/g,"[id]")
+        .replace(/[^A-Za-z0-9À-ÿ .,;:'"_\-()\[\]]/g," ")
+        .replace(/\s+/g," ").trim().slice(0,480);
+      if(normalized)sizeIssueHints.push(normalized);
       const valueMatch=/the ['"]([^'"<>]{1,70})['"] on the field/i.exec(raw);
       const fieldMatch=/on the field ['"]([^'"<>]{1,70})['"]/i.exec(raw);
       const preconditions=[...raw.matchAll(/\[([a-z_]{2,40})\.[a-z_]{2,50}\]/g)]
@@ -525,6 +532,7 @@ export async function previewAmazonGenericEanValidation(
     product_type:pt,identifier_type:"EAN",provider_validation_status:body.status,
     preview_submission_reference:body.submissionId,issue_count:sanitized.length,issues:sanitized,
     ...(headwearDiagnostics.length?{headwear_diagnostics:headwearDiagnostics}:{}),
+    ...(sizeIssueHints.length?{size_issue_hints:sizeIssueHints}:{}),
     attributes_submitted:Object.keys(attributes),validation_mode:"VALIDATION_PREVIEW",
     preview_only:true,provider_validation_performed:true,
     product_created:false,can_publish:false,listing_write_enabled:false,provider_mutations:0,
