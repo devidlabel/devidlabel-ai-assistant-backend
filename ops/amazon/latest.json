@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "generated_at": "2026-10-30T18:11:12.002Z",
+  "generated_at": "2026-10-30T18:12:36.719Z",
   "kind": "amazon_eu_direct_s3_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
@@ -25,10 +25,6 @@
       "reason": "reduce_amazon_api_throttling"
     },
     "FR": {
-      "metadata_check_skipped": true,
-      "reason": "reduce_amazon_api_throttling"
-    },
-    "ES": {
       "http_status": 502,
       "ok": false,
       "metadata_reports_found": 0,
@@ -36,6 +32,10 @@
       "done_documents_available": 0,
       "has_more_metadata": false,
       "error_code": "amazon_reports_read_failed_429"
+    },
+    "ES": {
+      "metadata_check_skipped": true,
+      "reason": "reduce_amazon_api_throttling"
     }
   },
   "listing_summaries": {
@@ -51,8 +51,8 @@
       "active": 704,
       "inactive": 1415,
       "status_unknown": 0,
-      "report_created_at": "2026-10-30T18:07:51.000Z",
-      "report_age_hours": 0.1,
+      "report_created_at": "2026-10-30T18:11:54.000Z",
+      "report_age_hours": 0,
       "fresh_within_24h": true,
       "snapshot_complete": true,
       "safe_for_missing_sku_classification": true,
@@ -91,31 +91,6 @@
     },
     "FR": {
       "marketplace": "FR",
-      "http_status": 200,
-      "ok": true,
-      "report_available": true,
-      "error_code": null,
-      "rows": 17067,
-      "unique_skus": 17067,
-      "duplicate_sku_rows": 0,
-      "active": 676,
-      "inactive": 16391,
-      "status_unknown": 0,
-      "report_created_at": "2026-10-30T18:00:52.000Z",
-      "report_age_hours": 0.2,
-      "fresh_within_24h": true,
-      "snapshot_complete": true,
-      "safe_for_missing_sku_classification": true,
-      "encoding_verified": true,
-      "document_utf8_verified": false,
-      "sku_encoding_verified": true,
-      "invalid_sku_encoding_rows": 0,
-      "invalid_status_encoding_rows": 0,
-      "status_column_present": true,
-      "compression_verified": true
-    },
-    "ES": {
-      "marketplace": "ES",
       "http_status": 502,
       "ok": false,
       "report_available": false,
@@ -131,6 +106,31 @@
       "fresh_within_24h": false,
       "snapshot_complete": false,
       "safe_for_missing_sku_classification": false
+    },
+    "ES": {
+      "marketplace": "ES",
+      "http_status": 200,
+      "ok": true,
+      "report_available": true,
+      "error_code": null,
+      "rows": 15297,
+      "unique_skus": 15297,
+      "duplicate_sku_rows": 0,
+      "active": 628,
+      "inactive": 14669,
+      "status_unknown": 0,
+      "report_created_at": "2026-10-30T18:00:38.000Z",
+      "report_age_hours": 0.2,
+      "fresh_within_24h": true,
+      "snapshot_complete": true,
+      "safe_for_missing_sku_classification": true,
+      "encoding_verified": true,
+      "document_utf8_verified": false,
+      "sku_encoding_verified": true,
+      "invalid_sku_encoding_rows": 0,
+      "invalid_status_encoding_rows": 0,
+      "status_column_present": true,
+      "compression_verified": true
     }
   },
   "complete": false,
