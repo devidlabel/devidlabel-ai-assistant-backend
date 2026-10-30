@@ -299,7 +299,9 @@ const GENERIC_SIZE_INSPECTION_FIELDS=[
 const GENERIC_TECHNICAL_INSPECTION_FIELDS=[
   "department","age_range_description","fabric_type","outer","manufacturer",
   "item_package_weight","item_package_dimensions","care_instructions",
-  "water_resistance_level",
+  "water_resistance_level","closure","special_size_type","material",
+  "item_depth_width_height","number_of_compartments","lining_description",
+  "storage_volume","strap_type","fit_type","collar_style","weave_type",
 ] as const;
 
 
@@ -668,7 +670,7 @@ export async function researchAmazonNewAsinProductType(
       ptd_shapes_are_read_only: true,
       ptd_shapes_are_not_schema_validation: true,
     } : {}),
-    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT"].includes(input.product_type) ? {
+    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK"].includes(input.product_type) ? {
       ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
       ptd_size_shapes_are_read_only:true,
       ptd_size_shapes_not_schema_validation:true,
