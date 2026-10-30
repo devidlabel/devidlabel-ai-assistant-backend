@@ -77,6 +77,7 @@
     "test:amazon-shoes-private-shopify-values": "node scripts/test-amazon-shoes-private-shopify-values.mjs",
     "test:amazon-accessory-upc-preview": "node scripts/test-amazon-accessory-upc-preview.mjs",
     "test:amazon-generic-ean-preview": "node scripts/test-amazon-generic-ean-preview.mjs",
+    "test:amazon-refrigiwear-pilot": "node scripts/test-amazon-refrigiwear-pilot.mjs",
     "test:amazon-it-season-audit": "node scripts/test-amazon-it-season-audit.mjs",
     "test:amazon-direct-bulk": "node scripts/test-amazon-direct-bulk.mjs",
     "test:rains-size-mapping": "node scripts/test-rains-size-mapping.mjs"
