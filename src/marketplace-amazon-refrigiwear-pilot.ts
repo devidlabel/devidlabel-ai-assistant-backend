@@ -172,6 +172,50 @@ export async function createRefrigiwearNewAsinPilot(
   const target = new URL(HOST + "/listings/2021-08-01/items/" +
     encodeURIComponent(sellerId!) + "/" + encodeURIComponent(sku));
   target.searchParams.set("marketplaceIds", marketId);
+  // Validate the EXACT submission body (including zero stock) before the live PUT.
+  const validationUrl = new URL(target);
+  validationUrl.searchParams.set("mode", "VALIDATION_PREVIEW");
+  let exactPreview: Row;
+  try {
+    const check = await transport(validationUrl.toString(), {
+      method: "PUT", redirect: "manual",
+      headers: {
+        "x-amz-access-token": token,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(liveBody),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (check.status !== 200 ||
+        !/^application\\/json(?:\\s*;|$)/i.test(check.headers.get("content-type") || "")) {
+      void check.body?.cancel().catch(() => {});
+      return blocked(input, "exact_zero_stock_preview_http_invalid");
+    }
+    const payloadText = await check.text();
+    if (payloadText.length > 128000) return blocked(input, "exact_zero_stock_preview_too_large");
+    exactPreview = obj(JSON.parse(payloadText));
+  } catch {
+    return blocked(input, "exact_zero_stock_preview_unavailable");
+  }
+  const safeIssues = (value: unknown) =>
+    Array.isArray(value) ? value.slice(0, 25).map(rawIssue => {
+      const i = obj(rawIssue);
+      return {
+        code: typeof i.code === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(i.code) ?
+          i.code : "UNKNOWN",
+        attribute_names: Array.isArray(i.attributeNames) ?
+          i.attributeNames.filter(x => typeof x === "string" &&
+            /^[a-z_]{1,64}$/.test(x)).slice(0, 10) : []
+      };
+    }) : [];
+  const previewIssues = safeIssues(exactPreview.issues);
+  if (exactPreview.sku !== sku || exactPreview.status !== "VALID" ||
+      previewIssues.length > 0) {
+    return { ...blocked(input, "exact_zero_stock_preview_not_valid"),
+      exact_preview_status: exactPreview.status === "INVALID" ? "INVALID" : "UNKNOWN",
+      amazon_issues: previewIssues };
+  }
   let response: Response;
   try {
     response = await transport(target.toString(), {
