@@ -117,7 +117,7 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   // Amazon's as6/alpha schema is explicitly researched for this product.
   const size=val("headwear_size");
   const sizeAliases=new Set(["One Size","Taglia unica","Taglia Unica","UN","OSFA","OSFM"]);
-  if(size&&sizeAliases.has(size))set("headwear_size",[{size,size_system:"as6",
+  if(size&&sizeAliases.has(size))set("headwear_size",[{size:size==="Taglia Unica"?"Taglia unica":size,size_system:"as6",
     size_class:"alpha",marketplace_id:marketId}]);
   if(size)set("special_size_type",[{value:"Standard",
     marketplace_id:marketId}]);
