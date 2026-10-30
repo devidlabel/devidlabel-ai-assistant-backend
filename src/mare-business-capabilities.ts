@@ -501,6 +501,23 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
+      id:"amazon.refrigiwear.new_asin.create.pilot",
+      provider:"amazon",domain:"marketplace",operation:"execute",
+      risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Refrigiwear one-SKU generic EAN new-ASIN pilot. Exact Shopify-backed preview and independent Amazon catalog/seller verification, zero FBM units, no price, no Channable writes; explicit allow_known_missing_attributes permits an Amazon-rejected 90220-only trial. Never retries ambiguous submissions, never claims ASIN without readback.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK"]},
+        allow_known_missing_attributes:{type:"boolean"}
+      },["marketplace","sku","product_type","allow_known_missing_attributes"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"],[env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+         "AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.generic.ean.validation.preview",provider:"amazon",domain:"marketplace",
       operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
