@@ -15,6 +15,7 @@ import { createAmazonNewAsinShoesPilot } from "./mare-business-amazon-shoes-crea
 import { patchFirstAmazonAsinImagePrice } from "./mare-business-amazon-first-asin-media-price-pilot.js";
 import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-accessory-upc-preview.js";
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
+import { createRefrigiwearNewAsinPilot } from "./marketplace-amazon-refrigiwear-pilot.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonItExistingIssueSignals } from "./mare-business-amazon-it-issue-signals.js";
 import { previewExistingItManufacturerReference } from "./mare-business-amazon-gpsr-existing-preview.js";
@@ -518,6 +519,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "amazon.shoes.first_asin.image_price.pilot") return textToolResult(await patchFirstAmazonAsinImagePrice(request,env));
   if (plan.capability_id === "amazon.accessory.upc.validation.preview") return textToolResult(await previewAmazonAccessoryUpcValidation(request,env));
   if (plan.capability_id === "amazon.generic.ean.validation.preview") return textToolResult(await previewAmazonGenericEanValidation(request,env));
+  if (plan.capability_id === "amazon.refrigiwear.new_asin.create.pilot") return textToolResult(await createRefrigiwearNewAsinPilot(request,env));
   if (plan.capability_id === "amazon.it.inactive_report.request") return textToolResult(await requestAmazonItInactiveReport(request,env));
   if (plan.capability_id === "amazon.shipment.confirmation.preview") return textToolResult(await previewAmazonShipmentConfirmation(request, env));
   const deterministicIdempotency = `mare-${plan.plan_id}`.replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 128);
