@@ -92,6 +92,10 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   if(strap)set("strap_type",text(strap));
   const lining=val("lining_description");
   if(lining)set("lining_description",text(lining));
+  if(pt==="BACKPACK"&&val("size"))set("size",text(val("size")!));
+  const n=fields.number_of_compartments;
+  if(pt==="BACKPACK"&&typeof n==="number"&&Number.isInteger(n)&&n>=1&&n<=15)
+    set("number_of_compartments",[{value:n,marketplace_id:marketId}]);
   const volume=fields.storage_volume_liters;
   if(typeof volume==="number"&&volume>0&&volume<=1000)
     set("storage_volume",[{value:volume,unit:"liters",marketplace_id:marketId}]);
