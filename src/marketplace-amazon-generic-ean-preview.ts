@@ -66,6 +66,42 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
     const v=val(source);
     if(v)set(key,text(v));
   }
+  const closure=val("closure");
+  if(closure)set("closure",[{type:[{value:closure,language_tag:locale}],marketplace_id:marketId}]);
+  const special=val("special_size_type");
+  if(special&&pt!=="HAT")set("special_size_type",text(special));
+  const water=val("water_resistance_level");
+  const levels:Record<string,string>={
+    "Idrorepellente":"water_repellent",
+    "Resistente all'acqua":"water_resistant",
+    "Impermeabile":"waterproof"
+  };
+  if(water&&levels[water])set("water_resistance_level",[
+    {value:levels[water],marketplace_id:marketId}]);
+  const fabric=val("fabric_type");
+  if(fabric&&(/^(100% (Nylon|Cotone|Poliestere))$/.test(fabric)||
+     fabric==="98% Cotone, 2% Elastan"))
+    set("fabric_type",text(fabric));
+  const material=val("material");
+  if(material)set("material",text(material));
+  const fit=val("fit_type");
+  if(fit)set("fit_type",text(fit));
+  const collar=val("collar_style");
+  if(collar)set("collar_style",text(collar));
+  const strap=val("strap_type");
+  if(strap)set("strap_type",text(strap));
+  const lining=val("lining_description");
+  if(lining)set("lining_description",text(lining));
+  const volume=fields.storage_volume_liters;
+  if(typeof volume==="number"&&volume>0&&volume<=1000)
+    set("storage_volume",[{value:volume,unit:"liters",marketplace_id:marketId}]);
+  const size3=obj(fields.item_dimensions_cm);
+  if(["height","width","depth"].every(x=>
+       typeof size3[x]==="number"&&(size3[x] as number)>0&&
+       (size3[x] as number)<500))
+    set("item_depth_width_height",[{height:{value:size3.height,unit:"centimeters"},
+      width:{value:size3.width,unit:"centimeters"},
+      depth:{value:size3.depth,unit:"centimeters"},marketplace_id:marketId}]);
   const operator=val("manufacturer_brand_operator");
   if(operator&&fields.manufacturer_status===
     "LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN")
