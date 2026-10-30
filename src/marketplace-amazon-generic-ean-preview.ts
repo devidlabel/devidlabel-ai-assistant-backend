@@ -77,6 +77,8 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   const size=val("headwear_size");
   if(size)set("headwear_size",[{size:"One Size",size_system:"as6",
     size_class:"alpha",marketplace_id:marketId}]);
+  if(size)set("special_size_type",[{value:"Standard",
+    marketplace_id:marketId}]);
   if(fields.batteries_required===false)
     set("batteries_required",[{value:false,marketplace_id:marketId}]);
   const dg=val("supplier_declared_dg_hz_regulation");
