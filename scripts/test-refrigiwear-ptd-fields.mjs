@@ -25,7 +25,7 @@ const source={ok:true,status:"REQUIREMENTS_REVIEW_REQUIRED",marketplace:"IT",sku
  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","target_gender",
  "color","product_description","bullet_point","externally_assigned_product_identifier",
  "manufacturer","department","age_range_description","item_type_name","care_instructions",
- "style","weave_type","outer","headwear_size","batteries_required",
+ "style","weave_type","outer","headwear_size","special_size_type","batteries_required",
  "supplier_declared_dg_hz_regulation","item_package_dimensions","item_package_weight","list_price"],
  shopify:{product_title:"Berretto Clark White",brand:"Refrigiwear",
  amazon_listing_brand:"Refrigiwear",ean,shopify_available:3,
