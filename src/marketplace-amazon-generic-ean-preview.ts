@@ -449,6 +449,7 @@ export async function previewAmazonGenericEanValidation(
   const issues=Array.isArray(body.issues)?body.issues:[];
   if(issues.length>80)return blocked(marketplace,sku,pt,"amazon_preview_issues_invalid");
   const sanitized:Array<{code:string;severity:string;attribute_names:string[]}>=[];
+  const headwearDiagnostics:Array<{field:string;rejected_value:string;preconditions:string[]}>=[];
   for(const rawIssue of issues){
     const issue=obj(rawIssue);
     if(typeof issue.code!=="string"||!ISSUE_CODE.test(issue.code)||
@@ -459,10 +460,25 @@ export async function previewAmazonGenericEanValidation(
       return blocked(marketplace,sku,pt,"amazon_preview_issues_invalid");
     sanitized.push({code:issue.code,severity:issue.severity as string,
       attribute_names:(issue.attributeNames as string[]|undefined)??[]});
+    if(issue.code==="90004205"&&
+       (issue.attributeNames as string[]|undefined)?.includes("headwear_size")&&
+       typeof issue.message==="string"&&issue.message.length<5000){
+      const raw=issue.message as string;
+      const valueMatch=/the ['"]([^'"<>]{1,70})['"] on the field/i.exec(raw);
+      const fieldMatch=/on the field ['"]([^'"<>]{1,70})['"]/i.exec(raw);
+      const preconditions=[...raw.matchAll(/\[([a-z_]{2,40})\.[a-z_]{2,50}\]/g)]
+        .map(x=>x[1]).slice(0,8);
+      const value=valueMatch?.[1]||"";
+      const field=fieldMatch?.[1]||"";
+      if(value&&/^[A-Za-z\u00c0-\u00ff0-9 _-]{1,70}$/.test(value)&&
+         /^[a-z_\.]{1,70}$/.test(field))
+        headwearDiagnostics.push({field,rejected_value:value,preconditions});
+    }
   }
   return {ok:true,status:"VALIDATION_ONLY_REVIEW_REQUIRED",marketplace,sku,
     product_type:pt,identifier_type:"EAN",provider_validation_status:body.status,
     preview_submission_reference:body.submissionId,issue_count:sanitized.length,issues:sanitized,
+    ...(headwearDiagnostics.length?{headwear_diagnostics:headwearDiagnostics}:{}),
     attributes_submitted:Object.keys(attributes),validation_mode:"VALIDATION_PREVIEW",
     preview_only:true,provider_validation_performed:true,
     product_created:false,can_publish:false,listing_write_enabled:false,provider_mutations:0,
