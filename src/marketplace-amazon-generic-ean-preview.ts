@@ -421,6 +421,16 @@ export async function previewAmazonGenericEanValidation(
     return blocked(marketplace,sku,pt,"amazon_ptd_fabric_schema_unverified");
   const merchantSize=structuredSizeFromPtd(research,v.selectedOptions,pt);
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
+  const sizeShape=obj(obj(research.ptd_size_shapes).apparel_size);
+  const sizeProps=obj(obj(sizeShape.items).properties);
+  const regularFit=pt==="COAT"&&sku.startsWith("RFR_")&&
+    merchantSize.attribute==="apparel_size"&&merchantSize.value&&
+    Array.isArray(obj(sizeProps.body_type).enum)&&
+    (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
+    Array.isArray(obj(sizeProps.height_type).enum)&&
+    (obj(sizeProps.height_type).enum as string[]).includes("regular");
+  const mappedSize=regularFit?{...merchantSize.value,
+    body_type:"regular",height_type:"regular"}:merchantSize.value;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],
@@ -436,7 +446,7 @@ export async function previewAmazonGenericEanValidation(
     ...(bullets.values.length?{bullet_point:bullets.values.map(value=>({
       value,marketplace_id:marketId,language_tag:"it_IT"}))}:{}),
     ...(merchantSize.attribute&&merchantSize.value?{[merchantSize.attribute]:[{
-      ...merchantSize.value,marketplace_id:marketId}]}:{}),
+      ...mappedSize,marketplace_id:marketId}]}:{}),
     ...(merchantFabric.value?{fabric_type:[{
       value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
     ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
