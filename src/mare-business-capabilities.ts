@@ -509,7 +509,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       request_schema:{...schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
-        product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK"]},
+        product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF"]},
         allow_known_missing_attributes:{type:"boolean"}
       },["marketplace","sku","product_type","allow_known_missing_attributes"]),additionalProperties:false},
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
