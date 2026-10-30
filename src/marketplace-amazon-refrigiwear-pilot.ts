@@ -22,7 +22,7 @@ type Deps = {
   fetch?: typeof fetch;
 };
 const HOST = "https://sellingpartnerapi-eu.amazon.com";
-const MARKET_TYPES = new Set(["COAT", "HAT", "SHIRT", "BACKPACK"]);
+const MARKET_TYPES = new Set(["COAT", "HAT", "SHIRT", "BACKPACK", "SWEATER", "SWEATSHIRT", "SCARF"]);
 const SKU = /^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const SELLER = /^[A-Z0-9]{8,30}$/;
 const EAN = /^\d{13}$/;

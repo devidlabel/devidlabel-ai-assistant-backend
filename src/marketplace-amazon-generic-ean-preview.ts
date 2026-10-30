@@ -13,7 +13,7 @@ type Env=AmazonCredentials & MareBusinessShopifyEnv & {
 type Deps={research?:typeof researchAmazonNewAsinProductType;
   readShopify?:typeof shopifyGraphQL;
   getAccessToken?:typeof getAmazonAccessToken;fetch?:typeof fetch};
-const PRODUCT_TYPES=new Set(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG"]);
+const PRODUCT_TYPES=new Set(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG","SWEATER","SWEATSHIRT","SCARF"]);
 const MARKET_LOCALE:Record<Market,string>={IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"};
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const EAN=/^\d{13}$/;
