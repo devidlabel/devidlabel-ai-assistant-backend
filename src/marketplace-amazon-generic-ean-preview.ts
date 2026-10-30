@@ -74,7 +74,8 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   const levels:Record<string,string>={
     "Idrorepellente":"water_repellent",
     "Resistente all'acqua":"water_resistant",
-    "Impermeabile":"waterproof"
+    "Impermeabile":"waterproof",
+    "Non idrorepellente":"not_water_resistant"
   };
   if(water&&levels[water])set("water_resistance_level",[
     {value:levels[water],marketplace_id:marketId}]);
