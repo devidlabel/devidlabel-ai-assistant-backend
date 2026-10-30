@@ -513,7 +513,7 @@ export async function previewAmazonGenericEanValidation(
     sanitized.push({code:issue.code,severity:issue.severity as string,
       attribute_names:(issue.attributeNames as string[]|undefined)??[]});
     if(issue.code==="90004205"&&
-       (issue.attributeNames as string[]|undefined)?.includes("headwear_size")&&
+       (issue.attributeNames as string[]|undefined)?.some(x=>x==="headwear_size"||x==="apparel_size")&&
        typeof issue.message==="string"&&issue.message.length<5000){
       const raw=issue.message as string;
       const normalized=raw.replace(/https?:\/\/[^\s]+/gi,"[url]")
