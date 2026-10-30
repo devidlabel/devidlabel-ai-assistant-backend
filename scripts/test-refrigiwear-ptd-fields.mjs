@@ -25,7 +25,7 @@ const source={ok:true,status:"REQUIREMENTS_REVIEW_REQUIRED",marketplace:"IT",sku
  available_schema_attribute_names:["item_name","brand","model_name","country_of_origin","target_gender",
  "color","product_description","bullet_point","externally_assigned_product_identifier",
  "manufacturer","department","age_range_description","item_type_name","care_instructions",
- "style","weave_type","outer","headwear_size","batteries_required",
+ "style","weave_type","outer","headwear_size","special_size_type","batteries_required",
  "supplier_declared_dg_hz_regulation","item_package_dimensions","item_package_weight","list_price"],
  shopify:{product_title:"Berretto Clark White",brand:"Refrigiwear",
  amazon_listing_brand:"Refrigiwear",ean,shopify_available:3,
@@ -63,6 +63,7 @@ assert.equal(attrs.item_package_dimensions[0].length.value,30);
 assert.equal(attrs.item_package_dimensions[0].height.value,5);
 assert.equal(attrs.list_price[0].value_with_tax,32.9);
 assert.equal(attrs.headwear_size[0].size,"One Size");
+assert.equal(attrs.special_size_type[0].value,"Standard");
 assert.equal(attrs.country_of_origin,undefined);
 assert.equal(attrs.purchasable_offer,undefined);
 assert.equal(attrs.fulfillment_availability,undefined);
