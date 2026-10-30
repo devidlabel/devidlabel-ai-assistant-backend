@@ -74,7 +74,8 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   const levels:Record<string,string>={
     "Idrorepellente":"water_repellent",
     "Resistente all'acqua":"water_resistant",
-    "Impermeabile":"waterproof"
+    "Impermeabile":"waterproof",
+    "Non idrorepellente":"not_water_resistant"
   };
   if(water&&levels[water])set("water_resistance_level",[
     {value:levels[water],marketplace_id:marketId}]);
@@ -512,7 +513,7 @@ export async function previewAmazonGenericEanValidation(
     sanitized.push({code:issue.code,severity:issue.severity as string,
       attribute_names:(issue.attributeNames as string[]|undefined)??[]});
     if(issue.code==="90004205"&&
-       (issue.attributeNames as string[]|undefined)?.includes("headwear_size")&&
+       (issue.attributeNames as string[]|undefined)?.some(x=>x==="headwear_size"||x==="apparel_size")&&
        typeof issue.message==="string"&&issue.message.length<5000){
       const raw=issue.message as string;
       const normalized=raw.replace(/https?:\/\/[^\s]+/gi,"[url]")
