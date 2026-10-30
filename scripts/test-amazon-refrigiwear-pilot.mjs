@@ -17,7 +17,7 @@ const src={ok:true,status:"REQUIREMENTS_REVIEW_REQUIRED",marketplace:"IT",sku,
  ean_match_state:"NO_EXACT_MATCH",read_only:true,provider_mutations:0,
  shopify:{amazon_listing_brand:"Refrigiwear",ean,product_title:"Berretto Clark White",shopify_available:3}};
 function makeDeps(overrides={}){
- const calls={preview:0,live:0,markets:[],bodies:[]};
+ const calls={preview:0,exactPreview:0,live:0,markets:[],bodies:[]};
  const deps={
   preview:async(_req,_env,{fetch})=>{
     calls.preview++;
@@ -38,7 +38,14 @@ function makeDeps(overrides={}){
   fetch:async(_url,init)=>{
     const u=new URL(_url);
     if(u.searchParams.get("mode")==="VALIDATION_PREVIEW"){
-      return new Response(JSON.stringify({sku,status:"INVALID"}),{status:200});
+      const payload=JSON.parse(init.body);
+      const exact=Array.isArray(payload.attributes.fulfillment_availability);
+      if(exact){
+        calls.exactPreview++;
+        calls.bodies.push(payload);
+      }
+      return new Response(JSON.stringify({sku,status:exact?"VALID":"INVALID",issues:[]}),
+        {status:200,headers:{"content-type":"application/json"}});
     }
     calls.live++;
     calls.bodies.push(JSON.parse(init.body));
@@ -56,11 +63,24 @@ assert.equal(ok.submitted_quantity,0);
 assert.equal(ok.buyable_verified,false);
 assert.equal(first.calls.preview,1);
 assert.equal(first.calls.live,1);
+assert.equal(first.calls.exactPreview,1);
 assert.deepEqual(first.calls.markets,["IT","DE","FR","ES","IT"]);
 assert.deepEqual(first.calls.bodies[0].attributes.fulfillment_availability,
  [{fulfillment_channel_code:"DEFAULT",quantity:0,marketplace_id:market}]);
 assert.equal(first.calls.bodies[0].attributes.purchasable_offer,undefined);
 assert.deepEqual(first.calls.bodies[0].attributes.brand,previewAttributes.brand);
+const invalidExact=makeDeps({fetch:async(url,init)=>{
+  const mode=new URL(url).searchParams.get("mode");
+  if(mode==="VALIDATION_PREVIEW")
+    return new Response(JSON.stringify({sku,status:"INVALID",issues:[
+      {code:"90220",severity:"ERROR",attributeNames:["fulfillment_availability"]}]}),
+      {status:200,headers:{"content-type":"application/json"}});
+  throw new Error("live_request_must_not_happen");
+}});
+const rejected=await run(input,env,invalidExact.deps);
+assert.equal(rejected.status,"BLOCKED_REFRIGIWEAR_PILOT");
+assert.equal(rejected.reason,"exact_zero_stock_preview_not_valid");
+assert.equal(rejected.amazon_issues[0].attribute_names[0],"fulfillment_availability");
 const blocked=makeDeps();
 const noAllow=await run({...input,allow_known_missing_attributes:false},env,blocked.deps);
 assert.equal(noAllow.status,"BLOCKED_REFRIGIWEAR_PILOT");
