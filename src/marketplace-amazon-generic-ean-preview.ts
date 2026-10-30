@@ -29,19 +29,22 @@ const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productV
 /** Product-specific merchant evidence only. Never infer origin or safety certification.
  * Commercially authorized package defaults are NOT measured product dimensions.
  */
-function refrigiwearHatAttrs(product:Row,variant:Row,sku:string,pt:string,
+function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   marketplace:string,marketId:string,available:string[]):Row{
-  if(pt!=="HAT"||marketplace!=="IT"||
-     sku!=="RFR_B31908_MA9083_A00010_UN"||
-     product.title!=="Berretto Clark White"||
+  if(!["COAT","HAT","SHIRT","BACKPACK"].includes(pt)||
+     marketplace!=="IT"||!sku.startsWith("RFR_")||
      product.vendor!=="Refrigiwear")return {};
   const mf=obj(product.amazonPtd);
   if(mf.type!=="json"||typeof mf.value!=="string")return {};
   let fields:Row;
   try{fields=obj(obj(JSON.parse(mf.value)).amazon_ptd_evidence);}
   catch{return {};}
-  if(fields.source_scope!=="Clark Hat B31908 MA9083 A00010 WHITE ONLY"||
-     fields.catalog_product_type!=="HAT")return {};
+  const enriched=obj(JSON.parse(mf.value));
+  const sourceId=obj(enriched).source_product_id;
+  const isClark=fields.source_scope==="Clark Hat B31908 MA9083 A00010 WHITE ONLY";
+  if((isClark&&(sku!=="RFR_B31908_MA9083_A00010_UN"||
+       product.title!=="Berretto Clark White"||pt!=="HAT"))||
+     (!isClark&&typeof sourceId!=="string"))return {};
   const val=(name:string):string|undefined=>{
     const s=fields[name];
     return typeof s==="string"&&s.length>1&&s.length<250&&
@@ -82,7 +85,8 @@ function refrigiwearHatAttrs(product:Row,variant:Row,sku:string,pt:string,
   const logistics=obj(fields.logistics_defaults);
   const dimensions=obj(logistics.item_package_dimensions_cm);
   const weight=logistics.item_package_weight_kg;
-  if(logistics.source==="MERCHANT_GLOBAL_DEFAULT_FROM_2026_10_28_MARKETPLACE_PROJECT"&&
+  if(["MERCHANT_GLOBAL_DEFAULT_FROM_2026_10_28_MARKETPLACE_PROJECT",
+       "MERCHANT_GLOBAL_DEFAULT_MARKETPLACE_2026_10_27_AND_28_UNMEASURED_ESTIMATE"].includes(String(logistics.source))&&
      [dimensions.length,dimensions.width,dimensions.height].every(x=>
        typeof x==="number"&&Number.isFinite(x)&&x>0&&x<=80)&&
      typeof weight==="number"&&Number.isFinite(weight)&&weight>0&&weight<=3){
@@ -397,7 +401,7 @@ export async function previewAmazonGenericEanValidation(
       ...merchantSize.value,marketplace_id:marketId}]}:{}),
     ...(merchantFabric.value?{fabric_type:[{
       value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
-    ...refrigiwearHatAttrs(p,v,sku,pt,marketplace,marketId,
+    ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
       research.available_schema_attribute_names as string[]),
   };
   let token:string;
