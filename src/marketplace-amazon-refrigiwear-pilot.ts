@@ -188,7 +188,7 @@ export async function createRefrigiwearNewAsinPilot(
       signal: AbortSignal.timeout(20000)
     });
     if (check.status !== 200 ||
-        !/^application\\/json(?:\\s*;|$)/i.test(check.headers.get("content-type") || "")) {
+        !/^application\/json(?:\s*;|$)/i.test(check.headers.get("content-type") || "")) {
       void check.body?.cancel().catch(() => {});
       return blocked(input, "exact_zero_stock_preview_http_invalid");
     }
@@ -253,6 +253,7 @@ export async function createRefrigiwearNewAsinPilot(
     throw new Error("refrigiwear_live_ack_untrusted_never_retry");
   if (ack.status !== "ACCEPTED")
     return { ok: false, status: "AMAZON_REJECTED_NEW_ASIN",
+      amazon_issues: safeIssues(ack.issues),
       marketplace, sku, submission_reference: ack.submissionId,
       preview_was_valid: fullyValid, provider_write_attempted: true,
       asin_created_verified: false, buyable_verified: false,
