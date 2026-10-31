@@ -248,7 +248,7 @@ function coatDeps(events,noCoatKeyword=false){
   source.products[0].variants[0].sku=coatSku;
   return deps(events,{
     readShopify:async()=>source,
-    readListing:async()=>({ok:true,marketplace:"IT",results:[{
+    readListing:async()=>({ok:true,marketplace:"IT",provider_mutations:0,can_change_stock:false,results:[{
       sku:coatSku,state:"VERIFIED_ABSENT"}]}),
     fetch:fakeFetch(events,{refrigiwearCoat:true,noCoatKeyword}),
   });
