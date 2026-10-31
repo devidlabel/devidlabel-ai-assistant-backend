@@ -45,16 +45,17 @@ const json = (x, status = 200) => new Response(JSON.stringify(x), {
   status, headers: { "content-type": "application/json" }
 });
 function harness(config = {}) {
+  const selected = config.item ?? item;
   const calls = [];
   const deps = {
-    preview: async x => { calls.push("preview"); assert.deepEqual(x, item); return makePreview(config.preview); },
-    preflight: async x => { calls.push("preflight"); assert.deepEqual(x, item); return makePreflight(config.preflight); },
+    preview: async x => { calls.push("preview"); assert.deepEqual(x, selected); return makePreview(config.preview); },
+    preflight: async x => { calls.push("preflight"); assert.deepEqual(x, selected); return makePreflight(config.preflight); },
     accessToken: async () => { calls.push("token"); return "test-access-token"; },
     fetch: async (rawUrl, init) => {
       calls.push("LIVE_PUT");
       const url = new URL(rawUrl);
       assert.equal(url.origin, "https://sellingpartnerapi-eu.amazon.com");
-      assert.equal(url.pathname, "/listings/2021-08-01/items/A123456789/SYNTHETIC_OFFER_001");
+      assert.equal(url.pathname, "/listings/2021-08-01/items/A123456789/"+selected.sku);
       assert.equal(url.searchParams.get("marketplaceIds"), "APJ6JRA9NG5V4");
       assert.equal(url.searchParams.has("mode"), false);
       assert.equal(init.method, "PUT");
@@ -68,29 +69,40 @@ function harness(config = {}) {
       assert.equal(value.productType, "PRODUCT");
       assert.equal(value.requirements, "LISTING_OFFER_ONLY");
       assert.equal(value.attributes.fulfillment_availability[0].quantity, 0);
-      assert.equal(value.attributes.merchant_suggested_asin[0].value, item.asin);
+      assert.equal(value.attributes.merchant_suggested_asin[0].value, selected.asin);
       assert.equal(value.attributes.purchasable_offer[0].our_price[0].schedule[0].value_with_tax, 25.99);
       if (config.networkError) throw Error("synthetic network lost after PUT");
       return json(config.ack ?? {
-        sku: item.sku, status: "ACCEPTED",
+        sku: selected.sku, status: "ACCEPTED",
         submissionId: "SYNTHETIC_SUBMISSION", issues: []
       }, config.httpStatus ?? 200);
     },
     sellerReader: async x => {
       calls.push("readback");
-      assert.deepEqual(x, { marketplace: item.marketplace, skus: [item.sku] });
+      assert.deepEqual(x, { marketplace: selected.marketplace, skus: [selected.sku] });
       return config.readback ?? {
         ok: true,
         results: [{
-          sku: item.sku, state: "PRESENT", identity_state: "VERIFIED",
-          asin: item.asin, statuses: ["DISCOVERABLE"],
+          sku: selected.sku, state: "PRESENT", identity_state: "VERIFIED",
+          asin: selected.asin, statuses: ["DISCOVERABLE"],
           fulfillment_state: "VERIFIED", current_fbm_quantity: 0
         }]
       };
     }
   };
-  return { calls, run: () => create(item, config.env ?? env, deps) };
+  return { calls, run: () => create(selected, config.env ?? env, deps) };
 }
+const rfrZeroItem=Object.freeze({...item,sku:"RFR_SYNTHETIC_001"});
+const rfrZeroHarness=harness({item:rfrZeroItem,
+ preview:{sku:rfrZeroItem.sku},
+ preflight:{sku:rfrZeroItem.sku,shopify_stock_observed:0,
+  amazon_brand_expected:"Refrigiwear"}});
+const rfrZeroResult=await rfrZeroHarness.run();
+assert.equal(rfrZeroResult.status,"SELLER_OFFER_CREATED_VERIFIED");
+assert.equal(rfrZeroResult.submitted_quantity,0);
+const blockedZeroHarness=harness({preflight:{shopify_stock_observed:0,
+  amazon_brand_expected:"Refrigiwear"}});
+assert.equal((await blockedZeroHarness.run()).status,"BLOCKED_CREATE");
 let checks = 0;
 const run = async (f) => { await f(); checks++; };
 
