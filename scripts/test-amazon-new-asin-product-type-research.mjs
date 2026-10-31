@@ -77,7 +77,18 @@ function fakeFetch(events, options={}) {
     let data;
     if(u.pathname==="/definitions/2020-09-01/productTypes"){
       assert.equal(u.searchParams.get("marketplaceIds"),MARKET_ID);
-      if(options.socksProduct && u.searchParams.has("keywords")){
+      if(options.refrigiwearCoat){
+        if(u.searchParams.has("keywords")){
+          assert.equal(u.searchParams.get("keywords"),"coat");
+          assert.equal(u.searchParams.get("itemName"),null);
+          data={productTypes:[{name:options.noCoatKeyword?"BLANKET":"COAT",
+            displayName:"Type",marketplaceIds:[MARKET_ID]}]};
+        }else{
+          assert.equal(u.searchParams.get("itemName"),"Speed Jacket Black");
+          data={productTypes:[{name:"BLANKET",displayName:"Wrong type",
+            marketplaceIds:[MARKET_ID]}]};
+        }
+      }else if(options.socksProduct && u.searchParams.has("keywords")){
         assert.equal(u.searchParams.get("keywords"),"socks");
         assert.equal(u.searchParams.get("searchLocale"),"en_US");
         assert.equal(u.searchParams.get("itemName"),null);
@@ -112,7 +123,8 @@ function fakeFetch(events, options={}) {
       }
     }else if(u.pathname==="/definitions/2020-09-01/productTypes/HAT" ||
       (options.bootProduct && u.pathname==="/definitions/2020-09-01/productTypes/BOOT") ||
-      (options.sneakersFallback && u.pathname==="/definitions/2020-09-01/productTypes/SHOES")){
+      (options.sneakersFallback && u.pathname==="/definitions/2020-09-01/productTypes/SHOES") ||
+      (options.refrigiwearCoat && u.pathname==="/definitions/2020-09-01/productTypes/COAT")){
       assert.equal(u.searchParams.get("requirements"),"LISTING");
       assert.equal(u.searchParams.get("requirementsEnforced"),"ENFORCED");
       assert.equal(u.searchParams.get("parentageLevel"),"NONE");
@@ -225,6 +237,33 @@ assert.equal(details.validation_preview_sent,false);
 assert.equal(schemaEvents.length,3);
 assert.deepEqual(schemaEvents.map(x=>x.auth),[true,true,false]);
 assert.equal(JSON.stringify(details).includes("signature=mock"),false);
+
+// Wrong item-name taxonomy requires a second, positive PTD keyword match.
+const coatSku="RFR_G05708_XT3792_G06000_S";
+function coatDeps(events,noCoatKeyword=false){
+  const source=shopify();
+  source.products[0].title="Speed Jacket Black";
+  source.products[0].vendor="Refrigiwear";
+  source.products[0].product_type="Giacche e cappotti";
+  source.products[0].variants[0].sku=coatSku;
+  return deps(events,{
+    readShopify:async()=>source,
+    readListing:async()=>({ok:true,marketplace:"IT",provider_mutations:0,can_change_stock:false,results:[{
+      sku:coatSku,state:"VERIFIED_ABSENT"}]}),
+    fetch:fakeFetch(events,{refrigiwearCoat:true,noCoatKeyword}),
+  });
+}
+const coatEvents=[];
+const coatResult=await research({marketplace:"IT",sku:coatSku,product_type:"COAT"},
+  env,coatDeps(coatEvents));
+assert.equal(coatResult.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(coatResult.product_type_discovery_source,"AMAZON_KEYWORDS_REFRIGIWEAR_COAT");
+assert.equal(coatEvents.length,4);
+assert.deepEqual(coatEvents.map(x=>x.auth),[true,true,true,false]);
+const badCoat=await research({marketplace:"IT",sku:coatSku,product_type:"COAT"},
+  env,coatDeps([],true));
+assert.equal(badCoat.status,"BLOCKED_DEFINITIONS");
+assert.equal(badCoat.blocker,"refrigiwear_coat_keyword_not_recommended");
 
 // A real 12-digit UPC-A is read as UPC, never padded or relabeled as EAN.
 const upc="195029073057",upcEvents=[];

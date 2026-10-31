@@ -601,6 +601,31 @@ export async function researchAmazonNewAsinProductType(
       discoverySource="AMAZON_KEYWORDS_SHOPIFY_SOCKS";
     }
   }
+  // Refrigiwear jackets can be misclassified by itemName alone. As for
+  // sneakers and socks, verify COAT independently with Amazon keyword PTD.
+  const jacket=product.vendor==="Refrigiwear"&&
+    product.product_type==="Giacche e cappotti"&&
+    input.product_type==="COAT"&&
+    input.sku.startsWith("RFR_")&&
+    /(?:Jacket|Giacca|Bomber|Parka|Gilet|Piumino|Vest)/i.test(String(product.title));
+  if(jacket&&!candidates.some(c=>c.name==="COAT")){
+    titleCategoryConflict=candidates.length>0;
+    const u=new URL(HOST+"/definitions/2020-09-01/productTypes");
+    u.searchParams.set("marketplaceIds",marketId);
+    u.searchParams.set("keywords","coat");
+    u.searchParams.set("searchLocale","en_US");
+    let response:Row;
+    try{response=await readJson(u.toString(),token,fetcher);}
+    catch{return {ok:false,status:"BLOCKED_DEFINITIONS",
+      blocker:"refrigiwear_coat_keyword_unverified",...base};}
+    const recommended=extractTypes(response.productTypes);
+    if(!recommended)return {ok:false,status:"BLOCKED_DEFINITIONS",
+      blocker:"refrigiwear_coat_keyword_invalid",...base};
+    candidates=recommended.filter(c=>c.name==="COAT");
+    if(candidates.length!==1)return {ok:false,status:"BLOCKED_DEFINITIONS",
+      blocker:"refrigiwear_coat_keyword_not_recommended",...base};
+    discoverySource="AMAZON_KEYWORDS_REFRIGIWEAR_COAT";
+  }
   // Amazon itemName recommendations can be unrelated to the actual merchandise.
   // Observed live 22 Oct: MC2 Christmas Box in Shopify "Pochette e Borselli"
   // returned ABIS_MUSIC; Sprayground suitcases were mapped to TABLETOP_GAME/
