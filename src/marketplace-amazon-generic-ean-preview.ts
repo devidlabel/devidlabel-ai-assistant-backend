@@ -31,7 +31,7 @@ const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productV
  */
 function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   marketplace:string,marketId:string,available:string[]):Row{
-  if(!["COAT","HAT","SHIRT","BACKPACK"].includes(pt)||
+  if(!["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(pt)||
      marketplace!=="IT"||!sku.startsWith("RFR_")||
      product.vendor!=="Refrigiwear")return {};
   const mf=obj(product.amazonPtd);
