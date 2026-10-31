@@ -140,7 +140,7 @@ const rfrZero=await run({...request(),sku:rfrSku},env,{...rfrDeps,
    amazon_listing_brand:"Refrigiwear",shopify_available:0}}),
  readShopify:async(e,q,v)=>q.includes("metaobject(id:")?
   rfrDeps.readShopify(e,q,v):rfrProduct});
-assert.equal(rfrZero.provider_validation_status,"INVALID");
+assert.equal(rfrZero.provider_validation_status,"INVALID",JSON.stringify(rfrZero));
 assert.equal(rfrZero.issue_count,1);
 const privateCases=[
  d=>{d.productVariant.sku="MISMATCH";},
