@@ -30,7 +30,7 @@ const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productV
  * Commercially authorized package defaults are NOT measured product dimensions.
  */
 function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
-  marketplace:string,marketId:string,available:string[]):Row{
+  marketplace:string,marketId:string,available:string[],ptdAlphaTokens:Row={}):Row{
   if(!["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(pt)||
      marketplace!=="IT"||!sku.startsWith("RFR_")||
      product.vendor!=="Refrigiwear")return {};
@@ -117,8 +117,13 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   // Amazon's as6/alpha schema is explicitly researched for this product.
   const size=val("headwear_size");
   const sizeAliases=new Set(["One Size","Taglia unica","Taglia Unica","UN","OSFA","OSFM"]);
-  if(size&&sizeAliases.has(size))set("headwear_size",[{size:size==="Taglia Unica"?"Taglia unica":size,size_system:"as6",
-    size_class:"alpha",marketplace_id:marketId}]);
+  if(size&&sizeAliases.has(size)){
+    const officialTokens=ptdAlphaTokens.headwear_size;
+    const mapped=Array.isArray(officialTokens)&&officialTokens.includes("one_size")?
+      "one_size":size==="Taglia Unica"?"Taglia unica":size;
+    set("headwear_size",[{size:mapped,size_system:"as6",
+      size_class:"alpha",marketplace_id:marketId}]);
+  }
   if(size)set("special_size_type",[{value:"Standard",
     marketplace_id:marketId}]);
   if(fields.batteries_required===false)
@@ -462,7 +467,7 @@ export async function previewAmazonGenericEanValidation(
     ...(merchantFabric.value?{fabric_type:[{
       value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
     ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
-      research.available_schema_attribute_names as string[]),
+      research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens)),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
