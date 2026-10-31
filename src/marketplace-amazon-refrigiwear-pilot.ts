@@ -143,7 +143,7 @@ export async function createRefrigiwearNewAsinPilot(
       ext.marketplace_id !== marketId ||
       typeof shop.product_title !== "string" ||
       !Number.isSafeInteger(shop.shopify_available) ||
-      (shop.shopify_available as number) <= 0)
+      (shop.shopify_available as number) < 0)
     return blocked(input, "fresh_catalog_or_shopify_identity_changed");
 
   for (const other of ["IT", "DE", "FR", "ES"] as const) {
