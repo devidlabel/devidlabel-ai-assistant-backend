@@ -291,7 +291,15 @@ function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
   const tokens=obj(research.ptd_alpha_size_tokens)[field];
   const wanted=option.sizeClass==="alpha"?option.size.toLowerCase():null;
   const official=wanted&&Array.isArray(tokens)&&tokens.includes(wanted);
-  const resolved=official?wanted:option.size;
+  const labels=obj(obj(research.ptd_alpha_size_label_tokens)[field]);
+  const fromPtd=option.sizeClass==="alpha"?labels[option.size]:undefined;
+  const mapped=typeof fromPtd==="string"&&/^[a-z][a-z0-9_]{0,63}$/.test(fromPtd)?
+    fromPtd:undefined;
+  // XL must never silently fall back to a display label known to be
+  // ambiguous with Amazon's conditional enum code.
+  if(option.sizeClass==="alpha"&&["XXS","XS","XL","XXL","XXXL"].includes(option.size)&&
+     !official&&!mapped)return {ok:false};
+  const resolved=mapped??(official?wanted:option.size);
   return {ok:true,attribute:field,value:{
     size:resolved,size_class:option.sizeClass,size_system:systems[0]}};
 }

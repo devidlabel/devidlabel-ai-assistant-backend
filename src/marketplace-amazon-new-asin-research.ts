@@ -298,6 +298,42 @@ function ptdAlphaSizeTokens(schema:Row):Row {
   }
   return output;
 }
+/** The XL display label can have an opaque PTD wire enum (e.g. x_l).
+ * Read paired enum/enumNames from the same Amazon schema; no guessed aliases
+ * and no binding across sizes, markets or product types.
+ */
+function ptdAlphaSizeLabelTokens(schema:Row):Row {
+  const root=obj(schema.properties), wrapper=obj(root.attributes);
+  const holder=wrapper.type==="object"&&Object.keys(obj(wrapper.properties)).length>0?
+    wrapper:schema;
+  const attributes=obj(holder.properties), output:Row={};
+  for(const field of ["shirt_size","apparel_size","headwear_size"]){
+    const attr=obj(attributes[field]), item=obj(attr.items);
+    const size=obj(obj(item.properties).size);
+    const values=size.enum, labels=size.enumNames;
+    if(attr.type!=="array"||item.type!=="object"||
+       !Array.isArray(values)||!Array.isArray(labels)||
+       values.length!==labels.length||values.length>10000||
+       values.some(x=>typeof x!=="string")||
+       labels.some(x=>typeof x!=="string"))continue;
+    const matches:Row={};
+    for(const [merchant,display] of [
+      ["XXS",["XXS","XX-Small","2XS"]],
+      ["XS",["XS","X-Small","X Small"]],
+      ["XL",["XL","X-Large","X Large"]],
+      ["XXL",["XXL","XX-Large","2XL"]],
+      ["XXXL",["XXXL","3XL","XXX-Large"]]
+    ] as const){
+      const candidates=values.filter((v,i)=>
+        (display as readonly string[]).includes(labels[i])&&/^[a-z][a-z0-9_]{0,63}$/.test(v)&&
+        !/^(?:jaspo_|numeric_|go_|age_)/.test(v));
+      const unique=[...new Set(candidates)];
+      if(unique.length===1)matches[merchant]=unique[0];
+    }
+    if(Object.keys(matches).length)output[field]=matches;
+  }
+  return output;
+}
 const SHOES_INSPECTION_FIELDS=[
   "footwear_size","target_gender","age_range_description","closure",
   "sole_material","inner","outer","leather_type",
@@ -691,6 +727,7 @@ export async function researchAmazonNewAsinProductType(
     ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(input.product_type) ? {
       ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
       ptd_alpha_size_tokens:ptdAlphaSizeTokens(rawSchema),
+      ptd_alpha_size_label_tokens:ptdAlphaSizeLabelTokens(rawSchema),
       ptd_size_shapes_are_read_only:true,
       ptd_size_shapes_not_schema_validation:true,
       ptd_size_mapping_not_performed:true,
