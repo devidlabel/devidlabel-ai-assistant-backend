@@ -390,7 +390,9 @@ export async function previewAmazonGenericEanValidation(
      !research.required_attribute_names.includes("item_name")||
      !research.required_attribute_names.includes("brand")||
      (research.title_category_conflict_detected===true &&
-      !(pt==="SOCKS"&&research.product_type_discovery_source==="AMAZON_KEYWORDS_SHOPIFY_SOCKS"))||
+      !(pt==="SOCKS"&&research.product_type_discovery_source==="AMAZON_KEYWORDS_SHOPIFY_SOCKS")&&
+      !(pt==="COAT"&&sku.startsWith("RFR_")&&brand==="Refrigiwear"&&
+        research.product_type_discovery_source==="AMAZON_KEYWORDS_REFRIGIWEAR_COAT"))||
      !eanValid(ean as string)||
      (shop.upc!==null&&shop.upc!==undefined)||
      typeof title!=="string"||!title.trim()||title.length>200||
