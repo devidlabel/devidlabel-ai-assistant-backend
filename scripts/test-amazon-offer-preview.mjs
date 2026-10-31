@@ -128,6 +128,15 @@ function harness(options = {}) {
   return { deps, events, run: () => preview(selected, options.env ?? env, deps) };
 }
 
+const rfrZeroItem=Object.freeze({...input,sku:"RFR_SYNTHETIC_001"});
+const rfrZeroCase=harness({input:rfrZeroItem,
+ proof:{shopify_stock_observed:0,amazon_brand_expected:"Refrigiwear"}});
+const rfrZeroResponse=await rfrZeroCase.run();
+assert.equal(rfrZeroResponse.amazon_preview_status,"VALID");
+assert.deepEqual(rfrZeroCase.events,["preflight","token","preview"]);
+const otherZeroCase=harness({proof:{shopify_stock_observed:0,
+ amazon_brand_expected:"Refrigiwear"}});
+assert.equal((await otherZeroCase.run()).reason,"preflight_or_schema_evidence_unverified");
 const originalFetch = globalThis.fetch;
 const originalTimeout = AbortSignal.timeout;
 const originals = new Map(["log", "warn", "error", "debug", "info"].map(name => [name, console[name]]));
