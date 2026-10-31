@@ -284,6 +284,38 @@ const alphaResult=await run(request("SHIRT"),env,{...alphaBase,
 });
 assert.equal(alphaResult.provider_validation_status,"VALID");
 
+// XL maps to the actual Amazon PTD enum by its display label, not a guess.
+const xlBase=deps("SHIRT","IT");
+const xlTest=await run(request("SHIRT"),env,{...xlBase,
+ research:async()=>({...sizeResearch("SHIRT","IT","shirt_size"),
+   ptd_alpha_size_label_tokens:{shirt_size:{XL:"x_l"}}}),
+ readShopify:async(e,q,v)=>{
+   const data=await xlBase.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))
+     data.productVariant.selectedOptions=[{name:"Taglia",value:"XL"}];
+   return data;
+ },
+ fetch:async(_url,init)=>{
+   const body=JSON.parse(init.body);
+   assert.deepEqual(body.attributes.shirt_size,[{
+     size:"x_l",size_class:"alpha",size_system:"as6",marketplace_id:markets.IT}]);
+   return new Response(JSON.stringify({sku,status:"VALID",submissionId:"xl-wire",issues:[]}),
+     {status:200,headers:{"content-type":"application/json"}});
+ }
+});
+assert.equal(xlTest.provider_validation_status,"VALID");
+const xlMissing=await run(request("SHIRT"),env,{...xlBase,
+ research:async()=>sizeResearch("SHIRT","IT","shirt_size"),
+ readShopify:async(e,q,v)=>{
+   const data=await xlBase.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))
+     data.productVariant.selectedOptions=[{name:"Taglia",value:"XL"}];
+   return data;
+ },
+ fetch:async()=>{throw Error("XL must be blocked without exact PTD token");}
+});
+assert.equal(xlMissing.status,"BLOCKED_PREVIEW");
+
 // Bad PTD size structure cannot reach Amazon PUT.
 const invalidSize=await run(request("COAT"),env,deps("COAT","IT",{
  research:async()=>research({
