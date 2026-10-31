@@ -240,12 +240,13 @@ assert.equal(JSON.stringify(details).includes("signature=mock"),false);
 
 // Wrong item-name taxonomy requires a second, positive PTD keyword match.
 const coatSku="RFR_G05708_XT3792_G06000_S";
-function coatDeps(events,noCoatKeyword=false){
+function coatDeps(events,noCoatKeyword=false,quantity=3){
   const source=shopify();
   source.products[0].title="Speed Jacket Black";
   source.products[0].vendor="Refrigiwear";
   source.products[0].product_type="Giacche e cappotti";
   source.products[0].variants[0].sku=coatSku;
+  source.products[0].variants[0].inventory_quantity=quantity;
   return deps(events,{
     readShopify:async()=>source,
     readListing:async()=>({ok:true,marketplace:"IT",provider_mutations:0,can_change_stock:false,results:[{
@@ -260,6 +261,18 @@ assert.equal(coatResult.status,"REQUIREMENTS_REVIEW_REQUIRED");
 assert.equal(coatResult.product_type_discovery_source,"AMAZON_KEYWORDS_REFRIGIWEAR_COAT");
 assert.equal(coatEvents.length,4);
 assert.deepEqual(coatEvents.map(x=>x.auth),[true,true,true,false]);
+const zeroCoat=await research({marketplace:"IT",sku:coatSku,product_type:"COAT"},
+  env,coatDeps([],false,0));
+assert.equal(zeroCoat.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(zeroCoat.shopify.shopify_available,0);
+const negativeCoat=await research({marketplace:"IT",sku:coatSku,product_type:"COAT"},
+  env,coatDeps([],false,-1));
+assert.equal(negativeCoat.status,"BLOCKED_SHOPIFY");
+const genericZero=shopify();
+genericZero.products[0].variants[0].inventory_quantity=0;
+const otherBrandZero=await research(req,env,deps([],{
+  readShopify:async()=>genericZero}));
+assert.equal(otherBrandZero.status,"BLOCKED_SHOPIFY");
 const badCoat=await research({marketplace:"IT",sku:coatSku,product_type:"COAT"},
   env,coatDeps([],true));
 assert.equal(badCoat.status,"BLOCKED_DEFINITIONS");
