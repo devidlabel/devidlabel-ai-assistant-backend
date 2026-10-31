@@ -129,6 +129,23 @@ await reject({schema_enforced:false});
 await reject({title_category_conflict_detected:true,product_type_discovery_source:"AMAZON_ITEM_NAME"});
 await reject({shopify:{...research().shopify,ean:"8300193548460"}});
 await reject({shopify:{...research().shopify,shopify_available:0}});
+const rfrSku="RFR_TEST_SOCKS_BLACK_M";
+const rfrProduct=privateData();
+rfrProduct.productVariant.sku=rfrSku;
+rfrProduct.productVariant.product.vendor="Refrigiwear";
+const rfrDeps=deps("SOCKS","IT");
+const rfrZero=await run({...request(),sku:rfrSku},env,{...rfrDeps,
+ research:async()=>({...research(),sku:rfrSku,
+  shopify:{...research().shopify,brand:"Refrigiwear",
+   amazon_listing_brand:"Refrigiwear",shopify_available:0}}),
+ readShopify:async(e,q,v)=>q.includes("metaobject(id:")?
+  rfrDeps.readShopify(e,q,v):rfrProduct,
+ fetch:async()=>new Response(JSON.stringify({sku:rfrSku,status:"INVALID",
+  submissionId:"preview-rfr-zero",issues:[{code:"90220",severity:"ERROR",
+   attributeNames:["manufacturer"]}]}),{status:200,
+  headers:{"content-type":"application/json"}})});
+assert.equal(rfrZero.provider_validation_status,"INVALID",JSON.stringify(rfrZero));
+assert.equal(rfrZero.issue_count,1);
 const privateCases=[
  d=>{d.productVariant.sku="MISMATCH";},
  d=>{d.productVariant.barcode="8300193548460";},

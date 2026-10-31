@@ -397,7 +397,9 @@ export async function previewAmazonGenericEanValidation(
      (shop.upc!==null&&shop.upc!==undefined)||
      typeof title!=="string"||!title.trim()||title.length>200||
      typeof brand!=="string"||!brand.trim()||brand.length>100||
-     !Number.isSafeInteger(shop.shopify_available)||(shop.shopify_available as number)<=0||
+     !Number.isSafeInteger(shop.shopify_available)||(shop.shopify_available as number)<0||
+     ((shop.shopify_available as number)===0&&
+      !(sku.startsWith("RFR_")&&brand==="Refrigiwear"))||
      typeof shop.variant_id!=="string"||
      !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(shop.variant_id))
     return blocked(marketplace,sku,pt,"generic_ean_research_or_identity_unverified");
