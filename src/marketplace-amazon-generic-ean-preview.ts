@@ -30,7 +30,7 @@ const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productV
  * Commercially authorized package defaults are NOT measured product dimensions.
  */
 function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
-  marketplace:string,marketId:string,available:string[]):Row{
+  marketplace:string,marketId:string,available:string[],ptdAlphaTokens:Row={}):Row{
   if(!["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(pt)||
      marketplace!=="IT"||!sku.startsWith("RFR_")||
      product.vendor!=="Refrigiwear")return {};
@@ -117,8 +117,13 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   // Amazon's as6/alpha schema is explicitly researched for this product.
   const size=val("headwear_size");
   const sizeAliases=new Set(["One Size","Taglia unica","Taglia Unica","UN","OSFA","OSFM"]);
-  if(size&&sizeAliases.has(size))set("headwear_size",[{size:size==="Taglia Unica"?"Taglia unica":size,size_system:"as6",
-    size_class:"alpha",marketplace_id:marketId}]);
+  if(size&&sizeAliases.has(size)){
+    const officialTokens=ptdAlphaTokens.headwear_size;
+    const mapped=Array.isArray(officialTokens)&&officialTokens.includes("one_size")?
+      "one_size":size==="Taglia Unica"?"Taglia unica":size;
+    set("headwear_size",[{size:mapped,size_system:"as6",
+      size_class:"alpha",marketplace_id:marketId}]);
+  }
   if(size)set("special_size_type",[{value:"Standard",
     marketplace_id:marketId}]);
   if(fields.batteries_required===false)
@@ -248,7 +253,7 @@ function strictEuBootOption(raw:unknown):{ok:boolean;size?:string;sizeClass?:str
 }
 function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
   {ok:boolean;attribute?:string;value?:Row}{
-  const field=pt==="SHIRT"?"shirt_size":pt==="COAT"?"apparel_size":
+  const field=pt==="SHIRT"?"shirt_size":["COAT","SWEATER","SWEATSHIRT"].includes(pt)?"apparel_size":
     pt==="BOOT"?"footwear_size":null;
   if(!field||!research.available_schema_attribute_names ||
      !Array.isArray(research.available_schema_attribute_names)||
@@ -281,8 +286,14 @@ function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
      ))||
      shape.conditional_review_required===true||item.conditional_review_required===true)
     return {ok:false};
+  // PTD enum tokens are often lowercase (e.g. "s") while Shopify labels
+  // are uppercase ("S"). Use only tokens observed in Amazon's live schema.
+  const tokens=obj(research.ptd_alpha_size_tokens)[field];
+  const wanted=option.sizeClass==="alpha"?option.size.toLowerCase():null;
+  const official=wanted&&Array.isArray(tokens)&&tokens.includes(wanted);
+  const resolved=official?wanted:option.size;
   return {ok:true,attribute:field,value:{
-    size:option.size,size_class:option.sizeClass,size_system:systems[0]}};
+    size:resolved,size_class:option.sizeClass,size_system:systems[0]}};
 }
 
 /** Strict single-value seller-curated Shopify metadata, not title inference.
@@ -429,7 +440,7 @@ export async function previewAmazonGenericEanValidation(
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
-  const regularFit=(pt==="COAT"||pt==="SHIRT")&&sku.startsWith("RFR_")&&
+  const regularFit=["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&sku.startsWith("RFR_")&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
     (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
@@ -456,7 +467,7 @@ export async function previewAmazonGenericEanValidation(
     ...(merchantFabric.value?{fabric_type:[{
       value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
     ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
-      research.available_schema_attribute_names as string[]),
+      research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens)),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}

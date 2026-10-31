@@ -280,6 +280,24 @@ function selectedAttributeShapes(schema: Row, names: readonly string[]): Row {
     result[name] = shape(attributes[name]);
   return result;
 }
+/** Read only exact PTD alpha-size wire tokens, not user-facing labels. */
+function ptdAlphaSizeTokens(schema:Row):Row {
+  const root=obj(schema.properties), wrapper=obj(root.attributes);
+  const holder=wrapper.type==="object"&&Object.keys(obj(wrapper.properties)).length>0?
+    wrapper:schema;
+  const attributes=obj(holder.properties), output:Row={};
+  const permitted=["xxs","xs","s","m","l","xl","xxl","xxxl","one_size"];
+  for(const field of ["shirt_size","apparel_size","headwear_size"]){
+    const attr=obj(attributes[field]), item=obj(attr.items);
+    const size=obj(obj(item.properties).size), values=size.enum;
+    if(attr.type!=="array"||item.type!=="object"||
+       !Array.isArray(values)||values.length>10000||
+       values.some(x=>typeof x!=="string"))continue;
+    const tokens=permitted.filter(x=>values.includes(x));
+    if(tokens.length)output[field]=tokens;
+  }
+  return output;
+}
 const SHOES_INSPECTION_FIELDS=[
   "footwear_size","target_gender","age_range_description","closure",
   "sole_material","inner","outer","leather_type",
@@ -670,8 +688,9 @@ export async function researchAmazonNewAsinProductType(
       ptd_shapes_are_read_only: true,
       ptd_shapes_are_not_schema_validation: true,
     } : {}),
-    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK"].includes(input.product_type) ? {
+    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(input.product_type) ? {
       ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
+      ptd_alpha_size_tokens:ptdAlphaSizeTokens(rawSchema),
       ptd_size_shapes_are_read_only:true,
       ptd_size_shapes_not_schema_validation:true,
       ptd_size_mapping_not_performed:true,
