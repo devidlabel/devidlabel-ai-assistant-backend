@@ -318,6 +318,8 @@ function ptdAlphaSizeLabelTokens(schema:Row):Row {
        labels.some(x=>typeof x!=="string"))continue;
     const matches:Row={};
     for(const [merchant,display] of [
+      ["XXS",["XXS","XX-Small","2XS"]],
+      ["XS",["XS","X-Small","X Small"]],
       ["XL",["XL","X-Large","X Large"]],
       ["XXL",["XXL","XX-Large","2XL"]],
       ["XXXL",["XXXL","3XL","XXX-Large"]]
