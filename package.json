@@ -73,7 +73,7 @@
     "test:amazon-listing-brand": "node scripts/test-amazon-listing-brand.mjs",
     "test:amazon-new-asin-validation": "node scripts/test-amazon-new-asin-preview.mjs",
     "test:amazon-new-asin-create-pilot": "node scripts/test-amazon-new-asin-create-pilot.mjs",
-    "test:amazon-first-asin-media-price-pilot": "node scripts/test-amazon-first-asin-media-price-pilot.mjs",
+    "test:amazon-first-asin-media-price-pilot": "node scripts/test-amazon-first-asin-media-price-pilot.mjs && node scripts/test-amazon-refrigiwear-main-image-pilot.mjs",
     "test:amazon-shoes-private-shopify-values": "node scripts/test-amazon-shoes-private-shopify-values.mjs",
     "test:amazon-accessory-upc-preview": "node scripts/test-amazon-accessory-upc-preview.mjs",
     "test:amazon-generic-ean-preview": "node scripts/test-amazon-generic-ean-preview.mjs",

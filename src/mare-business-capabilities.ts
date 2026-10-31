@@ -458,6 +458,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.refrigiwear.main_image.patch.pilot",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Exact Braffy Green Lily S / ASIN B0HPY8J51M IT media-only canary. Checks seller 18320 issue, verifies original Shopify main image, PATCH VALIDATION_PREVIEW and live PATCH of only main_product_image_locator. Never changes price, stock, Channable or unrelated attributes. Readback must confirm image and issue resolution.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT"]},
+        sku:{type:"string",enum:["RFR_W53800_NY2303_E06107_S"]},
+        asin:{type:"string",enum:["B0HPY8J51M"]}
+      },["marketplace","sku","asin"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.shoes.new_asin.create.pilot",provider:"amazon",domain:"marketplace",
       operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
