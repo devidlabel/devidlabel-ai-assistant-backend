@@ -458,6 +458,24 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.refrigiwear.images.patch.batch",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"1-8 verified Refrigiwear Amazon IT SKU-ASIN listings with confirmed error 18320: exact source Shopify image, PATCH VALIDATION_PREVIEW and media-only PATCH to main_product_image_locator. No prices, inventory, other attributes, Channable, or Shopify mutations. Stops on uncertain live writes; image issue resolution requires readback.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT"]},
+        items:{type:"array",minItems:1,maxItems:8,items:{
+          type:"object",additionalProperties:false,properties:{
+            sku:{type:"string",minLength:12,maxLength:120,pattern:"^RFR_[A-Za-z0-9_]+$"},
+            asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+          },required:["sku","asin"]
+        }}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.refrigiwear.main_image.patch.pilot",provider:"amazon",domain:"marketplace",
       operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
