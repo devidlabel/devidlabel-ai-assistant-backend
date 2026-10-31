@@ -76,7 +76,9 @@ function verifiedPreflight(pre: Row, input: AmazonOfferPreviewInput): boolean {
     (pre.shopify_price_minor as number) > 0 &&
     (pre.shopify_price_minor as number) <= 100_000_000 &&
     Number.isSafeInteger(pre.shopify_stock_observed) &&
-    (pre.shopify_stock_observed as number) > 0 &&
+    ((pre.shopify_stock_observed as number) > 0 ||
+     (pre.shopify_stock_observed === 0 && input.sku.startsWith("RFR_") &&
+      pre.amazon_brand_expected === "Refrigiwear")) &&
     pre.read_only === true && pre.has_created_offer === false &&
     pre.live_listing_write_enabled === false &&
     typeof pre.product_variant_id === "string" &&
