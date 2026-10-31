@@ -297,7 +297,7 @@ function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
     fromPtd:undefined;
   // XL must never silently fall back to a display label known to be
   // ambiguous with Amazon's conditional enum code.
-  if(option.sizeClass==="alpha"&&["XL","XXL","XXXL"].includes(option.size)&&
+  if(option.sizeClass==="alpha"&&["XXS","XS","XL","XXL","XXXL"].includes(option.size)&&
      !official&&!mapped)return {ok:false};
   const resolved=mapped??(official?wanted:option.size);
   return {ok:true,attribute:field,value:{
