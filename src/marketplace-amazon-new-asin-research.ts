@@ -440,7 +440,9 @@ export async function researchAmazonNewAsinProductType(
   const identifierType=validEAN(code)?"EAN":validUPC(code)?"UPC":null;
   if (product.status !== "ACTIVE" || brand.toLowerCase() === "p448" ||
       !title || title.length > 200 || !brand || brand.length > 100 ||
-      !identifierType || !Number.isSafeInteger(quantity) || (quantity as number) <= 0 ||
+      !identifierType || !Number.isSafeInteger(quantity) || (quantity as number) < 0 ||
+      ((quantity as number) === 0 &&
+       !(input.sku.startsWith("RFR_") && brand === "Refrigiwear")) ||
       variant.inventory_tracked !== true || variant.inventory_levels_complete !== true)
     return blocked(input, at, "BLOCKED_SHOPIFY", "active_gtin_stock_or_inventory_unverified");
   const source = {
