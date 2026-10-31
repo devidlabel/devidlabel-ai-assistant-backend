@@ -208,7 +208,8 @@ export async function readAmazonOfferOnlyPreflight(
   const vendor = string(product.vendor);
   const brandIdentity=resolveAmazonListingBrand(product.vendor);
   if (product.status !== "ACTIVE" || vendor.toLowerCase() === "p448" ||
-      typeof stock !== "number" || !Number.isSafeInteger(stock) || stock <= 0 ||
+      typeof stock !== "number" || !Number.isSafeInteger(stock) || stock < 0 ||
+      (stock === 0 && !(sku.startsWith("RFR_") && vendor === "Refrigiwear")) ||
       typeof price !== "string" || !MONEY_RE.test(price) || Number(price) <= 0 ||
       variant.barcode !== ean || variant.inventory_tracked !== true ||
       variant.inventory_levels_complete !== true ||
