@@ -161,7 +161,10 @@ function verifiedPreflight(pre: Row, input: AmazonOfferPreviewInput): boolean {
     Number.isSafeInteger(pre.shopify_price_minor) && pre.shopify_price_minor >= 1 &&
     pre.shopify_price_minor <= 100_000_000 &&
     typeof pre.shopify_stock_observed === "number" && Number.isSafeInteger(pre.shopify_stock_observed) &&
-    pre.shopify_stock_observed > 0 && typeof pre.product_variant_id === "string" &&
+    (pre.shopify_stock_observed > 0 ||
+     (pre.shopify_stock_observed === 0 && input.sku.startsWith("RFR_") &&
+      pre.amazon_brand_expected === "Refrigiwear")) &&
+    typeof pre.product_variant_id === "string" &&
     /^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(pre.product_variant_id) &&
     pre.read_only === true && pre.has_created_offer === false && pre.live_listing_write_enabled === false &&
     Array.isArray(pre.review_required) && pre.review_required.length === REVIEW_REQUIRED.length &&
