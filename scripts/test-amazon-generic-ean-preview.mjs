@@ -4,6 +4,17 @@ const compiled=await build({entryPoints:["src/marketplace-amazon-generic-ean-pre
   bundle:true,format:"esm",platform:"neutral",write:false,logLevel:"silent"});
 const {previewAmazonGenericEanValidation:run}=await import("data:text/javascript;base64,"+
   Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+// Source-backed fabric evidence must total 100% with approved components.
+const {validatedRefrigiwearFabric:validRfrFabric}=await import("data:text/javascript;base64,"+
+  Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+for(const value of ["100% Nylon","98% Cotone, 2% Elastan",
+ "65% Poliestere, 35% Cotone","80% Cotone, 20% Poliestere",
+ "50% Poliestere, 50% Acrilico","95% Poliestere, 5% Elastan"])
+  assert.equal(validRfrFabric(value),true,value);
+for(const value of ["100% Seta","90% Cotone, 5% Poliestere",
+ "120% Nylon","100% Cotone, 1% Cotone","90% Poliestere, 10% Unknown",
+ "80% Cotone; 20% Poliestere","0% Nylon, 100% Cotone"])
+  assert.equal(validRfrFabric(value),false,value);
 const sku="RSX_64228G_V4928_-_ESPRESSO",ean="8300193548467";
 const variantId="gid://shopify/ProductVariant/52554517676373";
 const markets={IT:"APJ6JRA9NG5V4",DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"};

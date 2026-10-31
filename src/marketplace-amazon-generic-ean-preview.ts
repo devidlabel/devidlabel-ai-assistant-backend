@@ -80,8 +80,7 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   if(water&&levels[water])set("water_resistance_level",[
     {value:levels[water],marketplace_id:marketId}]);
   const fabric=val("fabric_type");
-  if(fabric&&(/^(100% (Nylon|Cotone|Poliestere))$/.test(fabric)||
-     fabric==="98% Cotone, 2% Elastan"))
+  if(fabric&&validatedRefrigiwearFabric(fabric))
     set("fabric_type",text(fabric));
   const material=val("material");
   if(material)set("material",text(material));
@@ -157,6 +156,26 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   return attrs;
 }
 
+/** Only source-backed percentages in the existing Shopify evidence metafield.
+ * Validate the complete 100% composition without inventing, normalizing or
+ * dropping components. The source must still be verified before writing it.
+ */
+export function validatedRefrigiwearFabric(value:string):boolean{
+  if(typeof value!=="string"||value.length>120)return false;
+  const parts=value.split(", ");
+  if(parts.length<1||parts.length>3)return false;
+  const allowed=new Set(["Nylon","Cotone","Poliestere","Elastan","Acrilico","Poliammide","Viscosa","Lana"]);
+  let sum=0;
+  const seen=new Set<string>();
+  for(const part of parts){
+    const match=/^([1-9][0-9]{0,2})% ([A-Za-z]+)$/.exec(part);
+    if(!match||!allowed.has(match[2])||seen.has(match[2]))return false;
+    const pct=Number(match[1]);
+    if(pct>100)return false;
+    seen.add(match[2]);sum+=pct;
+  }
+  return sum===100;
+}
 function safeModel(raw:unknown):raw is string {
   return typeof raw==="string"&&raw.length>=2&&raw.length<=80&&raw===raw.trim()&&
     !/[\u0000-\u001f\u007f<>]/.test(raw);
