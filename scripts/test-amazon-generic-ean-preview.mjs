@@ -260,6 +260,30 @@ for(const market of Object.keys(sizeSystems)){
  assert.equal(x.ok,true);
  assert.ok(x.attributes_submitted.includes(field));
 }
+// Amazon PTD enum codes can differ from the merchant-facing size label.
+// When the live PTD explicitly exposes lowercase "s", transmit the wire token.
+const alphaBase=deps("SHIRT","IT");
+const alphaResult=await run(request("SHIRT"),env,{...alphaBase,
+ research:async()=>({
+  ...sizeResearch("SHIRT","IT","shirt_size"),
+  ptd_alpha_size_tokens:{shirt_size:["s","m","l","xl"]}
+ }),
+ readShopify:async(e,q,v)=>{
+  const data=await alphaBase.readShopify(e,q,v);
+  if(!q.includes("metaobject(id:"))
+    data.productVariant.selectedOptions=[{name:"Taglia",value:"S"}];
+  return data;
+ },
+ fetch:async(_url,init)=>{
+  const body=JSON.parse(init.body);
+  assert.equal(body.attributes.shirt_size[0].size,"s");
+  assert.equal(body.attributes.shirt_size[0].size_class,"alpha");
+  return new Response(JSON.stringify({sku,status:"VALID",submissionId:"size-wire-accepted",issues:[]}),
+    {status:200,headers:{"content-type":"application/json"}});
+ }
+});
+assert.equal(alphaResult.provider_validation_status,"VALID");
+
 // Bad PTD size structure cannot reach Amazon PUT.
 const invalidSize=await run(request("COAT"),env,deps("COAT","IT",{
  research:async()=>research({
