@@ -69,6 +69,16 @@ assert.deepEqual(first.calls.bodies[0].attributes.fulfillment_availability,
  [{fulfillment_channel_code:"DEFAULT",quantity:0,marketplace_id:market}]);
 assert.equal(first.calls.bodies[0].attributes.purchasable_offer,undefined);
 assert.deepEqual(first.calls.bodies[0].attributes.brand,previewAttributes.brand);
+const zeroStock=makeDeps({research:async()=>({...src,
+ shopify:{...src.shopify,shopify_available:0}})});
+const zeroResult=await run(input,env,zeroStock.deps);
+assert.equal(zeroResult.status,"NEW_ASIN_SUBMITTED_AWAITING_READBACK");
+assert.equal(zeroStock.calls.live,1);
+const negativeStock=makeDeps({research:async()=>({...src,
+ shopify:{...src.shopify,shopify_available:-1}})});
+const negativeResult=await run(input,env,negativeStock.deps);
+assert.equal(negativeResult.status,"BLOCKED_REFRIGIWEAR_PILOT");
+assert.equal(negativeStock.calls.live,0);
 const invalidExact=makeDeps({fetch:async(url,init)=>{
   const mode=new URL(url).searchParams.get("mode");
   if(mode==="VALIDATION_PREVIEW")
