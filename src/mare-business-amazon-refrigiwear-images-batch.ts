@@ -89,7 +89,7 @@ async function photo(item:Item,env:Env,dep:Deps):Promise<string|null>{
     Number(im.width)>10000||Number(im.height)>10000)return null;
  let u:URL;try{u=new URL(url);}catch{return null;}
  if(u.protocol!=="https:"||u.hostname!=="cdn.shopify.com"||
-    !/^\/s\/files\/[0-9/]+\/files\/[A-Za-z0-9_-]+\.jpe?g$/.test(u.pathname)||
+    !/^\/s\/files\/[0-9/]+\/files\/[A-Za-z0-9_-]+\.(?:jpe?g|png)$/.test(u.pathname)||
     (u.search&&!/^\?v=\d{1,15}$/.test(u.search))||u.hash)return null;
  return url;
 }
