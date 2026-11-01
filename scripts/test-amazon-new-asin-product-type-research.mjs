@@ -531,10 +531,11 @@ function kwayDuplicateCatalog(oldStatus="UNLISTED",oldStock=0,oldEan=KWAY_EAN){
   old.variants[0].barcode=oldEan;
   return {...catalog,product_count:2,inline_product_count:2,products:[main,old]};
 }
-async function checkKwayDuplicate(oldStatus,oldStock,oldEan=KWAY_EAN){
+async function checkKwayDuplicate(oldStatus,oldStock,oldEan=KWAY_EAN,activeStock=3){
   const events=[];
   return research({marketplace:"IT",sku:KWAY_SKU,product_type:"COAT"},env,deps(events,{
-    readShopify:async()=>kwayDuplicateCatalog(oldStatus,oldStock,oldEan),
+    readShopify:async()=>{const c=kwayDuplicateCatalog(oldStatus,oldStock,oldEan);
+      c.products[0].variants[0].inventory_quantity=activeStock;return c;},
     readListing:async()=>({ok:true,marketplace:"IT",provider_mutations:0,
       can_change_stock:false,results:[{sku:KWAY_SKU,state:"VERIFIED_ABSENT"}]}),
     readCatalogMatch:async()=>({ok:true,result:{marketplace:"IT",complete:true,
@@ -549,6 +550,11 @@ assert.equal(kwayStale.shopify.ean,KWAY_EAN);
 assert.equal(kwayStale.product_type_discovery_source,"AMAZON_KEYWORDS_KWAY_COAT");
 const kwayArchived=await checkKwayDuplicate("ARCHIVED",0);
 assert.equal(kwayArchived.status,"REQUIREMENTS_REVIEW_REQUIRED");
+const kwayZero=await checkKwayDuplicate("UNLISTED",0,KWAY_EAN,0);
+assert.equal(kwayZero.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(kwayZero.shopify.shopify_available,0);
+const kwayNegative=await checkKwayDuplicate("UNLISTED",0,KWAY_EAN,-1);
+assert.equal(kwayNegative.status,"BLOCKED_SHOPIFY");
 for(const [status,quantity,barcode] of [
   ["ACTIVE",0,KWAY_EAN],["UNLISTED",1,KWAY_EAN],
   ["UNLISTED",0,"8056072266594"]]){
