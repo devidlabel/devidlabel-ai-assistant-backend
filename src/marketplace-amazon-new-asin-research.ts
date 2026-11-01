@@ -108,7 +108,24 @@ function entries(catalogRaw: unknown, sku: string): {product: Row; variant: Row}
       if (variant.sku === sku) matches.push({product, variant});
     }
   }
-  return matches.length === 1 ? matches[0] : null;
+  if(matches.length===1)return matches[0];
+  // A merchant may have a zero-stock, UNLISTED historical copy of an ACTIVE
+  // K-Way SKU. Never treat it as a second sellable identity, but only when
+  // SKU, EAN and brand agree and precisely one ACTIVE variant remains.
+  if(sku.startsWith("KWAY_")){
+    const active=matches.filter(x=>x.product.status==="ACTIVE"&&
+      x.product.vendor==="K-Way");
+    if(active.length===1&&
+       typeof active[0].variant.barcode==="string"&&
+       matches.every(x=>x===active[0]||
+         (x.product.vendor==="K-Way"&&
+          ["UNLISTED","ARCHIVED"].includes(String(x.product.status))&&
+          x.variant.barcode===active[0].variant.barcode&&
+          Number.isSafeInteger(x.variant.inventory_quantity)&&
+          x.variant.inventory_quantity===0)))
+      return active[0];
+  }
+  return null;
 }
 
 function eanUniqueInShopify(catalogRaw: unknown, ean: string, expectedVariantId: unknown): boolean {
@@ -122,18 +139,29 @@ function eanUniqueInShopify(catalogRaw: unknown, ean: string, expectedVariantId:
       catalog.product_count > 50 ||
       typeof expectedVariantId !== "string" ||
       !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(expectedVariantId)) return false;
-  let matches = 0;
-  for (const rawProduct of catalog.products) {
-    const product = obj(rawProduct);
-    if (!Array.isArray(product.variants)) return false;
-    for (const rawVariant of product.variants) {
-      const variant = obj(rawVariant);
-      if (variant.barcode !== ean) continue;
-      matches++;
-      if (variant.id !== expectedVariantId) return false;
+  const records:Array<{product:Row;variant:Row}>=[];
+  for(const rawProduct of catalog.products){
+    const product=obj(rawProduct);
+    if(!Array.isArray(product.variants))return false;
+    for(const rawVariant of product.variants){
+      const variant=obj(rawVariant);
+      if(variant.barcode===ean)records.push({product,variant});
     }
   }
-  return matches === 1;
+  const selected=records.filter(x=>x.variant.id===expectedVariantId);
+  if(selected.length!==1)return false;
+  if(records.length===1)return true;
+  const main=selected[0];
+  if(main.product.status!=="ACTIVE"||main.product.vendor!=="K-Way"||
+     typeof main.variant.sku!=="string"||!main.variant.sku.startsWith("KWAY_"))
+    return false;
+  return records.every(x=>x===main||
+    (x.product.vendor==="K-Way"&&
+     ["UNLISTED","ARCHIVED"].includes(String(x.product.status))&&
+     x.variant.sku===main.variant.sku&&
+     x.variant.barcode===main.variant.barcode&&
+     Number.isSafeInteger(x.variant.inventory_quantity)&&
+     x.variant.inventory_quantity===0));
 }
 
 async function readJson(url: string, token: string | null, fetcher: typeof fetch, schemaDocument = false): Promise<Row> {
