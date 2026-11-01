@@ -1,8 +1,8 @@
 {
   "ok": false,
-  "generated_at": "2026-11-01T18:19:29.991Z",
-  "source_commit": "32694f6a78104959956c7b5c5043c6bd051e07bd",
-  "workflow_run_id": 41335794534,
+  "generated_at": "2026-11-01T18:22:08.501Z",
+  "source_commit": "962276326e02900664a710c62fabcef636e69aab",
+  "workflow_run_id": 41335822463,
   "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
   "verification": {
     "worker_deployed": "success",
