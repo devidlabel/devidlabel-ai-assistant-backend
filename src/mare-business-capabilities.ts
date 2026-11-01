@@ -550,6 +550,22 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
          "AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.kway.new_asin.create.pilot",
+      provider:"amazon",domain:"marketplace",operation:"execute",
+      risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"K-Way one-SKU live LISTING pilot. Requires exact validated merchant-backed Amazon PTD attributes (no 90220 errors), current verified no-match EAN and seller-absence across EU, exact zero-stock VALIDATION_PREVIEW before live PUT; no price or Channable writes; never retry uncertain acknowledgement.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
+        product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG"]}
+      },["marketplace","sku","product_type"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"],[env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+         "AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.generic.ean.validation.preview",provider:"amazon",domain:"marketplace",
       operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
