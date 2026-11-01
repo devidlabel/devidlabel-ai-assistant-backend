@@ -492,7 +492,8 @@ export async function previewAmazonGenericEanValidation(
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
-  const regularFit=["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&sku.startsWith("RFR_")&&
+  const regularFit=["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
+    (sku.startsWith("RFR_")||sku.startsWith("KWAY_"))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
     (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
