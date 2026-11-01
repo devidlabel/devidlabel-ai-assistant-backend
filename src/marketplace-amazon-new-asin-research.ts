@@ -470,7 +470,8 @@ export async function researchAmazonNewAsinProductType(
       !title || title.length > 200 || !brand || brand.length > 100 ||
       !identifierType || !Number.isSafeInteger(quantity) || (quantity as number) < 0 ||
       ((quantity as number) === 0 &&
-       !(input.sku.startsWith("RFR_") && brand === "Refrigiwear")) ||
+       !(input.sku.startsWith("RFR_") && brand === "Refrigiwear") &&
+       !(input.sku.startsWith("KWAY_") && brand === "K-Way")) ||
       variant.inventory_tracked !== true || variant.inventory_levels_complete !== true)
     return blocked(input, at, "BLOCKED_SHOPIFY", "active_gtin_stock_or_inventory_unverified");
   const source = {
