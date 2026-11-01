@@ -72,8 +72,9 @@ assert.deepEqual(first.calls.bodies[0].attributes.brand,previewAttributes.brand)
 const zeroStock=makeDeps({research:async()=>({...src,
  shopify:{...src.shopify,shopify_available:0}})});
 const zeroResult=await run(input,env,zeroStock.deps);
-assert.equal(zeroResult.status,"BLOCKED_KWAY_PILOT");
-assert.equal(zeroStock.calls.live,0);
+assert.equal(zeroResult.status,"NEW_ASIN_SUBMITTED_AWAITING_READBACK");
+assert.equal(zeroResult.submitted_quantity,0);
+assert.equal(zeroStock.calls.live,1);
 const negativeStock=makeDeps({research:async()=>({...src,
  shopify:{...src.shopify,shopify_available:-1}})});
 const negativeResult=await run(input,env,negativeStock.deps);
