@@ -422,7 +422,8 @@ export async function previewAmazonGenericEanValidation(
      typeof brand!=="string"||!brand.trim()||brand.length>100||
      !Number.isSafeInteger(shop.shopify_available)||(shop.shopify_available as number)<0||
      ((shop.shopify_available as number)===0&&
-      !(sku.startsWith("RFR_")&&brand==="Refrigiwear"))||
+      !(sku.startsWith("RFR_")&&brand==="Refrigiwear")&&
+      !(sku.startsWith("KWAY_")&&brand==="K-Way"))||
      typeof shop.variant_id!=="string"||
      !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(shop.variant_id))
     return blocked(marketplace,sku,pt,"generic_ean_research_or_identity_unverified");
