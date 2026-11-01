@@ -413,7 +413,9 @@ export async function previewAmazonGenericEanValidation(
      (research.title_category_conflict_detected===true &&
       !(pt==="SOCKS"&&research.product_type_discovery_source==="AMAZON_KEYWORDS_SHOPIFY_SOCKS")&&
       !(pt==="COAT"&&sku.startsWith("RFR_")&&brand==="Refrigiwear"&&
-        research.product_type_discovery_source==="AMAZON_KEYWORDS_REFRIGIWEAR_COAT"))||
+        research.product_type_discovery_source==="AMAZON_KEYWORDS_REFRIGIWEAR_COAT")&&
+      !(pt==="COAT"&&sku.startsWith("KWAY_")&&brand==="K-Way"&&
+        research.product_type_discovery_source==="AMAZON_KEYWORDS_KWAY_COAT"))||
      !eanValid(ean as string)||
      (shop.upc!==null&&shop.upc!==undefined)||
      typeof title!=="string"||!title.trim()||title.length>200||
