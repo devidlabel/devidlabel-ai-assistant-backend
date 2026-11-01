@@ -24,16 +24,20 @@ const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
 const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{title description vendor status amazonPtd:metafield(namespace:"custom",key:"amazon_product_attributes"){type value} fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{id title description vendor status amazonPtd:metafield(namespace:"custom",key:"amazon_product_attributes"){type value} fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 
-/** Product-specific merchant evidence only. Never infer origin or safety certification.
- * Commercially authorized package defaults are NOT measured product dimensions.
+/** Merchant-attested, source-scoped product evidence for Refrigiwear and K-Way.
+ * Brand, SKU and source Product GID must match. No inferred origin, supplier
+ * certification or safety claims; logistics defaults are not product dimensions.
  */
 function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   marketplace:string,marketId:string,available:string[],ptdAlphaTokens:Row={}):Row{
-  if(!["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(pt)||
-     marketplace!=="IT"||!sku.startsWith("RFR_")||
-     product.vendor!=="Refrigiwear")return {};
+  const isRefrigiwear=sku.startsWith("RFR_")&&product.vendor==="Refrigiwear";
+  const isKway=sku.startsWith("KWAY_")&&product.vendor==="K-Way";
+  if(!isRefrigiwear&&!isKway)return {};
+  if(!["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT",
+        "HANDBAG","COSMETIC_CASE","STORAGE_BAG"].includes(pt)||
+     marketplace!=="IT")return {};
   const mf=obj(product.amazonPtd);
   if(mf.type!=="json"||typeof mf.value!=="string")return {};
   let fields:Row;
@@ -42,7 +46,11 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   const enriched=obj(JSON.parse(mf.value));
   const sourceId=obj(enriched).source_product_id;
   const isClark=fields.source_scope==="Clark Hat B31908 MA9083 A00010 WHITE ONLY";
-  if((isClark&&(sku!=="RFR_B31908_MA9083_A00010_UN"||
+  if(isKway){
+    // A generic supplier note cannot silently authorize another K-Way model.
+    if(fields.source_scope!=="K-WAY_PRODUCT_VERIFIED_BY_MERCHANT"||
+       sourceId!==product.id)return {};
+  }else if((isClark&&(sku!=="RFR_B31908_MA9083_A00010_UN"||
        product.title!=="Berretto Clark White"||pt!=="HAT"))||
      (!isClark&&typeof sourceId!=="string"))return {};
   const val=(name:string):string|undefined=>{
@@ -94,8 +102,21 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   if(lining)set("lining_description",text(lining));
   if(pt==="BACKPACK"&&val("size"))set("size",text(val("size")!));
   const n=fields.number_of_compartments;
-  if(pt==="BACKPACK"&&typeof n==="number"&&Number.isInteger(n)&&n>=1&&n<=15)
+  if(["BACKPACK","HANDBAG"].includes(pt)&&typeof n==="number"&&
+     Number.isInteger(n)&&n>=1&&n<=15)
     set("number_of_compartments",[{value:n,marketplace_id:marketId}]);
+  const pockets=fields.number_of_pockets;
+  if(isKway&&pt==="HANDBAG"&&typeof pockets==="number"&&
+     Number.isInteger(pockets)&&pockets>=0&&pockets<=30)
+    set("number_of_pockets",[{value:pockets,marketplace_id:marketId}]);
+  const inner=val("inner_material");
+  if(isKway&&pt==="HANDBAG"&&inner)
+    set("inner",[{material:[{value:inner,language_tag:locale}],
+      marketplace_id:marketId}]);
+  const sizeInfo=val("size_info");
+  if(isKway&&pt==="HANDBAG"&&sizeInfo)
+    set("size_info",[{display_name:[{value:sizeInfo,language_tag:locale}],
+      marketplace_id:marketId}]);
   const volume=fields.storage_volume_liters;
   if(typeof volume==="number"&&volume>0&&volume<=1000)
     set("storage_volume",[{value:volume,unit:"liters",marketplace_id:marketId}]);
