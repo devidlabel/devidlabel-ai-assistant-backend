@@ -603,12 +603,15 @@ export async function researchAmazonNewAsinProductType(
       discoverySource="AMAZON_KEYWORDS_SHOPIFY_SOCKS";
     }
   }
-  // Refrigiwear jackets can be misclassified by itemName alone. As for
-  // sneakers and socks, verify COAT independently with Amazon keyword PTD.
-  const jacket=product.vendor==="Refrigiwear"&&
-    product.product_type==="Giacche e cappotti"&&
+  // Amazon title suggestions are advisory. Verify COAT through a separate
+  // marketplace keyword lookup only for exact Shopify coat category, trusted
+  // brand/SKU correspondence, and explicit outerwear title. Never use SWEATER
+  // solely because the title-based recommendation suggested it.
+  const coatBrand=(product.vendor==="Refrigiwear"&&input.sku.startsWith("RFR_"))?
+    "refrigiwear":(product.vendor==="K-Way"&&input.sku.startsWith("KWAY_"))?
+    "kway":null;
+  const jacket=coatBrand!==null&&product.product_type==="Giacche e cappotti"&&
     input.product_type==="COAT"&&
-    input.sku.startsWith("RFR_")&&
     /(?:Jacket|Giacca|Bomber|Parka|Gilet|Piumino|Vest)/i.test(String(product.title));
   if(jacket&&!candidates.some(c=>c.name==="COAT")){
     titleCategoryConflict=candidates.length>0;
@@ -619,14 +622,15 @@ export async function researchAmazonNewAsinProductType(
     let response:Row;
     try{response=await readJson(u.toString(),token,fetcher);}
     catch{return {ok:false,status:"BLOCKED_DEFINITIONS",
-      blocker:"refrigiwear_coat_keyword_unverified",...base};}
+      blocker:coatBrand+"_coat_keyword_unverified",...base};}
     const recommended=extractTypes(response.productTypes);
     if(!recommended)return {ok:false,status:"BLOCKED_DEFINITIONS",
-      blocker:"refrigiwear_coat_keyword_invalid",...base};
+      blocker:coatBrand+"_coat_keyword_invalid",...base};
     candidates=recommended.filter(c=>c.name==="COAT");
     if(candidates.length!==1)return {ok:false,status:"BLOCKED_DEFINITIONS",
-      blocker:"refrigiwear_coat_keyword_not_recommended",...base};
-    discoverySource="AMAZON_KEYWORDS_REFRIGIWEAR_COAT";
+      blocker:coatBrand+"_coat_keyword_not_recommended",...base};
+    discoverySource=coatBrand==="kway"?"AMAZON_KEYWORDS_KWAY_COAT":
+      "AMAZON_KEYWORDS_REFRIGIWEAR_COAT";
   }
   // Amazon itemName recommendations can be unrelated to the actual merchandise.
   // Observed live 22 Oct: MC2 Christmas Box in Shopify "Pochette e Borselli"
