@@ -515,6 +515,47 @@ const duplicateEan=await research(req,env,deps([],{
 assert.equal(duplicateEan.status,"BLOCKED_SHOPIFY");
 assert.equal(duplicateEan.blocker,"ean_missing_or_duplicated_in_shopify");
 
+
+const KWAY_SKU="KWAY_K2133FW_USY_S",KWAY_EAN="8056072266600";
+function kwayDuplicateCatalog(oldStatus="UNLISTED",oldStock=0,oldEan=KWAY_EAN){
+  const catalog=shopify(),main=catalog.products[0];
+  main.vendor="K-Way";
+  main.product_type="Giacche e cappotti";
+  main.title="Speed Jacket Black";
+  main.variants[0].sku=KWAY_SKU;
+  main.variants[0].barcode=KWAY_EAN;
+  const old=structuredClone(main);
+  old.status=oldStatus;
+  old.variants[0].id="gid://shopify/ProductVariant/999991";
+  old.variants[0].inventory_quantity=oldStock;
+  old.variants[0].barcode=oldEan;
+  return {...catalog,product_count:2,inline_product_count:2,products:[main,old]};
+}
+async function checkKwayDuplicate(oldStatus,oldStock,oldEan=KWAY_EAN){
+  const events=[];
+  return research({marketplace:"IT",sku:KWAY_SKU,product_type:"COAT"},env,deps(events,{
+    readShopify:async()=>kwayDuplicateCatalog(oldStatus,oldStock,oldEan),
+    readListing:async()=>({ok:true,marketplace:"IT",provider_mutations:0,
+      can_change_stock:false,results:[{sku:KWAY_SKU,state:"VERIFIED_ABSENT"}]}),
+    readCatalogMatch:async()=>({ok:true,result:{marketplace:"IT",complete:true,
+      identifiers:[{ean:KWAY_EAN,state:"NO_EXACT_MATCH",
+        exact_match_count:0,asins:[]}]}}),
+    fetch:fakeFetch(events,{refrigiwearCoat:true}),
+  }));
+}
+const kwayStale=await checkKwayDuplicate("UNLISTED",0);
+assert.equal(kwayStale.status,"REQUIREMENTS_REVIEW_REQUIRED");
+assert.equal(kwayStale.shopify.ean,KWAY_EAN);
+assert.equal(kwayStale.product_type_discovery_source,"AMAZON_KEYWORDS_KWAY_COAT");
+const kwayArchived=await checkKwayDuplicate("ARCHIVED",0);
+assert.equal(kwayArchived.status,"REQUIREMENTS_REVIEW_REQUIRED");
+for(const [status,quantity,barcode] of [
+  ["ACTIVE",0,KWAY_EAN],["UNLISTED",1,KWAY_EAN],
+  ["UNLISTED",0,"8056072266594"]]){
+  const blockedKway=await checkKwayDuplicate(status,quantity,barcode);
+  assert.equal(blockedKway.status,"BLOCKED_SHOPIFY");
+}
+
 const missingBarcode=await research(req,env,deps([],{
   readShopify:async()=>{const x=shopify();x.products[0].variants[0].barcode=null;return x;},
 }));
