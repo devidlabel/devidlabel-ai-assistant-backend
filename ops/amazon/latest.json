@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "generated_at": "2026-11-01T18:24:05.450Z",
+  "generated_at": "2026-11-01T18:25:15.845Z",
   "kind": "amazon_eu_direct_s3_listing_counts",
   "no_listing_writes": true,
   "marketplaces": {
@@ -29,13 +29,8 @@
       "reason": "reduce_amazon_api_throttling"
     },
     "ES": {
-      "http_status": 502,
-      "ok": false,
-      "metadata_reports_found": 0,
-      "done_reports": 0,
-      "done_documents_available": 0,
-      "has_more_metadata": false,
-      "error_code": "amazon_reports_read_failed_429"
+      "metadata_check_skipped": true,
+      "reason": "reduce_amazon_api_throttling"
     }
   },
   "listing_summaries": {
@@ -77,7 +72,7 @@
       "inactive": 14243,
       "status_unknown": 0,
       "report_created_at": "2026-11-01T18:21:23.000Z",
-      "report_age_hours": 0,
+      "report_age_hours": 0.1,
       "fresh_within_24h": true,
       "snapshot_complete": true,
       "safe_for_missing_sku_classification": true,
@@ -102,7 +97,7 @@
       "inactive": 16380,
       "status_unknown": 0,
       "report_created_at": "2026-11-01T18:22:23.000Z",
-      "report_age_hours": 0,
+      "report_age_hours": 0.1,
       "fresh_within_24h": true,
       "snapshot_complete": true,
       "safe_for_missing_sku_classification": true,
@@ -116,23 +111,30 @@
     },
     "ES": {
       "marketplace": "ES",
-      "http_status": 502,
-      "ok": false,
-      "report_available": false,
-      "error_code": "amazon_link_reports_http_429",
-      "rows": null,
-      "unique_skus": null,
-      "duplicate_sku_rows": null,
-      "active": null,
-      "inactive": null,
-      "status_unknown": null,
-      "report_created_at": null,
-      "report_age_hours": null,
-      "fresh_within_24h": false,
-      "snapshot_complete": false,
-      "safe_for_missing_sku_classification": false
+      "http_status": 200,
+      "ok": true,
+      "report_available": true,
+      "error_code": null,
+      "rows": 15332,
+      "unique_skus": 15332,
+      "duplicate_sku_rows": 0,
+      "active": 675,
+      "inactive": 14657,
+      "status_unknown": 0,
+      "report_created_at": "2026-11-01T18:19:51.000Z",
+      "report_age_hours": 0.1,
+      "fresh_within_24h": true,
+      "snapshot_complete": true,
+      "safe_for_missing_sku_classification": true,
+      "encoding_verified": true,
+      "document_utf8_verified": false,
+      "sku_encoding_verified": true,
+      "invalid_sku_encoding_rows": 0,
+      "invalid_status_encoding_rows": 0,
+      "status_column_present": true,
+      "compression_verified": true
     }
   },
-  "complete": false,
-  "safe_for_sku_comparison": false
+  "complete": true,
+  "safe_for_sku_comparison": true
 }
