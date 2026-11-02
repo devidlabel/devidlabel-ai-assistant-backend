@@ -2,7 +2,7 @@ import { getAmazonAccessToken, type AmazonCredentials } from "./amazon-auth.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 
 /** No new contact values: revalidate an ALREADY SUBMITTED manufacturer email
- * via SP-API PATCH mode=VALIDATION_PREVIEW. Amazon guarantees no persistence
+ * on an existing zero-or-positive FBM stock listing via SP-API PATCH mode=VALIDATION_PREVIEW. Amazon guarantees no persistence
  * in validation preview; there is deliberately no live-write branch. */
 type Row=Record<string,unknown>;
 type Env=AmazonCredentials&{AMAZON_SP_API_SELLER_ID?:string};
@@ -58,9 +58,9 @@ export async function previewExistingItManufacturerReference(raw:unknown,env:Env
    typeof l.asin!=="string"||!ASIN.test(l.asin)||
    typeof l.product_type!=="string"||!TYPE.test(l.product_type)||
    !Array.isArray(l.statuses)||l.statuses.includes("BUYABLE")||
-   !Number.isSafeInteger(l.current_fbm_quantity)||(l.current_fbm_quantity as number)<=0||
+   !Number.isSafeInteger(l.current_fbm_quantity)||(l.current_fbm_quantity as number)<0||
    !issues.some(z=>z.code==="100632"&&z.severity==="ERROR"))
-  return fail("NOT_ELIGIBLE_EXISTING_POSITIVE_STOCK_100632",sku);
+  return fail("NOT_ELIGIBLE_EXISTING_CONFIRMED_STOCK_100632",sku);
  let token:string;
  try{token=await(deps.auth??getAmazonAccessToken)(env);}
  catch{return fail("AMAZON_AUTH_UNAVAILABLE",sku);}

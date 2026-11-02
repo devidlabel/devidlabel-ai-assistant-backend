@@ -47,8 +47,17 @@ assert.equal(o.status,"GPSR_PRESENCE_AUDIT_ONLY");
 assert.equal(o.provider_mutations,0);
 assert.equal(o.gpsr_compliant_proven,false);
 assert.equal(o.results.length,1);
-assert.equal(o.results[0].state,"EXISTING_STOCK_POSITIVE_NEEDS_GPSR_REVIEW");
+assert.equal(o.results[0].state,"EXISTING_STOCK_VERIFIED_NEEDS_GPSR_REVIEW");
 assert.equal(o.results[0].shopify_quantity,2);
+const atZero=await audit({skus:[sku]},env,{...deps,sellerRead:async request=>({
+ ok:true,marketplace:"IT",provider_mutations:0,read_only:true,
+ results:request.skus.map(s=>({sku:s,state:"PRESENT",identity_state:"VERIFIED",
+  fulfillment_state:"VERIFIED",current_fbm_quantity:0,asin,product_type:"APPAREL",
+  issue_signals:[{code:"100528"},{code:"100632"}]}))
+})});
+assert.equal(atZero.results[0].state,"EXISTING_STOCK_VERIFIED_NEEDS_GPSR_REVIEW");
+assert.equal(atZero.results[0].amazon_quantity,0);
+assert.equal(atZero.provider_mutations,0);
 assert.deepEqual(o.results[0].issue_codes,["100527","100528","100632"]);
 assert.equal(o.results[0].gpsr_attribute_observations.gpsr_manufacturer_reference,
  "PRESENT_IN_SELLER_LISTING");
@@ -58,8 +67,8 @@ assert.equal(o.results[0].gpsr_attribute_observations.compliance_media,
  "PRESENT_IN_SELLER_LISTING");
 assert.equal(o.results[0].missing_in_response_is_not_absence_from_account_health,true);
 assert.equal(sellerCalls,1);
-assert.equal(shopifyCalls,1);
-assert.equal(amazonCalls,1);
+assert.equal(shopifyCalls,2);
+assert.equal(amazonCalls,2);
 assert(!JSON.stringify(o).includes("private@example.com"));
 assert(!JSON.stringify(o).includes("https://private.example"));
 for(const request of [
