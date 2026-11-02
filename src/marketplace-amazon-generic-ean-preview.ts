@@ -88,7 +88,8 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   if(water&&levels[water])set("water_resistance_level",[
     {value:levels[water],marketplace_id:marketId}]);
   const fabric=val("fabric_type");
-  if(fabric&&validatedRefrigiwearFabric(fabric))
+  if(fabric&&(validatedRefrigiwearFabric(fabric)||
+     (isKway&&validatedKwayLayeredFabric(fabric))))
     set("fabric_type",text(fabric));
   const material=val("material");
   if(material)set("material",text(material));
@@ -175,6 +176,14 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
     set("list_price",[{currency:"EUR",value_with_tax:list,
       marketplace_id:marketId}]);
   return attrs;
+}
+
+/** Source-scoped K-Way two-shell construction: both fabrics are 100% in
+ * their respective panels. Never flatten this into one percentage blend.
+ * The caller additionally requires an exact Product ID and verified evidence.
+ */
+export function validatedKwayLayeredFabric(value:string):boolean{
+  return value==="Shell A: 100% Nylon; Shell B: 100% Poliestere";
 }
 
 /** Only source-backed percentages in the existing Shopify evidence metafield.
