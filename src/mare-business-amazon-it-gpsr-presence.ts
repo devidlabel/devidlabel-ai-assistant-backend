@@ -56,7 +56,7 @@ export async function auditExistingAmazonItGpsrPresence(
    if(seller.sku!==sku||seller.state!=="PRESENT"||
       seller.identity_state!=="VERIFIED"||seller.fulfillment_state!=="VERIFIED"||
       !Number.isSafeInteger(seller.current_fbm_quantity)||
-      (seller.current_fbm_quantity as number)<=0||
+      (seller.current_fbm_quantity as number)<0||
       typeof seller.asin!=="string"||!ASIN.test(seller.asin)){
      out.push({sku,state:"BLOCKED_EXISTING_SELLER_IDENTITY_OR_STOCK"});
      continue;
@@ -106,7 +106,7 @@ export async function auditExistingAmazonItGpsrPresence(
    const signals=Array.isArray(seller.issue_signals)?
      seller.issue_signals.map(obj).map(v=>v.code).filter(x=>typeof x==="string"&&
        /^[A-Za-z0-9_-]{1,72}$/.test(x)).slice(0,32):[];
-   out.push({sku,state:"EXISTING_STOCK_POSITIVE_NEEDS_GPSR_REVIEW",
+   out.push({sku,state:"EXISTING_STOCK_VERIFIED_NEEDS_GPSR_REVIEW",
      asin:seller.asin,amazon_product_type:seller.product_type,
      shopify_vendor:p.vendor,shopify_quantity:stock.inventoryQuantity,
      amazon_quantity:seller.current_fbm_quantity,
