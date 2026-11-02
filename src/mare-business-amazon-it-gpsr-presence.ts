@@ -16,7 +16,7 @@ const ASIN=/^[A-Z0-9]{10}$/;
 const SELLER=/^[A-Z0-9]{8,30}$/;
 const MARKET="APJ6JRA9NG5V4";
 const MAX_BYTES=512000;
-const SHOPIFY_QUERY='query ExistingGpsrStock($query:String!){productVariants(first:3,query:$query){nodes{sku inventoryQuantity product{status vendor}}}}';
+const SHOPIFY_QUERY='query ExistingGpsrStock($query:String!){productVariants(first:20,query:$query){nodes{sku inventoryQuantity product{status vendor}}pageInfo{hasNextPage}}}';
 function obj(v:unknown):Row{return v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:{};}
 function flag(v:unknown):string{
   return Array.isArray(v)&&v.length>0?"PRESENT_IN_SELLER_LISTING":
@@ -65,9 +65,16 @@ export async function auditExistingAmazonItGpsrPresence(
    try{
      const s=obj(await (deps.readShopify??shopifyGraphQL)(
        env,SHOPIFY_QUERY,{query:"sku:"+sku}));
-     const nodes=obj(s.productVariants).nodes;
-     if(!Array.isArray(nodes)||nodes.length!==1)throw Error("ambiguous_sku");
-     stock=obj(nodes[0]);
+     const connection=obj(s.productVariants);
+     const nodes=connection.nodes;
+     // Matrixify legacy inactive variants may share the exact SKU. Select
+     // the *unique active* SKU, not an arbitrary first result.
+     if(!Array.isArray(nodes)||nodes.length<1||connection.pageInfo&&
+        obj(connection.pageInfo).hasNextPage===true)throw Error("incomplete_sku_page");
+     const active=nodes.map(obj).filter(n=>n.sku===sku&&
+       obj(n.product).status==="ACTIVE");
+     if(active.length!==1)throw Error("ambiguous_active_sku");
+     stock=active[0];
    }catch{
      out.push({sku,state:"BLOCKED_SHOPIFY_STOCK_UNVERIFIED"});
      continue;

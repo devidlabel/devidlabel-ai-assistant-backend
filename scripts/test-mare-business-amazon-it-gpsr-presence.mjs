@@ -71,6 +71,29 @@ assert.equal(shopifyCalls,2);
 assert.equal(amazonCalls,2);
 assert(!JSON.stringify(o).includes("private@example.com"));
 assert(!JSON.stringify(o).includes("https://private.example"));
+
+const inactiveDuplicate=await audit({skus:[sku]},env,{...deps,
+ readShopify:async()=>({productVariants:{nodes:[
+  {sku,inventoryQuantity:0,product:{status:"DRAFT",vendor:"Ecoalf"}},
+  {sku,inventoryQuantity:2,product:{status:"ACTIVE",vendor:"Ecoalf"}}
+ ],pageInfo:{hasNextPage:false}}})
+});
+assert.equal(inactiveDuplicate.results[0].state,"EXISTING_STOCK_VERIFIED_NEEDS_GPSR_REVIEW");
+const twoActive=await audit({skus:[sku]},env,{...deps,
+ readShopify:async()=>({productVariants:{nodes:[
+  {sku,inventoryQuantity:2,product:{status:"ACTIVE",vendor:"Ecoalf"}},
+  {sku,inventoryQuantity:1,product:{status:"ACTIVE",vendor:"Ecoalf"}}
+ ],pageInfo:{hasNextPage:false}}}),
+ fetch:async()=>{throw Error("must not GET ambiguous Shopify SKU");}
+});
+assert.equal(twoActive.results[0].state,"BLOCKED_SHOPIFY_STOCK_UNVERIFIED");
+const truncated=await audit({skus:[sku]},env,{...deps,
+ readShopify:async()=>({productVariants:{nodes:[
+  {sku,inventoryQuantity:2,product:{status:"ACTIVE",vendor:"Ecoalf"}}
+ ],pageInfo:{hasNextPage:true}}}),
+ fetch:async()=>{throw Error("must not GET incomplete Shopify results");}
+});
+assert.equal(truncated.results[0].state,"BLOCKED_SHOPIFY_STOCK_UNVERIFIED");
 for(const request of [
  {skus:[]},{skus:[sku,sku]},{skus:[sku],marketplace:"IT"},
  {skus:["bad<script>"]},{skus:[sku,sku,sku,sku]}
