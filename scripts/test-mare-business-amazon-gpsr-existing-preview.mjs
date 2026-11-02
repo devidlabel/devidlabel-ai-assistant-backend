@@ -66,14 +66,25 @@ assert(!JSON.stringify(out).includes("Private"));
 for(const request of [{},{sku:"KANGOL_01"},{sku:"../unsafe"},{sku,extra:1}]){
  await assert.rejects(()=>run(request,env,dependencies),/gpsr_existing_manufacturer_preview_invalid_request/);
 }
+// Existing zero-stock listings must be eligible for diagnostic GPSR preview.
 const noStock=await run({sku},env,{...dependencies,
- seller:async()=>({...seller,results:[{...seller.results[0],current_fbm_quantity:0}]}),
+ seller:async()=>({...seller,results:[{...seller.results[0],current_fbm_quantity:0}]})
+});
+assert.equal(noStock.ok,true);
+assert.equal(noStock.response_status,"INVALID");
+assert.equal(noStock.provider_mutations,0);
+const unknownStock=await run({sku},env,{...dependencies,
+ seller:async()=>({...seller,results:[{...seller.results[0],current_fbm_quantity:null}]}),
  auth:async()=>{throw Error("must not call auth");}});
-assert.equal(noStock.status,"NOT_ELIGIBLE_EXISTING_POSITIVE_STOCK_100632");
+assert.equal(unknownStock.status,"NOT_ELIGIBLE_EXISTING_CONFIRMED_STOCK_100632");
+const negativeStock=await run({sku},env,{...dependencies,
+ seller:async()=>({...seller,results:[{...seller.results[0],current_fbm_quantity:-1}]}),
+ auth:async()=>{throw Error("must not call auth");}});
+assert.equal(negativeStock.status,"NOT_ELIGIBLE_EXISTING_CONFIRMED_STOCK_100632");
 const buyable=await run({sku},env,{...dependencies,
  seller:async()=>({...seller,results:[{...seller.results[0],statuses:["BUYABLE"]}]}),
  auth:async()=>{throw Error("must not call auth");}});
-assert.equal(buyable.status,"NOT_ELIGIBLE_EXISTING_POSITIVE_STOCK_100632");
+assert.equal(buyable.status,"NOT_ELIGIBLE_EXISTING_CONFIRMED_STOCK_100632");
 const noManufacturer=await run({sku},env,{...dependencies,fetch:async(url,init)=>{
  assert.equal(init.method,"GET");
  return new Response(JSON.stringify({...detail,attributes:{}}),
