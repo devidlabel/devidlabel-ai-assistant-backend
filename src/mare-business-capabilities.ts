@@ -566,6 +566,20 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
          "AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.kway.gpsr.contacts.pilot",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"EXACT K-Way Rouland USY S / B0HQ4XP9NZ Amazon IT contact-only GPSR pilot. Verifies official Shopify brand-operator contact, zero FBM stock, exact SKU-ASIN, 100632/100528, does SP-API VALIDATION_PREVIEW then one live PATCH of manufacturer and EU responsible-person electronic references. Never asserts product safety or Amazon compliance approval, changes neither stock nor price.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT"]},
+        sku:{type:"string",enum:["KWAY_K6131ZW_USY_S"]},
+        asin:{type:"string",enum:["B0HQ4XP9NZ"]}
+      },["marketplace","sku","asin"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"],[env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.generic.ean.validation.preview",provider:"amazon",domain:"marketplace",
       operation:"prepare",risk:"artifact_only",approval:"none",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
