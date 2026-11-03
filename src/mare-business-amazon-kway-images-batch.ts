@@ -144,7 +144,7 @@ async function patch(item:Item,type:string,url:string,token:string,
  try{return await boundedJson(res);}
  catch{throw Error(preview?"PREVIEW_BAD_ACK":"UNCERTAIN_LIVE_ACK");}
 }
-export async function patchKwayImagesBatch(
+export async function patchKwayRoulandImagesBatch(
  raw:unknown,env:Env,dep:Deps={}
 ):Promise<Row>{
  const items=validate(raw),out:Row[]=[];
