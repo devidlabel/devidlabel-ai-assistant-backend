@@ -476,6 +476,24 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.kway.followup.images.patch.batch",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Strict 15-SKU K-Way existing-ASIN followup IT media-only batch (maximum 8 per immutable plan). Exact SKU-ASIN-product-type-Product GID allowlist, unique active Shopify source and zero FBM quantity; preview and one media-only PATCH, never price/stock/GPSR/Channable. Readback required.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT"]},
+        items:{type:"array",minItems:1,maxItems:8,items:{
+          type:"object",additionalProperties:false,properties:{
+            sku:{type:"string",enum:["KWAY_K21515W_228_S","KWAY_K21515W_228_M","KWAY_K21515W_228_L","KWAY_K21515W_228_XL","KWAY_K21515W_228_XXL","KWAY_K5122SW_A02_S","KWAY_K5122SW_A02_XXL","KWAY_K5122SW_A04_XXL","KWAY_K5122SW_B0A_XS","KWAY_K5122SW_B0A_S","KWAY_K5122SW_B0A_XXL","KWAY_K6131ZW_WMR_S","KWAY_K6131ZW_WMR_M","KWAY_K6131ZW_WMR_L","KWAY_K6131ZW_WMR_XL"]},
+            asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+          },required:["sku","asin"]
+        }}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.kway.rouland.images.patch.batch",provider:"amazon",domain:"marketplace",
       operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
