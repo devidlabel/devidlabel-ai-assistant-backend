@@ -30,13 +30,17 @@ const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productV
  * Brand, SKU and source Product GID must match. No inferred origin, supplier
  * certification or safety claims; logistics defaults are not product dimensions.
  */
-function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
+export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   marketplace:string,marketId:string,available:string[],ptdAlphaTokens:Row={}):Row{
   const isRefrigiwear=sku.startsWith("RFR_")&&product.vendor==="Refrigiwear";
   const isKway=sku.startsWith("KWAY_")&&product.vendor==="K-Way";
   if(!isRefrigiwear&&!isKway)return {};
-  if(!["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT",
-        "HANDBAG","COSMETIC_CASE","STORAGE_BAG"].includes(pt)||
+  // Only a product-ID-bound merchant dossier may enrich K-Way accessories.
+  // The generic EAN pilot remains preview-only; the source is NOT a GPSR approval.
+  const commonTypes=["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT",
+    "HANDBAG","COSMETIC_CASE","STORAGE_BAG"];
+  const accessoryTypes=["TOTE_BAG","DUFFEL_BAG","WAIST_PACK"];
+  if(!(commonTypes.includes(pt)||(isKway&&accessoryTypes.includes(pt)))||
      marketplace!=="IT")return {};
   const mf=obj(product.amazonPtd);
   if(mf.type!=="json"||typeof mf.value!=="string")return {};
@@ -103,19 +107,19 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
   if(lining)set("lining_description",text(lining));
   if(pt==="BACKPACK"&&val("size"))set("size",text(val("size")!));
   const n=fields.number_of_compartments;
-  if(["BACKPACK","HANDBAG"].includes(pt)&&typeof n==="number"&&
+  if(["BACKPACK","HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&typeof n==="number"&&
      Number.isInteger(n)&&n>=1&&n<=15)
     set("number_of_compartments",[{value:n,marketplace_id:marketId}]);
   const pockets=fields.number_of_pockets;
-  if(isKway&&pt==="HANDBAG"&&typeof pockets==="number"&&
+  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&typeof pockets==="number"&&
      Number.isInteger(pockets)&&pockets>=0&&pockets<=30)
     set("number_of_pockets",[{value:pockets,marketplace_id:marketId}]);
   const inner=val("inner_material");
-  if(isKway&&pt==="HANDBAG"&&inner)
+  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&inner)
     set("inner",[{material:[{value:inner,language_tag:locale}],
       marketplace_id:marketId}]);
   const sizeInfo=val("size_info");
-  if(isKway&&pt==="HANDBAG"&&sizeInfo)
+  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&sizeInfo)
     set("size_info",[{display_name:[{value:sizeInfo,language_tag:locale}],
       marketplace_id:marketId}]);
   const volume=fields.storage_volume_liters;
@@ -129,9 +133,19 @@ function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
       width:{value:size3.width,unit:"centimeters"},
       depth:{value:size3.depth,unit:"centimeters"},marketplace_id:marketId}]);
   const operator=val("manufacturer_brand_operator");
-  if(operator&&fields.manufacturer_status===
-    "LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN")
+  // A public K-Way brand contact is not evidence of the actual product
+  // manufacturer or EU responsible-person role. Do not turn a brand-operator
+  // dossier into a legal product-manufacturer assertion.
+  if(operator&&(
+      (isKway&&fields.manufacturer_status===
+        "PRODUCT_MANUFACTURER_ROLE_VERIFIED_FROM_OFFICIAL_PRODUCT_LABEL")||
+      (!isKway&&fields.manufacturer_status===
+        "LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN")))
     set("manufacturer",text(operator));
+  for(const field of ["model_number","part_number"]){
+    const value=val(field);
+    if(value)set(field,text(value));
+  }
   const outer=val("outer_material");
   if(outer)set("outer",[{material:[{value:outer,language_tag:locale}],
     marketplace_id:marketId}]);
