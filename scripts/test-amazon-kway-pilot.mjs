@@ -114,4 +114,27 @@ const invalid=makeDeps({preview:async()=>({ok:true,status:"VALIDATION_ONLY_REVIE
 const invalidRes=await run(input,env,invalid.deps);
 assert.equal(invalidRes.status,"BLOCKED_KWAY_PILOT");
 assert.equal(invalid.calls.live,0);
+// Source-recommended Amazon product types must use the same strict controls
+// as COAT: distinct exact preview, verified EU absence and zero-stock live PUT.
+for (const category of ["TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]) {
+  const categoryRun=makeDeps({
+    preview:async(_request,_env,{fetch})=>{
+      await fetch("https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/"+
+        seller+"/"+sku+"?marketplaceIds="+market+"&mode=VALIDATION_PREVIEW",{
+        method:"PUT",body:JSON.stringify({...pBody,productType:category})});
+      return {ok:true,status:"VALIDATION_ONLY_REVIEW_REQUIRED",
+        marketplace:"IT",sku,product_type:category,provider_validation_status:"VALID",
+        provider_validation_performed:true,preview_only:true,provider_mutations:0,
+        product_created:false,issues:[]};
+    },
+    research:async()=>({...src,product_type:category})
+  });
+  const accepted=await run({...input,product_type:category},env,categoryRun.deps);
+  assert.equal(accepted.status,"NEW_ASIN_SUBMITTED_AWAITING_READBACK");
+  assert.equal(categoryRun.calls.exactPreview,1);
+  assert.equal(categoryRun.calls.live,1);
+  assert.equal(accepted.submitted_quantity,0);
+  assert.equal(categoryRun.calls.bodies[0].productType,category);
+  assert.equal(categoryRun.calls.bodies[0].attributes.purchasable_offer,undefined);
+}
 console.log("K-Way pilot tests passed");
