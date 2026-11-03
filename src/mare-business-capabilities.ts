@@ -476,6 +476,24 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.kway.rouland.images.patch.batch",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Strict five-SKU K-Way Rouland USY IT media-only repair for existing non-BUYABLE ASINs with error 18320. Checks exact active Shopify product, rejects inactive duplicate, requires zero FBM stock, validates Amazon preview, PATCHes ONLY main_product_image_locator and requires deferred readback. Never changes price, inventory, GPSR or Channable.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT"]},
+        items:{type:"array",minItems:1,maxItems:5,items:{
+          type:"object",additionalProperties:false,properties:{
+            sku:{type:"string",enum:["KWAY_K6131ZW_USY_S","KWAY_K6131ZW_USY_M","KWAY_K6131ZW_USY_L","KWAY_K6131ZW_USY_XL","KWAY_K6131ZW_USY_XXL"]},
+            asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
+          },required:["sku","asin"]
+        }}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.refrigiwear.main_image.patch.pilot",provider:"amazon",domain:"marketplace",
       operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
       configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",

@@ -15,6 +15,7 @@ import { createAmazonNewAsinShoesPilot } from "./mare-business-amazon-shoes-crea
 import { patchFirstAmazonAsinImagePrice } from "./mare-business-amazon-first-asin-media-price-pilot.js";
 import { patchRefrigiwearMainImagePilot } from "./mare-business-amazon-refrigiwear-main-image-pilot.js";
 import { patchRefrigiwearImagesBatch } from "./mare-business-amazon-refrigiwear-images-batch.js";
+import { patchKwayRoulandImagesBatch } from "./mare-business-amazon-kway-images-batch.js";
 import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-accessory-upc-preview.js";
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
 import { createRefrigiwearNewAsinPilot } from "./marketplace-amazon-refrigiwear-pilot.js";
@@ -523,6 +524,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "amazon.shoes.first_asin.image_price.pilot") return textToolResult(await patchFirstAmazonAsinImagePrice(request,env));
   if (plan.capability_id === "amazon.refrigiwear.main_image.patch.pilot") return textToolResult(await patchRefrigiwearMainImagePilot(request,env));
   if (plan.capability_id === "amazon.refrigiwear.images.patch.batch") return textToolResult(await patchRefrigiwearImagesBatch(request,env));
+  if (plan.capability_id === "amazon.kway.rouland.images.patch.batch") return textToolResult(await patchKwayRoulandImagesBatch(request,env));
   if (plan.capability_id === "amazon.accessory.upc.validation.preview") return textToolResult(await previewAmazonAccessoryUpcValidation(request,env));
   if (plan.capability_id === "amazon.generic.ean.validation.preview") return textToolResult(await previewAmazonGenericEanValidation(request,env));
   if (plan.capability_id === "amazon.refrigiwear.new_asin.create.pilot") return textToolResult(await createRefrigiwearNewAsinPilot(request,env));
