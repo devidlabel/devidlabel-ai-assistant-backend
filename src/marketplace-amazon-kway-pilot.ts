@@ -29,7 +29,7 @@ const ASIN = /^[A-Z0-9]{10}$/;
 const SUBMISSION = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const ATTRS = new Set([
   "brand", "item_name", "externally_assigned_product_identifier",
-  "model_name", "color", "country_of_origin", "target_gender",
+  "model_name", "model_number", "part_number", "color", "country_of_origin", "target_gender",
   "product_description", "bullet_point", "apparel_size", "shirt_size",
   "fabric_type", "item_type_name", "department", "age_range_description",
   "care_instructions", "manufacturer", "outer", "headwear_size",
