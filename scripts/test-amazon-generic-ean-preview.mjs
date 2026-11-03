@@ -516,4 +516,52 @@ for(const invalidFabric of [
  assert.equal(blockedFab.status,"BLOCKED_PREVIEW");
 }
 
+// K-Way accessories: only exact product-GID-bound merchant evidence can
+// enrich a preview. Brand-operator contact alone cannot assert manufacturer.
+const {refrigiwearEvidenceAttrs:merchantAccessoryAttrs}=await import(
+  "data:text/javascript;base64,"+
+  Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+const kwayProductId="gid://shopify/Product/11523528294741";
+const accessoryFields={
+  source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
+  number_of_compartments:2,number_of_pockets:3,
+  inner_material:"Poliestere",size_info:"Taglia unica",
+  manufacturer_brand_operator:"K-Way S.p.A.",
+  manufacturer_status:"LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN",
+  model_number:"K4136NW",part_number:"K4136NW-USY",
+  batteries_required:false
+};
+const kwayProduct=(productId=kwayProductId,fields=accessoryFields)=>({
+  id:productId,vendor:"K-Way",amazonPtd:{type:"json",value:JSON.stringify({
+    source_product_id:kwayProductId,amazon_ptd_evidence:fields
+  })}
+});
+const accessoryAllow=["number_of_compartments","number_of_pockets",
+  "inner","size_info","model_number","part_number","manufacturer"];
+for(const pt of ["TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]){
+  const attrs=merchantAccessoryAttrs(kwayProduct(),{}, "KWAY_K4136NW_USY",
+    pt,"IT",markets.IT,accessoryAllow);
+  assert.equal(attrs.number_of_compartments[0].value,2);
+  assert.equal(attrs.number_of_pockets[0].value,3);
+  assert.equal(attrs.inner[0].material[0].value,"Poliestere");
+  assert.equal(attrs.size_info[0].display_name[0].value,"Taglia unica");
+  assert.equal(attrs.model_number[0].value,"K4136NW");
+  assert.equal(attrs.part_number[0].value,"K4136NW-USY");
+  assert.ok(!attrs.manufacturer,"public brand operator is NOT confirmed manufacturer");
+  assert.deepEqual(merchantAccessoryAttrs(kwayProduct(),{},"KWAY_K4136NW_USY",
+    pt,"DE",markets.DE,accessoryAllow),{},
+    "untranslated IT-only merchant dossier must not populate DE");
+  assert.deepEqual(merchantAccessoryAttrs(kwayProduct("gid://shopify/Product/77"),{},
+    "KWAY_K4136NW_USY",pt,"IT",markets.IT,accessoryAllow),{},
+    "different Shopify product must never inherit an accessory dossier");
+  assert.deepEqual(merchantAccessoryAttrs(kwayProduct(),{},"KWAY_K4136NW_USY",
+    pt,"IT",markets.IT,[]),{},
+    "no attribute may be sent without live Amazon PTD availability");
+}
+const labelVerified={...accessoryFields,
+ manufacturer_status:"PRODUCT_MANUFACTURER_ROLE_VERIFIED_FROM_OFFICIAL_PRODUCT_LABEL"};
+const labelAttrs=merchantAccessoryAttrs(kwayProduct(kwayProductId,labelVerified),{},
+  "KWAY_K4136NW_USY","TOTE_BAG","IT",markets.IT,accessoryAllow);
+assert.equal(labelAttrs.manufacturer[0].value,"K-Way S.p.A.");
+
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
