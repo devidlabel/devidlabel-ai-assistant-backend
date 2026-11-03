@@ -528,6 +528,7 @@ const accessoryFields={
   inner_material:"Poliestere",size_info:"Taglia unica",
   manufacturer_brand_operator:"K-Way S.p.A.",
   manufacturer_status:"LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN",
+  item_dimensions_cm:{height:38,width:32,depth:12},
   model_number:"K4136NW",part_number:"K4136NW-USY",
   batteries_required:false
 };
@@ -541,6 +542,16 @@ const accessoryAllow=["number_of_compartments","number_of_pockets",
 for(const pt of ["TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]){
   const attrs=merchantAccessoryAttrs(kwayProduct(),{}, "KWAY_K4136NW_USY",
     pt,"IT",markets.IT,accessoryAllow);
+  if(pt==="TOTE_BAG"||pt==="DUFFEL_BAG"){
+    assert.deepEqual(merchantAccessoryAttrs(kwayProduct(),{},
+      "KWAY_K4136NW_USY",pt,"IT",markets.IT,
+      ["item_length_width_height"]).item_length_width_height,[{
+      length:{value:32,unit:"centimeters"},
+      width:{value:12,unit:"centimeters"},
+      height:{value:38,unit:"centimeters"},
+      marketplace_id:markets.IT
+    }]);
+  }
   assert.equal(attrs.number_of_compartments[0].value,2);
   assert.equal(attrs.number_of_pockets[0].value,3);
   assert.equal(attrs.inner[0].material[0].value,"Poliestere");
