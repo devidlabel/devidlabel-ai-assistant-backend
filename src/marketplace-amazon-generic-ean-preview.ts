@@ -164,6 +164,20 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   const outer=val("outer_material");
   if(outer)set("outer",[{material:[{value:outer,language_tag:locale}],
     marketplace_id:marketId}]);
+  // Exact merchant-linked official product page proof: a URL alone cannot
+  // certify manufacturer/GPSR/origin. It only authorizes descriptive color
+  // and official list price when product style, SKU and title agree.
+  const officialUrl=val("official_product_source_url");
+  const officialStyle=val("official_product_style_code");
+  const officialMatch=isKway&&!!officialUrl&&!!officialStyle&&
+    /^https:\/\/www\.k-way\.com\/it\/products\/[a-z0-9-]{12,180}$/.test(officialUrl)&&
+    /^K[0-9]{4}[A-Z]{2}$/.test(officialStyle)&&
+    sku.slice(5).startsWith(officialStyle)&&
+    officialUrl.includes(officialStyle.toLowerCase());
+  const officialColor=val("color");
+  if(officialMatch&&officialColor&&
+     typeof product.title==="string"&&product.title.endsWith(officialColor))
+    set("color",[{value:officialColor,marketplace_id:marketId}]);
   // Amazon's as6/alpha schema is explicitly researched for this product.
   const size=val("headwear_size");
   const sizeAliases=new Set(["One Size","Taglia unica","Taglia Unica","UN","OSFA","OSFM"]);
@@ -198,11 +212,19 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     set("item_package_weight",[{value:weight,unit:"kilograms",
       marketplace_id:marketId}]);
   }
-  // MSRP only; no purchasable_offer, seller price or stock mutation.
+  // Only manufacturer-stated official MSRP, not Shopify seller price or
+  // stock. A product-bound official proof can fill an absent compare-at,
+  // but must never override a legitimate existing Shopify list price.
   const list=typeof variant.compareAtPrice==="string"?
     Number(variant.compareAtPrice):NaN;
-  if(Number.isFinite(list)&&list>0&&list<10000)
-    set("list_price",[{currency:"EUR",value_with_tax:list,
+  const officialMsrp=fields.official_msrp_eur;
+  const attestedMsrp=officialMatch&&typeof officialMsrp==="number"&&
+    Number.isFinite(officialMsrp)&&officialMsrp>=5&&officialMsrp<=5000?
+    officialMsrp:NaN;
+  const effectiveList=Number.isFinite(list)&&list>0&&list<10000?
+    list:attestedMsrp;
+  if(Number.isFinite(effectiveList))
+    set("list_price",[{currency:"EUR",value_with_tax:effectiveList,
       marketplace_id:marketId}]);
   return attrs;
 }

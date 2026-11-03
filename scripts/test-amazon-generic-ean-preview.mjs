@@ -575,4 +575,47 @@ const labelAttrs=merchantAccessoryAttrs(kwayProduct(kwayProductId,labelVerified)
   "KWAY_K4136NW_USY","TOTE_BAG","IT",markets.IT,accessoryAllow);
 assert.equal(labelAttrs.manufacturer[0].value,"K-Way S.p.A.");
 
+// Official same-variant source can fill descriptive color and absent MSRP,
+// without granting manufacturer, country of origin, or GPSR status.
+const ferimyOfficial={
+  ...accessoryFields,
+  official_product_source_url:
+   "https://www.k-way.com/it/products/bags-unisex-ferimy-black-pure-k4146jw-no-team-usy",
+  official_product_style_code:"K4146JW",
+  color:"Black Pure",official_msrp_eur:60
+};
+const officialFerimy=(f=ferimyOfficial)=>({
+  ...kwayProduct(kwayProductId,f),
+  title:"Marsupio Ferimy Black Pure"
+});
+const offerless=merchantAccessoryAttrs(officialFerimy(),{},
+  "KWAY_K4146JW_USY","WAIST_PACK","IT",markets.IT,
+  ["color","list_price","manufacturer","country_of_origin"]);
+assert.deepEqual(offerless.color,[{value:"Black Pure",marketplace_id:markets.IT}]);
+assert.deepEqual(offerless.list_price,[{
+ currency:"EUR",value_with_tax:60,marketplace_id:markets.IT
+}]);
+assert.ok(!offerless.manufacturer);
+assert.ok(!offerless.country_of_origin);
+const priorMsrp=merchantAccessoryAttrs(officialFerimy(),{compareAtPrice:"70.00"},
+  "KWAY_K4146JW_USY","WAIST_PACK","IT",markets.IT,["list_price"]);
+assert.equal(priorMsrp.list_price[0].value_with_tax,70);
+for(const changes of [
+ {official_product_source_url:"https://third-party.example/ferimy-k4146jw"},
+ {official_product_style_code:"K4136RW"},
+ {official_msrp_eur:1000000},
+]){
+ const attrs=merchantAccessoryAttrs(officialFerimy({...ferimyOfficial,...changes}),{},
+   "KWAY_K4146JW_USY","WAIST_PACK","IT",markets.IT,["color","list_price"]);
+ if(changes.official_msrp_eur){
+   assert.ok(!attrs.list_price,"unverified MSRP must never be sent");
+ }else{
+   assert.ok(!attrs.color&&!attrs.list_price,
+     "wrong official source or manufacturer style must fail closed");
+ }
+}
+assert.deepEqual(merchantAccessoryAttrs(officialFerimy(),{},
+ "KWAY_K4146JW_USY","WAIST_PACK","DE",markets.DE,
+ ["color","list_price"]),{},"IT official provenance must not silently authorize DE");
+
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
