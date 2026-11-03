@@ -21,7 +21,7 @@ type Deps = {
   fetch?: typeof fetch;
 };
 const HOST = "https://sellingpartnerapi-eu.amazon.com";
-const MARKET_TYPES = new Set(["COAT", "HAT", "SHIRT", "BACKPACK", "SWEATER", "SWEATSHIRT", "SCARF", "HANDBAG", "COSMETIC_CASE", "STORAGE_BAG"]);
+const MARKET_TYPES = new Set(["COAT", "HAT", "SHIRT", "BACKPACK", "SWEATER", "SWEATSHIRT", "SCARF", "HANDBAG", "COSMETIC_CASE", "STORAGE_BAG", "TOTE_BAG", "DUFFEL_BAG", "WAIST_PACK"]);
 const SKU = /^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const SELLER = /^[A-Z0-9]{8,30}$/;
 const EAN = /^\d{13}$/;
@@ -39,7 +39,7 @@ const ATTRS = new Set([
   "closure", "water_resistance_level", "material", "fit_type",
   "collar_style", "strap_type", "lining_description", "storage_volume",
   "item_depth_width_height", "number_of_compartments", "number_of_pockets", "size",
-  "inner", "capacity", "size_info", "item_dimensions",
+  "inner", "capacity", "size_info", "item_dimensions", "item_length_width_height", "compartment",
   "apparel_size", "shirt_size"
 ]);
 function obj(value: unknown): Row {
