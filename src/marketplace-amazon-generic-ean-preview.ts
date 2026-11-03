@@ -132,6 +132,21 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     set("item_depth_width_height",[{height:{value:size3.height,unit:"centimeters"},
       width:{value:size3.width,unit:"centimeters"},
       depth:{value:size3.depth,unit:"centimeters"},marketplace_id:marketId}]);
+  // The source dossier describes the physical item, not its shipping carton.
+  // For the K-Way IT shopper/duffel, documented L/H/P measurements correspond
+  // to length/height/depth; map P to Amazon's item width. Never copy this to
+  // item_package_dimensions, and never transform ambiguous Ferimy measurements.
+  if(isKway&&["TOTE_BAG","DUFFEL_BAG"].includes(pt)&&
+     ["height","width","depth"].every(x=>
+       typeof size3[x]==="number"&&Number.isFinite(size3[x])&&
+       (size3[x] as number)>0&&(size3[x] as number)<500)){
+    set("item_length_width_height",[{
+      length:{value:size3.width,unit:"centimeters"},
+      width:{value:size3.depth,unit:"centimeters"},
+      height:{value:size3.height,unit:"centimeters"},
+      marketplace_id:marketId
+    }]);
+  }
   const operator=val("manufacturer_brand_operator");
   // A public K-Way brand contact is not evidence of the actual product
   // manufacturer or EU responsible-person role. Do not turn a brand-operator
