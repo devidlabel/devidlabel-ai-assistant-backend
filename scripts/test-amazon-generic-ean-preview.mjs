@@ -22,6 +22,32 @@ for(const value of ["100% Nylon","Shell A: 100% Nylon; Shell B: 90% Poliestere",
  "Shell A: 100% Nylon; Shell B: 100% Cotone",
  "Shell B: 100% Poliestere; Shell A: 100% Nylon"])
   assert.equal(validKwayLayers(value),false,value);
+// K-Way: DE/FR/ES must use only source-scoped locale-neutral verified fields.
+const {refrigiwearEvidenceAttrs:kwayEvidence}=await import("data:text/javascript;base64>"+
+  Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+const activeKwayId="gid://shopify/Product/11523512729941";
+const kwayFields={source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
+  water_resistance_level:"Impermeabile",batteries_required:false,
+  manufacturer_brand_operator:"K-Way S.p.A.",
+  manufacturer_status:"LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN",
+  department:"Unisex",fabric_type:"100% Nylon",
+  logistics_defaults:{source:"MERCHANT_GLOBAL_DEFAULT_FROM_2026_10_28_MARKETPLACE_PROJECT",
+    item_package_dimensions_cm:{length:30,width:30,height:5},item_package_weight_kg:0.5}};
+const kwayProduct={id:activeKwayId,vendor:"K-Way",amazonPtd:{type:"json",
+  value:JSON.stringify({source_product_id:activeKwayId,amazon_ptd_evidence:kwayFields})}};
+const neutralFields=["water_resistance_level","batteries_required",
+  "item_package_dimensions","item_package_weight"];
+for(const market of ["DE","FR","ES"]){
+ const marketId={DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"}[market];
+ const attrs=kwayEvidence(kwayProduct,{},"KWAY_K6131ZW_USY_S","COAT",
+    market,marketId,[...neutralFields,"manufacturer","department","fabric_type"]);
+ assert.deepEqual(Object.keys(attrs).sort(),neutralFields.sort(),market);
+ assert.deepEqual(attrs.water_resistance_level,[{value:"waterproof",marketplace_id:marketId}]);
+ assert.deepEqual(attrs.batteries_required,[{value:false,marketplace_id:marketId}]);
+ assert.ok(!attrs.manufacturer&&!attrs.department&&!attrs.fabric_type);
+}
+assert.deepEqual(kwayEvidence({...kwayProduct,id:"gid://shopify/Product/1"}, {},
+ "KWAY_K6131ZW_USY_S","COAT","DE","A1PA6795UKMFR9",neutralFields),{});
 const sku="RSX_64228G_V4928_-_ESPRESSO",ean="8300193548467";
 const variantId="gid://shopify/ProductVariant/52554517676373";
 const markets={IT:"APJ6JRA9NG5V4",DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"};
