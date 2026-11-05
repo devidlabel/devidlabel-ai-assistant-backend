@@ -23,7 +23,7 @@ for(const value of ["100% Nylon","Shell A: 100% Nylon; Shell B: 90% Poliestere",
  "Shell B: 100% Poliestere; Shell A: 100% Nylon"])
   assert.equal(validKwayLayers(value),false,value);
 // K-Way: DE/FR/ES must use only source-scoped locale-neutral verified fields.
-const {refrigiwearEvidenceAttrs:kwayEvidence}=await import("data:text/javascript;base64>"+
+const {refrigiwearEvidenceAttrs:kwayEvidence}=await import("data:text/javascript;base64,"+
   Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 const activeKwayId="gid://shopify/Product/11523512729941";
 const kwayFields={source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
