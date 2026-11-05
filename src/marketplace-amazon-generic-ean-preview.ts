@@ -40,8 +40,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   const commonTypes=["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT",
     "HANDBAG","COSMETIC_CASE","STORAGE_BAG"];
   const accessoryTypes=["TOTE_BAG","DUFFEL_BAG","WAIST_PACK"];
-  if(!(commonTypes.includes(pt)||(isKway&&accessoryTypes.includes(pt)))||
-     marketplace!=="IT")return {};
+  if(!(commonTypes.includes(pt)||(isKway&&accessoryTypes.includes(pt))))return {};
   const mf=obj(product.amazonPtd);
   if(mf.type!=="json"||typeof mf.value!=="string")return {};
   let fields:Row;
@@ -66,6 +65,41 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   const set=(name:string,value:unknown)=>{
     if(available.includes(name))attrs[name]=value;
   };
+  // Cross-market preview: emit only market-neutral values backed by the exact
+  // merchant dossier. Italian text is NOT translated into DE/FR/ES and no
+  // manufacturer/GPSR role is asserted from a public brand contact.
+  if(marketplace!=="IT"){
+    const water=val("water_resistance_level");
+    const levels:Record<string,string>={
+      "Idrorepellente":"water_repellent",
+      "Resistente all'acqua":"water_resistant",
+      "Impermeabile":"waterproof",
+      "Non idrorepellente":"not_water_resistant"
+    };
+    if(water&&levels[water])set("water_resistance_level",[
+      {value:levels[water],marketplace_id:marketId}]);
+    if(fields.batteries_required===false)set("batteries_required",[
+      {value:false,marketplace_id:marketId}]);
+    // Merchant-declared generic parcel defaults, not dimensions of the item.
+    const logistics=obj(fields.logistics_defaults);
+    const dimensions=obj(logistics.item_package_dimensions_cm);
+    const weight=logistics.item_package_weight_kg;
+    if(["MERCHANT_GLOBAL_DEFAULT_FROM_2026_10_28_MARKETPLACE_PROJECT",
+        "MERCHANT_GLOBAL_DEFAULT_MARKETPLACE_2026_10_27_AND_28_UNMEASURED_ESTIMATE"].includes(String(logistics.source))&&
+       [dimensions.length,dimensions.width,dimensions.height].every(x=>
+         typeof x==="number"&&Number.isFinite(x)&&x>0&&x<=80)&&
+       typeof weight==="number"&&Number.isFinite(weight)&&weight>0&&weight<=3){
+      set("item_package_dimensions",[{
+        length:{value:dimensions.length,unit:"centimeters"},
+        width:{value:dimensions.width,unit:"centimeters"},
+        height:{value:dimensions.height,unit:"centimeters"},
+        marketplace_id:marketId
+      }]);
+      set("item_package_weight",[{value:weight,unit:"kilograms",
+        marketplace_id:marketId}]);
+    }
+    return attrs;
+  }
   const locale="it_IT";
   const text=(value:string)=>[{value,language_tag:locale,marketplace_id:marketId}];
   for(const [key,source] of [
