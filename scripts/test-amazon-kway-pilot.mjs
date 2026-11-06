@@ -113,6 +113,10 @@ await assert.rejects(run({...input,sku:"!unsafe"},env),/invalid/);
 const invalid=makeDeps({preview:async()=>({ok:true,status:"VALIDATION_ONLY_REVIEW_REQUIRED",marketplace:"IT",sku,product_type:"COAT",provider_validation_status:"INVALID",issues:[{code:"90220",severity:"ERROR",attribute_names:["manufacturer"]}],provider_validation_performed:true,preview_only:true,provider_mutations:0,product_created:false})});
 const invalidRes=await run(input,env,invalid.deps);
 assert.equal(invalidRes.status,"BLOCKED_KWAY_PILOT");
+assert.deepEqual(invalidRes.amazon_preview_issues,[{
+  code:"90220",attribute_names:["manufacturer"]
+}]);
+assert.equal(invalidRes.amazon_preview_status,"INVALID");
 assert.equal(invalid.calls.live,0);
 // Source-recommended Amazon product types must use the same strict controls
 // as COAT: distinct exact preview, verified EU absence and zero-stock live PUT.
