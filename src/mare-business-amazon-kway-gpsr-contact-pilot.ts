@@ -51,7 +51,11 @@ export async function patchKwayRoulandGpsrContacts(raw:unknown,env:Env,deps:Deps
  const issue=Array.isArray(listing.issue_signals)?listing.issue_signals.map(obj):[];
  if(listing.sku!==SKU||listing.state!=="PRESENT"||listing.identity_state!=="VERIFIED"||
    listing.asin!==ASIN||listing.product_type!=="COAT"||
-   listing.current_fbm_quantity!==0||!Array.isArray(listing.statuses)||
+   listing.fulfillment_state!=="VERIFIED"||
+   !Number.isSafeInteger(listing.current_fbm_quantity)||
+   (listing.current_fbm_quantity as number)<0||
+   listing.price_state!=="VERIFIED"||
+   !Array.isArray(listing.statuses)||
    listing.statuses.includes("BUYABLE")||
    !issue.some(x=>["100632","100528"].includes(String(x.code))))
   return block("NONBUYABLE_ZERO_STOCK_IDENTITY_UNVERIFIED");
@@ -66,6 +70,9 @@ export async function patchKwayRoulandGpsrContacts(raw:unknown,env:Env,deps:Deps
  if(active.length!==1||!Number.isSafeInteger(active[0].inventoryQuantity)||
     (active[0].inventoryQuantity as number)<=0)
   return block("SHOPIFY_ACTIVE_VARIANT_UNVERIFIED");
+ // Merchant and Amazon must agree on the exact stock. No inventory PATCH is sent.
+ if(active[0].inventoryQuantity!==listing.current_fbm_quantity)
+  return block("SHOPIFY_AMAZON_STOCK_SNAPSHOT_MISMATCH");
  const product=obj(active[0].product);
  if(product.vendor!=="K-Way"||product.id!=="gid://shopify/Product/11523512729941")
   return block("SHOPIFY_PRODUCT_IDENTITY_UNVERIFIED");
