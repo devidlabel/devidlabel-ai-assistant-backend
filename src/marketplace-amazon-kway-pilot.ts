@@ -110,7 +110,25 @@ export async function createKwayNewAsinPilot(
       preview.preview_only !== true || preview.provider_mutations !== 0 ||
       preview.product_created !== false || !captured ||
       !fullyValid)
-    return blocked(input, "amazon_validation_preview_not_accepted");
+    return {
+      ...blocked(input, "amazon_validation_preview_not_accepted"),
+      // Safe diagnostics only: Amazon messages can contain seller contact data.
+      // Never expose raw issue bodies, emails, addresses or preview payload.
+      amazon_preview_issues: Array.isArray(preview.issues) ?
+        preview.issues.slice(0, 25).map(raw => {
+          const issue = obj(raw);
+          return {
+            code: typeof issue.code === "string" &&
+              /^[A-Za-z0-9._-]{1,64}$/.test(issue.code) ? issue.code : "UNKNOWN",
+            attribute_names: (Array.isArray(issue.attribute_names) ?
+              issue.attribute_names : Array.isArray(issue.attributeNames) ?
+              issue.attributeNames : []).filter(name =>
+                typeof name === "string" && /^[a-z_]{1,64}$/.test(name)).slice(0, 10)
+          };
+        }) : [],
+      amazon_preview_status: preview.provider_validation_status === "INVALID" ?
+        "INVALID" : "UNKNOWN"
+    };
 
   const payload = obj(captured);
   const attrs = obj(payload.attributes);
