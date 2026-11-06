@@ -11,7 +11,8 @@ const evidence={brand:"K-Way",source_scope:"OFFICIAL_COMPANY_CONTACT_NOT_PRODUCT
  brand_operator:{name:"K-Way S.p.A.",public_contact_email:email},
  amazon_mapping_status:"DRAFT_GPSR_FIELDS_NOT_SUBMITTED_TO_AMAZON"};
 const listing={ok:true,provider_mutations:0,results:[{sku,asin,product_type:"COAT",
- state:"PRESENT",identity_state:"VERIFIED",current_fbm_quantity:0,statuses:[],
+ state:"PRESENT",identity_state:"VERIFIED",current_fbm_quantity:1,
+ fulfillment_state:"VERIFIED",price_state:"VERIFIED",statuses:[],
  issue_signals:[{code:"100632",severity:"ERROR"}]}]};
 const shopify={productVariants:{pageInfo:{hasNextPage:false},nodes:[{sku,inventoryQuantity:1,
  product:{id:"gid://shopify/Product/11523512729941",vendor:"K-Way",status:"ACTIVE",
@@ -62,6 +63,15 @@ const invalid=await run(input,env,{...deps,fetch:async(url,options)=>{
 assert.equal(invalid.status,"GPSR_CONTACT_PREVIEW_NOT_VALID");
 assert.equal(invalid.provider_mutations,0);
 assert.equal(previewCalls,1);
+const stockMismatch=await run(input,env,{...deps,seller:async()=>({
+ ...listing,results:[{...listing.results[0],current_fbm_quantity:2}]
+}),fetch:async()=>{throw Error("must not call provider on mismatch");}});
+assert.equal(stockMismatch.status,"SHOPIFY_AMAZON_STOCK_SNAPSHOT_MISMATCH");
+assert.equal(stockMismatch.provider_mutations,0);
+const staleFulfillment=await run(input,env,{...deps,seller:async()=>({
+ ...listing,results:[{...listing.results[0],fulfillment_state:"UNKNOWN"}]
+}),fetch:async()=>{throw Error("must not call provider with unverified inventory");}});
+assert.equal(staleFulfillment.status,"NONBUYABLE_ZERO_STOCK_IDENTITY_UNVERIFIED");
 const otherRole=await run(input,env,{...deps,shopify:async()=>({
  productVariants:{pageInfo:{hasNextPage:false},nodes:[{sku,inventoryQuantity:1,
  product:{...shopify.productVariants.nodes[0].product,
