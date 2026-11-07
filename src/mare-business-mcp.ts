@@ -22,6 +22,7 @@ import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-
 import { previewKwayAsinBatch } from "./marketplace-amazon-kway-batch-preview.js";
 import { createRefrigiwearNewAsinPilot } from "./marketplace-amazon-refrigiwear-pilot.js";
 import { createKwayNewAsinPilot } from "./marketplace-amazon-kway-pilot.js";
+import { createKwayNewAsinBatch } from "./marketplace-amazon-kway-batch-create.js";
 import { patchKwayRoulandGpsrContacts } from "./mare-business-amazon-kway-gpsr-contact-pilot.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonItExistingIssueSignals } from "./mare-business-amazon-it-issue-signals.js";
@@ -534,6 +535,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "amazon.kway.validation.batch.preview") return textToolResult(await previewKwayAsinBatch(request,env));
   if (plan.capability_id === "amazon.generic.ean.validation.preview") return textToolResult(await previewAmazonGenericEanValidation(request,env));
   if (plan.capability_id === "amazon.refrigiwear.new_asin.create.pilot") return textToolResult(await createRefrigiwearNewAsinPilot(request,env));
+  if (plan.capability_id === "amazon.kway.new_asin.create.batch") return textToolResult(await createKwayNewAsinBatch(request,env));
   if (plan.capability_id === "amazon.kway.new_asin.create.pilot") return textToolResult(await createKwayNewAsinPilot(request,env));
   if (plan.capability_id === "amazon.kway.gpsr.contacts.pilot") return textToolResult(await patchKwayRoulandGpsrContacts(request,env));
   if (plan.capability_id === "amazon.it.inactive_report.request") return textToolResult(await requestAmazonItInactiveReport(request,env));
