@@ -1,32 +1,32 @@
 {
   "ok": true,
-  "generated_at": "2026-11-06T13:49:10.849Z",
+  "generated_at": "2026-11-07T15:48:08.825Z",
   "search_console": {
     "permission_level": "siteFullUser",
     "timeframe": {
-      "since": "2026-10-28",
-      "until": "2026-11-03",
+      "since": "2026-10-29",
+      "until": "2026-11-04",
       "preset": "last_7_days",
       "lag_days": 3
     },
-    "clicks": 1224,
-    "impressions": 56330,
-    "query_rows": 3287,
-    "page_rows": 3219
+    "clicks": 1241,
+    "impressions": 57177,
+    "query_rows": 3324,
+    "page_rows": 3206
   },
   "ga4": {
     "property_id": "345407658",
     "timeframe": {
-      "since": "2026-10-30",
-      "until": "2026-11-05",
+      "since": "2026-10-31",
+      "until": "2026-11-06",
       "preset": "last_7_days"
     },
-    "active_users": 2485,
-    "sessions": 2795,
+    "active_users": 2539,
+    "sessions": 2805,
     "ecommerce_purchases": 14,
-    "purchase_revenue": 1954.74,
+    "purchase_revenue": 1983.8100000000002,
     "landing_page_rows": 250,
-    "source_medium_rows": 27,
+    "source_medium_rows": 29,
     "realtime_rows": 2
   },
   "daily_pulse": {
