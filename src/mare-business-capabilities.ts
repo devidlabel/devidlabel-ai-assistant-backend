@@ -223,6 +223,21 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
     capability({
+      id:"amazon.eu.price_bounds.readonly",
+      provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
+      implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
+      approval:"none",
+      description:"Read-only Amazon IT/DE/FR/ES seller purchasable_offer maximum/minimum price bounds for 1-8 SKU, with 19038/19037/18701 signals and exact seller ASIN readback. No price, stock, Channable, customer or account changes.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        skus:{type:"array",minItems:1,maxItems:8,uniqueItems:true,items:{
+          type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"
+        }}
+      },["marketplace","skus"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"]]
+    }),
+    capability({
       id:"amazon.it.existing_issue_signals.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
