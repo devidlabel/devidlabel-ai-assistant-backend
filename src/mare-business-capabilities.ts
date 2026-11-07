@@ -601,6 +601,26 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
          "AMAZON_OFFER_PREVIEW_ENABLED=true"]]
     }),
     capability({
+      id:"amazon.kway.new_asin.create.batch",
+      provider:"amazon",domain:"marketplace",operation:"execute",
+      risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Strict 1-8 K-Way new-ASIN live batch using the original pilot per SKU. Exact fresh Shopify EAN, seller absence across IT/DE/FR/ES and VALIDATION_PREVIEW required per item; zero quantity only. Halts immediately on uncertain acknowledgement, never price/Channable changes or automatic retry.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        items:{type:"array",minItems:1,maxItems:8,items:{
+          type:"object",additionalProperties:false,
+          properties:{
+            sku:{type:"string",minLength:6,maxLength:120,pattern:"^KWAY_[A-Za-z0-9_ .-]{1,114}$"},
+            product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]}
+          },required:["sku","product_type"]
+        }}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],[amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV"],[env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.kway.new_asin.create.pilot",
       provider:"amazon",domain:"marketplace",operation:"execute",
       risk:"live_write",approval:"explicit",implemented:true,
