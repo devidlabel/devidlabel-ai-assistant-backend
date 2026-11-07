@@ -25,6 +25,7 @@ import { createKwayNewAsinPilot } from "./marketplace-amazon-kway-pilot.js";
 import { patchKwayRoulandGpsrContacts } from "./mare-business-amazon-kway-gpsr-contact-pilot.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
 import { readAmazonItExistingIssueSignals } from "./mare-business-amazon-it-issue-signals.js";
+import { readAmazonEuPriceBounds } from "./mare-business-amazon-price-bounds.js";
 import { previewExistingItManufacturerReference } from "./mare-business-amazon-gpsr-existing-preview.js";
 import { readExistingItGpsrPtd } from "./mare-business-amazon-existing-gpsr-ptd.js";
 import { auditExistingAmazonItGpsrPresence } from "./mare-business-amazon-it-gpsr-presence.js";
@@ -460,6 +461,7 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
   if (capabilityId === "amazon.sneakers.sku_state.readonly") return textToolResult(await classifyAmazonSneakerSkuStates(request,env));
   if (capabilityId === "amazon.offer.preflight") return textToolResult(await readAmazonOfferOnlyPreflight(request,env));
   if (capabilityId === "amazon.seller.listings.direct") return textToolResult(await readAmazonSellerListingsDirect(request,env));
+  if (capabilityId === "amazon.eu.price_bounds.readonly") return textToolResult(await readAmazonEuPriceBounds(request,env));
   if (capabilityId === "amazon.it.existing_issue_signals.readonly") return textToolResult(await readAmazonItExistingIssueSignals(request,env));
   if (capabilityId === "amazon.it.existing_gpsr_ptd.readonly") return textToolResult(await readExistingItGpsrPtd(request,env));
   if (capabilityId === "amazon.it.existing_gpsr_presence.readonly") return textToolResult(await auditExistingAmazonItGpsrPresence(request,env));
