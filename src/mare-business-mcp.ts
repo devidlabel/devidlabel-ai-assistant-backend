@@ -1,4 +1,5 @@
 import { prepareAmazonPriceBoundsRepair, executeAmazonPriceBoundsRepair } from "./mare-business-amazon-price-bounds-repair.js";
+import { persistPriceBoundsRepairPlan } from "./mare-business-price-bounds-plan-store.js";
 import { handleMareMcpRequest } from "./mare-mcp.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
@@ -355,6 +356,12 @@ function assertRequestSafe(request: JsonObject): void {
 
 async function storePlan(plan: StoredPlan, env: MareBusinessEnv): Promise<void> {
   if (!env.SHOPIFY_TOKENS_KV) throw new Error("business_plan_store_not_configured");
+  if (plan.capability_id === "amazon.eu.price_bounds.repair.batch") {
+    const kv = env.SHOPIFY_TOKENS_KV;
+    const value = JSON.stringify(plan);
+    await persistPriceBoundsRepairPlan(planKey(plan.plan_id), () => kv.put(planKey(plan.plan_id), value, { expirationTtl: PLAN_TTL_SECONDS }));
+    return;
+  }
   await env.SHOPIFY_TOKENS_KV.put(planKey(plan.plan_id), JSON.stringify(plan), { expirationTtl: PLAN_TTL_SECONDS });
 }
 

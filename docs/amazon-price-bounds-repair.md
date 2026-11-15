@@ -24,6 +24,8 @@ Before every live PATCH the existing private plan store receives a `WRITE_ATTEMP
 
 Result counts distinguish submissions and maximum readbacks. Neither result is evidence that an offer is BUYABLE. `buyable_verified` always remains false. Readback may lag Amazon acceptance, so operators must reconcile pending effects before preparing any further action for the same pair. A concurrent external writer can still change the offer after the final read; compare-and-swap is not available from the Listings API. Channable rule alignment remains an operational prerequisite for a lasting correction.
 
+All writes of this capability's stored plan (including initial executing state, checkpoints, final state and catch paths) share a per-key serialized persistence helper. It spaces writes by at least 1.1 seconds, waits a full interval in a fresh isolate and retries only idempotent KV persistence at most three times. It never retries the provider PATCH. This respects the [KV same-key limit](https://developers.cloudflare.com/kv/api/write-key-value-pairs/#limits-to-kv-writes-to-the-same-key) without changing persistence behavior for other capabilities.
+
 ## Validation
 
 `npm run test:amazon-price-bounds-repair` uses mock Shopify/SP-API transports; it never accesses live credentials. It is included in the existing business MCP test command and therefore existing PR CI. Tests cover four markets, full offer preservation, identity/stock/bounds rejection, drift before and after preview, durable receipts and ambiguous delivery. Production merge, deployment and live execution require separate review and the existing execution controls.
