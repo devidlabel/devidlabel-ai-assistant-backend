@@ -82,7 +82,7 @@
     "test:amazon-it-season-audit": "node scripts/test-amazon-it-season-audit.mjs",
     "test:amazon-direct-bulk": "node scripts/test-amazon-direct-bulk.mjs",
     "test:rains-size-mapping": "node scripts/test-rains-size-mapping.mjs",
-    "test:amazon-price-bounds-repair": "node scripts/test-amazon-price-bounds-repair.mjs && node scripts/test-price-bounds-plan-store.mjs"
+    "test:amazon-price-bounds-repair": "node scripts/test-amazon-price-bounds-repair.mjs && node scripts/test-price-bounds-plan-store.mjs && node scripts/test-price-bounds-replay.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12",

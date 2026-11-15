@@ -26,6 +26,8 @@ Result counts distinguish submissions and maximum readbacks. Neither result is e
 
 All writes of this capability's stored plan (including initial executing state, checkpoints, final state and catch paths) share a per-key serialized persistence helper. It spaces writes by at least 1.1 seconds, waits a full interval in a fresh isolate and retries only idempotent KV persistence at most three times. It never retries the provider PATCH. This respects the [KV same-key limit](https://developers.cloudflare.com/kv/api/write-key-value-pairs/#limits-to-kv-writes-to-the-same-key) without changing persistence behavior for other capabilities.
 
+The final execution router also refuses delegation for a completed price-bound plan or a coordinator ledger already marked completed, even if the KV record still says prepared. The durable completion record outranks stale KV; re-execution returns an idempotent completion indication and requests receipt refresh, with no provider access. Other capabilities keep their existing routing.
+
 ## Validation
 
 `npm run test:amazon-price-bounds-repair` uses mock Shopify/SP-API transports; it never accesses live credentials. It is included in the existing business MCP test command and therefore existing PR CI. Tests cover four markets, full offer preservation, identity/stock/bounds rejection, drift before and after preview, durable receipts and ambiguous delivery. Production merge, deployment and live execution require separate review and the existing execution controls.

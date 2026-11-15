@@ -320,7 +320,15 @@ export async function handleMareBusinessMcpFinalRequest(
       const plan = await loadPlanRecord(planId, env);
       if (!plan || !isCoordinatedWrite(plan)) return handleMareBusinessMcpSafeRequest(request, env as any);
 
-      if (plan.status === "completed") return handleMareBusinessMcpSafeRequest(request, env as any);
+      if (plan.status === "completed") {
+        if (plan.capability_id === "amazon.eu.price_bounds.repair.batch") {
+          return rpcToolFailure(request, rpc.id, "price_bounds_repair_already_completed_no_reexecution", {
+            plan_id: planId, status: "completed", idempotent_replay: true,
+            provider_write_attempted: false, receipt_refresh_required: true,
+          });
+        }
+        return handleMareBusinessMcpSafeRequest(request, env as any);
+      }
 
       const requiredConfirmation = expectedConfirmation(plan);
       if (normalize(args.approval_confirmation) !== requiredConfirmation) {
@@ -330,7 +338,17 @@ export async function handleMareBusinessMcpFinalRequest(
       const currentCoordination = await coordinatorAction(env, planId, "status");
       const currentLedger = object(currentCoordination.body.ledger);
       const currentStatus = normalize(currentLedger.status);
-      if (currentStatus === "completed") return handleMareBusinessMcpSafeRequest(request, env as any);
+      if (currentStatus === "completed") {
+        // KV is eventually consistent. A stale prepared price-repair snapshot
+        // must never outrank the coordinator's durable completed receipt.
+        if (plan.capability_id === "amazon.eu.price_bounds.repair.batch") {
+          return rpcToolFailure(request, rpc.id, "price_bounds_repair_already_completed_no_reexecution", {
+            plan_id: planId, status: "completed", idempotent_replay: true,
+            provider_write_attempted: false, receipt_refresh_required: true,
+          });
+        }
+        return handleMareBusinessMcpSafeRequest(request, env as any);
+      }
       if (currentStatus === "executing") {
         return rpcToolFailure(request, rpc.id, "plan_already_executing", currentCoordination.body);
       }
