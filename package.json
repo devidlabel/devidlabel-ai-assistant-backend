@@ -28,7 +28,7 @@
     "test:mare-mcp": "node scripts/test-mare-mcp.mjs",
     "test:mare-operations-mcp": "node scripts/test-mare-operations-mcp.mjs",
     "test:mare-product-media-mcp": "node scripts/test-mare-product-media-mcp.mjs",
-    "test:mare-business-mcp": "node scripts/test-mare-business-mcp.mjs && node scripts/test-mare-klaviyo-crm.mjs && node scripts/test-amazon-kway-gpsr-pilot.mjs && node scripts/test-amazon-kway-images-batch.mjs && node scripts/test-amazon-kway-images-followup.mjs && node scripts/test-amazon-kway-batch-preview.mjs && node scripts/test-amazon-price-bounds.mjs && node scripts/test-amazon-kway-batch-create.mjs",
+    "test:mare-business-mcp": "node scripts/test-mare-business-mcp.mjs && node scripts/test-mare-klaviyo-crm.mjs && node scripts/test-amazon-kway-gpsr-pilot.mjs && node scripts/test-amazon-kway-images-batch.mjs && node scripts/test-amazon-kway-images-followup.mjs && node scripts/test-amazon-kway-batch-preview.mjs && node scripts/test-amazon-price-bounds.mjs && node scripts/test-amazon-kway-batch-create.mjs && npm run test:amazon-price-bounds-repair",
     "test:bilingual": "node scripts/test-bilingual-assistant.mjs",
     "test:conversation-router": "node scripts/test-conversation-router.mjs",
     "test:marketplace-routing": "node scripts/test-marketplace-routing.mjs",
@@ -81,7 +81,8 @@
     "test:amazon-kway-pilot": "node scripts/test-amazon-kway-pilot.mjs",
     "test:amazon-it-season-audit": "node scripts/test-amazon-it-season-audit.mjs",
     "test:amazon-direct-bulk": "node scripts/test-amazon-direct-bulk.mjs",
-    "test:rains-size-mapping": "node scripts/test-rains-size-mapping.mjs"
+    "test:rains-size-mapping": "node scripts/test-rains-size-mapping.mjs",
+    "test:amazon-price-bounds-repair": "node scripts/test-amazon-price-bounds-repair.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12",

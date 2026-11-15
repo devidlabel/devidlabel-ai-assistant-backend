@@ -1,3 +1,4 @@
+import { prepareAmazonPriceBoundsRepair, executeAmazonPriceBoundsRepair } from "./mare-business-amazon-price-bounds-repair.js";
 import { handleMareMcpRequest } from "./mare-mcp.js";
 import { readAmazonMerchantSkuStatuses } from "./mare-business-amazon-sku-status.js";
 import { readAmazonExactMatchCandidates } from "./mare-business-amazon-matching.js";
@@ -519,6 +520,13 @@ async function executeRead(capabilityId: string, request: JsonObject, env: MareB
 
 async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv): Promise<JsonObject> {
   const request = { ...plan.request };
+  if (plan.capability_id === "amazon.eu.price_bounds.repair.batch") {
+    if (plan.result_summary?.provider_write_attempted === true) throw new Error("price_bounds_repair_reconciliation_required");
+    return textToolResult(await executeAmazonPriceBoundsRepair(request, env, async (progress) => {
+      plan.result_summary = progress;
+      await storePlan(plan, env);
+    }));
+  }
   if (plan.capability_id === "marketplace.order.evidence.capture") return textToolResult(await captureLiveMarketplaceOrderEvidence(request, env));
   if (plan.capability_id === "amazon.it.gpsr_existing_manufacturer.validation.preview") return textToolResult(await previewExistingItManufacturerReference(request,env));
   if (plan.capability_id === "amazon.offer.validation.preview") return textToolResult(await previewAmazonOfferOnlyZeroQuantity(request, env));
@@ -613,6 +621,7 @@ async function prepareCapability(capability: MareBusinessCapability, request: Js
   assertRequestSafe(request);
   if (!capability.implemented) throw new Error("capability_not_implemented");
   if (!capability.available) throw new Error(`capability_not_available:${capability.missing.join(",")}`);
+  if (capability.id === "amazon.eu.price_bounds.repair.batch") request = await prepareAmazonPriceBoundsRepair(request, env);
   const planId = `mbp_${crypto.randomUUID()}`;
   const now = new Date();
   const plan: StoredPlan = {
@@ -794,4 +803,3 @@ export async function handleMareBusinessMcpRequest(request: Request, env: MareBu
   }
   return rpcError(rpc.id, -32601, "Method not found", 200, { method }, version);
 }
-
