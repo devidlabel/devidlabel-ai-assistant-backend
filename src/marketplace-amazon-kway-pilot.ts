@@ -3,6 +3,9 @@ import { AMAZON_EU_MARKETPLACES } from "./amazon-marketplaces.js";
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
 import { researchAmazonNewAsinProductType } from "./marketplace-amazon-new-asin-research.js";
 import { readAmazonSellerListingsDirect } from "./mare-business-amazon-listings-direct.js";
+import { readAmazonCatalogByEANBatch } from "./amazon-catalog-ean-batch.js";
+import { readAmazonCatalogASINDetails } from "./mare-business-amazon-details.js";
+import { readAmazonSellerAsinListings } from "./mare-business-amazon-seller-asin.js";
 import type { MareBusinessShopifyEnv } from "./mare-business-shopify.js";
 
 /** K-Way pilot: strict validated LISTING, zero FBM stock and no price. */
@@ -12,11 +15,15 @@ type Env = AmazonCredentials & MareBusinessShopifyEnv & {
   AMAZON_SP_API_SELLER_ID?: string;
   AMAZON_OFFER_PREVIEW_ENABLED?: string;
 };
-type Input = { marketplace: Market; sku: string; product_type: string };
+type Input = Readonly<{ marketplace: Market; sku: string; product_type: string;
+  source_marketplace?: Market; source_asin?: string }>;
 type Deps = {
   preview?: typeof previewAmazonGenericEanValidation;
   research?: typeof researchAmazonNewAsinProductType;
   seller?: typeof readAmazonSellerListingsDirect;
+  catalog?: typeof readAmazonCatalogByEANBatch;
+  details?: typeof readAmazonCatalogASINDetails;
+  sellerAsin?: typeof readAmazonSellerAsinListings;
   token?: typeof getAmazonAccessToken;
   fetch?: typeof fetch;
 };
@@ -27,6 +34,7 @@ const SELLER = /^[A-Z0-9]{8,30}$/;
 const EAN = /^\d{13}$/;
 const ASIN = /^[A-Z0-9]{10}$/;
 const SUBMISSION = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+const QUALIFICATION_CODES = new Set(["100632", "18299", "18304", "18669"]);
 const ATTRS = new Set([
   "brand", "item_name", "externally_assigned_product_identifier",
   "model_name", "model_number", "part_number", "color", "country_of_origin", "target_gender",
@@ -48,21 +56,30 @@ function obj(value: unknown): Row {
 }
 function validated(raw: unknown): Input {
   const a = obj(raw);
-  if (Object.keys(a).sort().join("|") !==
-      "marketplace|product_type|sku" ||
+  const keys = Object.keys(a).sort().join("|");
+  const expansion = keys === "marketplace|product_type|sku|source_asin|source_marketplace";
+  if ((!expansion && keys !== "marketplace|product_type|sku") ||
       typeof a.marketplace !== "string" ||
       !Object.hasOwn(AMAZON_EU_MARKETPLACES, a.marketplace) ||
       typeof a.sku !== "string" || !SKU.test(a.sku) ||
       a.sku !== a.sku.trim() || !a.sku.startsWith("KWAY_") ||
       typeof a.product_type !== "string" ||
-      !MARKET_TYPES.has(a.product_type))
+      !MARKET_TYPES.has(a.product_type) ||
+      (expansion && (typeof a.source_marketplace !== "string" ||
+        !Object.hasOwn(AMAZON_EU_MARKETPLACES, a.source_marketplace) ||
+        a.source_marketplace === a.marketplace ||
+        typeof a.source_asin !== "string" || !ASIN.test(a.source_asin))))
     throw new Error("kway_pilot_request_invalid");
-  return a as Input;
+  return Object.freeze({marketplace: a.marketplace as Market, sku: a.sku,
+    product_type: a.product_type, ...(expansion ? {
+      source_marketplace: a.source_marketplace as Market, source_asin: a.source_asin as string
+    } : {})});
 }
 function blocked(x: Input, reason: string): Row {
   return { ok: false, status: "BLOCKED_KWAY_PILOT",
     marketplace: x.marketplace, sku: x.sku, reason,
     provider_write_attempted: false, asin_created_verified: false,
+    marketplace_expansion_verified: false,
     buyable_verified: false, no_channable_changes: true };
 }
 function validEan(ean: string): boolean {
@@ -76,6 +93,7 @@ export async function createKwayNewAsinPilot(
 ): Promise<Row> {
   const input = validated(raw);
   const {marketplace, sku, product_type: productType} = input;
+  const expanding = input.source_marketplace !== undefined;
   const sellerId = env.AMAZON_SP_API_SELLER_ID;
   if (!SELLER.test(sellerId || "") || env.AMAZON_OFFER_PREVIEW_ENABLED !== "true")
     return blocked(input, "seller_or_validation_preview_disabled");
@@ -170,12 +188,77 @@ export async function createKwayNewAsinPilot(
       return blocked(input, "other_marketplace_identity_unknown");
     }
     const rows = Array.isArray(check.results) ? check.results : [];
-    if (check.ok !== true || rows.length !== 1 ||
-        obj(rows[0]).sku !== sku || obj(rows[0]).state !== "VERIFIED_ABSENT")
+    const listing = obj(rows[0]);
+    if (check.ok !== true || rows.length !== 1 || listing.sku !== sku)
       return blocked(input, "seller_sku_present_or_unknown_in_eu");
+    if (!expanding || other === marketplace) {
+      if (listing.state !== "VERIFIED_ABSENT")
+        return blocked(input, "seller_sku_present_or_unknown_in_eu");
+    } else if (listing.state === "VERIFIED_ABSENT" && other !== input.source_marketplace) {
+      continue;
+    } else {
+      if (listing.state !== "PRESENT" || listing.identity_state !== "VERIFIED" ||
+          listing.asin !== input.source_asin || listing.product_type !== productType)
+        return blocked(input, "expansion_source_or_eu_identity_mismatch");
+      // A zero-stock / non-BUYABLE source can still identify a product. Known
+      // qualification failures cannot be waived by an empty restrictions API.
+      if (!Array.isArray(listing.issue_signals) || listing.issue_signals_truncated !== false ||
+          listing.listing_issues_count !== listing.issue_signals.length)
+        return blocked(input, "expansion_source_qualification_unknown");
+      if (listing.issue_signals.map(obj).some(issue =>
+          QUALIFICATION_CODES.has(String(issue.code)) || issue.severity === "UNVERIFIED"))
+        return blocked(input, "expansion_source_qualification_blocked");
+    }
+  }
+
+  if (expanding) {
+    // Positive identity evidence is required; merely finding a SKU abroad is
+    // not permission to reuse its ASIN. Target collisions stay fail-closed.
+    if (!Array.isArray(research.available_schema_attribute_names) ||
+        !research.available_schema_attribute_names.includes("merchant_suggested_asin"))
+      return blocked(input, "expansion_asin_binding_not_in_target_schema");
+    try {
+      const catalog = obj(await (deps.catalog ?? readAmazonCatalogByEANBatch)(
+        env, input.source_marketplace!, [shop.ean as string]));
+      const identifiers = Array.isArray(catalog.identifiers) ? catalog.identifiers : [];
+      const identifier = obj(identifiers[0]);
+      if (catalog.read_only !== true || catalog.complete !== true ||
+          catalog.marketplace !== input.source_marketplace ||
+          catalog.marketplace_id !== AMAZON_EU_MARKETPLACES[input.source_marketplace!] ||
+          catalog.identifiers_count !== 1 || identifiers.length !== 1 ||
+          identifier.ean !== shop.ean || identifier.state !== "EXACT_ONE" ||
+          identifier.exact_match_count !== 1 || !Array.isArray(identifier.asins) ||
+          identifier.asins.length !== 1 || identifier.asins[0] !== input.source_asin)
+        return blocked(input, "expansion_source_ean_asin_not_unique");
+      const details = obj(await (deps.details ?? readAmazonCatalogASINDetails)(
+        {marketplace: input.source_marketplace, asins: [input.source_asin]}, env));
+      const rows = Array.isArray(details.results) ? details.results : [];
+      const source = obj(rows[0]);
+      if (details.ok !== true || details.read_only !== true ||
+          details.marketplace !== input.source_marketplace || rows.length !== 1 ||
+          source.state !== "READ_ONLY_DETAILS_COMPLETE" || source.asin !== input.source_asin ||
+          source.brand !== "K-Way" || !Array.isArray(source.product_types) ||
+          source.product_types.length !== 1 || source.product_types[0] !== productType)
+        return blocked(input, "expansion_source_brand_or_type_mismatch");
+      const collision = obj(await (deps.sellerAsin ?? readAmazonSellerAsinListings)(
+        {marketplace, asins: [input.source_asin]}, env));
+      const found = Array.isArray(collision.results) ? collision.results : [];
+      const match = obj(found[0]);
+      if (collision.ok !== true || collision.read_only !== true ||
+          collision.marketplace !== marketplace || collision.complete_evidence !== true ||
+          found.length !== 1 || match.asin !== input.source_asin ||
+          match.state !== "NO_SELLER_ASIN_IN_BOUNDED_SEARCH" || match.query_complete !== true ||
+          !Array.isArray(match.skus) || match.skus.length !== 0)
+        return blocked(input, "expansion_target_asin_present_or_unknown");
+    } catch {
+      return blocked(input, "expansion_identity_read_unavailable");
+    }
   }
 
   const liveBody = { ...payload, attributes: { ...attrs,
+    ...(expanding ? {merchant_suggested_asin: [{
+      value: input.source_asin, marketplace_id: marketId
+    }]} : {}),
     fulfillment_availability: [{
       fulfillment_channel_code: "DEFAULT", quantity: 0,
       marketplace_id: marketId
@@ -184,6 +267,35 @@ export async function createKwayNewAsinPilot(
   const token = await (deps.token ?? getAmazonAccessToken)(env);
   if (typeof token !== "string" || !token.trim() || token.length > 16384)
     return blocked(input, "amazon_access_token_unavailable");
+  if (expanding) {
+    const restrictionsUrl = new URL(HOST + "/listings/2021-08-01/restrictions");
+    restrictionsUrl.searchParams.set("asin", input.source_asin!);
+    restrictionsUrl.searchParams.set("sellerId", sellerId!);
+    restrictionsUrl.searchParams.set("marketplaceIds", marketId);
+    restrictionsUrl.searchParams.set("conditionType", "new_new");
+    try {
+      const response = await transport(restrictionsUrl.toString(), {
+        method: "GET", redirect: "manual",
+        headers: {"x-amz-access-token": token, Accept: "application/json"},
+        signal: AbortSignal.timeout(20000)
+      });
+      if (response.status !== 200 ||
+          !/^application\/json(?:\s*;|$)/i.test(response.headers.get("content-type") || "")) {
+        void response.body?.cancel().catch(() => {});
+        return blocked(input, "expansion_target_restrictions_unverified");
+      }
+      const text = await response.text();
+      if (text.length > 128000) return blocked(input, "expansion_target_restrictions_unverified");
+      const restrictions = obj(JSON.parse(text));
+      if (!Array.isArray(restrictions.restrictions) || restrictions.restrictions.length !== 0 ||
+          restrictions.errors !== undefined)
+        return blocked(input, "expansion_target_restricted_or_unknown");
+    } catch {
+      return blocked(input, "expansion_target_restrictions_unverified");
+    }
+    // Empty restrictions are only one gate, never proof of brand approval or
+    // BUYABLE status. The exact target payload must still pass live preview.
+  }
   const target = new URL(HOST + "/listings/2021-08-01/items/" +
     encodeURIComponent(sellerId!) + "/" + encodeURIComponent(sku));
   target.searchParams.set("marketplaceIds", marketId);
@@ -219,16 +331,32 @@ export async function createKwayNewAsinPilot(
       return {
         code: typeof i.code === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(i.code) ?
           i.code : "UNKNOWN",
+        ...(["ERROR", "WARNING", "INFO"].includes(String(i.severity)) ? {severity: i.severity} : {}),
         attribute_names: Array.isArray(i.attributeNames) ?
           i.attributeNames.filter(x => typeof x === "string" &&
             /^[a-z_]{1,64}$/.test(x)).slice(0, 10) : []
       };
     }) : [];
   const previewIssues = safeIssues(exactPreview.issues);
+  // Inspect the complete provider array before truncating safe diagnostics.
+  // WARNING / INFO do not reject a VALID preview; malformed evidence, ERROR
+  // and known qualification signals remain hard gates in both modes.
+  const exactIssues = Array.isArray(exactPreview.issues) ? exactPreview.issues : null;
+  const issuesVerified = exactIssues !== null && exactIssues.every(rawIssue => {
+    const issue = obj(rawIssue);
+    return typeof issue.code === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(issue.code) &&
+      ["ERROR", "WARNING", "INFO"].includes(String(issue.severity)) &&
+      (issue.attributeNames === undefined || (Array.isArray(issue.attributeNames) &&
+        issue.attributeNames.every(name => typeof name === "string" && /^[a-z_]{1,64}$/.test(name))));
+  });
+  const blockingIssue = exactIssues?.some(rawIssue => {
+    const issue = obj(rawIssue);
+    return issue.severity === "ERROR" || QUALIFICATION_CODES.has(String(issue.code));
+  });
   if (exactPreview.sku !== sku || exactPreview.status !== "VALID" ||
-      previewIssues.length > 0) {
+      !issuesVerified || blockingIssue) {
     return { ...blocked(input, "exact_zero_stock_preview_not_valid"),
-      exact_preview_status: exactPreview.status === "INVALID" ? "INVALID" : "UNKNOWN",
+      exact_preview_status: ["VALID", "INVALID"].includes(String(exactPreview.status)) ? exactPreview.status : "UNKNOWN",
       amazon_issues: previewIssues };
   }
   let response: Response;
@@ -267,7 +395,7 @@ export async function createKwayNewAsinPilot(
       !["ACCEPTED", "INVALID"].includes(String(ack.status)))
     throw new Error("kway_live_ack_untrusted_never_retry");
   if (ack.status !== "ACCEPTED")
-    return { ok: false, status: "AMAZON_REJECTED_NEW_ASIN",
+    return { ok: false, status: expanding ? "AMAZON_REJECTED_MARKETPLACE_EXPANSION" : "AMAZON_REJECTED_NEW_ASIN",
       amazon_issues: safeIssues(ack.issues),
       marketplace, sku, submission_reference: ack.submissionId,
       preview_was_valid: fullyValid, provider_write_attempted: true,
@@ -283,13 +411,18 @@ export async function createKwayNewAsinPilot(
   const verified = readback.ok === true && rows.length === 1 &&
     listing.sku === sku && listing.state === "PRESENT" &&
     listing.identity_state === "VERIFIED" &&
-    typeof listing.asin === "string" && ASIN.test(listing.asin);
+    typeof listing.asin === "string" && ASIN.test(listing.asin) &&
+    (!expanding || (listing.asin === input.source_asin && listing.product_type === productType));
   return { ok: true,
-    status: verified ? "NEW_ASIN_SELLER_LISTING_VERIFIED" :
-      "NEW_ASIN_SUBMITTED_AWAITING_READBACK",
+    status: expanding ? (verified ? "MARKETPLACE_EXPANSION_VERIFIED" :
+      "MARKETPLACE_EXPANSION_SUBMITTED_AWAITING_READBACK") :
+      (verified ? "NEW_ASIN_SELLER_LISTING_VERIFIED" : "NEW_ASIN_SUBMITTED_AWAITING_READBACK"),
     marketplace, sku, ...(verified ? {asin: listing.asin} : {}),
+    ...(expanding ? {source_marketplace: input.source_marketplace, source_asin: input.source_asin} : {}),
     submission_reference: ack.submissionId,
-    asin_created_verified: verified, buyable_verified: false,
+    exact_preview_status: "VALID", amazon_issues: previewIssues,
+    asin_created_verified: verified && !expanding,
+    marketplace_expansion_verified: verified && expanding, buyable_verified: false,
     provider_write_attempted: true, submitted_quantity: 0,
     no_channable_changes: true
   };
