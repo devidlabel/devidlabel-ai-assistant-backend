@@ -331,16 +331,32 @@ export async function createKwayNewAsinPilot(
       return {
         code: typeof i.code === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(i.code) ?
           i.code : "UNKNOWN",
+        ...(["ERROR", "WARNING", "INFO"].includes(String(i.severity)) ? {severity: i.severity} : {}),
         attribute_names: Array.isArray(i.attributeNames) ?
           i.attributeNames.filter(x => typeof x === "string" &&
             /^[a-z_]{1,64}$/.test(x)).slice(0, 10) : []
       };
     }) : [];
   const previewIssues = safeIssues(exactPreview.issues);
+  // Inspect the complete provider array before truncating safe diagnostics.
+  // WARNING / INFO do not reject a VALID preview; malformed evidence, ERROR
+  // and known qualification signals remain hard gates in both modes.
+  const exactIssues = Array.isArray(exactPreview.issues) ? exactPreview.issues : null;
+  const issuesVerified = exactIssues !== null && exactIssues.every(rawIssue => {
+    const issue = obj(rawIssue);
+    return typeof issue.code === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(issue.code) &&
+      ["ERROR", "WARNING", "INFO"].includes(String(issue.severity)) &&
+      (issue.attributeNames === undefined || (Array.isArray(issue.attributeNames) &&
+        issue.attributeNames.every(name => typeof name === "string" && /^[a-z_]{1,64}$/.test(name))));
+  });
+  const blockingIssue = exactIssues?.some(rawIssue => {
+    const issue = obj(rawIssue);
+    return issue.severity === "ERROR" || QUALIFICATION_CODES.has(String(issue.code));
+  });
   if (exactPreview.sku !== sku || exactPreview.status !== "VALID" ||
-      previewIssues.length > 0) {
+      !issuesVerified || blockingIssue) {
     return { ...blocked(input, "exact_zero_stock_preview_not_valid"),
-      exact_preview_status: exactPreview.status === "INVALID" ? "INVALID" : "UNKNOWN",
+      exact_preview_status: ["VALID", "INVALID"].includes(String(exactPreview.status)) ? exactPreview.status : "UNKNOWN",
       amazon_issues: previewIssues };
   }
   let response: Response;
@@ -404,6 +420,7 @@ export async function createKwayNewAsinPilot(
     marketplace, sku, ...(verified ? {asin: listing.asin} : {}),
     ...(expanding ? {source_marketplace: input.source_marketplace, source_asin: input.source_asin} : {}),
     submission_reference: ack.submissionId,
+    exact_preview_status: "VALID", amazon_issues: previewIssues,
     asin_created_verified: verified && !expanding,
     marketplace_expansion_verified: verified && expanding, buyable_verified: false,
     provider_write_attempted: true, submitted_quantity: 0,

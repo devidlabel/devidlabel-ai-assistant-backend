@@ -18,6 +18,7 @@ function issueDiagnostics(value:unknown):Obj[]|undefined {
   return value.slice(0,25).map(raw=>{
     const issue=obj(raw);
     return {code:typeof issue.code==="string"&&/^[A-Za-z0-9._-]{1,64}$/.test(issue.code)?issue.code:"UNKNOWN",
+      ...(["ERROR","WARNING","INFO"].includes(String(issue.severity))?{severity:issue.severity}:{}),
       attribute_names:(Array.isArray(issue.attribute_names)?issue.attribute_names:[])
         .filter(name=>typeof name==="string"&&/^[a-z_]{1,64}$/.test(name)).slice(0,10)};
   });

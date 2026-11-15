@@ -98,7 +98,7 @@ const diagnostics=await run({marketplace:"IT",items:[items[0]]},{}, {pilot:async
  amazon_preview_issues:[{code:"90220",attribute_names:["manufacturer"],message:"PRIVATE_CONTACT"},
   ...Array.from({length:30},()=>({code:"unsafe@contact.invalid",attribute_names:[
    "invalid@contact.invalid",...Array.from({length:12},()=>"brand")]}))],
- amazon_issues:[{code:"8560",attribute_names:["merchant_suggested_asin"],raw:"PRIVATE_PAYLOAD"}]
+ amazon_issues:[{code:"8560",severity:"WARNING",attribute_names:["merchant_suggested_asin"],raw:"PRIVATE_PAYLOAD"}]
 })});
 assert.equal(diagnostics.rows[0].amazon_preview_status,"INVALID");
 assert.equal(diagnostics.rows[0].exact_preview_status,"INVALID");
@@ -107,7 +107,7 @@ assert.deepEqual(diagnostics.rows[0].amazon_preview_issues[0],{
  code:"90220",attribute_names:["manufacturer"]});
 assert.equal(diagnostics.rows[0].amazon_preview_issues[1].code,"UNKNOWN");
 assert.equal(diagnostics.rows[0].amazon_preview_issues[1].attribute_names.length,10);
-assert.deepEqual(diagnostics.rows[0].amazon_issues,[{code:"8560",attribute_names:["merchant_suggested_asin"]}]);
+assert.deepEqual(diagnostics.rows[0].amazon_issues,[{code:"8560",severity:"WARNING",attribute_names:["merchant_suggested_asin"]}]);
 assert(!JSON.stringify(diagnostics).includes("PRIVATE"));
 assert(!JSON.stringify(diagnostics).includes("contact.invalid"));
 assert.equal(Object.hasOwn(result.rows[1],"amazon_preview_issues"),false);

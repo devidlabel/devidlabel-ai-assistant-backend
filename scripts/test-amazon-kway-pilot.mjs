@@ -251,4 +251,33 @@ for(const bad of [{...input,source_asin:sourceAsin},
  {...input,source_marketplace:"DE"},{...expansionInput,source_marketplace:"IT"},
  {...expansionInput,source_marketplace:"UK"},{...expansionInput,source_asin:"unsafe"}])
  await assert.rejects(()=>run(bad,env),/kway_pilot_request_invalid/);
+for(const [issues,allowed] of [
+ [[{code:"LISTING_WARNING",severity:"WARNING",attributeNames:["item_name"]}],true],
+ [[{code:"LISTING_INFO",severity:"INFO"}],true],
+ [[{code:"90220",severity:"ERROR",attributeNames:["manufacturer"]}],false],
+ [[{code:"100632",severity:"WARNING"}],false],
+ [[{code:"LISTING_WARNING",severity:"UNRECOGNIZED"}],false],
+ [[{code:"LISTING_WARNING"}],false],
+ [[{code:"LISTING_WARNING",severity:"WARNING",attributeNames:"invalid"}],false],
+ [undefined,false],[null,false],
+ [[...Array.from({length:25},()=>({code:"LISTING_INFO",severity:"INFO"})),
+   {code:"90220",severity:"ERROR"}],false],
+]) {
+ const checked=makeExpansion();
+ const original=checked.deps.fetch;
+ checked.deps.fetch=async(url,init)=>{
+  if(new URL(url).searchParams.get("mode")==="VALIDATION_PREVIEW"&&
+     JSON.parse(init.body).attributes.fulfillment_availability)
+   return new Response(JSON.stringify({sku,status:"VALID",issues}),{
+    status:200,headers:{"content-type":"application/json"}});
+  return original(url,init);
+ };
+ const outcome=await run(expansionInput,env,checked.deps);
+ assert.equal(checked.calls.live,allowed?1:0,JSON.stringify(issues));
+ assert.equal(outcome.status,allowed?"MARKETPLACE_EXPANSION_VERIFIED":"BLOCKED_KWAY_PILOT");
+ if(allowed) {
+  assert.equal(outcome.exact_preview_status,"VALID");
+  assert.equal(outcome.amazon_issues[0].severity,issues[0].severity);
+ }
+}
 console.log("K-Way creation and guarded EU expansion tests passed");
