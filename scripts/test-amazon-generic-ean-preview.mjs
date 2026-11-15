@@ -48,6 +48,49 @@ for(const market of ["DE","FR","ES"]){
 }
 assert.deepEqual(kwayEvidence({...euKwayProduct,id:"gid://shopify/Product/1"}, {},
  "KWAY_K6131ZW_USY_S","COAT","DE","A1PA6795UKMFR9",neutralFields),{});
+// Preserve the verified main-fabric blend verbatim and keep lining separate.
+const rayonBlend="81% Poliestere, 15% Rayon, 4% Elastan";
+const rayonProductId="gid://shopify/Product/42";
+const rayonFields={source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
+  fabric_type:rayonBlend,lining_description:"100% Poliestere",
+  manufacturer_brand_operator:"Example Brand Operator",
+  manufacturer_status:"LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN"};
+const rayonProduct=(fields=rayonFields)=>({
+  id:rayonProductId,vendor:"K-Way",amazonPtd:{type:"json",value:JSON.stringify({
+    source_product_id:rayonProductId,amazon_ptd_evidence:fields
+  })}
+});
+const rayonAllow=["fabric_type","lining_description","manufacturer","country_of_origin",
+  "purchasable_offer","fulfillment_availability"];
+const rayonAttrs=(product=rayonProduct(),sku="KWAY_TEST_RAYON_M",available=rayonAllow)=>
+  kwayEvidence(product,{},sku,"COAT","IT","APJ6JRA9NG5V4",available);
+assert.deepEqual(rayonAttrs(),{
+  fabric_type:[{value:rayonBlend,language_tag:"it_IT",marketplace_id:"APJ6JRA9NG5V4"}],
+  lining_description:[{value:"100% Poliestere",language_tag:"it_IT",marketplace_id:"APJ6JRA9NG5V4"}]
+},"main fabric must not be renamed, flattened with the lining, or grant legal/offer attributes");
+for(const invalidBlend of [
+  "81% Poliestere, 15% Rayon", // incomplete main fabric
+  "81% Poliestere, 15% Rayon, 5% Elastan", // exceeds 100%
+  "81% Poliestere, 15% Rayon, 4% Rayon", // repeated component
+  "81% Poliestere, 15% Rayon, 4% Elastan, 100% Poliestere", // combined lining
+  "Tessuto principale: 81% Poliestere, 15% Rayon, 4% Elastan; Fodera: 100% Poliestere"
+]){
+  const attrs=rayonAttrs(rayonProduct({...rayonFields,fabric_type:invalidBlend}));
+  assert.ok(!attrs.fabric_type,invalidBlend);
+  assert.equal(attrs.lining_description[0].value,"100% Poliestere");
+}
+for(const product of [
+  {...rayonProduct(),id:"gid://shopify/Product/43"},
+  {...rayonProduct(),vendor:"Other Brand"},
+  rayonProduct({...rayonFields,source_scope:"UNVERIFIED_SOURCE"})
+]) assert.deepEqual(rayonAttrs(product),{},"unmatched source must not emit fabric or lining");
+assert.deepEqual(rayonAttrs(rayonProduct(),"RFR_TEST_RAYON_M"),{});
+assert.deepEqual(rayonAttrs(rayonProduct(),"KWAY_TEST_RAYON_M",[]),{});
+for(const [market,marketId] of Object.entries({
+  DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"
+})) assert.deepEqual(kwayEvidence(rayonProduct(),{},"KWAY_TEST_RAYON_M",
+  "COAT",market,marketId,rayonAllow),{},"Italian fabric text must not populate another locale");
+
 const sku="RSX_64228G_V4928_-_ESPRESSO",ean="8300193548467";
 const variantId="gid://shopify/ProductVariant/52554517676373";
 const markets={IT:"APJ6JRA9NG5V4",DE:"A1PA6795UKMFR9",FR:"A13V1IB3VIYZZH",ES:"A1RKKUPIHCS9HS"};
@@ -140,6 +183,57 @@ for(const pt of TYPES){
  assert.equal(result.can_publish,false);
  assert.ok(!JSON.stringify(result).includes("PRIVATE_PROVIDER_TEXT"));
 }
+// Size diagnostics retain actionable 90248 details without exposing contacts or IDs.
+for(const code of ["90004205","90248"]){
+ for(const [pt,field] of [["COAT","apparel_size"],["HAT","headwear_size"]]){
+  const rawMessage=`The 'xx_l' on the field '${field}.size' does not match [${field}.size_system]. Contact example42@example.invalid at https://example.invalid/private?token=hidden reference 1234567890123. `+
+    "Additional size context. ".repeat(40);
+  const result=await run(request(pt),env,deps(pt,"IT",{
+   fetch:async(url)=>{assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+    return new Response(JSON.stringify({sku,status:"INVALID",submissionId:"size-diagnostic",
+     issues:[{code,severity:"ERROR",attributeNames:[field],message:rawMessage}]}),
+     {status:200,headers:{"content-type":"application/json"}});}
+  }));
+  assert.deepEqual(result.issues,[{code,severity:"ERROR",attribute_names:[field]}]);
+  assert.equal(result.provider_validation_status,"INVALID");
+  assert.equal(result.can_publish,false);
+  assert.equal(result.provider_mutations,0);
+  assert.ok(Array.isArray(result.size_issue_hints),code+" must retain sanitized size hints");
+  assert.equal(result.size_issue_hints.length,1);
+  assert.equal(result.size_issue_hints[0].length,480);
+  for(const marker of ["[url]","[email]","[id]"])assert.ok(result.size_issue_hints[0].includes(marker));
+  assert.deepEqual(result.headwear_diagnostics,[{
+    field:`${field}.size`,rejected_value:"xx_l",preconditions:[field]
+  }]);
+  for(const secret of ["example42@example.invalid","https://example.invalid","1234567890123"])
+    assert.ok(!JSON.stringify(result).includes(secret),secret);
+ }
+}
+// Numeric identifiers inside a rejected value must not bypass the hint redaction.
+const redactedValue=await run(request("COAT"),env,deps("COAT","IT",{
+ fetch:async()=>new Response(JSON.stringify({sku,status:"INVALID",submissionId:"size-private",
+  issues:[{code:"90248",severity:"ERROR",attributeNames:["apparel_size"],
+   message:"The '1234567890123' on the field 'apparel_size.size' is invalid."}]}),
+  {status:200,headers:{"content-type":"application/json"}})
+}));
+assert.ok(redactedValue.size_issue_hints[0].includes("[id]"));
+assert.ok(!redactedValue.headwear_diagnostics);
+assert.ok(!JSON.stringify(redactedValue).includes("1234567890123"));
+// The diagnostic allowlist and the upstream message-length limit stay bounded.
+for(const issue of [
+ {code:"90248",severity:"ERROR",attributeNames:["color"],message:"PRIVATE_OTHER_ATTRIBUTE"},
+ {code:"90220",severity:"ERROR",attributeNames:["apparel_size"],message:"PRIVATE_OTHER_CODE"},
+ {code:"90248",severity:"ERROR",attributeNames:["apparel_size"],message:"x".repeat(5000)}
+]){
+ const result=await run(request("COAT"),env,deps("COAT","IT",{
+  fetch:async()=>new Response(JSON.stringify({sku,status:"INVALID",submissionId:"size-bounded",
+   issues:[issue]}),{status:200,headers:{"content-type":"application/json"}})
+ }));
+ assert.deepEqual(result.issues,[{code:issue.code,severity:"ERROR",attribute_names:issue.attributeNames}]);
+ assert.ok(!result.size_issue_hints&&!result.headwear_diagnostics);
+ assert.equal(result.can_publish,false);
+}
+
 for(const market of Object.keys(markets)){
  const result=await run(request("SOCKS",market),env,deps("SOCKS",market));
  assert.equal(result.ok,true);
