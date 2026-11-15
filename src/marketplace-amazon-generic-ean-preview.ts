@@ -279,7 +279,7 @@ export function validatedRefrigiwearFabric(value:string):boolean{
   if(typeof value!=="string"||value.length>120)return false;
   const parts=value.split(", ");
   if(parts.length<1||parts.length>3)return false;
-  const allowed=new Set(["Nylon","Cotone","Poliestere","Elastan","Acrilico","Poliammide","Viscosa","Lana"]);
+  const allowed=new Set(["Nylon","Cotone","Poliestere","Elastan","Acrilico","Poliammide","Viscosa","Lana","Rayon"]);
   let sum=0;
   const seen=new Set<string>();
   for(const part of parts){
@@ -674,7 +674,7 @@ export async function previewAmazonGenericEanValidation(
       return blocked(marketplace,sku,pt,"amazon_preview_issues_invalid");
     sanitized.push({code:issue.code,severity:issue.severity as string,
       attribute_names:(issue.attributeNames as string[]|undefined)??[]});
-    if(issue.code==="90004205"&&
+    if(["90004205","90248"].includes(issue.code)&&
        (issue.attributeNames as string[]|undefined)?.some(x=>x==="headwear_size"||x==="apparel_size")&&
        typeof issue.message==="string"&&issue.message.length<5000){
       const raw=issue.message as string;
@@ -691,6 +691,7 @@ export async function previewAmazonGenericEanValidation(
       const value=valueMatch?.[1]||"";
       const field=fieldMatch?.[1]||"";
       if(value&&/^[A-Za-z\u00c0-\u00ff0-9 _-]{1,70}$/.test(value)&&
+         !/\b\d{7,}\b/.test(value)&&
          /^[a-z_\.]{1,70}$/.test(field))
         headwearDiagnostics.push({field,rejected_value:value,preconditions});
     }
