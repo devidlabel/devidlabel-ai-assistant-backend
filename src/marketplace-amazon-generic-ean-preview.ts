@@ -102,8 +102,11 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   }
   // Values must exist in the product dossier. No inference is made here from
   // a title, category name or a missing battery/hazard field.
-  for(const field of ["batteries_required","batteries_included"])
-    if(fields[field]===false)set(field,[{value:false,marketplace_id:marketId}]);
+  if(fields.batteries_required===false)
+    set("batteries_required",[{value:false,marketplace_id:marketId}]);
+  // Keep batteries_included in the source dossier: the deployed publisher
+  // does not accept that output attribute. If Amazon
+  // requires it, the unchanged VALID/zero-ERROR gate still blocks live writes.
   const dg=val("supplier_declared_dg_hz_regulation");
   if(dg&&(marketplace==="IT"||(isKway&&dg==="not_applicable")))
     set("supplier_declared_dg_hz_regulation",[{value:dg,marketplace_id:marketId}]);
