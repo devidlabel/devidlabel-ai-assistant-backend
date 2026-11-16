@@ -362,6 +362,55 @@ function ptdAlphaSizeLabelTokens(schema:Row):Row {
   }
   return output;
 }
+/** Bounded diagnostic pairs from the same official PTD size enum. These are
+ * not a merchant-size mapping: unfamiliar or ambiguous labels remain visible
+ * for review and never change the existing mapper or publication gates.
+ * Only size vocabulary is returned; no descriptions, contacts or schema URLs.
+ */
+function ptdAlphaSizeEnumPairs(schema:Row):Row {
+  const root=obj(schema.properties), wrapper=obj(root.attributes);
+  const holder=wrapper.type==="object"&&Object.keys(obj(wrapper.properties)).length>0?
+    wrapper:schema;
+  const attributes=obj(holder.properties), output:Row={};
+  const words=new Set(["small","medium","large","extra","one","size",
+    "regular","short","long","tall","petite","plus","slim","big",
+    "standard","fits","all"]);
+  function sizeLabel(label:string):boolean {
+    if(!/^[A-Za-z0-9 -]{1,64}$/.test(label)||label!==label.trim())return false;
+    const parts=label.toLowerCase().split(/[ -]+/);
+    return parts.every(part=>words.has(part)||/^[sml]$/.test(part)||
+      /^(?:[1-9]|1[0-2])?x{1,6}[sl]?$/.test(part)||/^(?:[1-9]|1[0-2])$/.test(part))&&
+      parts.some(part=>["small","medium","large","size"].includes(part)||
+        /^[sml]$/.test(part)||/^(?:[1-9]|1[0-2])?x{1,6}[sl]?$/.test(part));
+  }
+  for(const field of ["shirt_size","apparel_size","headwear_size"]){
+    const attr=obj(attributes[field]), item=obj(attr.items), props=obj(item.properties);
+    const size=obj(props.size), classes=obj(props.size_class).enum;
+    const values=size.enum, labels=size.enumNames;
+    if(attr.type!=="array"||item.type!=="object"||size.type!=="string"||
+       obj(props.size_class).type!=="string"||
+       !Array.isArray(classes)||classes.length>32||!classes.includes("alpha")||
+       classes.some(x=>typeof x!=="string")||
+       !Array.isArray(values)||!Array.isArray(labels)||
+       values.length!==labels.length||values.length>10000||
+       values.some(x=>typeof x!=="string")||labels.some(x=>typeof x!=="string"))continue;
+    const pairs:Array<{token:string;label:string}>=[], seen=new Set<string>();
+    let candidates=0;
+    for(let i=0;i<values.length;i++){
+      const token=values[i] as string, label=labels[i] as string;
+      if(!/^[A-Za-z0-9][A-Za-z0-9_]{0,63}$/.test(token)||
+         !/[A-Za-z]/.test(token)||/\d{6}/.test(token)||
+         /^(?:jaspo_|numeric_|go_|age_)/i.test(token)||!sizeLabel(label))continue;
+      const key=token+"\u0000"+label;
+      if(seen.has(key))continue;
+      seen.add(key);candidates++;
+      if(pairs.length<64)pairs.push({token,label});
+    }
+    output[field]={schema_enum_count:values.length,candidate_pair_count:candidates,
+      returned_pair_count:pairs.length,pairs_truncated:candidates>pairs.length,pairs};
+  }
+  return output;
+}
 const SHOES_INSPECTION_FIELDS=[
   "footwear_size","target_gender","age_range_description","closure",
   "sole_material","inner","outer","leather_type",
@@ -788,6 +837,9 @@ export async function researchAmazonNewAsinProductType(
       ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
       ptd_alpha_size_tokens:ptdAlphaSizeTokens(rawSchema),
       ptd_alpha_size_label_tokens:ptdAlphaSizeLabelTokens(rawSchema),
+      ptd_alpha_size_enum_pairs:ptdAlphaSizeEnumPairs(rawSchema),
+      ptd_alpha_size_enum_pairs_diagnostic_only:true,
+      ptd_alpha_size_enum_pairs_not_size_mapping:true,
       ptd_size_shapes_are_read_only:true,
       ptd_size_shapes_not_schema_validation:true,
       ptd_size_mapping_not_performed:true,
