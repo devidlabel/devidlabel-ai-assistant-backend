@@ -124,6 +124,30 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   if(dg&&(marketplace==="IT"||(isKway&&dg==="not_applicable")))
     set("supplier_declared_dg_hz_regulation",[{value:dg,marketplace_id:marketId}]);
   const descriptiveFabric=isKway?kwayDescriptiveFabric(fields,product.id):undefined;
+  // Exact merchant-linked official product page proof: a URL alone cannot
+  // certify manufacturer/GPSR/origin. It only authorizes descriptive color
+  // and official list price when product style, SKU and title agree.
+  const officialUrl=val("official_product_source_url");
+  const officialStyle=val("official_product_style_code");
+  const officialMatch=isKway&&!!officialUrl&&!!officialStyle&&
+    /^https:\/\/www\.k-way\.com\/it\/products\/[a-z0-9-]{12,180}$/.test(officialUrl)&&
+    /^K[0-9]{4}[A-Z]{2}$/.test(officialStyle)&&
+    sku.slice(5).startsWith(officialStyle)&&
+    officialUrl.includes(officialStyle.toLowerCase());
+  // Only manufacturer-stated official MSRP, not Shopify seller price or
+  // stock. A product-bound official proof can fill an absent compare-at,
+  // but must never override a legitimate existing Shopify list price.
+  const list=typeof variant.compareAtPrice==="string"?
+    Number(variant.compareAtPrice):NaN;
+  const officialMsrp=fields.official_msrp_eur;
+  const attestedMsrp=officialMatch&&typeof officialMsrp==="number"&&
+    Number.isFinite(officialMsrp)&&officialMsrp>=5&&officialMsrp<=5000?
+    officialMsrp:NaN;
+  const effectiveList=Number.isFinite(list)&&list>0&&list<10000?
+    list:attestedMsrp;
+  if((marketplace==="IT"||isKway)&&Number.isFinite(effectiveList))
+    set("list_price",[{currency:"EUR",value_with_tax:effectiveList,
+      marketplace_id:marketId}]);
   // Cross-market preview: emit only market-neutral values backed by the exact
   // dossier. Italian descriptive text is NOT translated into DE/FR/ES.
   // Commercial brand names and explicit standard-size tokens are handled above.
@@ -161,6 +185,23 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
        "MODEL_GROUP_TRANSLATION_FROM_PRODUCT_SOURCE"){
       const localized=obj(obj(fields.localized_marketplace_fields)[marketplace]);
       const localVal=(name:string)=>safeText(localized[name]);
+      // Localized copy is explicitly stored in this product/model dossier.
+      // Missing or invalid locale content never falls back to Italian copy.
+      const contentSource=obj(fields.localized_product_content_source);
+      const sourceModel=val("model_number");
+      if(fields.localized_product_content_status===
+           "MODEL_GROUP_LOCALIZED_COPY_FROM_PRODUCT_DOSSIER"&&
+         contentSource.source_type==="SHOPIFY_PRODUCT_DOSSIER_LOCALIZED_FACTS"&&
+         typeof product.id==="string"&&contentSource.source_product_id===product.id&&
+         sourceModel&&/^K[0-9]{4}[A-Z0-9]{2}$/.test(sourceModel)&&
+         contentSource.source_model===sourceModel){
+        const description=safeItalianDescription(localized.product_description);
+        const bullets=verifiedMarketplaceBullets({type:"list.single_line_text_field",
+          value:JSON.stringify(localized.bullet_point)});
+        if(description)set("product_description",text(description));
+        if(bullets.ok&&bullets.values.length)set("bullet_point",
+          bullets.values.map(value=>({value,language_tag:locale,marketplace_id:marketId})));
+      }
       for(const field of ["item_type_name","department","age_range_description",
           "care_instructions","style","weave_type","fit_type","lining_description","strap_type"]){
         const value=localVal(field);
@@ -274,16 +315,6 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   const outer=val("outer_material");
   if(outer)set("outer",[{material:[{value:outer,language_tag:locale}],
     marketplace_id:marketId}]);
-  // Exact merchant-linked official product page proof: a URL alone cannot
-  // certify manufacturer/GPSR/origin. It only authorizes descriptive color
-  // and official list price when product style, SKU and title agree.
-  const officialUrl=val("official_product_source_url");
-  const officialStyle=val("official_product_style_code");
-  const officialMatch=isKway&&!!officialUrl&&!!officialStyle&&
-    /^https:\/\/www\.k-way\.com\/it\/products\/[a-z0-9-]{12,180}$/.test(officialUrl)&&
-    /^K[0-9]{4}[A-Z]{2}$/.test(officialStyle)&&
-    sku.slice(5).startsWith(officialStyle)&&
-    officialUrl.includes(officialStyle.toLowerCase());
   const officialColor=val("color");
   if(officialMatch&&officialColor&&
      typeof product.title==="string"&&product.title.endsWith(officialColor))
@@ -317,20 +348,6 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     set("item_package_weight",[{value:weight,unit:"kilograms",
       marketplace_id:marketId}]);
   }
-  // Only manufacturer-stated official MSRP, not Shopify seller price or
-  // stock. A product-bound official proof can fill an absent compare-at,
-  // but must never override a legitimate existing Shopify list price.
-  const list=typeof variant.compareAtPrice==="string"?
-    Number(variant.compareAtPrice):NaN;
-  const officialMsrp=fields.official_msrp_eur;
-  const attestedMsrp=officialMatch&&typeof officialMsrp==="number"&&
-    Number.isFinite(officialMsrp)&&officialMsrp>=5&&officialMsrp<=5000?
-    officialMsrp:NaN;
-  const effectiveList=Number.isFinite(list)&&list>0&&list<10000?
-    list:attestedMsrp;
-  if(Number.isFinite(effectiveList))
-    set("list_price",[{currency:"EUR",value_with_tax:effectiveList,
-      marketplace_id:marketId}]);
   return attrs;
 }
 
@@ -433,15 +450,15 @@ function safeModel(raw:unknown):raw is string {
 function obj(v:unknown):Row{return v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Row:{};}
 // Merchant-authored public Shopify prose is copy, never evidence for
 // material composition, origin, manufacturer, GPSR or package specifications.
-// No automatic translation: the canonical copy is emitted only for Amazon IT.
+// This validates text shape only; callers bind canonical IT or explicit localized copy.
 function safeItalianDescription(raw:unknown):string|undefined{
   if(typeof raw!=="string")return undefined;
   const value=raw.trim();
   return value.length>=30&&value.length<=2000&&
     !/[\u0000-\u001f\u007f<>]/.test(value)?value:undefined;
 }
-// Only the merchant's dedicated, typed marketplace metafield is eligible
-// for bullet points. Amazon bullet arrays are capped at five for this pilot.
+// Validate explicit typed bullet lists; callers establish product and locale provenance.
+// Amazon bullet arrays are capped at five for this pilot.
 function verifiedMarketplaceBullets(raw:unknown):{ok:boolean;values:string[]}{
   if(raw===null||raw===undefined)return {ok:true,values:[]};
   const field=obj(raw);
@@ -724,7 +741,10 @@ export async function previewAmazonGenericEanValidation(
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
-  const regularFit=["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
+  // An enum lists possible tokens, not conditional permission to send them.
+  // DE validation rejects these optional qualifiers for the selected apparel
+  // sizes. Keep the established IT mapping; do not export its defaults to EU.
+  const regularFit=marketplace==="IT"&&["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
     (sku.startsWith("RFR_")||sku.startsWith("KWAY_"))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
