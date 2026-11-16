@@ -537,6 +537,87 @@ for(const market of Object.keys(sizeSystems)){
  }
 }
 
+// FR/ES missing-qualifier recovery is tied to the exact Standard adult dossier,
+// not a general extension of IT defaults. All fixtures below are synthetic.
+async function captureStandardAdultSize(market,pt,label="M",alter=()=>{}){
+ const field=pt==="SHIRT"?"shirt_size":"apparel_size";
+ const fixtureSku="KWAY_TEST_STANDARD_SIZE_"+label;
+ const productId="gid://shopify/Product/100";
+ const data=privateData();
+ data.productVariant.sku=fixtureSku;
+ data.productVariant.selectedOptions=[{name:"Taglia",value:label}];
+ Object.assign(data.productVariant.product,{id:productId,vendor:"K-Way"});
+ const dossier={source_product_id:productId,amazon_ptd_evidence:{
+  source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
+  special_size_type:"Standard",
+  special_size_type_status:"INFERRED_STANDARD_ADULT_CATALOG_SIZING",
+  age_range_description:"Adulto"
+ }};
+ const fixtureResearch=sizeResearch(pt,market,field);
+ fixtureResearch.ptd_alpha_size_tokens={[field]:["m"]};
+ fixtureResearch.ptd_alpha_size_label_tokens={[field]:{XXL:"xx_l"}};
+ Object.assign(fixtureResearch.ptd_size_shapes[field].items.properties,{
+  body_type:{type:"string",enum:["regular","slim"]},
+  height_type:{type:"string",enum:["regular","tall"]}
+ });
+ alter({data,dossier,research:fixtureResearch,field});
+ data.productVariant.product.amazonPtd??={type:"json",value:JSON.stringify(dossier)};
+ fixtureResearch.sku=data.productVariant.sku;
+ fixtureResearch.shopify={...fixtureResearch.shopify,
+  brand:data.productVariant.product.vendor,amazon_listing_brand:data.productVariant.product.vendor};
+ let body;
+ const result=await run({marketplace:market,sku:data.productVariant.sku,product_type:pt},env,{
+  ...deps(pt,market),research:async()=>fixtureResearch,
+  readShopify:async(e,q,v)=>q.includes("metaobject(id:")?deps(pt,market).readShopify(e,q,v):data,
+  fetch:async(url,init)=>{
+   assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+   body=JSON.parse(init.body);
+   return new Response(JSON.stringify({sku:data.productVariant.sku,status:"VALID",
+    submissionId:"standard-size-fixture",issues:[]}),
+    {status:200,headers:{"content-type":"application/json"}});
+  }
+ });
+ assert.equal(result.provider_validation_status,"VALID",JSON.stringify(result));
+ assert.equal(result.provider_mutations,0);
+ assert.equal(result.product_created,false);
+ assert.equal(result.can_publish,false);
+ assert.ok(!body.attributes.purchasable_offer&&!body.attributes.fulfillment_availability);
+ return body.attributes[field][0];
+}
+for(const market of ["IT","DE","FR","ES"]){
+ for(const pt of ["COAT","SHIRT","SWEATER","SWEATSHIRT"]){
+  for(const [label,wire,sizeClass] of [["M","m","alpha"],["XXL","xx_l","alpha"],["40","40","numeric"]]){
+   const value=await captureStandardAdultSize(market,pt,label);
+   assert.deepEqual(value,{size:wire,size_class:sizeClass,size_system:sizeSystems[market],
+    ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
+    marketplace_id:markets[market]},market+" "+pt+" "+label);
+  }
+ }
+}
+const standardSizeNegatives=[
+ ["wrong product",({dossier})=>{dossier.source_product_id="gid://shopify/Product/101";}],
+ ["unverified scope",({dossier})=>{dossier.amazon_ptd_evidence.source_scope="UNVERIFIED";}],
+ ["missing status",({dossier})=>{delete dossier.amazon_ptd_evidence.special_size_type_status;}],
+ ["nonstandard profile",({dossier})=>{dossier.amazon_ptd_evidence.special_size_type="Petite";}],
+ ["nonadult profile",({dossier})=>{dossier.amazon_ptd_evidence.age_range_description="Bambino";}],
+ ["conflicting market profile",({dossier})=>{dossier.amazon_ptd_evidence.special_size_type_by_market={FR:"Tall",ES:"Tall"};}],
+ ["other brand",({data})=>{data.productVariant.product.vendor="Other Brand";}],
+ ["other sku scope",({data})=>{data.productVariant.sku="RFR_TEST_STANDARD_SIZE_M";data.productVariant.product.vendor="Refrigiwear";}],
+ ["malformed dossier",({data})=>{data.productVariant.product.amazonPtd={type:"json",value:"{"};}],
+ ["untyped dossier",({data,dossier})=>{data.productVariant.product.amazonPtd={type:"single_line_text_field",value:JSON.stringify(dossier)};}],
+ ["body token not exposed",({research,field})=>{research.ptd_size_shapes[field].items.properties.body_type.enum=["slim"];}],
+ ["height token not exposed",({research,field})=>{research.ptd_size_shapes[field].items.properties.height_type.enum=["tall"];}]
+];
+for(const market of ["FR","ES"]){
+ for(const pt of ["COAT","SWEATSHIRT"]){
+  for(const [reason,alter] of standardSizeNegatives){
+   const value=await captureStandardAdultSize(market,pt,"M",alter);
+   assert.deepEqual(value,{size:"m",size_class:"alpha",size_system:sizeSystems[market],
+    marketplace_id:markets[market]},market+" "+pt+" "+reason);
+  }
+ }
+}
+
 // Amazon PTD enum codes can differ from the merchant-facing size label.
 // When the live PTD explicitly exposes lowercase "s", transmit the wire token.
 const alphaBase=deps("SHIRT","IT");
