@@ -10,11 +10,13 @@ const {validatedRefrigiwearFabric:validRfrFabric,
   Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 for(const value of ["100% Nylon","98% Cotone, 2% Elastan",
  "65% Poliestere, 35% Cotone","80% Cotone, 20% Poliestere",
- "50% Poliestere, 50% Acrilico","95% Poliestere, 5% Elastan"])
+ "50% Poliestere, 50% Acrilico","95% Poliestere, 5% Elastan",
+ "76% Poliestere, 24% Poliuretano"])
   assert.equal(validRfrFabric(value),true,value);
 for(const value of ["100% Seta","90% Cotone, 5% Poliestere",
  "120% Nylon","100% Cotone, 1% Cotone","90% Poliestere, 10% Unknown",
- "80% Cotone; 20% Poliestere","0% Nylon, 100% Cotone"])
+ "80% Cotone; 20% Poliestere","0% Nylon, 100% Cotone",
+ "75% Poliestere, 24% Poliuretano"])
   assert.equal(validRfrFabric(value),false,value);
 // Multi-shell fabrics: percentages apply to separate panels, not a blend.
 assert.equal(validKwayLayers("Shell A: 100% Nylon; Shell B: 100% Poliestere"),true);
@@ -738,4 +740,239 @@ assert.deepEqual(merchantAccessoryAttrs(officialFerimy(),{},
  "KWAY_K4146JW_USY","WAIST_PACK","DE",markets.DE,
  ["color","list_price"]),{},"IT official provenance must not silently authorize DE");
 
+// Source-traced commercial/category inferences are reusable across K-Way
+// models and markets without becoming label, factory, GPSR or live-write proof.
+const commercialFields={
+ source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
+ manufacturer_brand_operator:"K-Way S.p.A.",
+ manufacturer_status:"COMMERCIAL_BRAND_MANUFACTURER_INFERRED_FROM_OFFICIAL_BRAND_SOURCE",
+ manufacturer_commercial_source:{source_type:"OFFICIAL_BRAND_OWNER_SELLER",
+  brand:"K-Way",source_url:"https://www.k-way.com/it/pages/general-terms-and-conditions-of-sale"},
+ special_size_type:"Standard",
+ special_size_type_status:"INFERRED_STANDARD_ADULT_CATALOG_SIZING",
+ supplier_declared_dg_hz_regulation:"not_applicable",
+ batteries_required:false,batteries_included:false,
+ fit_type:"Regolare",department:"Uomo",fabric_type:"100% Lana",
+ country_of_origin:"CN",gpsr_safety_attestation:true
+};
+// New inference fixtures are fully synthetic and never identify live products.
+const inferenceProductId="gid://shopify/Product/100";
+const inferenceProduct=(productId=inferenceProductId,fields=commercialFields)=>({
+ id:productId,vendor:"K-Way",amazonPtd:{type:"json",value:JSON.stringify({
+  source_product_id:inferenceProductId,amazon_ptd_evidence:fields
+ })}
+});
+const commercialAllow=["manufacturer","special_size_type",
+ "supplier_declared_dg_hz_regulation","batteries_required","batteries_included",
+ "country_of_origin","gpsr_safety_attestation","purchasable_offer","fulfillment_availability"];
+const localeByMarket={IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"};
+const specialShape=(values)=>({special_size_type:{type:"array",items:{type:"object",
+ properties:{value:{type:"string",enum:values}}}}});
+const commercialAttrs=(market="IT",fields=commercialFields,pt="SWEATER",shapes={})=>
+ merchantAccessoryAttrs(inferenceProduct(inferenceProductId,fields),{},"KWAY_TEST_STANDARD_APPAREL_M",
+  pt,market,markets[market],commercialAllow,{},shapes);
+for(const market of Object.keys(markets)){
+ for(const pt of ["SWEATER","COAT","TOTE_BAG"]){
+  const attrs=commercialAttrs(market,commercialFields,pt);
+  assert.deepEqual(attrs.manufacturer,[{value:"K-Way S.p.A.",
+   language_tag:localeByMarket[market],marketplace_id:markets[market]}]);
+  assert.deepEqual(attrs.special_size_type,[{value:"Standard",
+   language_tag:localeByMarket[market],marketplace_id:markets[market]}]);
+  assert.deepEqual(attrs.supplier_declared_dg_hz_regulation,[{
+   value:"not_applicable",marketplace_id:markets[market]}]);
+  for(const field of ["batteries_required","batteries_included"])
+   assert.deepEqual(attrs[field],[{value:false,marketplace_id:markets[market]}]);
+  assert.ok(!attrs.country_of_origin&&!attrs.gpsr_safety_attestation&&
+   !attrs.purchasable_offer&&!attrs.fulfillment_availability,
+   "commercial/category evidence cannot create origin, safety or offer proof");
+ }
+ for(const fields of [
+  {...commercialFields,manufacturer_commercial_source:undefined},
+  {...commercialFields,manufacturer_brand_operator:"Other Company"},
+  {...commercialFields,manufacturer_status:"LEGAL_BRAND_OPERATOR_PUBLICLY_VERIFIED_NOT_FACTORY_OF_ORIGIN"},
+  {...commercialFields,manufacturer_commercial_source:{...commercialFields.manufacturer_commercial_source,brand:"Other Brand"}},
+  {...commercialFields,manufacturer_commercial_source:{...commercialFields.manufacturer_commercial_source,source_type:"UNVERIFIED_CONTACT"}},
+  {...commercialFields,manufacturer_commercial_source:{...commercialFields.manufacturer_commercial_source,source_url:"https://www.k-way.com.attacker.invalid/it/pages/faq"}},
+  {...commercialFields,manufacturer_commercial_source:{...commercialFields.manufacturer_commercial_source,source_url:"https://www.k-way.com/it/products/knitwear-man-sebastien-merino-black-pure-k2142ew-usy"}}
+ ]) assert.ok(!commercialAttrs(market,fields).manufacturer,
+  "brand contact, wrong company, wrong source or wrong evidence status cannot assert manufacturer");
+ const noCategoryValues={source_scope:commercialFields.source_scope,fit_type:"Regolare"};
+ assert.deepEqual(commercialAttrs(market,noCategoryValues),{},
+  "regular fit and brand scope alone supply no standard size, battery or hazard declaration");
+ const enumAttrs=commercialAttrs(market,commercialFields,"SWEATER",specialShape(["standard","petite"]));
+ assert.equal(enumAttrs.special_size_type[0].value,"standard",
+  "use the exact token exposed by this market's PTD");
+ assert.ok(!commercialAttrs(market,commercialFields,"SWEATER",specialShape(["Petite"])).special_size_type,
+  "a conflicting exposed enum must not fall back to Standard");
+ assert.deepEqual(merchantAccessoryAttrs(inferenceProduct("gid://shopify/Product/999",commercialFields),{},
+  "KWAY_TEST_STANDARD_APPAREL_M","SWEATER",market,markets[market],commercialAllow),{},
+  "commercial evidence remains bound to the exact source product");
+ assert.deepEqual(merchantAccessoryAttrs(inferenceProduct(inferenceProductId,commercialFields),{},
+  "KWAY_TEST_STANDARD_APPAREL_M","SWEATER",market,markets[market],[]),{},
+  "even inferred fields need availability in the market's PTD");
+}
+for(const market of ["DE","FR","ES"]){
+ assert.ok(!commercialAttrs(market,{...commercialFields,
+  special_size_type_status:undefined}).special_size_type,
+  "an Italian Standard string alone is not an approved cross-market category inference");
+ assert.ok(!commercialAttrs(market,{...commercialFields,
+  supplier_declared_dg_hz_regulation:"Non pericoloso"}).supplier_declared_dg_hz_regulation,
+  "an Italian phrase is not a neutral hazard token");
+}
+assert.equal(commercialAttrs("ES",{...commercialFields,
+ special_size_type_by_market:{ES:"Estándar"}},"SWEATER",
+ specialShape(["Estándar","Grande"])).special_size_type[0].value,"Estándar");
+assert.ok(!commercialAttrs("ES",{...commercialFields,
+ special_size_type_by_market:{ES:"<invalid>"}}).special_size_type,
+ "an invalid explicit market override must not silently revert to Standard");
+assert.ok(!commercialAttrs("IT",{...commercialFields,headwear_size:"Taglia Unica"},
+ "HAT",specialShape(["Petite"])).special_size_type,
+ "the legacy headwear fallback must not overwrite a conflicting explicit size inference");
+
+// Explicit model/source translations may enrich only their own locale.
+const localizedFields={...commercialFields,fabric_type:"81% Poliestere, 15% Rayon, 4% Elastan",
+ item_type_name:"Giacca",style:"Giacca reversibile",closure:"Cerniera",outer_material:"Poliestere",
+ localized_marketplace_fields_status:"MODEL_GROUP_TRANSLATION_FROM_PRODUCT_SOURCE",
+ localized_marketplace_fields:{
+  DE:{item_type_name:"Jacke",department:"Herren",age_range_description:"Erwachsene",
+   care_instructions:"Schonwaschgang bei 30 °C",style:"Wendejacke",weave_type:"Interlock",
+   closure:"Reißverschluss",fit_type:"Normal",outer_material:"Polyester",
+   lining_description:"100% Polyester",fabric_type:"81% Polyester, 15% Rayon, 4% Elasthan"},
+  FR:{item_type_name:"Veste",department:"Homme",age_range_description:"Adulte",
+   care_instructions:"Lavage délicat à 30 °C",style:"Veste réversible",weave_type:"Interlock",
+   closure:"Fermeture éclair",fit_type:"Coupe normale",outer_material:"Polyester",
+   lining_description:"100% Polyester",fabric_type:"81 % Polyester, 15 % Rayonne, 4 % Élasthanne"},
+  ES:{item_type_name:"Chaqueta",department:"Hombre",age_range_description:"Adulto",
+   care_instructions:"Lavado delicado a 30 °C",style:"Chaqueta reversible",weave_type:"Interlock",
+   closure:"Cremallera",fit_type:"Corte regular",outer_material:"Poliéster",
+   lining_description:"100% Poliéster",fabric_type:"81% Poliéster, 15% Rayón, 4% Elastano"}
+ }};
+const localizedAllow=[...commercialAllow,"item_type_name","department","age_range_description",
+ "care_instructions","style","weave_type","closure","fit_type","outer","lining_description","fabric_type"];
+const localizedAttrs=(market,fields=localizedFields)=>merchantAccessoryAttrs(
+ inferenceProduct(inferenceProductId,fields),{},"KWAY_TEST_LAYERED_JACKET_M","COAT",market,
+ markets[market],localizedAllow);
+for(const market of ["DE","FR","ES"]){
+ const attrs=localizedAttrs(market),local=localizedFields.localized_marketplace_fields[market];
+ for(const field of ["item_type_name","department","age_range_description","care_instructions",
+  "style","weave_type","fit_type","lining_description","fabric_type"])
+  assert.deepEqual(attrs[field],[{value:local[field],language_tag:localeByMarket[market],marketplace_id:markets[market]}]);
+ assert.equal(attrs.closure[0].type[0].value,local.closure);
+ assert.equal(attrs.outer[0].material[0].value,local.outer_material);
+ for(const change of [{localized_marketplace_fields_status:undefined},{localized_marketplace_fields:{}}]){
+  const missing=localizedAttrs(market,{...localizedFields,...change});
+  for(const field of ["item_type_name","department","fabric_type","closure","outer","style","fit_type"])
+   assert.ok(!missing[field],"Italian text must never fill an absent/unapproved translation: "+field);
+  assert.ok(missing.manufacturer&&missing.batteries_required,"neutral fields remain independently available");
+ }
+ const onlyDepartment=localizedAttrs(market,{...localizedFields,
+  localized_marketplace_fields:{[market]:{department:local.department}}});
+ assert.ok(onlyDepartment.department&&!onlyDepartment.fabric_type&&!onlyDepartment.style&&
+  !onlyDepartment.fit_type&&!onlyDepartment.closure,"missing individual fields have no Italian fallback");
+}
+for(const [source,fabric] of [
+ [localizedFields.fabric_type,"80 % Polyester, 16 % Rayonne, 4 % Élasthanne"],
+ ["81% Poliestere, 15% Rayon","81 % Polyester, 15 % Rayonne"],
+ [localizedFields.fabric_type,"81 % Coton, 15 % Rayonne, 4 % Élasthanne"],
+ [localizedFields.fabric_type,"81 % Polyester, 15 % Viscose, 4 % Élasthanne"],
+ [localizedFields.fabric_type,"Polyester"]
+]) assert.ok(!localizedAttrs("FR",{...localizedFields,fabric_type:source,
+ localized_marketplace_fields:{FR:{fabric_type:fabric}}}).fabric_type,
+ "translation must preserve a complete 100% composition and each source material");
+const twoShellFields={...localizedFields,fabric_type:"Shell A: 100% Nylon; Shell B: 100% Poliestere",
+ localized_marketplace_fields:{FR:{fabric_type:"Couche A: 100% Nylon; Couche B: 100% Polyester"}}};
+assert.equal(localizedAttrs("FR",twoShellFields).fabric_type[0].value,
+ "Couche A: 100% Nylon; Couche B: 100% Polyester");
+assert.ok(!localizedAttrs("FR",{...twoShellFields,
+ localized_marketplace_fields:{FR:{fabric_type:"50% Nylon, 50% Polyester"}}}).fabric_type,
+ "two 100% shells cannot become a single invented 50/50 blend");
+
+// An unquantified textile descriptor is a different evidence kind. It cannot
+// launder an incomplete composition or invent percentages during translation.
+const descriptorFields=(value="Misto")=>({...localizedFields,fabric_type:value,
+ fabric_type_status:"INFERRED_USER_AUTHORIZED",
+ fabric_type_kind:"TEXTILE_DESCRIPTION_WITHOUT_COMPOSITION_PERCENTAGES",
+ fabric_type_source:{source_type:"SHOPIFY_PRODUCT_FIELD",source_product_id:inferenceProductId,
+  source_field:"material",source_descriptor:value},
+ localized_marketplace_fields:{DE:{fabric_type:"Mischgewebe"},FR:{fabric_type:"Tissu mélangé"},
+  ES:{fabric_type:"Tejido mixto"}}});
+for(const market of Object.keys(markets)){
+ const f=descriptorFields(),attrs=localizedAttrs(market,f);
+ assert.equal(attrs.fabric_type[0].value,market==="IT"?"Misto":f.localized_marketplace_fields[market].fabric_type);
+ for(const changed of [
+  {...f,fabric_type_status:undefined},
+  {...f,fabric_type_kind:"PERCENTAGE_COMPOSITION"},
+  {...f,fabric_type_source:{...f.fabric_type_source,source_product_id:"gid://shopify/Product/999"}},
+  {...f,fabric_type_source:{...f.fabric_type_source,source_descriptor:"Nylon"}},
+  {...f,fabric_type_source:{...f.fabric_type_source,source_type:"UNVERIFIED_SOURCE"}},
+  descriptorFields("80% Poliestere"),descriptorFields("80 Poliestere"),descriptorFields("Misto ignoto")
+ ])assert.ok(!localizedAttrs(market,changed).fabric_type,
+  "unquantified evidence needs explicit status, exact product/source and a recognized descriptor");
+}
+assert.equal(localizedAttrs("DE",{...descriptorFields("Poliestere e cotone"),
+ localized_marketplace_fields:{DE:{fabric_type:"Polyester und Baumwolle"}}}).fabric_type[0].value,
+ "Polyester und Baumwolle");
+for(const fabric of ["100% Polyester","Nylon"])
+ assert.ok(!localizedAttrs("DE",{...descriptorFields("Poliestere"),
+  localized_marketplace_fields:{DE:{fabric_type:fabric}}}).fabric_type,
+  "a descriptor translation cannot add a percentage or substitute another material");
+for(const [market,fabric] of Object.entries({
+ DE:"76% Polyester, 24% Polyurethan",FR:"76% Polyester, 24% Polyuréthane",ES:"76% Poliéster, 24% Poliuretano"
+})) assert.equal(localizedAttrs(market,{...localizedFields,
+ fabric_type:"76% Poliestere, 24% Poliuretano",
+ localized_marketplace_fields:{[market]:{fabric_type:fabric}}}).fabric_type[0].value,fabric);
+const translatedAccessory={...localizedFields,localized_marketplace_fields:{FR:{
+ strap_type:"Bandoulière réglable",inner_material:"Polyester",size_info:"Taille unique"}}};
+for(const pt of ["HANDBAG","COAT"]){
+ const attrs=merchantAccessoryAttrs(inferenceProduct(inferenceProductId,translatedAccessory),{},
+  "KWAY_TEST_ACCESSORY_UN",pt,"FR",markets.FR,["strap_type","inner","size_info"]);
+ assert.equal(attrs.strap_type[0].value,"Bandoulière réglable");
+ if(pt==="HANDBAG"){
+  assert.equal(attrs.inner[0].material[0].value,"Polyester");
+  assert.equal(attrs.size_info[0].display_name[0].value,"Taille unique");
+ }else assert.ok(!attrs.inner&&!attrs.size_info,"accessory nested attributes retain their category scope");
+}
+
+// Exercise the complete preview path with CN supplied by InventoryItem.
+// Provider VALID/INVALID and 100632 are retained; this mapper grants no write.
+for(const market of Object.keys(markets)){
+ for(const providerStatus of ["VALID","INVALID"]){
+  const kwaySku="KWAY_TEST_STANDARD_APPAREL_M";
+  const details=privateData();
+  details.productVariant.sku=kwaySku;
+  details.productVariant.inventoryItem.countryCodeOfOrigin="CN";
+  details.productVariant.product={...details.productVariant.product,
+   ...inferenceProduct(inferenceProductId,commercialFields)};
+  const result=await run({marketplace:market,sku:kwaySku,product_type:"SWEATER"},env,{
+   research:async()=>research({sku:kwaySku,title_category_conflict_detected:false,
+    available_schema_attribute_names:[...research().available_schema_attribute_names,...commercialAllow],
+    ptd_technical_shapes:specialShape(["standard"]),
+    shopify:{...research().shopify,brand:"K-Way",amazon_listing_brand:"K-Way"}},"SWEATER",market),
+   readShopify:async(e,q,v)=>q.includes("metaobject(id:")?
+    deps("SWEATER",market).readShopify(e,q,v):details,
+   getAccessToken:async()=>"FAKE_TEST_TOKEN",
+   fetch:async(url,init)=>{
+    assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+    const body=JSON.parse(init.body);
+    assert.deepEqual(body.attributes.country_of_origin,[{value:"CN",marketplace_id:markets[market]}]);
+    assert.equal(body.attributes.manufacturer[0].value,"K-Way S.p.A.");
+    assert.equal(body.attributes.special_size_type[0].value,"standard");
+    assert.ok(!body.attributes.gpsr_safety_attestation&&!body.attributes.purchasable_offer);
+    return new Response(JSON.stringify({sku:kwaySku,status:providerStatus,
+     submissionId:"commercial-inference-"+market+"-"+providerStatus,
+     issues:providerStatus==="INVALID"?[{code:"100632",severity:"ERROR",attributeNames:["brand"]}]:[]}),
+     {status:200,headers:{"content-type":"application/json"}});
+   }
+  });
+  assert.equal(result.provider_validation_status,providerStatus,JSON.stringify(result));
+  assert.deepEqual(result.issues,providerStatus==="INVALID"?
+   [{code:"100632",severity:"ERROR",attribute_names:["brand"]}]:[]);
+  for(const field of ["can_publish","listing_write_enabled","brand_authorization_proven",
+   "gpsr_compliance_proven","full_schema_validated","product_created"])
+   assert.equal(result[field],false,field);
+  assert.equal(result.provider_mutations,0);
+ }
+}
+
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
+
