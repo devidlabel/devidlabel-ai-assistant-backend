@@ -490,6 +490,51 @@ for(const market of Object.keys(sizeSystems)){
  assert.equal(x.ok,true);
  assert.ok(x.attributes_submitted.includes(field));
 }
+// Optional body/height enums do not authorize these fields for every market.
+// DE live validation rejects both qualifiers with90248 despite regular in the
+// broad PTD enum. Preserve IT behavior and exact PTD size tokens in every market.
+for(const market of Object.keys(sizeSystems)){
+ for(const pt of ["COAT","SHIRT","SWEATER","SWEATSHIRT"]){
+  for(const [prefix,brand] of [["KWAY_","K-Way"],["RFR_","Refrigiwear"]]){
+   for(const [label,wire,sizeClass] of [["M","m","alpha"],["XXL","xx_l","alpha"],["40","40","numeric"]]){
+    const field=pt==="SHIRT"?"shirt_size":"apparel_size";
+    const fixtureSku=prefix+"TEST_MARKET_SIZE_"+label;
+    const data=privateData();data.productVariant.sku=fixtureSku;
+    data.productVariant.selectedOptions=[{name:"Taglia",value:label}];
+    data.productVariant.product.vendor=brand;
+    const fixtureResearch=sizeResearch(pt,market,field);
+    fixtureResearch.sku=fixtureSku;
+    fixtureResearch.shopify={...fixtureResearch.shopify,brand,amazon_listing_brand:brand};
+    fixtureResearch.ptd_alpha_size_tokens={[field]:["m","xx_l"]};
+    fixtureResearch.ptd_alpha_size_label_tokens={[field]:{M:"m",XXL:"xx_l"}};
+    Object.assign(fixtureResearch.ptd_size_shapes[field].items.properties,{
+     body_type:{type:"string",enum:["regular","slim"]},
+     height_type:{type:"string",enum:["regular","tall"]}
+    });
+    const result=await run({marketplace:market,sku:fixtureSku,product_type:pt},env,{
+     ...deps(pt,market),research:async()=>fixtureResearch,
+     readShopify:async(e,q,v)=>q.includes("metaobject(id:")?deps(pt,market).readShopify(e,q,v):data,
+     fetch:async(url,init)=>{
+      assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+      const body=JSON.parse(init.body);
+      assert.deepEqual(body.attributes[field],[{
+       size:wire,size_class:sizeClass,size_system:sizeSystems[market],
+       ...(market==="IT"?{body_type:"regular",height_type:"regular"}:{}),
+       marketplace_id:markets[market]
+      }],market+" "+pt+" "+fixtureSku);
+      return new Response(JSON.stringify({sku:fixtureSku,status:"VALID",
+       submissionId:"market-size-fixture",issues:[]}),
+       {status:200,headers:{"content-type":"application/json"}});
+     }
+    });
+    assert.equal(result.provider_validation_status,"VALID",JSON.stringify(result));
+    assert.equal(result.provider_mutations,0);
+    assert.equal(result.product_created,false);
+   }
+  }
+ }
+}
+
 // Amazon PTD enum codes can differ from the merchant-facing size label.
 // When the live PTD explicitly exposes lowercase "s", transmit the wire token.
 const alphaBase=deps("SHIRT","IT");
@@ -811,7 +856,8 @@ for(const changes of [
 }
 assert.deepEqual(merchantAccessoryAttrs(officialFerimy(),{},
  "KWAY_K4146JW_USY","WAIST_PACK","DE",markets.DE,
- ["color","list_price"]),{},"IT official provenance must not silently authorize DE");
+ ["color","list_price"]),{list_price:[{currency:"EUR",value_with_tax:60,marketplace_id:markets.DE}]},
+ "verified EUR reference price may cross markets; Italian color evidence must not");
 
 // Source-traced commercial/category inferences are reusable across K-Way
 // models and markets without becoming label, factory, GPSR or live-write proof.
@@ -1053,6 +1099,104 @@ for(const market of Object.keys(markets)){
   assert.equal(result.provider_mutations,0);
  }
 }
+
+// Explicit product/model-bound localized copy is distinct from canonical IT
+// text. Reference list_price is never derived from the selling price.
+const euCopy={
+ DE:{product_description:"Synthetische K-Way Jacke mit dokumentiertem Material und geradem Schnitt.",
+  bullet_point:["Synthetische K-Way Jacke.","Dokumentiertes Material.","Pflegehinweise auf dem Etikett beachten."]},
+ FR:{product_description:"Veste K-Way de test avec une matière documentée et une coupe droite.",
+  bullet_point:["Veste K-Way de test.","Matière documentée.","Suivre les indications sur l’étiquette."]},
+ ES:{product_description:"Chaqueta K-Way de prueba con material documentado y corte recto.",
+  bullet_point:["Chaqueta K-Way de prueba.","Material documentado.","Seguir las indicaciones de la etiqueta."]}
+};
+const euContentFields=()=>({source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",
+ model_number:"K0001AA",localized_marketplace_fields_status:"MODEL_GROUP_TRANSLATION_FROM_PRODUCT_SOURCE",
+ localized_product_content_status:"MODEL_GROUP_LOCALIZED_COPY_FROM_PRODUCT_DOSSIER",
+ localized_product_content_source:{source_type:"SHOPIFY_PRODUCT_DOSSIER_LOCALIZED_FACTS",
+  source_product_id:inferenceProductId,source_model:"K0001AA"},
+ localized_marketplace_fields:structuredClone(euCopy)});
+const euContentAllow=["product_description","bullet_point","list_price"];
+const euContentAttrs=(market,fields=euContentFields(),variant={},productChanges={},available=euContentAllow)=>
+ merchantAccessoryAttrs({...inferenceProduct(inferenceProductId,fields),...productChanges},variant,
+  "KWAY_TEST_LOCALIZED_M","COAT",market,markets[market],available);
+for(const market of ["DE","FR","ES"]){
+ const attrs=euContentAttrs(market,euContentFields(),{compareAtPrice:"125.50",price:"99.95"});
+ assert.deepEqual(attrs.product_description,[{value:euCopy[market].product_description,
+  language_tag:localeByMarket[market],marketplace_id:markets[market]}]);
+ assert.deepEqual(attrs.bullet_point,euCopy[market].bullet_point.map(value=>({value,
+  language_tag:localeByMarket[market],marketplace_id:markets[market]})));
+ assert.deepEqual(attrs.list_price,[{currency:"EUR",value_with_tax:125.5,marketplace_id:markets[market]}]);
+ assert.equal(euContentAttrs(market,euContentFields(),{price:"99.95"}).list_price,undefined);
+ const numericModel=euContentFields();
+ numericModel.model_number=numericModel.localized_product_content_source.source_model="K00011A";
+ assert.equal(euContentAttrs(market,numericModel).product_description[0].value,
+  euCopy[market].product_description,"model suffix may contain a documented digit");
+ for(const alter of [
+  f=>{delete f.localized_product_content_status;},
+  f=>{f.localized_product_content_status="UNVERIFIED";},
+  f=>{delete f.localized_product_content_source;},
+  f=>{f.localized_product_content_source.source_type="UNVERIFIED";},
+  f=>{f.localized_product_content_source.source_product_id="gid://shopify/Product/999";},
+  f=>{f.localized_product_content_source.source_model="K9999ZZ";},
+  f=>{delete f.model_number;},
+  f=>{f.model_number=f.localized_product_content_source.source_model="UNVERIFIED";},
+  f=>{delete f.localized_marketplace_fields[market];},
+  f=>{f.localized_marketplace_fields_status="UNVERIFIED";},
+  f=>{f.source_scope="OTHER_PRODUCT";},
+  f=>{f.localized_marketplace_fields[market]={product_description:"<unsafe>",bullet_point:["<unsafe>"]};},
+  f=>{f.localized_marketplace_fields[market]={product_description:"short",bullet_point:["Duplicate","Duplicate"]};}
+ ]){
+  const fields=euContentFields();alter(fields);
+  const rejected=euContentAttrs(market,fields);
+  assert.equal(rejected.product_description,undefined);
+  assert.equal(rejected.bullet_point,undefined);
+ }
+ assert.deepEqual(euContentAttrs(market,euContentFields(),{},
+  {id:"gid://shopify/Product/999"}),{});
+ assert.deepEqual(euContentAttrs(market,euContentFields(),{},
+  {vendor:"Other Brand"}),{});
+ assert.deepEqual(euContentAttrs(market,euContentFields(),{}, {},[]),{});
+ const official=merchantAccessoryAttrs(officialFerimy(),{compareAtPrice:"70.00",price:"49.00"},
+  "KWAY_K4146JW_USY","WAIST_PACK",market,markets[market],["list_price"]);
+ assert.equal(official.list_price[0].value_with_tax,70,"existing compare-at takes precedence over official MSRP");
+ for(const providerStatus of ["VALID","INVALID"]){
+  const fixtureSku="KWAY_TEST_LOCALIZED_M";
+  const data=privateData();Object.assign(data.productVariant,{id:genderVariantId,sku:fixtureSku,
+   barcode:genderEan,compareAtPrice:"125.50",price:"99.95",selectedOptions:[]});
+  data.productVariant.product={...data.productVariant.product,
+   ...inferenceProduct(inferenceProductId,euContentFields()),title:"Synthetic K-Way jacket",
+   colorRef:null,model:null,gender:null};
+  const result=await run({marketplace:market,sku:fixtureSku,product_type:"COAT"},env,{
+   research:async()=>research({sku:fixtureSku,
+    available_schema_attribute_names:["item_name","brand","externally_assigned_product_identifier",...euContentAllow],
+    shopify:{product_title:"Synthetic K-Way jacket",brand:"K-Way",amazon_listing_brand:"K-Way",
+     ean:genderEan,shopify_available:1,variant_id:genderVariantId}},"COAT",market),
+   readShopify:async()=>data,getAccessToken:async()=>"FAKE_TEST_TOKEN",
+   fetch:async(url,init)=>{
+    assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+    const body=JSON.parse(init.body);
+    assert.deepEqual(body.attributes.product_description,attrs.product_description);
+    assert.deepEqual(body.attributes.bullet_point,attrs.bullet_point);
+    assert.deepEqual(body.attributes.list_price,attrs.list_price);
+    assert.ok(!body.attributes.purchasable_offer&&!body.attributes.fulfillment_availability);
+    return new Response(JSON.stringify({sku:fixtureSku,status:providerStatus,
+     submissionId:"synthetic-eu-content",issues:providerStatus==="VALID"?[]:[{
+      code:"90220",severity:"ERROR",attributeNames:["list_price"]}]}),
+     {status:200,headers:{"content-type":"application/json"}});
+   }
+  });
+  assert.equal(result.provider_validation_status,providerStatus);
+  assert.equal(result.provider_mutations,0);assert.equal(result.can_publish,false);
+  if(providerStatus==="INVALID")assert.deepEqual(result.issues,[{
+   code:"90220",severity:"ERROR",attribute_names:["list_price"]}]);
+ }
+}
+assert.deepEqual(euContentAttrs("IT"),{},"localized EU copy must not replace canonical Italian text");
+const refrigiwearEu=merchantAccessoryAttrs({...inferenceProduct(inferenceProductId,euContentFields()),
+ vendor:"Refrigiwear"},{compareAtPrice:"125.50"},"RFR_TEST_LOCALIZED_M","COAT","DE",markets.DE,
+ euContentAllow);
+assert.deepEqual(refrigiwearEu,{},"new EU copy/reference-price behavior is scoped to K-Way");
 
 console.log("amazon generic EAN preview mocked and fail-closed tests: PASS");
 
