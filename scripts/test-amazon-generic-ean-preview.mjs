@@ -359,6 +359,79 @@ const missing=await run(request(),env,deps("SOCKS","IT",{
 }));
 assert.equal(missing.ok,true);
 assert.ok(!missing.attributes_submitted.includes("target_gender"));
+// A product-bound department fills Amazon gender without collapsing the
+// storefront navigation or replacing a valid single-value merchant gender.
+const genderProductId="gid://shopify/Product/100";
+const genderVariantId="gid://shopify/ProductVariant/100";
+const genderSku="KWAY_TEST_DEPARTMENT_M",genderEan="0000000000017";
+const genderDossier=(department="Unisex")=>({
+ source_scope:"K-WAY_PRODUCT_VERIFIED_BY_MERCHANT",department,
+ field_provenance:{department:{status:"DOCUMENTED_LIVE_SHOPIFY_METAOBJECT",
+  source_product_id:genderProductId}}
+});
+const genderFixture=(department="Unisex",navigation=["Uomo","Donna","Unisex"])=>({
+ productVariant:{id:genderVariantId,sku:genderSku,barcode:genderEan,
+  selectedOptions:[],inventoryItem:{countryCodeOfOrigin:"CN"},
+  product:{id:genderProductId,title:"Synthetic K-Way jacket",vendor:"K-Way",status:"ACTIVE",
+   ...(navigation===null?{}:{gender:{type:"list.single_line_text_field",value:JSON.stringify(navigation)}}),
+   amazonPtd:{type:"json",value:JSON.stringify({source_product_id:genderProductId,
+    amazon_ptd_evidence:genderDossier(department)})}}}
+});
+const inspectGenderPreview=async(market,data,expected,available=true)=>{
+ let sent=0;
+ const result=await run({marketplace:market,sku:genderSku,product_type:"COAT"},env,{
+  research:async()=>research({sku:genderSku,
+   available_schema_attribute_names:["item_name","brand","externally_assigned_product_identifier",
+    ...(available?["target_gender"]:[])],
+   shopify:{product_title:data.productVariant.product.title,brand:data.productVariant.product.vendor,
+    amazon_listing_brand:data.productVariant.product.vendor,ean:genderEan,shopify_available:1,
+    variant_id:genderVariantId}},"COAT",market),
+  readShopify:async()=>data,getAccessToken:async()=>"FAKE_TEST_TOKEN",
+  fetch:async(url,init)=>{
+   sent++;
+   assert.equal(new URL(url).searchParams.get("mode"),"VALIDATION_PREVIEW");
+   assert.equal(new URL(url).searchParams.get("marketplaceIds"),markets[market]);
+   const payload=JSON.parse(init.body);
+   assert.deepEqual(payload.attributes.target_gender,
+    expected?[{value:expected,marketplace_id:markets[market]}]:undefined);
+   return new Response(JSON.stringify({sku:genderSku,status:expected?"VALID":"INVALID",
+    submissionId:"synthetic-gender-preview",issues:expected?[]:[{
+     code:"90220",severity:"ERROR",attributeNames:["target_gender"]}]}),
+    {status:200,headers:{"content-type":"application/json"}});
+  }
+ });
+ assert.equal(sent,1);assert.equal(result.ok,true);
+ assert.equal(result.attributes_submitted.includes("target_gender"),Boolean(expected));
+};
+for(const market of Object.keys(markets)){
+ for(const [department,expected] of [["Uomo","male"],["Donna","female"],["Unisex","unisex"]]){
+  for(const navigation of [["Uomo","Donna","Unisex"],null])
+   await inspectGenderPreview(market,genderFixture(department,navigation),expected);
+ }
+ for(const [navigation,expected] of [[["Uomo"],"male"],[["Donna"],"female"]])
+  await inspectGenderPreview(market,genderFixture("Unisex",navigation),expected);
+ for(const alter of [
+  d=>{delete d.amazon_ptd_evidence.department;},
+  d=>{d.amazon_ptd_evidence.department="Other";},
+  d=>{d.amazon_ptd_evidence.department="constructor";},
+  d=>{d.amazon_ptd_evidence.department="__proto__";},
+  d=>{delete d.amazon_ptd_evidence.field_provenance;},
+  d=>{d.amazon_ptd_evidence.field_provenance.department.status="UNVERIFIED";},
+  d=>{d.amazon_ptd_evidence.field_provenance.department.source_product_id="gid://shopify/Product/999";},
+  d=>{d.source_product_id="gid://shopify/Product/999";},
+  d=>{d.amazon_ptd_evidence.source_scope="OTHER_PRODUCT";}
+ ]){
+  const data=genderFixture(),dossier=JSON.parse(data.productVariant.product.amazonPtd.value);
+  alter(dossier);data.productVariant.product.amazonPtd.value=JSON.stringify(dossier);
+  await inspectGenderPreview(market,data,undefined);
+ }
+ const wrongProduct=genderFixture();wrongProduct.productVariant.product.id="gid://shopify/Product/999";
+ await inspectGenderPreview(market,wrongProduct,undefined);
+ const otherBrand=genderFixture();otherBrand.productVariant.product.vendor="Other Brand";
+ await inspectGenderPreview(market,otherBrand,undefined);
+ await inspectGenderPreview(market,genderFixture(),undefined,false);
+}
+
 // Official PTD size-system enum differs by marketplace. Never infer IT as6
 // for DE as3, or FR/ES as4. The Shopify selected option supplies only size.
 const sizeSystems={IT:"as6",DE:"as3",FR:"as4",ES:"as4"};

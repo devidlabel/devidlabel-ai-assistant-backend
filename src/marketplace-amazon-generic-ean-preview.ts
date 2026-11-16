@@ -69,6 +69,19 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   if(!Object.hasOwn(MARKET_LOCALE,marketplace))return {};
   const locale=MARKET_LOCALE[marketplace as Market];
   const text=(value:string)=>[{value,language_tag:locale,marketplace_id:marketId}];
+  // Navigation may intentionally contain several storefront audiences. Use
+  // the independently recorded product department without changing that facet
+  // or overriding an existing single-value merchant gender.
+  const navigationGender=genderFromMerchant(product.gender);
+  const departmentSource=obj(obj(fields.field_provenance).department);
+  const departmentGender:Record<string,string>={Uomo:"male",Donna:"female",Unisex:"unisex"};
+  const department=val("department");
+  const documentedGender=department&&Object.hasOwn(departmentGender,department)?
+    departmentGender[department]:undefined;
+  if(isKway&&navigationGender.ok&&!navigationGender.value&&documentedGender&&
+     departmentSource.status==="DOCUMENTED_LIVE_SHOPIFY_METAOBJECT"&&
+     departmentSource.source_product_id===product.id)
+    set("target_gender",[{value:documentedGender,marketplace_id:marketId}]);
   const operator=val("manufacturer_brand_operator");
   const commercialSource=obj(fields.manufacturer_commercial_source);
   // The official seller/brand owner supports this explicitly recorded
