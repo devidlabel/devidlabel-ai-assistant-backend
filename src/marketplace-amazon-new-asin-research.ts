@@ -352,8 +352,12 @@ function ptdAlphaSizeLabelTokens(schema:Row):Row {
       ["XXL",["XXL","XX-Large","2XL"]],
       ["XXXL",["XXXL","3XL","XXX-Large"]]
     ] as const){
+      // The observed 3x_l / 3XL pair is a narrow digit-leading exception.
+      // Other sizes retain their existing ambiguity and token rules.
       const candidates=values.filter((v,i)=>
-        (display as readonly string[]).includes(labels[i])&&/^[a-z][a-z0-9_]{0,63}$/.test(v)&&
+        (display as readonly string[]).includes(labels[i])&&
+        (/^[a-z][a-z0-9_]{0,63}$/.test(v)||
+          (merchant==="XXXL"&&v==="3x_l"&&labels[i]==="3XL"))&&
         !/^(?:jaspo_|numeric_|go_|age_)/.test(v));
       const unique=[...new Set(candidates)];
       if(unique.length===1)matches[merchant]=unique[0];

@@ -579,7 +579,11 @@ function structuredSizeFromPtd(research:Row,selectedOptions:unknown,pt:string):
   const official=wanted&&Array.isArray(tokens)&&tokens.includes(wanted);
   const labels=obj(obj(research.ptd_alpha_size_label_tokens)[field]);
   const fromPtd=option.sizeClass==="alpha"?labels[option.size]:undefined;
-  const mapped=typeof fromPtd==="string"&&/^[a-z][a-z0-9_]{0,63}$/.test(fromPtd)?
+  // Research admits this digit-leading token only for the unique same-schema
+  // pair 3x_l / 3XL. Do not broaden other sizes (e.g. the ambiguous XXL tokens).
+  const mapped=typeof fromPtd==="string"&&
+    (/^[a-z][a-z0-9_]{0,63}$/.test(fromPtd)||
+      (option.size==="XXXL"&&fromPtd==="3x_l"))?
     fromPtd:undefined;
   // XL must never silently fall back to a display label known to be
   // ambiguous with Amazon's conditional enum code.
