@@ -185,8 +185,8 @@ for(const pt of TYPES){
  assert.equal(result.can_publish,false);
  assert.ok(!JSON.stringify(result).includes("PRIVATE_PROVIDER_TEXT"));
 }
-// Size diagnostics retain actionable 90248 details without exposing contacts or IDs.
-for(const code of ["90004205","90248"]){
+// Size diagnostics retain actionable rejection/missing-field details without exposing contacts or IDs.
+for(const code of ["90004205","90248","99022"]){
  for(const [pt,field] of [["COAT","apparel_size"],["HAT","headwear_size"]]){
   const rawMessage=`The 'xx_l' on the field '${field}.size' does not match [${field}.size_system]. Contact example42@example.invalid at https://example.invalid/private?token=hidden reference 1234567890123. `+
     "Additional size context. ".repeat(40);
@@ -224,6 +224,8 @@ assert.ok(!JSON.stringify(redactedValue).includes("1234567890123"));
 // The diagnostic allowlist and the upstream message-length limit stay bounded.
 for(const issue of [
  {code:"90248",severity:"ERROR",attributeNames:["color"],message:"PRIVATE_OTHER_ATTRIBUTE"},
+ {code:"99022",severity:"ERROR",attributeNames:["manufacturer"],message:"PRIVATE_OTHER_ATTRIBUTE"},
+ {code:"99022",severity:"ERROR",attributeNames:["apparel_size"],message:"x".repeat(5000)},
  {code:"90220",severity:"ERROR",attributeNames:["apparel_size"],message:"PRIVATE_OTHER_CODE"},
  {code:"90248",severity:"ERROR",attributeNames:["apparel_size"],message:"x".repeat(5000)}
 ]){
