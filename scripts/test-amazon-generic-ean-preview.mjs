@@ -780,8 +780,9 @@ for(const market of Object.keys(markets)){
    language_tag:localeByMarket[market],marketplace_id:markets[market]}]);
   assert.deepEqual(attrs.supplier_declared_dg_hz_regulation,[{
    value:"not_applicable",marketplace_id:markets[market]}]);
-  for(const field of ["batteries_required","batteries_included"])
-   assert.deepEqual(attrs[field],[{value:false,marketplace_id:markets[market]}]);
+  assert.deepEqual(attrs.batteries_required,[{value:false,marketplace_id:markets[market]}]);
+  assert.equal(attrs.batteries_included,undefined,
+   "unpublished battery evidence must not exceed the deployed publisher contract");
   assert.ok(!attrs.country_of_origin&&!attrs.gpsr_safety_attestation&&
    !attrs.purchasable_offer&&!attrs.fulfillment_availability,
    "commercial/category evidence cannot create origin, safety or offer proof");
@@ -934,9 +935,13 @@ for(const pt of ["HANDBAG","COAT"]){
 }
 
 // Exercise the complete preview path with CN supplied by InventoryItem.
-// Provider VALID/INVALID and 100632 are retained; this mapper grants no write.
+// Provider VALID/INVALID, qualification and missing-battery errors are retained; no live write.
 for(const market of Object.keys(markets)){
- for(const providerStatus of ["VALID","INVALID"]){
+ for(const [providerStatus,providerIssues] of [
+  ["VALID",[]],
+  ["INVALID",[{code:"100632",severity:"ERROR",attributeNames:["brand"]}]],
+  ["INVALID",[{code:"90220",severity:"ERROR",attributeNames:["batteries_included"]}]]
+ ]){
   const kwaySku="KWAY_TEST_STANDARD_APPAREL_M";
   const details=privateData();
   details.productVariant.sku=kwaySku;
@@ -957,16 +962,18 @@ for(const market of Object.keys(markets)){
     assert.deepEqual(body.attributes.country_of_origin,[{value:"CN",marketplace_id:markets[market]}]);
     assert.equal(body.attributes.manufacturer[0].value,"K-Way S.p.A.");
     assert.equal(body.attributes.special_size_type[0].value,"standard");
+    assert.deepEqual(body.attributes.batteries_required,[{value:false,marketplace_id:markets[market]}]);
+    assert.equal(body.attributes.batteries_included,undefined);
     assert.ok(!body.attributes.gpsr_safety_attestation&&!body.attributes.purchasable_offer);
     return new Response(JSON.stringify({sku:kwaySku,status:providerStatus,
      submissionId:"commercial-inference-"+market+"-"+providerStatus,
-     issues:providerStatus==="INVALID"?[{code:"100632",severity:"ERROR",attributeNames:["brand"]}]:[]}),
+     issues:providerIssues}),
      {status:200,headers:{"content-type":"application/json"}});
    }
   });
   assert.equal(result.provider_validation_status,providerStatus,JSON.stringify(result));
-  assert.deepEqual(result.issues,providerStatus==="INVALID"?
-   [{code:"100632",severity:"ERROR",attribute_names:["brand"]}]:[]);
+  assert.deepEqual(result.issues,providerIssues.map(({attributeNames,...issue})=>
+   ({...issue,attribute_names:attributeNames})));
   for(const field of ["can_publish","listing_write_enabled","brand_authorization_proven",
    "gpsr_compliance_proven","full_schema_validated","product_created"])
    assert.equal(result[field],false,field);
