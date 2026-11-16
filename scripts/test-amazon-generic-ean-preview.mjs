@@ -674,6 +674,42 @@ const xlMissing=await run(request("SHIRT"),env,{...xlBase,
 });
 assert.equal(xlMissing.status,"BLOCKED_PREVIEW");
 
+// Accept the exact research-bound XXXL token without loosening every
+// digit-leading size or changing market-specific body/height behavior.
+for(const market of Object.keys(markets)){
+ for(const pt of ["COAT","SHIRT","SWEATER","SWEATSHIRT"]){
+  const value=await captureStandardAdultSize(market,pt,"XXXL",({research,field})=>{
+   research.ptd_alpha_size_label_tokens[field].XXXL="3x_l";
+  });
+  assert.deepEqual(value,{size:"3x_l",size_class:"alpha",size_system:sizeSystems[market],
+   ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
+   marketplace_id:markets[market]},market+" "+pt+" XXXL");
+ }
+}
+for(const [label,mapping] of [
+ ["XXXL",{}],["XXXL",{XXL:"3x_l"}],["XXL",{XXL:"3x_l"}],
+ ["XXXL",{XXXL:"4x_l"}],["XXL",{XXL:"2x_l"}],["XXS",{XXS:"2x_s"}],
+ ["XXXL",{XXXL:"3X_L"}],["XXXL",{XXXL:"3x_l "}],
+]){
+ const base=deps("SWEATSHIRT","IT"),fixture=sizeResearch("SWEATSHIRT","IT","apparel_size");
+ fixture.ptd_alpha_size_label_tokens={apparel_size:mapping};
+ // Raw diagnostics or a token list alone must not create a merchant binding.
+ fixture.ptd_alpha_size_tokens={apparel_size:["3x_l","2x_l","2x_s"]};
+ fixture.ptd_alpha_size_enum_pairs={apparel_size:{pairs:[{token:"3x_l",label:"3XL"}]}};
+ let sent=0;
+ const result=await run(request("SWEATSHIRT"),env,{...base,
+  research:async()=>fixture,
+  readShopify:async(e,q,v)=>{
+   const data=await base.readShopify(e,q,v);
+   if(!q.includes("metaobject(id:"))data.productVariant.selectedOptions=[{name:"Taglia",value:label}];
+   return data;
+  },
+  fetch:async()=>{sent++;throw Error("Unbound or different size token must not reach Amazon");},
+ });
+ assert.equal(sent,0,label+" "+JSON.stringify(mapping));
+ assert.equal(result.status,"BLOCKED_PREVIEW");
+}
+
 // Bad PTD size structure cannot reach Amazon PUT.
 const invalidSize=await run(request("COAT"),env,deps("COAT","IT",{
  research:async()=>research({
