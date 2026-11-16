@@ -830,7 +830,7 @@ export async function previewAmazonGenericEanValidation(
       return blocked(marketplace,sku,pt,"amazon_preview_issues_invalid");
     sanitized.push({code:issue.code,severity:issue.severity as string,
       attribute_names:(issue.attributeNames as string[]|undefined)??[]});
-    if(["90004205","90248"].includes(issue.code)&&
+    if(["90004205","90248","99022"].includes(issue.code)&&
        (issue.attributeNames as string[]|undefined)?.some(x=>x==="headwear_size"||x==="apparel_size")&&
        typeof issue.message==="string"&&issue.message.length<5000){
       const raw=issue.message as string;
