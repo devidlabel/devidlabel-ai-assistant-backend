@@ -26,12 +26,14 @@ const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$co
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
 const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{id title description vendor status amazonPtd:metafield(namespace:"custom",key:"amazon_product_attributes"){type value} fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 
-/** Merchant-attested, source-scoped product evidence for Refrigiwear and K-Way.
- * Brand, SKU and source Product GID must match. No inferred origin, supplier
- * certification or safety claims; logistics defaults are not product dimensions.
+/** Source-scoped product evidence for Refrigiwear and K-Way.
+ * Brand, SKU and source Product GID must match. Explicit commercial/category
+ * inferences are not product-label, supplier, factory or GPSR attestations.
+ * Origin remains a separate InventoryItem declaration; parcels are not items.
  */
 export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:string,
-  marketplace:string,marketId:string,available:string[],ptdAlphaTokens:Row={}):Row{
+  marketplace:string,marketId:string,available:string[],ptdAlphaTokens:Row={},
+  ptdTechnicalShapes:Row={}):Row{
   const isRefrigiwear=sku.startsWith("RFR_")&&product.vendor==="Refrigiwear";
   const isKway=sku.startsWith("KWAY_")&&product.vendor==="K-Way";
   if(!isRefrigiwear&&!isKway)return {};
@@ -56,18 +58,62 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   }else if((isClark&&(sku!=="RFR_B31908_MA9083_A00010_UN"||
        product.title!=="Berretto Clark White"||pt!=="HAT"))||
      (!isClark&&typeof sourceId!=="string"))return {};
-  const val=(name:string):string|undefined=>{
-    const s=fields[name];
-    return typeof s==="string"&&s.length>1&&s.length<250&&
+  const safeText=(s:unknown):string|undefined=>
+    typeof s==="string"&&s.length>1&&s.length<250&&
       !/[\u0000-\u001f<>]/.test(s)?s:undefined;
-  };
+  const val=(name:string)=>safeText(fields[name]);
   const attrs:Row={};
   const set=(name:string,value:unknown)=>{
     if(available.includes(name))attrs[name]=value;
   };
+  if(!Object.hasOwn(MARKET_LOCALE,marketplace))return {};
+  const locale=MARKET_LOCALE[marketplace as Market];
+  const text=(value:string)=>[{value,language_tag:locale,marketplace_id:marketId}];
+  const operator=val("manufacturer_brand_operator");
+  const commercialSource=obj(fields.manufacturer_commercial_source);
+  // The official seller/brand owner supports this explicitly recorded
+  // commercial inference. It does not verify a factory, label or GPSR role.
+  const commercialManufacturer=isKway&&operator==="K-Way S.p.A."&&
+    fields.manufacturer_status===
+      "COMMERCIAL_BRAND_MANUFACTURER_INFERRED_FROM_OFFICIAL_BRAND_SOURCE"&&
+    commercialSource.source_type==="OFFICIAL_BRAND_OWNER_SELLER"&&
+    commercialSource.brand==="K-Way"&&
+    typeof commercialSource.source_url==="string"&&
+    /^https:\/\/www\.k-way\.com\/(?:(?:it|en)\/)?pages\/(?:general-terms-and-conditions-of-sale|faq)\/?$/.test(commercialSource.source_url);
+  if(commercialManufacturer)set("manufacturer",text(operator));
+  // Standard is an explicit, source-traced catalog inference, never derived
+  // from fit_type. A per-market value overrides it; an exposed PTD enum wins
+  // on spelling/case, and a conflicting enum leaves the attribute absent.
+  const special=val("special_size_type");
+  const inferredStandard=isKway&&special==="Standard"&&
+    fields.special_size_type_status==="INFERRED_STANDARD_ADULT_CATALOG_SIZING";
+  if((marketplace==="IT"&&pt!=="HAT")||inferredStandard){
+    const marketSizes=obj(fields.special_size_type_by_market);
+    let selected=Object.hasOwn(marketSizes,marketplace)?safeText(marketSizes[marketplace]):special;
+    const valueShape=obj(obj(obj(ptdTechnicalShapes.special_size_type).items).properties).value;
+    const tokens=obj(valueShape).enum;
+    if(selected&&Array.isArray(tokens)){
+      const wanted=selected;
+      selected=tokens.find(x=>x===wanted)??tokens.find(x=>
+        typeof x==="string"&&x.toLowerCase()===wanted.toLowerCase());
+    }
+    if(selected)set("special_size_type",pt==="HAT"?
+      [{value:selected,marketplace_id:marketId}]:text(selected));
+  }
+  // Values must exist in the product dossier. No inference is made here from
+  // a title, category name or a missing battery/hazard field.
+  if(fields.batteries_required===false)
+    set("batteries_required",[{value:false,marketplace_id:marketId}]);
+  // Keep batteries_included in the source dossier: the deployed publisher
+  // does not accept that output attribute. If Amazon
+  // requires it, the unchanged VALID/zero-ERROR gate still blocks live writes.
+  const dg=val("supplier_declared_dg_hz_regulation");
+  if(dg&&(marketplace==="IT"||(isKway&&dg==="not_applicable")))
+    set("supplier_declared_dg_hz_regulation",[{value:dg,marketplace_id:marketId}]);
+  const descriptiveFabric=isKway?kwayDescriptiveFabric(fields,product.id):undefined;
   // Cross-market preview: emit only market-neutral values backed by the exact
-  // merchant dossier. Italian text is NOT translated into DE/FR/ES and no
-  // manufacturer/GPSR role is asserted from a public brand contact.
+  // dossier. Italian descriptive text is NOT translated into DE/FR/ES.
+  // Commercial brand names and explicit standard-size tokens are handled above.
   if(marketplace!=="IT"){
     const water=val("water_resistance_level");
     const levels:Record<string,string>={
@@ -78,8 +124,6 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     };
     if(water&&levels[water])set("water_resistance_level",[
       {value:levels[water],marketplace_id:marketId}]);
-    if(fields.batteries_required===false)set("batteries_required",[
-      {value:false,marketplace_id:marketId}]);
     // Merchant-declared generic parcel defaults, not dimensions of the item.
     const logistics=obj(fields.logistics_defaults);
     const dimensions=obj(logistics.item_package_dimensions_cm);
@@ -98,10 +142,33 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
       set("item_package_weight",[{value:weight,unit:"kilograms",
         marketplace_id:marketId}]);
     }
+    // Optional product-source translations are taken only from this market's
+    // dictionary. Missing translations never fall back to Italian fields.
+    if(isKway&&fields.localized_marketplace_fields_status===
+       "MODEL_GROUP_TRANSLATION_FROM_PRODUCT_SOURCE"){
+      const localized=obj(obj(fields.localized_marketplace_fields)[marketplace]);
+      const localVal=(name:string)=>safeText(localized[name]);
+      for(const field of ["item_type_name","department","age_range_description",
+          "care_instructions","style","weave_type","fit_type","lining_description","strap_type"]){
+        const value=localVal(field);
+        if(value)set(field,text(value));
+      }
+      const closure=localVal("closure"),outer=localVal("outer_material");
+      if(closure)set("closure",[{type:[{value:closure,language_tag:locale}],marketplace_id:marketId}]);
+      if(outer)set("outer",[{material:[{value:outer,language_tag:locale}],marketplace_id:marketId}]);
+      if(["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)){
+        const inner=localVal("inner_material"),sizeInfo=localVal("size_info");
+        if(inner)set("inner",[{material:[{value:inner,language_tag:locale}],marketplace_id:marketId}]);
+        if(sizeInfo)set("size_info",[{display_name:[{value:sizeInfo,language_tag:locale}],marketplace_id:marketId}]);
+      }
+      const fabric=localVal("fabric_type"),canonical=val("fabric_type");
+      if(fabric&&canonical&&(
+          validKwayFabricTranslation(canonical,fabric,marketplace)||
+          (descriptiveFabric&&validKwayDescriptorTranslation(descriptiveFabric,fabric,marketplace))))
+        set("fabric_type",text(fabric));
+    }
     return attrs;
   }
-  const locale="it_IT";
-  const text=(value:string)=>[{value,language_tag:locale,marketplace_id:marketId}];
   for(const [key,source] of [
     ["item_type_name","item_type_name"],
     ["department","department"],
@@ -114,8 +181,6 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   }
   const closure=val("closure");
   if(closure)set("closure",[{type:[{value:closure,language_tag:locale}],marketplace_id:marketId}]);
-  const special=val("special_size_type");
-  if(special&&pt!=="HAT")set("special_size_type",text(special));
   const water=val("water_resistance_level");
   const levels:Record<string,string>={
     "Idrorepellente":"water_repellent",
@@ -127,7 +192,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     {value:levels[water],marketplace_id:marketId}]);
   const fabric=val("fabric_type");
   if(fabric&&(validatedRefrigiwearFabric(fabric)||
-     (isKway&&validatedKwayLayeredFabric(fabric))))
+     (isKway&&(validatedKwayLayeredFabric(fabric)||descriptiveFabric))))
     set("fabric_type",text(fabric));
   const material=val("material");
   if(material)set("material",text(material));
@@ -181,10 +246,8 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
       marketplace_id:marketId
     }]);
   }
-  const operator=val("manufacturer_brand_operator");
-  // A public K-Way brand contact is not evidence of the actual product
-  // manufacturer or EU responsible-person role. Do not turn a brand-operator
-  // dossier into a legal product-manufacturer assertion.
+  // Preserve the separate legacy label-attested path. A public brand contact
+  // without the explicit commercial inference above remains insufficient.
   if(operator&&(
       (isKway&&fields.manufacturer_status===
         "PRODUCT_MANUFACTURER_ROLE_VERIFIED_FROM_OFFICIAL_PRODUCT_LABEL")||
@@ -222,12 +285,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     set("headwear_size",[{size:mapped,size_system:"as6",
       size_class:"alpha",marketplace_id:marketId}]);
   }
-  if(size)set("special_size_type",[{value:"Standard",
-    marketplace_id:marketId}]);
-  if(fields.batteries_required===false)
-    set("batteries_required",[{value:false,marketplace_id:marketId}]);
-  const dg=val("supplier_declared_dg_hz_regulation");
-  if(dg)set("supplier_declared_dg_hz_regulation",[{value:dg,
+  if(size&&!inferredStandard)set("special_size_type",[{value:"Standard",
     marketplace_id:marketId}]);
   const logistics=obj(fields.logistics_defaults);
   const dimensions=obj(logistics.item_package_dimensions_cm);
@@ -271,6 +329,70 @@ export function validatedKwayLayeredFabric(value:string):boolean{
   return value==="Shell A: 100% Nylon; Shell B: 100% Poliestere";
 }
 
+// Canonical material words are shared by quantified compositions and separate
+// unquantified descriptions. Rayon remains distinct from viscose.
+const KWAY_FABRIC_WORDS:Record<string,Record<string,string[]>>={
+  nylon:{DE:["Nylon"],FR:["Nylon"],ES:["Nylon","Nailon"]},
+  cotone:{DE:["Baumwolle"],FR:["Coton"],ES:["Algodón"]},
+  poliestere:{DE:["Polyester"],FR:["Polyester"],ES:["Poliéster"]},
+  elastan:{DE:["Elasthan"],FR:["Élasthanne"],ES:["Elastano"]},
+  acrilico:{DE:["Acryl","Polyacryl"],FR:["Acrylique"],ES:["Acrílico"]},
+  poliammide:{DE:["Polyamid"],FR:["Polyamide"],ES:["Poliamida"]},
+  poliuretano:{DE:["Polyurethan"],FR:["Polyuréthane"],ES:["Poliuretano"]},
+  viscosa:{DE:["Viskose"],FR:["Viscose"],ES:["Viscosa"]},
+  lana:{DE:["Wolle"],FR:["Laine"],ES:["Lana"]},
+  rayon:{DE:["Rayon"],FR:["Rayonne"],ES:["Rayón"]},
+  misto:{DE:["Mischgewebe"],FR:["Tissu mélangé"],ES:["Tejido mixto"]},
+  tessuto:{DE:["Gewebe"],FR:["Tissu"],ES:["Tejido"]},
+  pile:{DE:["Fleece"],FR:["Polaire"],ES:["Polar","Forro polar"]},
+  "lana merino":{DE:["Merinowolle"],FR:["Laine mérinos"],ES:["Lana merina"]}
+};
+const fabricWord=(value:string)=>value.normalize("NFC").toLowerCase();
+function kwayDescriptorParts(value:string):string[]{
+  const parts=fabricWord(value).split(" e ");
+  return parts.length<=3&&parts.every(x=>Object.hasOwn(KWAY_FABRIC_WORDS,x))?parts:[];
+}
+function kwayDescriptiveFabric(fields:Row,productId:unknown):string|undefined{
+  const value=fields.fabric_type,source=obj(fields.fabric_type_source);
+  if(typeof value!=="string"||value.length>120||!kwayDescriptorParts(value).length||
+     fields.fabric_type_status!=="INFERRED_USER_AUTHORIZED"||
+     fields.fabric_type_kind!=="TEXTILE_DESCRIPTION_WITHOUT_COMPOSITION_PERCENTAGES"||
+     source.source_product_id!==productId||
+     !["SHOPIFY_PRODUCT_FIELD","OFFICIAL_PRODUCT_PAGE"].includes(String(source.source_type))||
+     typeof source.source_field!=="string"||source.source_field.length<2||source.source_field.length>120||
+     typeof source.source_descriptor!=="string"||
+     fabricWord(source.source_descriptor)!==fabricWord(value))return undefined;
+  return value;
+}
+function validKwayDescriptorTranslation(source:string,translated:string,market:string):boolean{
+  const joins:Record<string,string>={DE:" und ",FR:" et ",ES:" y "};
+  const parts=kwayDescriptorParts(source),join=joins[market];
+  if(!parts.length||!join)return false;
+  const targets=fabricWord(translated).split(join);
+  return targets.length===parts.length&&parts.every((word,i)=>
+    KWAY_FABRIC_WORDS[word]?.[market]?.some(x=>fabricWord(x)===targets[i]));
+}
+function validKwayFabricTranslation(source:string,translated:string,market:string):boolean{
+  if(validatedKwayLayeredFabric(source)){
+    const labels:Record<string,string>={DE:"Schicht",FR:"Couche",ES:"Capa"};
+    const label=labels[market];
+    const parts=translated.split("; ");
+    return !!label&&parts.length===2&&parts[0].startsWith(label+" A: ")&&
+      parts[1].startsWith(label+" B: ")&&
+      validKwayFabricTranslation("100% Nylon",parts[0].slice(label.length+4),market)&&
+      validKwayFabricTranslation("100% Poliestere",parts[1].slice(label.length+4),market);
+  }
+  // The original complete composition must pass the existing 100% validator.
+  // Compare each percentage and corresponding material, not merely the total.
+  if(!validatedRefrigiwearFabric(source))return false;
+  const canonical=source.split(", "),localized=translated.split(", ");
+  return canonical.length===localized.length&&canonical.every((part,i)=>{
+    const a=/^([1-9][0-9]{0,2})% (.+)$/.exec(part);
+    const b=/^([1-9][0-9]{0,2}) ?% (.+)$/.exec(localized[i]);
+    return !!a&&!!b&&a[1]===b[1]&&validKwayDescriptorTranslation(a[2],b[2],market);
+  });
+}
+
 /** Only source-backed percentages in the existing Shopify evidence metafield.
  * Validate the complete 100% composition without inventing, normalizing or
  * dropping components. The source must still be verified before writing it.
@@ -279,7 +401,7 @@ export function validatedRefrigiwearFabric(value:string):boolean{
   if(typeof value!=="string"||value.length>120)return false;
   const parts=value.split(", ");
   if(parts.length<1||parts.length>3)return false;
-  const allowed=new Set(["Nylon","Cotone","Poliestere","Elastan","Acrilico","Poliammide","Viscosa","Lana","Rayon"]);
+  const allowed=new Set(["Nylon","Cotone","Poliestere","Elastan","Acrilico","Poliammide","Poliuretano","Viscosa","Lana","Rayon"]);
   let sum=0;
   const seen=new Set<string>();
   for(const part of parts){
@@ -617,7 +739,8 @@ export async function previewAmazonGenericEanValidation(
     ...(merchantFabric.value?{fabric_type:[{
       value:merchantFabric.value,language_tag:"it_IT",marketplace_id:marketId}]}:{}),
     ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
-      research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens)),
+      research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens),
+      obj(research.ptd_technical_shapes)),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
@@ -709,3 +832,4 @@ export async function previewAmazonGenericEanValidation(
     storefront_unchanged:true,
     next_step:"REVIEW_AMAZON_ISSUES_AND_AUTHORITATIVE_SUPPLIER_EVIDENCE_BEFORE_ANY_LIVE_CREATION"};
 }
+
