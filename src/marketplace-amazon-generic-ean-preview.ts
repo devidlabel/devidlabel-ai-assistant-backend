@@ -613,6 +613,23 @@ function eanValid(s:string):boolean{
   let total=0;for(let i=0;i<12;i++)total+=Number(s[i])*(i%2===0?1:3);
   return (10-total%10)%10===Number(s[12]);
 }
+/** Product-bound Standard adult profile for the FR/ES size qualifiers.
+ * DE has conflicting observed conditional rules and stays excluded here. */
+function kwayStandardAdultSize(product:Row,sku:string,marketplace:Market):boolean{
+  const mf=obj(product.amazonPtd);
+  if(!["FR","ES"].includes(marketplace)||!sku.startsWith("KWAY_")||
+     product.vendor!=="K-Way"||typeof product.id!=="string"||
+     mf.type!=="json"||typeof mf.value!=="string")return false;
+  let dossier:Row;
+  try{dossier=obj(JSON.parse(mf.value));}catch{return false;}
+  const fields=obj(dossier.amazon_ptd_evidence),overrides=obj(fields.special_size_type_by_market);
+  return dossier.source_product_id===product.id&&
+    fields.source_scope==="K-WAY_PRODUCT_VERIFIED_BY_MERCHANT"&&
+    fields.special_size_type==="Standard"&&
+    fields.special_size_type_status==="INFERRED_STANDARD_ADULT_CATALOG_SIZING"&&
+    fields.age_range_description==="Adulto"&&
+    (!Object.hasOwn(overrides,marketplace)||overrides[marketplace]==="Standard");
+}
 function blocked(marketplace:string,sku:string,productType:string,reason:string):Row{
   return {ok:false,status:"BLOCKED_PREVIEW",marketplace,sku,product_type:productType,reason,
     preview_only:true,provider_mutations:0,product_created:false,can_publish:false,
@@ -741,10 +758,11 @@ export async function previewAmazonGenericEanValidation(
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
-  // An enum lists possible tokens, not conditional permission to send them.
-  // DE validation rejects these optional qualifiers for the selected apparel
-  // sizes. Keep the established IT mapping; do not export its defaults to EU.
-  const regularFit=marketplace==="IT"&&["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
+  // FR/ES require both qualifiers for the observed Standard adult profiles.
+  // Require the product-bound declaration and both fresh PTD enum tokens;
+  // retain IT behavior and leave DE's conflicting conditional rules blocked.
+  const regularFit=(marketplace==="IT"||kwayStandardAdultSize(p,sku,marketplace))&&
+    ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
     (sku.startsWith("RFR_")||sku.startsWith("KWAY_"))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
