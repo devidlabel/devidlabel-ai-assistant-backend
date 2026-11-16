@@ -336,6 +336,38 @@ assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.returned_pair_count,6
 assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.pairs_truncated,true);
 assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.pairs.length,64);
 
+// A 512-entry mixed enum mirrors the observed large-schema shape without
+// publishing merchant records. Only the same-index 3x_l / 3XL pair adds XXXL.
+const largeNumericTokens=Array.from({length:506},(_,i)=>"numeric_"+(i+1));
+const largeNumericLabels=Array.from({length:506},(_,i)=>String(i+1));
+for(const field of ["apparel_size","shirt_size","headwear_size"]){
+  for(const wrapped of [false,true]){
+    const result=await inspectDiagnostic(diagnosticSchema(field,
+      [...largeNumericTokens,"xx_s","2x_s","x_l","xx_l","2x_l","3x_l"],
+      [...largeNumericLabels,"XXS","XXS","XL","XXL","XXL","3XL"],wrapped));
+    assert.equal(result.ptd_alpha_size_enum_pairs[field].schema_enum_count,512);
+    assert.deepEqual(result.ptd_alpha_size_label_tokens[field],{
+      XXS:"xx_s",XL:"x_l",XXL:"xx_l",XXXL:"3x_l",
+    });
+  }
+}
+for(const [values,labels,expected] of [
+  [["3x_l"],["3XL"],{XXXL:"3x_l"}],
+  [["3x_l","3x_l"],["3XL","3XL"],{XXXL:"3x_l"}],
+  [["3x_l"],["3X-Large"],{}],
+  [["3x_l"],["XXXL"],{}],
+  [["3x_large"],["3XL"],{}],
+  [["3x_l","4x_l"],["4XL","3XL"],{}],
+  [["3x_l","xxx_l"],["3XL","3XL"],{}],
+  [["2x_l"],["XXL"],{}],
+  [["xx_l","2x_l"],["XXL","XXL"],{XXL:"xx_l"}],
+  [["xx_s","2x_s"],["XXS","XXS"],{XXS:"xx_s"}],
+  [["xx_l"],["XXL"],{XXL:"xx_l"}],
+]){
+  const result=await inspectDiagnostic(diagnosticSchema("apparel_size",values,labels));
+  assert.deepEqual(result.ptd_alpha_size_label_tokens.apparel_size??{},expected);
+}
+
 // Wrong item-name taxonomy requires a second, positive PTD keyword match.
 const coatSku="RFR_G05708_XT3792_G06000_S";
 function coatDeps(events,noCoatKeyword=false,quantity=3){
