@@ -238,6 +238,104 @@ assert.equal(schemaEvents.length,3);
 assert.deepEqual(schemaEvents.map(x=>x.auth),[true,true,false]);
 assert.equal(JSON.stringify(details).includes("signature=mock"),false);
 
+// Inspect official enum/enumNames pairs without selecting a merchant-size
+// mapping. Large mixed numeric/alpha enums used to hide unfamiliar wire tokens.
+function diagnosticSchema(field,values,labels,wrapped=false){
+  const attributes={type:"object",required:["brand","item_name"],properties:{
+    brand:{type:"array"},item_name:{type:"array"},
+    [field]:{type:"array",items:{type:"object",required:["size","size_class","size_system"],
+      properties:{size:{type:"string",enum:values,enumNames:labels},
+        size_class:{type:"string",enum:["numeric","alpha"]},
+        size_system:{type:"string",enum:["as6"]}}}},
+    manufacturer:{type:"array",description:"contact@example.invalid"},
+  }};
+  return wrapped?{type:"object",properties:{attributes}}:attributes;
+}
+async function inspectDiagnostic(rawSchema){
+  const calls=[];
+  const result=await research({...req,product_type:"HAT"},env,deps(calls,{
+    fetch:fakeFetch(calls,{schemaRaw:JSON.stringify(rawSchema)}),
+  }));
+  assert.equal(result.status,"REQUIREMENTS_REVIEW_REQUIRED");
+  assert.equal(result.ptd_alpha_size_enum_pairs_diagnostic_only,true);
+  assert.equal(result.ptd_alpha_size_enum_pairs_not_size_mapping,true);
+  assert.equal(result.ptd_size_mapping_not_performed,true);
+  assert.equal(result.read_only,true);
+  assert.equal(result.provider_mutations,0);
+  assert.equal(result.validation_preview_sent,false);
+  assert.equal(result.can_publish,false);
+  assert.equal(calls.length,3);
+  assert.deepEqual(calls.map(x=>x.auth),[true,true,false]);
+  const diagnostic=JSON.stringify(result.ptd_alpha_size_enum_pairs);
+  assert.equal(diagnostic.includes("contact@"),false);
+  assert.equal(diagnostic.includes("signature="),false);
+  assert.ok(diagnostic.length<32000);
+  return result;
+}
+const numericTokens=Array.from({length:120},(_,i)=>"numeric_"+(i+1));
+const numericLabels=Array.from({length:120},(_,i)=>String(i+1));
+for(const field of ["apparel_size","shirt_size","headwear_size"]){
+  for(const wrapped of [false,true]){
+    const result=await inspectDiagnostic(diagnosticSchema(field,
+      [...numericTokens,"x_l","xx_l","3x_l","3x_l_alt","3x_l"],
+      [...numericLabels,"X-Large","XX-Large","3X-Large","3X-Large","3X-Large"],wrapped));
+    assert.deepEqual(result.ptd_alpha_size_enum_pairs[field],{
+      schema_enum_count:125,candidate_pair_count:4,returned_pair_count:4,pairs_truncated:false,
+      pairs:[{token:"x_l",label:"X-Large"},{token:"xx_l",label:"XX-Large"},
+        {token:"3x_l",label:"3X-Large"},{token:"3x_l_alt",label:"3X-Large"}],
+    });
+    assert.equal(result.ptd_size_shapes[field].items.properties.size.enum,undefined);
+    // Diagnostic discovery neither guesses an alias nor resolves ambiguity.
+    assert.equal(result.ptd_alpha_size_label_tokens[field].XXXL,undefined);
+    assert.equal(result.ptd_alpha_size_label_tokens[field].XL,"x_l");
+    assert.equal(result.ptd_alpha_size_label_tokens[field].XXL,"xx_l");
+  }
+}
+const unsafePairs=[
+  ["private_email","person@example.invalid"],
+  ["private_url","https://example.invalid/private?token=secret"],
+  ["address","Via Roma 12"],["control","Small\u0000XXXL"],
+  ["html","<Small>"],["long_label","Large".repeat(14)],
+  ["phone_label","Small 1234567890123"],["1234567890123","3X-Large"],
+  ["phone_123456789","3X-Large"],["https://example.invalid/private","3X-Large"],
+  ["a".repeat(65),"3X-Large"],["age_3x_l","3X-Large"],
+  ["jaspo_3x_l","3X-Large"],["go_3x_l","3X-Large"],
+  ["numeric_3x_l","3X-Large"],["safe_upper","3XL"],["3X_L","3X-Large"],
+];
+const safeOnly=await inspectDiagnostic(diagnosticSchema("apparel_size",
+  unsafePairs.map(x=>x[0]),unsafePairs.map(x=>x[1])));
+assert.deepEqual(safeOnly.ptd_alpha_size_enum_pairs.apparel_size.pairs,[
+  {token:"safe_upper",label:"3XL"},{token:"3X_L",label:"3X-Large"},
+]);
+for(const [values,labels] of [
+  [["3x_l"],[]],[[null],["3X-Large"]],[["3x_l"],[null]],
+  [["3x_l"],undefined],[undefined,["3X-Large"]],
+  [Array(10001).fill("3x_l"),Array(10001).fill("3X-Large")],
+]){
+  const result=await inspectDiagnostic(diagnosticSchema("apparel_size",values,labels));
+  assert.equal(result.ptd_alpha_size_enum_pairs.apparel_size,undefined);
+}
+for(const mutate of [
+  a=>{a.type="object";},a=>{a.items.type="array";},
+  a=>{a.items.properties.size.type="object";},
+  a=>{a.items.properties.size_class.type="array";},
+  a=>{a.items.properties.size_class.enum=["numeric"];},
+  a=>{a.items.properties.size_class.enum=["alpha",null];},
+  a=>{a.items.properties.size_class.enum=Array(33).fill("alpha");},
+]){
+  const raw=diagnosticSchema("apparel_size",["3x_l"],["3X-Large"]);
+  mutate(raw.properties.apparel_size);
+  const result=await inspectDiagnostic(raw);
+  assert.equal(result.ptd_alpha_size_enum_pairs.apparel_size,undefined);
+}
+const capped=await inspectDiagnostic(diagnosticSchema("apparel_size",
+  Array.from({length:70},(_,i)=>"size_wire_"+i),Array(70).fill("3X-Large")));
+assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.schema_enum_count,70);
+assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.candidate_pair_count,70);
+assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.returned_pair_count,64);
+assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.pairs_truncated,true);
+assert.equal(capped.ptd_alpha_size_enum_pairs.apparel_size.pairs.length,64);
+
 // Wrong item-name taxonomy requires a second, positive PTD keyword match.
 const coatSku="RFR_G05708_XT3792_G06000_S";
 function coatDeps(events,noCoatKeyword=false,quantity=3){
