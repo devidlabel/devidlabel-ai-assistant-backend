@@ -223,6 +223,22 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"]]
     }),
     capability({
+      id:"amazon.eu.price_bounds.repair.batch",provider:"amazon",domain:"marketplace",
+      operation:"execute",risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Bounded maximum-price repair for 1-100 exact MC2/Sprayground SKU/EAN/ASIN pairs in IT/DE/FR/ES. Server-observed original Shopify compare_at_price x 1.10 must equal seller B2C ALL price and minimum, with positive Shopify/FBM stock and an explicit lower maximum. Preserves the complete purchasable_offer, changes only maximum, previews and checks immutable source drift. No price/minimum/quantity changes, no BUYABLE claim. Ambiguous delivery requires reconciliation; never auto-retry.",
+      request_schema:{...schema({
+        items:{type:"array",minItems:1,maxItems:100,items:{type:"object",additionalProperties:false,
+          properties:{marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+            sku:{type:"string",minLength:5,maxLength:119,pattern:"^(MC2|SPR)_[A-Za-z0-9_ .-]{1,115}$"},
+            asin:{type:"string",pattern:"^[A-Z0-9]{10}$"},ean:{type:"string",pattern:"^[0-9]{13}$"}},
+          required:["marketplace","sku","asin","ean"]}}
+      },["items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],[shopify,"Shopify OAuth/KV and immutable plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.eu.price_bounds.readonly",
       provider:"amazon",domain:"marketplace",operation:"read",risk:"read_only",
       implemented:true,configured:businessAuth&&amazon&&amazonSellerId,
