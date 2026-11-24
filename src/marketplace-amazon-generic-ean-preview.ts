@@ -617,11 +617,10 @@ function eanValid(s:string):boolean{
   let total=0;for(let i=0;i<12;i++)total+=Number(s[i])*(i%2===0?1:3);
   return (10-total%10)%10===Number(s[12]);
 }
-/** Product-bound Standard adult profile for the FR/ES size qualifiers.
- * DE has conflicting observed conditional rules and stays excluded here. */
+/** Verify the Standard adult profile against the dossier for this product and market. */
 function kwayStandardAdultSize(product:Row,sku:string,marketplace:Market):boolean{
   const mf=obj(product.amazonPtd);
-  if(!["FR","ES"].includes(marketplace)||!sku.startsWith("KWAY_")||
+  if(!sku.startsWith("KWAY_")||
      product.vendor!=="K-Way"||typeof product.id!=="string"||
      mf.type!=="json"||typeof mf.value!=="string")return false;
   let dossier:Row;
@@ -762,10 +761,10 @@ export async function previewAmazonGenericEanValidation(
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
-  // FR/ES require both qualifiers for the observed Standard adult profiles.
-  // Require the product-bound declaration and both fresh PTD enum tokens;
-  // retain IT behavior and leave DE's conflicting conditional rules blocked.
-  const regularFit=(marketplace==="IT"||kwayStandardAdultSize(p,sku,marketplace))&&
+  // German 99022 previews require both qualifiers for adult alpha sweatshirts.
+  const usesStandardProfile=marketplace==="FR"||marketplace==="ES"||
+    (marketplace==="DE"&&pt==="SWEATSHIRT"&&merchantSize.value?.size_class==="alpha");
+  const regularFit=(marketplace==="IT"||(usesStandardProfile&&kwayStandardAdultSize(p,sku,marketplace)))&&
     ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
     (sku.startsWith("RFR_")||sku.startsWith("KWAY_"))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
