@@ -589,7 +589,7 @@ for(const market of ["IT","DE","FR","ES"]){
   for(const [label,wire,sizeClass] of [["M","m","alpha"],["XXL","xx_l","alpha"],["40","40","numeric"]]){
    const value=await captureStandardAdultSize(market,pt,label);
    assert.deepEqual(value,{size:wire,size_class:sizeClass,size_system:sizeSystems[market],
-    ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
+    ...(market!=="DE"||(pt==="SWEATSHIRT"&&sizeClass==="alpha")?{body_type:"regular",height_type:"regular"}:{}),
     marketplace_id:markets[market]},market+" "+pt+" "+label);
   }
  }
@@ -600,7 +600,7 @@ const standardSizeNegatives=[
  ["missing status",({dossier})=>{delete dossier.amazon_ptd_evidence.special_size_type_status;}],
  ["nonstandard profile",({dossier})=>{dossier.amazon_ptd_evidence.special_size_type="Petite";}],
  ["nonadult profile",({dossier})=>{dossier.amazon_ptd_evidence.age_range_description="Bambino";}],
- ["conflicting market profile",({dossier})=>{dossier.amazon_ptd_evidence.special_size_type_by_market={FR:"Tall",ES:"Tall"};}],
+ ["conflicting market profile",({dossier})=>{dossier.amazon_ptd_evidence.special_size_type_by_market={FR:"Tall",ES:"Tall",DE:"Tall"};}],
  ["other brand",({data})=>{data.productVariant.product.vendor="Other Brand";}],
  ["other sku scope",({data})=>{data.productVariant.sku="RFR_TEST_STANDARD_SIZE_M";data.productVariant.product.vendor="Refrigiwear";}],
  ["malformed dossier",({data})=>{data.productVariant.product.amazonPtd={type:"json",value:"{"};}],
@@ -608,7 +608,7 @@ const standardSizeNegatives=[
  ["body token not exposed",({research,field})=>{research.ptd_size_shapes[field].items.properties.body_type.enum=["slim"];}],
  ["height token not exposed",({research,field})=>{research.ptd_size_shapes[field].items.properties.height_type.enum=["tall"];}]
 ];
-for(const market of ["FR","ES"]){
+for(const market of ["FR","ES","DE"]){
  for(const pt of ["COAT","SWEATSHIRT"]){
   for(const [reason,alter] of standardSizeNegatives){
    const value=await captureStandardAdultSize(market,pt,"M",alter);
@@ -682,7 +682,7 @@ for(const market of Object.keys(markets)){
    research.ptd_alpha_size_label_tokens[field].XXXL="3x_l";
   });
   assert.deepEqual(value,{size:"3x_l",size_class:"alpha",size_system:sizeSystems[market],
-   ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
+   ...(market!=="DE"||pt==="SWEATSHIRT"?{body_type:"regular",height_type:"regular"}:{}),
    marketplace_id:markets[market]},market+" "+pt+" XXXL");
  }
 }
