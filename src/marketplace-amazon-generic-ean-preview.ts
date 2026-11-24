@@ -185,6 +185,14 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
        "MODEL_GROUP_TRANSLATION_FROM_PRODUCT_SOURCE"){
       const localized=obj(obj(fields.localized_marketplace_fields)[marketplace]);
       const localVal=(name:string)=>safeText(localized[name]);
+      if(pt==="WAIST_PACK"&&officialMatch&&sku.split("_")[1]===officialStyle){
+        for(const key of ["model_number","part_number"]){
+          const code=val(key);
+          if(code&&code===officialStyle)set(key,text(code));
+        }
+        const translatedMaterial=localVal("material");
+        if(val("material")&&translatedMaterial)set("material",text(translatedMaterial));
+      }
       // Localized copy is explicitly stored in this product/model dossier.
       // Missing or invalid locale content never falls back to Italian copy.
       const contentSource=obj(fields.localized_product_content_source);

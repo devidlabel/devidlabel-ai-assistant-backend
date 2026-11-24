@@ -947,6 +947,22 @@ const officialFerimy=(f=ferimyOfficial)=>({
   ...kwayProduct(kwayProductId,f),
   title:"Marsupio Ferimy Black Pure"
 });
+
+// The verified accessory dossier carries market-neutral style codes and localized material.
+for(const [market,material] of [["DE","Nylon"],["FR","nylon"],["ES","nailon"]]){
+  const fields={...ferimyOfficial,model_number:"K4146JW",part_number:"K4146JW",
+    material:"Nylon",localized_marketplace_fields_status:"MODEL_GROUP_TRANSLATION_FROM_PRODUCT_SOURCE",
+    localized_marketplace_fields:{[market]:{material}}};
+  const outgoing=(changes={},available=["material","model_number","part_number"])=>merchantAccessoryAttrs(
+    officialFerimy({...fields,...changes}),{},"KWAY_K4146JW_USY","WAIST_PACK",market,markets[market],available);
+  assert.equal(outgoing().model_number[0].value,"K4146JW");
+  assert.equal(outgoing().part_number[0].value,"K4146JW");
+  assert.equal(outgoing().material[0].value,material);
+  assert.ok(!outgoing({localized_marketplace_fields:{}}).material);
+  assert.ok(!outgoing({part_number:"another-model"}).part_number);
+  assert.deepEqual(outgoing({},[]),{});
+}
+
 const offerless=merchantAccessoryAttrs(officialFerimy(),{},
   "KWAY_K4146JW_USY","WAIST_PACK","IT",markets.IT,
   ["color","list_price","manufacturer","country_of_origin"]);
