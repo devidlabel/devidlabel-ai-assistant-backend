@@ -286,6 +286,9 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
        evidence.status==="DOCUMENTED_EXACT_SHOPIFY_PRODUCT_DESCRIPTION"&&
        evidence.source_product_id===product.id&&
        evidence.source_model===fields.model_number&&
+       typeof fields.model_number==="string"&&
+       sku.startsWith("KWAY_"+fields.model_number)&&
+       /^[_ .-]/.test(sku.slice(5+fields.model_number.length))&&
        evidence.source_field==="product.description"&&
        schema.type==="array"&&entry.type==="object"&&
        descriptions.type==="array"&&descriptionEntry.type==="object"&&
