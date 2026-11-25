@@ -264,7 +264,7 @@ function selectedAttributeShapes(schema: Row, names: readonly string[]): Row {
   const holder = wrapper.type === "object" &&
     Object.keys(obj(wrapper.properties)).length > 0 ? wrapper : schema;
   const attributes = obj(holder.properties);
-  if(names.length>20 || names.some(n=>safeName(n)===null))
+  if(names.length>30 || names.some(n=>safeName(n)===null))
     return {inspection_blocked:true};
   function shape(node: unknown, depth = 0): Row {
     if (depth > 5) return {truncated: true};
@@ -435,7 +435,8 @@ const GENERIC_TECHNICAL_INSPECTION_FIELDS=[
   "department","age_range_description","fabric_type","outer","manufacturer",
   "item_package_weight","item_package_dimensions","care_instructions",
   "water_resistance_level","closure","special_size_type","material",
-  "item_depth_width_height","number_of_compartments","lining_description",
+  "item_depth_width_height","item_length_width_height","number_of_compartments",
+  "number_of_pockets","compartment","capacity","lining_description",
   "storage_volume","strap_type","fit_type","collar_style","weave_type",
 ] as const;
 
@@ -837,7 +838,7 @@ export async function researchAmazonNewAsinProductType(
       ptd_shapes_are_read_only: true,
       ptd_shapes_are_not_schema_validation: true,
     } : {}),
-    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","SCARF","SWEATER","SWEATSHIRT"].includes(input.product_type) ? {
+    ...(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","SCARF","SWEATER","SWEATSHIRT","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(input.product_type) ? {
       ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
       ptd_alpha_size_tokens:ptdAlphaSizeTokens(rawSchema),
       ptd_alpha_size_label_tokens:ptdAlphaSizeLabelTokens(rawSchema),
