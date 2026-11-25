@@ -193,6 +193,63 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
         const translatedMaterial=localVal("material");
         if(val("material")&&translatedMaterial)set("material",text(translatedMaterial));
       }
+      // K-Way EU DUFFEL_BAG: exact Shopify-model evidence, translated factual
+      // compartment label, merchant model code, and documented item dimensions.
+      // Do not substitute package measurements or derive nominal capacity.
+      if(pt==="DUFFEL_BAG"){
+        const model=val("model_number"), part=val("part_number");
+        const original=val("compartment_description");
+        const evidence=obj(obj(fields.field_provenance).compartment_description);
+        const translation=obj(fields.localized_compartment_description_provenance);
+        const translated=localVal("compartment_description");
+        const sameModel=!!model&&/^K[0-9]{4}[A-Z0-9]{2}$/.test(model)&&
+          sku.startsWith("KWAY_"+model)&&
+          /^[_ .-]/.test(sku.slice(5+model.length));
+        const exactProduct=sameModel&&
+          evidence.status==="DOCUMENTED_EXACT_SHOPIFY_PRODUCT_DESCRIPTION"&&
+          evidence.source_product_id===product.id&&
+          evidence.source_model===model&&evidence.source_field==="product.description";
+        if(exactProduct){
+          if(part===model){
+            set("model_number",text(model!));
+            set("part_number",text(part!));
+          }
+          const localMaterial=localVal("material");
+          if(val("material")&&localMaterial)set("material",text(localMaterial));
+          const dimensions=obj(fields.item_dimensions_cm);
+          const dimensionSchema=obj(ptdTechnicalShapes.item_length_width_height);
+          if(dimensionSchema.type==="array"&&
+             ["height","width","depth"].every(key=>
+               typeof dimensions[key]==="number"&&
+               Number.isFinite(dimensions[key])&&
+               (dimensions[key] as number)>0&&(dimensions[key] as number)<500)){
+            set("item_length_width_height",[{
+              length:{value:dimensions.width,unit:"centimeters"},
+              width:{value:dimensions.depth,unit:"centimeters"},
+              height:{value:dimensions.height,unit:"centimeters"},
+              marketplace_id:marketId
+            }]);
+          }
+          const schema=obj(ptdTechnicalShapes.compartment);
+          const item=obj(schema.items),parts=obj(item.properties);
+          const description=obj(parts.description),descItem=obj(description.items);
+          const descFields=obj(descItem.properties);
+          if(original&&translated&&
+             translation.status==="TRANSLATED_FROM_EXACT_SHOPIFY_PRODUCT_DESCRIPTION"&&
+             translation.source_product_id===product.id&&
+             translation.source_model===model&&
+             translation.source_sku===sku&&
+             Array.isArray(translation.translations)&&
+             translation.translations.includes(marketplace)&&
+             schema.type==="array"&&item.type==="object"&&
+             description.type==="array"&&descItem.type==="object"&&
+             obj(descFields.value).type==="string"&&
+             Object.hasOwn(descFields,"language_tag")&&
+             Object.hasOwn(parts,"marketplace_id"))
+            set("compartment",[{description:[{value:translated,language_tag:locale}],
+              marketplace_id:marketId}]);
+        }
+      }
       // Localized copy is explicitly stored in this product/model dossier.
       // Missing or invalid locale content never falls back to Italian copy.
       const contentSource=obj(fields.localized_product_content_source);
