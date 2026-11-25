@@ -271,6 +271,34 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   if(["BACKPACK","HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&typeof n==="number"&&
      Number.isInteger(n)&&n>=1&&n<=15)
     set("number_of_compartments",[{value:n,marketplace_id:marketId}]);
+  // Amazon's DUFFEL_BAG "compartment" is a localized description array,
+  // not an integer count. Only emit source-traced exact-product prose and
+  // only when the live PTD exposes the verified nested wire shape.
+  if(isKway&&pt==="DUFFEL_BAG"){
+    const compartmentText=val("compartment_description");
+    const evidence=obj(obj(fields.field_provenance).compartment_description);
+    const schema=obj(ptdTechnicalShapes.compartment);
+    const entry=obj(schema.items), entryFields=obj(entry.properties);
+    const descriptions=obj(entryFields.description);
+    const descriptionEntry=obj(descriptions.items);
+    const descriptionFields=obj(descriptionEntry.properties);
+    if(compartmentText&&
+       evidence.status==="DOCUMENTED_EXACT_SHOPIFY_PRODUCT_DESCRIPTION"&&
+       evidence.source_product_id===product.id&&
+       evidence.source_model===fields.model_number&&
+       typeof fields.model_number==="string"&&
+       sku.startsWith("KWAY_"+fields.model_number)&&
+       /^[_ .-]/.test(sku.slice(5+fields.model_number.length))&&
+       evidence.source_field==="product.description"&&
+       schema.type==="array"&&entry.type==="object"&&
+       descriptions.type==="array"&&descriptionEntry.type==="object"&&
+       obj(descriptionFields.value).type==="string"&&
+       Object.hasOwn(descriptionFields,"language_tag")&&
+       Object.hasOwn(entryFields,"marketplace_id")){
+      set("compartment",[{description:[{value:compartmentText,language_tag:locale}],
+        marketplace_id:marketId}]);
+    }
+  }
   const pockets=fields.number_of_pockets;
   if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&typeof pockets==="number"&&
      Number.isInteger(pockets)&&pockets>=0&&pockets<=30)
