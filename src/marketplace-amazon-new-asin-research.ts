@@ -264,7 +264,7 @@ function selectedAttributeShapes(schema: Row, names: readonly string[]): Row {
   const holder = wrapper.type === "object" &&
     Object.keys(obj(wrapper.properties)).length > 0 ? wrapper : schema;
   const attributes = obj(holder.properties);
-  if(names.length>20 || names.some(n=>safeName(n)===null))
+  if(names.length>30 || names.some(n=>safeName(n)===null))
     return {inspection_blocked:true};
   function shape(node: unknown, depth = 0): Row {
     if (depth > 5) return {truncated: true};
