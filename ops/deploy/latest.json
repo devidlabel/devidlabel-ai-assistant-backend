@@ -1,13 +1,13 @@
 {
   "ok": false,
-  "generated_at": "2026-11-24T13:56:20.082Z",
-  "source_commit": "8caf806d58e6ec9b7376354ea2278e1c24e29efc",
-  "workflow_run_id": 45407785721,
+  "generated_at": "2026-11-25T20:06:40.926Z",
+  "source_commit": "6ce317b9397dd62c252ed3ddcfa7d7f6c8617efb",
+  "workflow_run_id": 45691365855,
   "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
   "verification": {
     "worker_deployed": "success",
     "autonomy_discovery": "success",
-    "live_order_probe": "failure",
+    "live_order_probe": "success",
     "shopify_historical_orders": "success",
     "youtube_read_only": "failure"
   },
