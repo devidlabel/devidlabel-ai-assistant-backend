@@ -150,6 +150,55 @@ function merchantShoesExactProfile(raw:unknown,identity:{
       ...(suede?{leather_type:"Pelle scamosciata"}:{})
     };
   }
+  const play=/^4B12_(PLAYNEW|PLAYNEWSKY)_([DU][0-9]{4})_([34][0-9])_EU$/.exec(identity.sku);
+  if(identity.shopifyVendor==="4B12"&&play){
+    const code=play[1]+"-"+play[2],sex=play[2][0]==="D"?"donna":"uomo";
+    const marketingPrefix=play[1]==="PLAYNEW"?"PlayNew":"Playnewsky";
+    const titlePrefix=marketingPrefix+" "+play[2][0]+"-"+play[2].slice(1)+" ";
+    const sizeCode=play[2][0]+"-"+play[2].slice(1);
+    const familyText=play[1]==="PLAYNEW"?"Play New":"Playnewsky";
+    const literal=new RegExp("\\b"+familyText+"\\s+"+sizeCode+"\\s+4B12\\b","i");
+    if(!identity.productTitle.startsWith(titlePrefix)||!literal.test(plain)||
+       !new RegExp("\\bCodice modello:\\s*"+code+"\\b","i").test(plain)||
+       !new RegExp("\\bReparto:\\s*"+(sex==="donna"?"Donna":"Uomo")+"\\b","i").test(plain)||
+       !/\bChiusura con lacci\b/i.test(plain)||
+       !/\bsilhouette low-top\b/i.test(plain))return {};
+    const leather=/\bupper in pelle\b/i.test(plain);
+    const suede=/\b(?:inserti?|upper)\s+(?:in\s+)?suede\b/i.test(plain);
+    const casual=/\b(?:outfit|abbinamenti)\s+casual\b|\bcasual premium\b/i.test(plain);
+    return {
+      source:"SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY",
+      model_number:code,age_group:"adult",
+      gender:sex==="donna"?"women":"men",
+      height_map:"low-top",
+      ...(casual?{lifestyle:"Casual"}:{}),
+      ...(leather||suede?{outer:leather&&suede?"Pelle e suede":
+        leather?"Pelle":"Suede"}:{}),
+      ...(suede?{leather_type:"Pelle scamosciata"}:{})
+    };
+  }
+  // Panther 6.02 has more than one legitimate merchant SKU style.
+  // Both require a literal product title, color, gender and low-cut profile.
+  const panther=/^PUI_602_(?:602_)?PANTHER_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(identity.sku);
+  if(identity.shopifyVendor==="Puraai"&&panther){
+    const color=panther[1].replace(/_/g," ").toLowerCase();
+    if(identity.productTitle.toLowerCase()!=="sneaker 6.02 panther "+color)return {};
+    const literal=new RegExp("\\b(?:Puraai\\s+(?:6[.]02\\s+Panther|Panther\\s+6[.]02)|Panther\\s+6[.]02\\s+di\\s+Puraai)\\s+"+
+      panther[1].replace(/_/g,"\\s+")+"\\b","i");
+    const sex=/\bsneaker donna\b|\bsneaker\s+da\s+donna\b/i.test(plain)?
+      "women":/\bsneaker uomo\b|\bsneaker\s+da\s+uomo\b/i.test(plain)?
+      "men":undefined;
+    if(!literal.test(plain)||!sex)return {};
+    const low=/\b(?:silhouette bassa|profilo basso|profilo low-top)\b/i.test(plain);
+    const casual=/\bcasual\b/i.test(plain);
+    return {
+      source:"SHOPIFY_EXACT_PURAAI_PANTHER_602_COPY",
+      model_number:"6.02",bullet_point:"Panther 6.02",
+      age_group:"adult",gender:sex,
+      ...(low?{height_map:"low-top"}:{}),
+      ...(casual?{lifestyle:"Casual"}:{})
+    };
+  }
   const polly=/^PUI_(PU405P-[0-9]{3})_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(identity.sku);
   if(identity.shopifyVendor==="Puraai"&&polly){
     const color=polly[2].replace(/_/g," ").toLowerCase();
