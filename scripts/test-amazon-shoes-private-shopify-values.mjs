@@ -801,25 +801,26 @@ for(const [color,size] of [["Dune","38"],["Eden","37"]]){
    type:"single_line_text_field",value:color};
  fixture.productVariant.selectedOptions=[{name:"Numero",value:size+" EU"}];
  fixture.productVariant.product.descriptionHtml=[
-   "<p>Puraai 6.01 Xs "+color+" è una sneaker donna dal profilo contemporaneo.</p>",
+   "<p>Sneaker <strong>Puraai XS "+color+" da donna</strong> in toni naturali.</p>",
    "<p>La silhouette bassa e la palette "+color.toLowerCase()+" rendono lo stile casual.</p>",
-   "<p>Modello: 6.01 Xs. Colore: "+color+".</p>"
+   "<p><strong>Modello: XS</strong><br>",
+   "<strong>Vestibilità: donna – calzata regolare</strong></p>"
  ].join("");
  const v=await read(identity,{},{queryShopify:async()=>fixture});
  assert.equal(v.ok,true);
  assert.equal(v.merchant_shoes_profile?.source,"SHOPIFY_EXACT_PURAAI_601_XS_COPY");
- assert.equal(v.model_number,"6.01");
- assert.equal(v.bullet_point,"6.01 Xs");
+ assert.equal(v.model_number,"XS");
+ assert.equal(v.bullet_point,"Sneaker XS");
  assert.equal(v.age_range_description,"adult");
  assert.equal(v.footwear_size.size,"numeric_"+size);
  assert.equal(v.footwear_size.gender,"women");
- assert.equal(v.footwear_size.width,undefined);
+ assert.equal(v.footwear_size.width,"medium");
  assert.equal(v.country_of_origin,undefined);
  assert.equal(v.merchant_official_manufacturer,undefined);
  const wrong=structuredClone(fixture);
  wrong.productVariant.product.descriptionHtml=
-   wrong.productVariant.product.descriptionHtml.replace("6.01 Xs "+color,
-     "6.01 Xs Another");
+   wrong.productVariant.product.descriptionHtml.replace("Puraai XS "+color+" da donna",
+     "Puraai XS Another da donna");
  const w=await read(identity,{},{queryShopify:async()=>wrong});
  assert.equal(w.merchant_shoes_profile,undefined);
 }
