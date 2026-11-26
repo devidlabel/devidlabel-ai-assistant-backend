@@ -843,7 +843,7 @@ export function merchantMultibrandEvidenceAttrs(
       variant.selectedOptions.map(obj).find(o=>
         typeof o.name==="string"&&["taglia","size"].includes(o.name.toLowerCase()))?.value:undefined;
     if(typeof optionSize==="string"&&/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&
-       sku.endsWith("_"+optionSize)&&/\\bUomo\\b|\\bDonna\\b/.test(title)){
+       sku.endsWith("_"+optionSize)&&/\b(?:Uomo|Donna)\b/.test(title)){
       set("special_size_type",text("Standard"));
     }
   }
