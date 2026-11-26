@@ -960,6 +960,21 @@ export function merchantMultibrandEvidenceAttrs(
   const bullets=desc.split(/[.!?]\s+/).map(x=>plain(x)).filter(x=>x.length>=45&&x.length<=200);
   if(bullets.length)set("bullet_point",bullets.slice(0,3).map(value=>({
     value,language_tag:"it_IT",marketplace_id:marketId})));
+  // The size disclosure must follow merchant bullets: the generic bullet
+  // source mapper above would otherwise overwrite the size-specific bullet.
+  if(ecoSockAW26){
+    const options=Array.isArray(variant.selectedOptions)?
+      variant.selectedOptions.map(obj):[];
+    const size=options.find(o=>typeof o.name==="string"&&
+      ["taglia","size"].includes(o.name.toLowerCase()))?.value;
+    if(typeof size==="string"&&["36-40","36-41","41-46"].includes(size)){
+      const original=Array.isArray(attrs.bullet_point)?attrs.bullet_point:[];
+      set("bullet_point",[...original.slice(0,3),{
+        value:"Taglia europea riportata nella variante Shopify: "+size+".",
+        language_tag:"it_IT",marketplace_id:marketId
+      }]);
+    }
+  }
   return attrs;
 }
 
