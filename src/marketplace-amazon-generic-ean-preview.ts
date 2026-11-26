@@ -987,7 +987,8 @@ export function merchantMultibrandEvidenceAttrs(
   // fabric_type/outer. Secondary panels, linings and down filling are kept
   // separate, not added to the shell blend. The percentage total must be 100.
   if(isColmar){
-    const normalized=plain(desc);
+    const normalized=plain(desc).replace(
+      /composizione(?=(?:Esterno|Tessuto|\d{1,3}\s*%))/gi,"composizione ");
     const marker=/(?:\bEsterno, secondo tessuto esterno e fodera|\bEsterno(?: principale| e fodera)?|\bTessuto (?:esterno(?: e fodera)?|principale))\s*:?\s*/i.exec(normalized);
     const sweaterSection=pt==="SWEATER"||pt==="SWEATSHIRT";
     const standalone=sweaterSection?
@@ -1032,7 +1033,10 @@ export function merchantMultibrandEvidenceAttrs(
   if(Number.isFinite(compare)&&compare>0&&compare<10000)
     set("list_price",[{currency:"EUR",value_with_tax:compare,marketplace_id:marketId}]);
   // Product-description sentences are merchant-provided factual marketing copy.
-  const bullets=desc.split(/[.!?]\s+/).map(x=>plain(x)).filter(x=>x.length>=45&&x.length<=200);
+  // Shopify strips HTML separators, so sentence boundaries can be adjacent
+  // (e.g. "indossare.Perfetta"). Keep the literal source sentences intact.
+  const bullets=desc.split(/[.!?](?=\s|[A-ZÀ-Ý])/).map(x=>plain(x))
+    .filter(x=>x.length>=45&&x.length<=200);
   if(bullets.length)set("bullet_point",bullets.slice(0,3).map(value=>({
     value,language_tag:"it_IT",marketplace_id:marketId})));
   // The size disclosure must follow merchant bullets: the generic bullet
