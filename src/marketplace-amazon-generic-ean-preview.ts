@@ -819,6 +819,34 @@ export function merchantMultibrandEvidenceAttrs(
   }
   const color=desc.match(/\bColore:\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ -]{1,45}?)(?=\s+Codice|\s+Stagione|$)/i)?.[1];
   if(candidate(color,46))set("color",text(plain(color!)));
+  // Colmar model/color/size classifications backed by the exact Shopify
+  // variant SKU and product title. Never infer country of origin or supplier
+  // safety declarations from these merchandising values.
+  if(isColmar){
+    const matchCode=/^COL_([A-Za-z0-9]{3,20})_[A-Za-z0-9]{2,8}_[A-Za-z0-9]{1,5}_[A-Za-z0-9]{1,8}$/.exec(sku);
+    if(matchCode){
+      set("model_name",[{value:matchCode[1],marketplace_id:marketId}]);
+      set("model_number",[{value:matchCode[1],marketplace_id:marketId}]);
+    }
+    const exactColor=(
+      /^COL_11000026_8VX_99_(46|48|50|52|54)$/.test(sku)&&
+        title==="Colmar Originals Gilet Uomo Ultra Leggero Nero"
+    )?"Nero":(
+      /^COL_11000050_8ZR_378_(48|50|52|54)$/.test(sku)&&
+        title==="Colmar Originals Giacca Uomo Ibrida Imbottita con Cappuccio Grigio Street"
+    )?"Grigio Street":(
+      /^COL_11000050_8ZR_99_(48|50|52|54)$/.test(sku)&&
+        title==="Colmar Originals Giacca Uomo Ibrida Imbottita con Cappuccio Nero"
+    )?"Nero":undefined;
+    if(exactColor)set("color",text(exactColor));
+    const optionSize=Array.isArray(variant.selectedOptions)?
+      variant.selectedOptions.map(obj).find(o=>
+        typeof o.name==="string"&&["taglia","size"].includes(o.name.toLowerCase()))?.value:undefined;
+    if(typeof optionSize==="string"&&/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&
+       sku.endsWith("_"+optionSize)&&/\\bUomo\\b|\\bDonna\\b/.test(title)){
+      set("special_size_type",text("Standard"));
+    }
+  }
   if(isColmar)set("manufacturer",text("COLMAR"));
   if(isEco)set("manufacturer",text("Ecoalf"));
   // Official Ecoalf AW26 specification is common to the exact documented
