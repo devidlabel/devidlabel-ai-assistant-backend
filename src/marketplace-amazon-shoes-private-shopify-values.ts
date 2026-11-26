@@ -488,7 +488,22 @@ export async function readAmazonShoesPrivateShopifyValues(
     typeof now==="string"&&priceFormat.test(now)&&
     Number(comparison)>=Number(now)&&Number(comparison)>0)?
     Number(comparison):undefined;
+  // 4B12's official website identifies Medusa s.r.l. as its operator at
+  // https://4b12.it/contattaci (26 Nov 2026). Public manufacturing reporting
+  // confirms Medusa actually makes 4B12 footwear:
+  // https://www.focus-online.it/news_dettaglio.php?da=ricerca&id=7276
+  // This supports the manufacturer NAME only, not a GPSR contact approval,
+  // address attestation or any undocumented product specification.
+  const official4B12=expected.shopifyVendor==="4B12"&&
+    expected.amazonBrand==="4B12"&&
+    ["SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY",
+     "SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY"].includes(String(exactProfile.source))&&
+    !fields.has("manufacturer")?
+    {source:"OFFICIAL_4B12_MANUFACTURER_NAME_20261126",
+     name:"Medusa s.r.l.",official_url:"https://4b12.it/contattaci"}:
+    undefined;
   return {ok:true,model_name:model,color,...descriptionEvidence,
+    ...(official4B12?{merchant_official_manufacturer:official4B12}:{}),
     ...(typeof exactProfile.source==="string"?{
       merchant_shoes_profile:exactProfile,
       model_number:descriptionEvidence.model_number??exactProfile.model_number,
