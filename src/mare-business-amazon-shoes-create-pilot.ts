@@ -292,7 +292,20 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
     profile.leather_type==="Materiale sintetico"&&
     profile.height_map==="low-top"&&
     profile.age_group==="adult"&&profile.gender==="women";
-  if(sourcedHyper||sourcedPolly){
+  const playCode=/^4B12_(PLAYNEW|PLAYNEWSKY)_([DU][0-9]{4})_([34][0-9])_EU$/.exec(input.sku);
+  const pantherCode=/^PUI_602_(?:602_)?PANTHER_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(input.sku);
+  const sourcedPlay=s.amazon_listing_brand==="4B12"&&
+    profile.source==="SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY"&&
+    !!playCode&&profile.model_number===playCode[1]+"-"+playCode[2]&&
+    profile.age_group==="adult"&&
+    profile.gender===(playCode[2][0]==="D"?"women":"men")&&
+    profile.height_map==="low-top";
+  const sourcedPanther=s.amazon_listing_brand==="Puraai"&&
+    profile.source==="SHOPIFY_EXACT_PURAAI_PANTHER_602_COPY"&&
+    !!pantherCode&&profile.model_number==="6.02"&&
+    profile.age_group==="adult"&&
+    ["women","men"].includes(String(profile.gender));
+  if(sourcedHyper||sourcedPolly||sourcedPlay||sourcedPanther){
     const expectedProfileAttrs:Record<string,unknown>={
       model_number:[{value:profile.model_number,marketplace_id:marketId}],
       age_range_description:[{value:"Adulto",language_tag:locale,marketplace_id:marketId}],
@@ -302,12 +315,27 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
         ...(profile.leather_type==="Pelle scamosciata"?{
           leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}]
         }:{})
-      }:{
+      }:sourcedPolly?{
         outer:[{material:[{value:"Microfibra riciclata",language_tag:locale}],marketplace_id:marketId}],
         inner:[{material:[{value:"Tessuto",language_tag:locale}],marketplace_id:marketId}],
         leather_type:[{value:"Materiale sintetico",language_tag:locale,marketplace_id:marketId}],
         height_map:[{value:"low-top",marketplace_id:marketId}],
         bullet_point:[{value:"Modello Puraai: Tomaia in microfibra riciclata",
+          language_tag:locale,marketplace_id:marketId}]
+      }:sourcedPlay?{
+        height_map:[{value:"low-top",marketplace_id:marketId}],
+        ...(profile.lifestyle==="Casual"?{
+          lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
+        ...(["Pelle","Suede","Pelle e suede"].includes(String(profile.outer))?{
+          outer:[{material:[{value:profile.outer,language_tag:locale}],marketplace_id:marketId}]}:{}),
+        ...(profile.leather_type==="Pelle scamosciata"?{
+          leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}]}:{})
+      }:{
+        ...(profile.height_map==="low-top"?{
+          height_map:[{value:"low-top",marketplace_id:marketId}]}:{}),
+        ...(profile.lifestyle==="Casual"?{
+          lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
+        bullet_point:[{value:"Modello Puraai: Panther 6.02",
           language_tag:locale,marketplace_id:marketId}]
       })
     };
@@ -317,8 +345,8 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
     // The exact profile must never be applied to an unrelated SKU, supplier,
     // GTIN or size; any submitted profile-specific fields require perfect
     // correspondence to the fresh source.
-    const allowedProfileFields=sourcedHyper?
-      ["outer","leather_type"]:["outer","inner","leather_type","height_map"];
+    const allowedProfileFields=Object.keys(expectedProfileAttrs).filter(key=>
+      ["outer","inner","leather_type","height_map","lifestyle"].includes(key));
     for(const key of allowedProfileFields)
       if(Object.hasOwn(attrs,key)&&!confirmedShared.has(key))return false;
     if(Object.hasOwn(attrs,"model_number")&&!confirmedShared.has("model_number"))
