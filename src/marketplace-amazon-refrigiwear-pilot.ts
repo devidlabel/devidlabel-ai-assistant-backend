@@ -115,7 +115,24 @@ export async function createRefrigiwearNewAsinPilot(
       preview.preview_only !== true || preview.provider_mutations !== 0 ||
       preview.product_created !== false || !captured ||
       (!fullyValid && !trialOfMissingOnly))
-    return blocked(input, "amazon_validation_preview_not_accepted");
+    return { ...blocked(input, "amazon_validation_preview_not_accepted"),
+      preview_status: preview.provider_validation_status === "INVALID" ? "INVALID" :
+        preview.provider_validation_status === "VALID" ? "VALID" : "UNKNOWN",
+      ...(typeof preview.reason === "string" &&
+        /^[a-z_]{3,100}$/.test(preview.reason) ?
+        {preview_reason:preview.reason}:{}),
+      amazon_issues: errors.slice(0,25).map(rawIssue=>{
+        const issue=obj(rawIssue);
+        return {
+          code:typeof issue.code==="string" &&
+            /^[0-9A-Za-z._-]{1,64}$/.test(issue.code) ?
+            issue.code:"UNKNOWN",
+          attribute_names:Array.isArray(issue.attribute_names) ?
+            issue.attribute_names.filter(x=>typeof x==="string" &&
+              /^[a-z_]{1,64}$/.test(x)).slice(0,10):[]
+        };
+      })
+    };
 
   const payload = obj(captured);
   const attrs = obj(payload.attributes);
