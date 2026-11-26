@@ -25,6 +25,11 @@ const output=(p)=>map(p,{},sku,"SWEATSHIRT","IT",market,
   ["fabric_type","outer","style","weave_type","special_size_type"],{},{});
 const ok=output(product());
 assert.deepEqual(ok.fabric_type,[{value:descr,language_tag:"it_IT",marketplace_id:market}]);
+const caseOnly=output(product({...attrsSource,field_provenance:{
+  fabric_type:{...attrsSource.field_provenance.fabric_type,
+    source_text:"tessuto tecnico caldo e traspirante"}}}));
+assert.deepEqual(caseOnly.fabric_type,[{value:descr,language_tag:"it_IT",marketplace_id:market}],
+  "Verified source text may differ only in letter case");
 assert.deepEqual(ok.outer,[{material:[{value:"Tessuto tecnico",language_tag:"it_IT"}],
   marketplace_id:market}]);
 assert.deepEqual(ok.style,[{value:"Sportivo",language_tag:"it_IT",marketplace_id:market}]);
