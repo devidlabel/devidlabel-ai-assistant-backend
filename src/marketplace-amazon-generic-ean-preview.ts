@@ -1317,7 +1317,9 @@ export async function previewAmazonGenericEanValidation(
     ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
     (sku.startsWith("RFR_")||sku.startsWith("KWAY_")||
       (sku.startsWith("COL_")&&p.vendor==="Colmar Originals"&&
-       merchantSize.value?.size_class==="numeric"))&&
+       ((merchantSize.value?.size_class==="numeric"&&pt==="COAT")||
+        (merchantSize.value?.size_class==="alpha"&&
+         ["SWEATER","SWEATSHIRT","SHIRT"].includes(pt)))))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
     (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
