@@ -13,7 +13,7 @@ type Result = Record<string, unknown>;
 type Deps = { preview?: typeof previewAmazonGenericEanValidation };
 const SKU = /^KWAY_[A-Za-z0-9_ .-]{1,114}$/;
 const TYPES = new Set(["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF",
-  "HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]);
+  "HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]);
 const MARKETS = new Set(["IT","DE","FR","ES"]);
 const ATTRIBUTE = /^[a-z_]{1,64}$/;
 const ISSUE = /^[A-Za-z0-9._-]{1,64}$/;
