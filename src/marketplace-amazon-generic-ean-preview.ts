@@ -323,7 +323,8 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     fabricProof.source_field==="description"&&
     fabricProof.no_composition_percentages===true&&
     fabric===fabricProof.source_text&&
-    !!fabric&&sourceDescription.includes(fabric);
+    !!fabric&&sourceDescription.toLocaleLowerCase("it").includes(
+      fabric.toLocaleLowerCase("it"));
   if(fabric&&(validatedRefrigiwearFabric(fabric)||rfrDescriptiveFabric||
      (isKway&&(validatedKwayLayeredFabric(fabric)||descriptiveFabric))))
     set("fabric_type",text(fabric));
