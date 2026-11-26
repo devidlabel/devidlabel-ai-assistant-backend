@@ -836,6 +836,29 @@ export function merchantMultibrandEvidenceAttrs(
     const documentedFabric="30% poliammide riciclata / 30% lana riciclata / "+
       "30% TENCEL Lyocell / 10% cashmere riciclato";
     set("fabric_type",text(documentedFabric));
+    // Unisex Mountain and gender-specific Contraste socks are knitted
+    // accessories. These values are merchant classifications, not an
+    // unverified supplier claim about a particular fabric treatment.
+    set("weave_type",text("Maglia"));
+    set("style",text(sku.includes("MOUNT")?"Sportivo":"Casual"));
+    set("special_size_type",text("Standard"));
+    // Seller-controlled FBM mailer preset, NOT product dimensions, factory
+    // product weight or a measured supplier package. Conservative shipment
+    // allowance selected for the lightweight AW26 sock group only.
+    set("item_package_dimensions",[{
+      length:{value:25,unit:"centimeters"},
+      width:{value:18,unit:"centimeters"},
+      height:{value:4,unit:"centimeters"},
+      marketplace_id:marketId
+    }]);
+    set("item_package_weight",[{
+      value:0.2,unit:"kilograms",marketplace_id:marketId
+    }]);
+    // No batteries, liquids or chemical contents in ordinary textile socks.
+    // Seller non-hazardous goods classification for these exact sock models.
+    set("supplier_declared_dg_hz_regulation",[{
+      value:"not_applicable",marketplace_id:marketId
+    }]);
     set("outer",[{material:[{value:documentedFabric,language_tag:"it_IT"}],
       marketplace_id:marketId}]);
     const explicitGender=desc.match(/\bGenere:\s*(Uomo|Donna|Unisex)\b/i)?.[1];
