@@ -174,6 +174,17 @@ const blended=derive(blendSource,variant,"COL_11000050_8ZR_378_50",
   "COAT","IT",market,provenanceKeys);
 assert.equal(blended.fabric_type[0].value,"78% poliammide / 22% elastan");
 assert.equal(blended.outer[0].material[0].value,blended.fabric_type[0].value);
+const strippedHtml=derive({...blendSource,description:
+  "ComposizioneEsterno principale: 78% poliammide, 22% elastan; "+
+  "pannello secondario: 54% poliestere, 20% poliammide, 20% acrilico, 6% lana."},
+  variant,"COL_11000050_8ZR_378_50","COAT","IT",market,provenanceKeys);
+assert.equal(strippedHtml.fabric_type[0].value,"78% poliammide / 22% elastan");
+const noSpaceBullets=derive({...hybrid,description:
+  "La giacca ibrida Colmar ha pannelli in tessuti diversi e un cappuccio fisso.Per le giornate fresche si indossa con denim scuro e sneakers in citta."},
+  variant,"COL_11000050_8ZR_378_50","COAT","IT",market,provenanceKeys);
+assert.equal(noSpaceBullets.bullet_point?.length,2,
+  "Keep separate merchant-source sentences even without HTML whitespace");
+
 const wrongSum=derive({...blendSource,description:
   "Materiali e composizione Esterno principale: 78% poliammide, 21% elastan; "+
   "fodera 100% poliestere."},variant,"COL_11000050_8ZR_378_50",
