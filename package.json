@@ -81,6 +81,7 @@
     "test:amazon-kway-pilot": "node scripts/test-amazon-kway-pilot.mjs",
     "test:amazon-it-season-audit": "node scripts/test-amazon-it-season-audit.mjs",
     "test:amazon-direct-bulk": "node scripts/test-amazon-direct-bulk.mjs",
+    "test:amazon-multibrand-batch": "node scripts/test-amazon-multibrand-batch.mjs",
     "test:rains-size-mapping": "node scripts/test-rains-size-mapping.mjs"
   },
   "devDependencies": {
