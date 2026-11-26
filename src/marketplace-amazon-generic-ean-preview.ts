@@ -1323,8 +1323,25 @@ export async function previewAmazonGenericEanValidation(
     (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
     Array.isArray(obj(sizeProps.height_type).enum)&&
     (obj(sizeProps.height_type).enum as string[]).includes("regular");
-  const mappedSize=regularFit?{...merchantSize.value,
-    body_type:"regular",height_type:"regular"}:merchantSize.value;
+  // Amazon's live PTD wire token for merchant IT 48 can be "numeric_48"
+  // rather than the display label "48". Use only a uniquely verified exact
+  // enum/enumNames pair returned by this marketplace's fresh PTD research.
+  // Only Colmar numeric apparel, never global numeric or EU cross-market.
+  const numericDisplay=merchantSize.value?.size;
+  const numericToken=typeof numericDisplay==="string"?
+    obj(obj(research.ptd_numeric_size_label_tokens).apparel_size)[numericDisplay]:
+    undefined;
+  const mappedColmarNumeric=sku.startsWith("COL_")&&
+    p.vendor==="Colmar Originals"&&marketplace==="IT"&&
+    merchantSize.attribute==="apparel_size"&&
+    merchantSize.value?.size_class==="numeric"&&
+    typeof numericDisplay==="string"&&/^[2-6][0-9]$/.test(numericDisplay)&&
+    typeof numericToken==="string"&&
+    numericToken==="numeric_"+numericDisplay;
+  const canonicalSize=mappedColmarNumeric?
+    {...merchantSize.value,size:numericToken}:merchantSize.value;
+  const mappedSize=regularFit?{...canonicalSize,
+    body_type:"regular",height_type:"regular"}:canonicalSize;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],
