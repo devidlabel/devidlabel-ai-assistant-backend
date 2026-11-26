@@ -149,8 +149,9 @@ export async function previewAmazonNewAsinShoesValidation(
     profile.height_map==="low-top";
   const merchantXs=brand==="Puraai"&&
     !!xsCode&&profile.source==="SHOPIFY_EXACT_PURAAI_601_XS_COPY"&&
-    profile.model_number==="6.01"&&profile.gender==="women"&&
-    profile.age_group==="adult"&&profile.height_map==="low-top";
+    profile.model_number==="XS"&&profile.gender==="women"&&
+    profile.age_group==="adult"&&profile.height_map==="low-top"&&
+    profile.regular_width==="medium";
   const sourcedProfile=merchantHyper||merchantPolly||merchantPlay||
     merchantPanther||merchantHyperU||merchantXs;
   const officialMaker=obj(evidence.merchant_official_manufacturer);
@@ -431,7 +432,7 @@ export async function previewAmazonNewAsinShoesValidation(
             obj(evidence.footwear_size).age_group==="adult"&&
             ["women","men"].includes(String(profile.gender))&&
             obj(evidence.footwear_size).gender===profile.gender&&
-            (merchantHyper?
+            ((merchantHyper||merchantXs)?
               profile.regular_width==="medium"&&
                 obj(evidence.footwear_size).width==="medium":
               obj(evidence.footwear_size).width===undefined)
