@@ -164,7 +164,7 @@ function merchantShoesExactProfile(raw:unknown,identity:{
        !/\bChiusura con lacci\b/i.test(plain)||
        !/\bsilhouette low-top\b/i.test(plain))return {};
     const leather=/\bupper in pelle\b/i.test(plain);
-    const suede=/\b(?:inserti?|upper)\s+(?:in\s+)?suede\b/i.test(plain);
+    const suede=/\b(?:inserto|inserti|upper)\s+(?:in\s+)?suede\b/i.test(plain);
     const casual=/\b(?:outfit|abbinamenti)\s+casual\b|\bcasual premium\b/i.test(plain);
     return {
       source:"SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY",
