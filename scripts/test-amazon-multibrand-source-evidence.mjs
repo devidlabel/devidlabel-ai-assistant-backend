@@ -53,6 +53,14 @@ const exactSock=derive(socks,{compareAtPrice:"19.90",
 assert.deepEqual(exactSock.apparel_size,[{size:"41",size_to:"46",
   size_class:"numeric",size_system:"as6",marketplace_id:market}]);
 assert.equal(exactSock.target_gender[0].value,"unisex");
+assert.equal(exactSock.weave_type[0].value,"Maglia");
+assert.equal(exactSock.style[0].value,"Sportivo");
+assert.equal(exactSock.special_size_type[0].value,"Standard");
+assert.equal(exactSock.supplier_declared_dg_hz_regulation[0].value,"not_applicable");
+assert.equal(exactSock.item_package_weight[0].value,0.2);
+assert.equal(exactSock.item_package_dimensions[0].length.value,25);
+assert.equal(exactSock.item_package_dimensions[0].width.value,18);
+assert.equal(exactSock.item_package_dimensions[0].height.value,4);
 const noPtd=derive(socks,{compareAtPrice:"19.90",
   selectedOptions:[{name:"Taglia",value:"41-46"}]},
   "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
