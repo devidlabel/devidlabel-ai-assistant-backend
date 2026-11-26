@@ -13,6 +13,15 @@ for(const vendor of ["Back70","BACK70","back70"]){
   assert.equal(x.listing_write_authorized,false);
 }
 assert.equal(resolve("County Of Milan").amazon_brand,"County Of Milan");
+for(const [vendor,amazon] of [["Refrigiwear","RefrigiWear"],["Ecoalf","ECOALF"]]){
+  const x=resolve(vendor);
+  assert.equal(x.amazon_brand,amazon);
+  assert.equal(x.shopify_vendor,vendor);
+  assert.equal(x.source,"AMAZON_CATALOG_VERIFIED_MAPPING");
+  assert.equal(x.listing_write_authorized,false);
+  assert.equal(x.requires_amazon_brand_eligibility_check,true);
+}
+assert.equal(resolve("Colmar").amazon_brand,"Colmar");
 assert.equal(resolve("Pro-Keds").amazon_brand,"Pro-Keds");
 assert.equal(resolve("Pro-Keds").source,"SHOPIFY_VENDOR_UNVERIFIED");
 assert.equal(resolve("Back 70 Streetwear").source,"SHOPIFY_VENDOR_UNVERIFIED",
