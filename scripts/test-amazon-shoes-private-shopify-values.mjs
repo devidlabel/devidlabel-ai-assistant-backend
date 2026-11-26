@@ -615,14 +615,14 @@ const hyperNotProven=await fromDSeriesHtml(hyperComplete.replace(
 assert.equal(hyperNotProven.merchant_shoes_profile,undefined);
 assert.equal(hyperNotProven.country_of_origin,undefined);
 assert.equal(hyperNotProven.footwear_size.size,"38");
-const conflict=structuredClone(fallback);
-conflict.productVariant.product.descriptionHtml=hyperComplete;
-conflict.productVariant.inventoryItem={countryCodeOfOrigin:"CN"};
+const hyperOriginConflict=structuredClone(fallback);
+hyperOriginConflict.productVariant.product.descriptionHtml=hyperComplete;
+hyperOriginConflict.productVariant.inventoryItem={countryCodeOfOrigin:"CN"};
 const conflictRead=await read(fallbackExpected,{},{queryShopify:async (_env,q,v)=>
  q.includes("metaobject(id:$colorId)")?
  {metaobject:{id:v.colorId,type:"product_feature_color",
   displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
- conflict});
+ hyperOriginConflict});
 assert.equal(conflictRead.reason,"shopify_origin_conflicts_exact_product_copy");
 // Exact Polly Smeraldo: code, recycled upper, textile lining and low profile
 // are literal Shopify merchant statements, NOT manufacturer GPSR declarations.
