@@ -133,10 +133,13 @@ function merchantShoesExactProfile(raw:unknown,identity:{
     const second=new RegExp("\\b(?:il\\s+)?modello\\s+"+code+"\\s+da\\s+"+sex+"\\b","i");
     if(!sourceIdentity.test(plain)||!second.test(plain))return {};
     const madeInItaly=/\bMade in Italy\b/i.test(plain)&&
-      /\b(?:realizzata|realizzato|produzione|lavorazione)\s+(?:artigianalmente\s+|interamente\s+|in\s+)?(?:Made in )?Italia\b/i.test(plain);
+      /\b(?:realizzata|realizzato|produzione|lavorazione)\s+(?:artigianalmente\s+|interamente\s+)?(?:in\s+)?Italia\b/i.test(plain);
     const regular=/\bCalzata regolare\b/i.test(plain);
     const leather=/\b(?:tomaia|realizzata|realizzato|base)\s+in\s+pelle\b/i.test(plain);
     const suede=/\binserti\s+in\s+suede\b/i.test(plain);
+    // Do not turn generic style/title text alone into supplier country,
+    // width or material claims. Three independent literal observations.
+    if(!madeInItaly||!regular||!leather)return {};
     return {
       source:"SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY",
       model_number:code,
