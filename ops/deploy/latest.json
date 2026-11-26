@@ -1,23 +1,17 @@
 {
   "ok": false,
-  "generated_at": "2026-11-26T13:38:34.247Z",
-  "source_commit": "69eb8eb1201661b029ae9ca7a43bf94d3028e6f6",
-  "workflow_run_id": 45830805210,
+  "generated_at": "2026-11-26T13:40:02.917Z",
+  "source_commit": "ad32ab63f8a91288c5558cc65906f1f531ec9d5b",
+  "workflow_run_id": 45831258241,
   "worker_url": "https://devidlabel-ai-assistant-backend.devidlabel.workers.dev",
   "verification": {
-    "worker_deployed": "success",
-    "autonomy_discovery": "success",
-    "live_order_probe": "success",
-    "shopify_historical_orders": "success",
-    "youtube_read_only": "failure"
+    "worker_deployed": "skipped",
+    "autonomy_discovery": "skipped",
+    "live_order_probe": "skipped",
+    "shopify_historical_orders": "skipped",
+    "youtube_read_only": "skipped"
   },
-  "shopify_existing_metafield_autonomy": true,
-  "shopify_missing_season_autonomy": true,
-  "autonomy_capabilities": [
-    "klaviyo.campaign.draft.create",
-    "klaviyo.campaign.draft.update",
-    "github.pull_request.create",
-    "shopify.metafields.update_existing",
-    "shopify.product.season.assign_missing"
-  ]
+  "shopify_existing_metafield_autonomy": false,
+  "shopify_missing_season_autonomy": false,
+  "autonomy_capabilities": []
 }
