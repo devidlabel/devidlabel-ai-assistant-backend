@@ -819,26 +819,34 @@ export function merchantMultibrandEvidenceAttrs(
   }
   const color=desc.match(/\bColore:\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ -]{1,45}?)(?=\s+Codice|\s+Stagione|$)/i)?.[1];
   if(candidate(color,46))set("color",text(plain(color!)));
-  // Colmar model/color/size classifications backed by the exact Shopify
-  // variant SKU and product title. Never infer country of origin or supplier
-  // safety declarations from these merchandising values.
+  // Colmar catalogue descriptors are derived from this exact merchant SKU,
+  // its Shopify title/options, and (when populated) its variant inventory origin.
+  // No seller logistics preset, product specification, hazmat, or GPSR value is
+  // inferred from model names or similar products.
   if(isColmar){
     const matchCode=/^COL_([A-Za-z0-9]{3,20})_[A-Za-z0-9]{2,8}_[A-Za-z0-9]{1,5}_[A-Za-z0-9]{1,8}$/.exec(sku);
     if(matchCode){
       set("model_name",[{value:matchCode[1],marketplace_id:marketId}]);
       set("model_number",[{value:matchCode[1],marketplace_id:marketId}]);
     }
-    const exactColor=(
-      /^COL_11000026_8VX_99_(46|48|50|52|54)$/.test(sku)&&
-        title==="Colmar Originals Gilet Uomo Ultra Leggero Nero"
-    )?"Nero":(
-      /^COL_11000050_8ZR_378_(48|50|52|54)$/.test(sku)&&
-        title==="Colmar Originals Giacca Uomo Ibrida Imbottita con Cappuccio Grigio Street"
-    )?"Grigio Street":(
-      /^COL_11000050_8ZR_99_(48|50|52|54)$/.test(sku)&&
-        title==="Colmar Originals Giacca Uomo Ibrida Imbottita con Cappuccio Nero"
-    )?"Nero":undefined;
+    // Only literal colour endings already present in the merchant's exact
+    // product title; never infer the colour from an unverified SKU colour code.
+    const allowedColors=[
+      "Blu Navy Tofu Brick","Marrakech Tofu Navy","Blu Navy Multicolor",
+      "Marrakech Multicolor","Grigio Street","Beige Marrakech",
+      "Bianco Tofu","Tofu Marrakech","Blu Navy","Nero"
+    ];
+    const exactColor=allowedColors.find(value=>title.endsWith(" "+value));
     if(exactColor)set("color",text(exactColor));
+    const variantOrigin=obj(variant.inventoryItem).countryCodeOfOrigin;
+    // Shopify InventoryItem countryCodeOfOrigin is a variant-level merchant
+    // declaration, not evidence of where a brand's other garments are made.
+    const supportedOrigin=new Set(["IT","CN","TR","RO","PT","ES","FR","DE",
+      "BG","PL","TN","MA","BD","VN","IN","PK","ID","KH","MM","EG","AL",
+      "MD","UA","GR","CZ","SK","HU","SI","HR","LT","LV","EE","GB","US"]);
+    if(typeof variantOrigin==="string"&&supportedOrigin.has(variantOrigin)){
+      set("country_of_origin",[{value:variantOrigin,marketplace_id:marketId}]);
+    }
     const optionSize=Array.isArray(variant.selectedOptions)?
       variant.selectedOptions.map(obj).find(o=>
         typeof o.name==="string"&&["taglia","size"].includes(o.name.toLowerCase()))?.value:undefined;
@@ -846,6 +854,14 @@ export function merchantMultibrandEvidenceAttrs(
        sku.endsWith("_"+optionSize)&&/\b(?:Uomo|Donna)\b/.test(title)){
       set("special_size_type",text("Standard"));
     }
+    // Additional merchant-exact garment descriptions beyond the narrow
+    // "chiusura frontale con zip" path below.
+    if(/\b(?:chiusura\s+a\s+doppia\s+zip|zip\s+frontale\s+a\s+doppio\s+cursore)\b/i.test(desc)){
+      set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
+        marketplace_id:marketId}]);
+    }
+    if(/\bvestibilit[aà]\s+regular\b/i.test(desc))
+      set("fit_type",text("Regular"));
   }
   if(isColmar)set("manufacturer",text("COLMAR"));
   if(isEco)set("manufacturer",text("Ecoalf"));
