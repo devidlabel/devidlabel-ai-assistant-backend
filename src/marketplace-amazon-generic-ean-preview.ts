@@ -900,17 +900,32 @@ export function merchantMultibrandEvidenceAttrs(
         ["taglia","size"].includes(o.name.toLowerCase()))?.value;
       if(headSize==="Unica"||headSize==="UNICA"||headSize==="Taglia unica"){
         const shape=obj(obj(research.ptd_size_shapes).headwear_size);
-        const values=obj(obj(shape.items).properties).size;
-        const choices=obj(values).enum;
-        if(Array.isArray(choices)&&choices.includes("one_size"))
-          set("headwear_size",[{size:"one_size",marketplace_id:marketId}]);
+        const item=obj(shape.items),props=obj(item.properties);
+        const systems=obj(props.size_system).enum;
+        const classes=obj(props.size_class).enum;
+        const tokenSet=obj(research.ptd_alpha_size_tokens).headwear_size;
+        const mandatory=item.required;
+        if(shape.type==="array"&&item.type==="object"&&
+           Array.isArray(systems)&&systems.includes("as6")&&
+           Array.isArray(classes)&&classes.includes("alpha")&&
+           Array.isArray(mandatory)&&
+           ["size","size_class","size_system"].every(x=>mandatory.includes(x))&&
+           Array.isArray(tokenSet)&&tokenSet.includes("one_size"))
+          set("headwear_size",[{
+            size:"one_size",size_class:"alpha",size_system:"as6",
+            marketplace_id:marketId}]);
       }
     }
     const optionSize=Array.isArray(variant.selectedOptions)?
       variant.selectedOptions.map(obj).find(o=>
         typeof o.name==="string"&&["taglia","size"].includes(o.name.toLowerCase()))?.value:undefined;
-    if(typeof optionSize==="string"&&/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&
-       sku.endsWith("_"+optionSize)&&/\b(?:Uomo|Donna)\b/.test(title)){
+    if(typeof optionSize==="string"&&
+       ((/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&pt==="COAT")||
+        (["SWEATER","SWEATSHIRT","SHIRT"].includes(pt)&&/^(XXS|XS|S|M|L|XL|XXL|XXXL)$/.test(optionSize))||
+        (pt==="HAT"&&["Unica","UNICA","Taglia unica"].includes(optionSize)))&&
+       (sku.endsWith("_"+optionSize)||
+         (pt==="HAT"&&sku.endsWith("_UNICA")))&&
+       /\b(?:Uomo|Donna)\b/.test(title)){
       set("special_size_type",text("Standard"));
     }
     // Additional merchant-exact garment descriptions beyond the narrow
@@ -1079,20 +1094,22 @@ export function merchantMultibrandEvidenceAttrs(
   if(isColmar&&/\bimpermeabile\b/i.test(desc)&&
      !/\bnon\s+impermeabile\b/i.test(desc))
     set("water_resistance_level",[{value:"waterproof",marketplace_id:marketId}]);
-  // The exact 11000050 hybrid jackets have no certified water resistance
-  // asserted by the merchant. Default to not_water_resistant rather than
-  // fabricating a water-resistant technical claim; do not generalize to
-  // other Colmar models or override an actual documented property.
-  if(isColmar&&pt==="COAT"&&
-     /^COL_11000050_8ZR_(99|378)_(48|50|52|54)$/.test(sku)&&
+  // Conservative seller default: do not claim water-resistance performance
+  // absent an exact Shopify/official claim. Scoped to Colmar apparel COAT /
+  // SWEATER; a positive water claim always overrides this non-claim baseline.
+  if(isColmar&&["COAT","SWEATER"].includes(pt)&&
      !Object.hasOwn(attrs,"water_resistance_level")&&
      !/\b(?:idrorepellente|impermeabile|waterproof)\b/i.test(desc))
     set("water_resistance_level",[{value:"not_water_resistant",
       marketplace_id:marketId}]);
   // Do not assert water resistance when the exact merchant description
   // contains no supporting statement.
-  if(/\bchiusura(?:\s+frontale)?\s+(?:con|a)\s+(?:doppia\s+)?zip\b/i.test(desc))
+  if(/\bchiusura(?:\s+frontale)?\s+(?:con|a)\s+(?:doppia\s+)?zip\b/i.test(desc)||
+     (isColmar&&/\bzip a doppio cursore\b/i.test(desc)))
     set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+  if(isColmar&&/\bchiusura(?:\s+frontale)?\s+con\s+bottoni\b/i.test(desc))
+    set("closure",[{type:[{value:"Bottoni",language_tag:"it_IT"}],
       marketplace_id:marketId}]);
   if(/\b(casual|urbano)\b/i.test(desc))set("style",text("Casual"));
   if(/\bsportivo\b/i.test(desc))set("style",text("Sportivo"));
