@@ -232,7 +232,9 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       /^4B12_HYPER_[DU][0-9]{4}_[34][0-9]_EU$/.test(input.sku)&&
         shoeProfile.source==="SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY"||
       /^4B12_(?:PLAYNEW|PLAYNEWSKY)_[DU][0-9]{4}_[34][0-9]_EU$/.test(input.sku)&&
-        shoeProfile.source==="SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY");
+        shoeProfile.source==="SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY"||
+      /^4B12_HYPER_U[0-9]{4}_[34][0-9]_EU$/.test(input.sku)&&
+        shoeProfile.source==="SHOPIFY_EXACT_4B12_HYPER_U_PRODUCT_COPY");
     const officialVerified=s.amazon_listing_brand==="4B12"&&sourceMapped&&
       official.source==="OFFICIAL_4B12_MANUFACTURER_NAME_20261126"&&
       official.name==="Medusa s.r.l."&&
@@ -312,12 +314,18 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
     profile.age_group==="adult"&&
     profile.gender===(playCode[2][0]==="D"?"women":"men")&&
     profile.height_map==="low-top";
+  const sourcedModernHyper=s.amazon_listing_brand==="4B12"&&
+    profile.source==="SHOPIFY_EXACT_4B12_HYPER_U_PRODUCT_COPY"&&
+    /^4B12_HYPER_U[0-9]{4}_[34][0-9]_EU$/.test(input.sku)&&
+    profile.model_number==="HYPER-"+input.sku.match(/_HYPER_(U[0-9]{4})_/)?.[1]&&
+    profile.age_group==="adult"&&profile.gender==="men"&&
+    profile.height_map==="low-top";
   const sourcedPanther=s.amazon_listing_brand==="Puraai"&&
     profile.source==="SHOPIFY_EXACT_PURAAI_PANTHER_602_COPY"&&
     !!pantherCode&&profile.model_number==="6.02"&&
     profile.age_group==="adult"&&
     ["women","men"].includes(String(profile.gender));
-  if(sourcedHyper||sourcedPolly||sourcedPlay||sourcedPanther){
+  if(sourcedHyper||sourcedPolly||sourcedPlay||sourcedPanther||sourcedModernHyper){
     const expectedProfileAttrs:Record<string,unknown>={
       model_number:[{value:profile.model_number,marketplace_id:marketId}],
       age_range_description:[{value:"Adulto",language_tag:locale,marketplace_id:marketId}],
@@ -342,13 +350,19 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
           outer:[{material:[{value:profile.outer,language_tag:locale}],marketplace_id:marketId}]}:{}),
         ...(profile.leather_type==="Pelle scamosciata"?{
           leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}]}:{})
-      }:{
+      }:sourcedPanther?{
         ...(profile.height_map==="low-top"?{
           height_map:[{value:"low-top",marketplace_id:marketId}]}:{}),
         ...(profile.lifestyle==="Casual"?{
           lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
         bullet_point:[{value:"Modello Puraai: Panther 6.02",
           language_tag:locale,marketplace_id:marketId}]
+      }:{
+        height_map:[{value:"low-top",marketplace_id:marketId}],
+        ...(profile.lifestyle==="Casual"?{
+          lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
+        ...(profile.outer==="Pelle"?{
+          outer:[{material:[{value:"Pelle",language_tag:locale}],marketplace_id:marketId}]}:{})
       })
     };
     for(const [name,value] of Object.entries(expectedProfileAttrs))

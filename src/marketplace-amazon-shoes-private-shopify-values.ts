@@ -150,6 +150,29 @@ function merchantShoesExactProfile(raw:unknown,identity:{
       ...(suede?{leather_type:"Pelle scamosciata"}:{})
     };
   }
+  // 4B12 Hyper U-3012/U-3027 use a different title layout than the
+  // older retailer Hyper D4006. Require literal model/color/closure/department
+  // from the same Shopify HTML so no colorway or generation is borrowed.
+  const modernHyper=/^4B12_HYPER_(U[0-9]{4})_([34][0-9])_EU$/.exec(identity.sku);
+  if(identity.shopifyVendor==="4B12"&&modernHyper){
+    const model="Hyper U-"+modernHyper[1].slice(1);
+    const code="HYPER-"+modernHyper[1];
+    if(!identity.productTitle.startsWith(model+" ")||
+       !new RegExp("\\b"+model+"\\s+4B12\\b","i").test(plain)||
+       !new RegExp("\\bCodice modello:\\s*"+code+"\\b","i").test(plain)||
+       !/\bReparto:\s*Uomo\b/i.test(plain)||
+       !/\bChiusura con lacci\b/i.test(plain)||
+       !/\bsilhouette low-top\b/i.test(plain))return {};
+    const leather=/\b(?:upper|sneaker(?:\s+Hyper)?)\s+in\s+pelle\b/i.test(plain);
+    const casual=/\bcasual premium\b|\babbinamenti casual\b/i.test(plain);
+    return {
+      source:"SHOPIFY_EXACT_4B12_HYPER_U_PRODUCT_COPY",
+      model_number:code,age_group:"adult",gender:"men",
+      height_map:"low-top",
+      ...(casual?{lifestyle:"Casual"}:{}),
+      ...(leather?{outer:"Pelle"}:{})
+    };
+  }
   const play=/^4B12_(PLAYNEW|PLAYNEWSKY)_([DU][0-9]{4})_([34][0-9])_EU$/.exec(identity.sku);
   if(identity.shopifyVendor==="4B12"&&play){
     const code=play[1]+"-"+play[2],sex=play[2][0]==="D"?"donna":"uomo";
@@ -497,7 +520,8 @@ export async function readAmazonShoesPrivateShopifyValues(
   const official4B12=expected.shopifyVendor==="4B12"&&
     expected.amazonBrand==="4B12"&&
     ["SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY",
-     "SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY"].includes(String(exactProfile.source))&&
+     "SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY",
+     "SHOPIFY_EXACT_4B12_HYPER_U_PRODUCT_COPY"].includes(String(exactProfile.source))&&
     !fields.has("manufacturer")?
     {source:"OFFICIAL_4B12_MANUFACTURER_NAME_20261126",
      name:"Medusa s.r.l.",official_url:"https://4b12.it/contattaci"}:
