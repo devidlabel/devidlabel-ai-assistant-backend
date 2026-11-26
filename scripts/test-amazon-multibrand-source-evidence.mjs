@@ -146,6 +146,24 @@ const h=derive(hybrid,{selectedOptions:[{name:"Taglia",value:"50"}]},
   "COL_11000050_8ZR_378_50","COAT","IT",market,keys);
 assert.equal(h.color[0].value,"Grigio Street");
 assert.equal(h.model_name[0].value,"11000050");
+assert.equal(h.water_resistance_level[0].value,"not_water_resistant");
+const slimColmar={vendor:"Colmar Originals",
+  title:"Colmar Originals Piumino Donna Leggero con Cappuccio Nero",
+  productType:"Giacche e cappotti",
+  description:"Cappuccio fisso, chiusura frontale a doppia zip e tasche con zip. "+
+    "Tessuto idrorepellente con fibre riciclate."};
+const slimAttrs=derive(slimColmar,{selectedOptions:[{name:"Taglia",value:"42"}]},
+  "COL_22000013_2YO_99_42","COAT","IT",market,
+  [...keys,"country_of_origin","item_package_dimensions","item_package_weight"]);
+assert.equal(slimAttrs.closure[0].type[0].value,"Zip");
+assert.equal(slimAttrs.water_resistance_level[0].value,"water_resistant");
+assert.equal(slimAttrs.country_of_origin[0].value,"CN");
+const unverifiedWater=derive({...slimColmar,
+  description:"Un piumino donna con cappuccio e chiusura zip."},
+  {selectedOptions:[{name:"Taglia",value:"42"}]},
+  "COL_22000013_2YO_99_42","COAT","IT",market,keys);
+assert.equal(unverifiedWater.water_resistance_level,undefined,
+  "Do not default other Colmar jackets to certified water properties");
 const provenanceKeys=[...keys,"country_of_origin","model_number","fit_type"];
 const sourced=derive({...col,title:"Colmar Originals Piumino Uomo Opaco con Cappuccio Blu Navy"},
   {selectedOptions:[{name:"Taglia",value:"48"}],
