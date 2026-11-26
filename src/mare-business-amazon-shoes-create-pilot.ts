@@ -275,6 +275,63 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
          language_tag:locale,marketplace_id:marketId}]))return false;
     confirmedShared.add("sole_material");
   }
+  const profile=obj(freshEvidence.merchant_shoes_profile);
+  const hCode=/^4B12_HYPER_([DU][0-9]{4})_([34][0-9])_EU$/.exec(input.sku);
+  const pCode=/^PUI_(PU405P-[0-9]{3})_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(input.sku);
+  const sourcedHyper=s.amazon_listing_brand==="4B12"&&
+    profile.source==="SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY"&&
+    !!hCode&&profile.model_number===hCode[1][0]+"-"+hCode[1].slice(1)&&
+    profile.age_group==="adult"&&
+    profile.gender===(hCode[1][0]==="D"?"women":"men")&&
+    profile.regular_width==="medium"&&profile.country_of_origin==="IT"&&
+    ["Pelle","Pelle e suede"].includes(String(profile.outer));
+  const sourcedPolly=s.amazon_listing_brand==="Puraai"&&
+    profile.source==="SHOPIFY_EXACT_PURAAI_POLLY_PRODUCT_COPY"&&
+    !!pCode&&profile.model_number===pCode[1]&&
+    profile.outer==="Microfibra riciclata"&&profile.inner==="Tessuto"&&
+    profile.leather_type==="Materiale sintetico"&&
+    profile.height_map==="low-top"&&
+    profile.age_group==="adult"&&profile.gender==="women";
+  if(sourcedHyper||sourcedPolly){
+    const expectedProfileAttrs:Record<string,unknown>={
+      model_number:[{value:profile.model_number,marketplace_id:marketId}],
+      age_range_description:[{value:"Adulto",language_tag:locale,marketplace_id:marketId}],
+      ...(sourcedHyper?{
+        country_of_origin:[{value:"IT",marketplace_id:marketId}],
+        outer:[{material:[{value:profile.outer,language_tag:locale}],marketplace_id:marketId}],
+        ...(profile.leather_type==="Pelle scamosciata"?{
+          leather_type:[{value:"Pelle scamosciata",language_tag:locale,marketplace_id:marketId}]
+        }:{})
+      }:{
+        outer:[{material:[{value:"Microfibra riciclata",language_tag:locale}],marketplace_id:marketId}],
+        inner:[{material:[{value:"Tessuto",language_tag:locale}],marketplace_id:marketId}],
+        leather_type:[{value:"Materiale sintetico",language_tag:locale,marketplace_id:marketId}],
+        height_map:[{value:"low-top",marketplace_id:marketId}],
+        bullet_point:[{value:"Modello Puraai: Tomaia in microfibra riciclata",
+          language_tag:locale,marketplace_id:marketId}]
+      })
+    };
+    for(const [name,value] of Object.entries(expectedProfileAttrs))
+      if(Object.hasOwn(attrs,name)&&JSON.stringify(attrs[name])===JSON.stringify(value))
+        confirmedShared.add(name);
+    // The exact profile must never be applied to an unrelated SKU, supplier,
+    // GTIN or size; any submitted profile-specific fields require perfect
+    // correspondence to the fresh source.
+    const allowedProfileFields=sourcedHyper?
+      ["outer","leather_type"]:["outer","inner","leather_type","height_map"];
+    for(const key of allowedProfileFields)
+      if(Object.hasOwn(attrs,key)&&!confirmedShared.has(key))return false;
+    if(Object.hasOwn(attrs,"model_number")&&!confirmedShared.has("model_number"))
+      return false;
+    // Only the numeric EU code read freshly from Shopify selectedOptions can
+    // be published; the wire value must match that exact selected label.
+    const footwear=single("footwear_size");
+    const opt=obj(freshEvidence.footwear_size);
+    if(!/^numeric_[34][0-9]$/.test(String(opt.size))||
+       (Object.hasOwn(attrs,"footwear_size")&&
+        JSON.stringify(footwear)!==JSON.stringify({...opt,marketplace_id:marketId})))
+      return false;
+  }
   const styleSource=obj(freshEvidence.merchant_shoes_style);
   const styleConfirmed=styleSource.source==="SHOPIFY_EXPLICIT_SHOE_STYLE_DESCRIPTION";
   if(styleConfirmed&&Object.hasOwn(attrs,"lifestyle")){

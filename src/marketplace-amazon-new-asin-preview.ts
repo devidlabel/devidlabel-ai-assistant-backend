@@ -112,6 +112,22 @@ export async function previewAmazonNewAsinShoesValidation(
   // Shopify inventoryItem or Amazon-specific merchant metadata; it is NOT
   // independently manufacturer certified or usable as GPSR/write approval.
   // No material, manufacturer, brand permission or price is inferred.
+  const profile=obj(evidence.merchant_shoes_profile);
+  const hyperCode=/^4B12_HYPER_([DU][0-9]{4})_([34][0-9])_EU$/.exec(sku);
+  const pollyCode=/^PUI_(PU405P-[0-9]{3})_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(sku);
+  const merchantHyper=brand==="4B12"&&
+    profile.source==="SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY"&&
+    !!hyperCode&&profile.model_number===
+      hyperCode[1][0]+"-"+hyperCode[1].slice(1)&&
+    profile.age_group==="adult"&&
+    profile.gender===(hyperCode[1][0]==="D"?"women":"men");
+  const merchantPolly=brand==="Puraai"&&
+    profile.source==="SHOPIFY_EXACT_PURAAI_POLLY_PRODUCT_COPY"&&
+    !!pollyCode&&profile.model_number===pollyCode[1]&&
+    profile.age_group==="adult"&&profile.gender==="women"&&
+    profile.outer==="Microfibra riciclata"&&profile.inner==="Tessuto"&&
+    profile.height_map==="low-top";
+  const sourcedProfile=merchantHyper||merchantPolly;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
   // Preview-only locale texts for exact PlayNew style. Live writer remains
   // restricted to IT until per-country PTD and commercial eligibility proven.
@@ -201,6 +217,21 @@ export async function previewAmazonNewAsinShoesValidation(
     ...(sourcedStyle&&merchantStyle.low_top===true?{
       height_map:[{value:"low-top",marketplace_id:marketId}]
     }:{}),
+    // Exact product-and-SKU merchant descriptions, not cross-model assumptions.
+    ...(merchantPolly?{
+      outer:[{material:[{value:"Microfibra riciclata",language_tag:locale}],marketplace_id:marketId}],
+      inner:[{material:[{value:"Tessuto",language_tag:locale}],marketplace_id:marketId}],
+      leather_type:[{value:"Materiale sintetico",language_tag:locale,marketplace_id:marketId}],
+      height_map:[{value:"low-top",marketplace_id:marketId}]
+    }:{}),
+    ...(merchantHyper&&typeof profile.outer==="string"&&
+        ["Pelle","Pelle e suede"].includes(profile.outer)?{
+      outer:[{material:[{value:profile.outer,language_tag:locale}],marketplace_id:marketId}],
+      ...(profile.leather_type==="Pelle scamosciata"?{
+        leather_type:[{value:"Pelle scamosciata",language_tag:locale,
+          marketplace_id:marketId}]}:{})
+    }:{}),
+
 
     ...(explicitSoleValid?{sole_material:[{
       value:soleMap[marketplace][explicitSole.value as string],
@@ -325,6 +356,19 @@ export async function previewAmazonNewAsinShoesValidation(
             obj(evidence.footwear_size).width==="medium" &&
             obj(evidence.footwear_size).size===
               "numeric_"+sku.match(/_([34][0-9])_EU$/)?.[1]
+          ) ||
+          (
+            sourcedProfile&&
+            typeof obj(evidence.footwear_size).size==="string"&&
+            obj(evidence.footwear_size).size===
+              "numeric_"+sku.match(/_([34][0-9])_EU$/)?.[1]&&
+            obj(evidence.footwear_size).age_group==="adult"&&
+            obj(evidence.footwear_size).gender===
+              (merchantHyper&&hyperCode?.[1][0]==="U"?"men":"women")&&
+            (merchantPolly?
+              obj(evidence.footwear_size).width===undefined:
+              profile.regular_width==="medium"&&
+                obj(evidence.footwear_size).width==="medium")
           ) ||
           (
             brand==="Pro-Keds"&&

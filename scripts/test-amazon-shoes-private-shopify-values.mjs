@@ -589,4 +589,80 @@ for(const html of [
 }
 const unrelated=await fromDSeriesHtml(dSeriesHtml,{...fallbackExpected,sku:"4B12_HYPER_U3027_41_EU"});
 assert.equal(unrelated.ok,false,"Unexpected variant identity must fail before description extraction");
+// Source-verified Italian 4B12 Hyper listing attributes: no country or
+// medium shoe width may be inferred from brand, only from exact merchant copy.
+const hyperComplete=[
+ "<p>Sneaker 4B12 Hyper D-4006 da donna in pelle con inserti.</p>",
+ "<p>Il modello D-4006 da donna e una sneaker moderna.</p>",
+ "<p>Realizzata artigianalmente in Italia con tomaia in pelle.</p>",
+ "<p>Produzione interamente Made in Italy.</p>",
+ "<p>Materiali: inserti in suede tono neutro.</p>",
+ "<p>Vestibilita: Calzata regolare.</p>"
+].join("");
+const hyperVerified=await fromDSeriesHtml(hyperComplete);
+assert.equal(hyperVerified.ok,true);
+assert.equal(hyperVerified.merchant_shoes_profile?.source,
+ "SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY");
+assert.equal(hyperVerified.country_of_origin,"IT");
+assert.equal(hyperVerified.age_range_description,"adult");
+assert.deepEqual(hyperVerified.footwear_size,{
+ size:"numeric_38",size_class:"numeric",size_system:"eu_footwear_size_system",
+ age_group:"adult",gender:"women",width:"medium"
+});
+assert.equal(hyperVerified.merchant_shoes_profile.outer,"Pelle e suede");
+const hyperNotProven=await fromDSeriesHtml(hyperComplete.replace(
+ "Produzione interamente Made in Italy.","Produzione non specificata."));
+assert.equal(hyperNotProven.merchant_shoes_profile,undefined);
+assert.equal(hyperNotProven.country_of_origin,undefined);
+assert.equal(hyperNotProven.footwear_size.size,"38");
+const hyperOriginConflict=structuredClone(fallback);
+hyperOriginConflict.productVariant.product.descriptionHtml=hyperComplete;
+hyperOriginConflict.productVariant.inventoryItem={countryCodeOfOrigin:"CN"};
+const conflictRead=await read(fallbackExpected,{},{queryShopify:async (_env,q,v)=>
+ q.includes("metaobject(id:$colorId)")?
+ {metaobject:{id:v.colorId,type:"product_feature_color",
+  displayName:"Bianco",fields:[{key:"name",type:"single_line_text_field",value:"Bianco"}]}}:
+ hyperOriginConflict});
+assert.equal(conflictRead.reason,"shopify_origin_conflicts_exact_product_copy");
+// Exact Polly Smeraldo: code, recycled upper, textile lining and low profile
+// are literal Shopify merchant statements, NOT manufacturer GPSR declarations.
+const pollyExpected={sku:"PUI_PU405P-017_SMERALDO_39_EU",
+ variantId:"gid://shopify/ProductVariant/52635774583125",
+ productTitle:"4.05 Polly Smeraldo",
+ shopifyVendor:"Puraai",amazonBrand:"Puraai"};
+const pollySource=structuredClone(fallback);
+pollySource.productVariant.id=pollyExpected.variantId;
+pollySource.productVariant.sku=pollyExpected.sku;
+pollySource.productVariant.product.title=pollyExpected.productTitle;
+pollySource.productVariant.product.vendor=pollyExpected.shopifyVendor;
+pollySource.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Polly"};
+pollySource.productVariant.product.fallbackColorRef=undefined;
+pollySource.productVariant.product.fallbackColorText={type:"single_line_text_field",value:"Smeraldo"};
+pollySource.productVariant.selectedOptions=[{name:"Numero",value:"39 EU"}];
+pollySource.productVariant.product.descriptionHtml=[
+ "<p>Sneaker Puraai donna modello Polly in eco suede color smeraldo.</p>",
+ "<p>Codice: PU405P-017_SMERALDO.</p>",
+ "<p>Sneakers da donna basse firmate Puraai.</p>",
+ "<p>Queste scarpe presentano una tomaia in microfibra riciclata, fodera in tessuto.</p>"
+].join("");
+const polly=await read(pollyExpected,{},{queryShopify:async()=>pollySource});
+assert.equal(polly.ok,true);
+assert.equal(polly.merchant_shoes_profile?.source,
+ "SHOPIFY_EXACT_PURAAI_POLLY_PRODUCT_COPY");
+assert.equal(polly.model_number,"PU405P-017");
+assert.equal(polly.bullet_point,"Tomaia in microfibra riciclata");
+assert.equal(polly.merchant_shoes_profile.outer,"Microfibra riciclata");
+assert.equal(polly.merchant_shoes_profile.inner,"Tessuto");
+assert.equal(polly.age_range_description,"adult");
+assert.deepEqual(polly.footwear_size,{
+ size:"numeric_39",size_class:"numeric",size_system:"eu_footwear_size_system",
+ age_group:"adult",gender:"women"
+});
+const pollyMutation=structuredClone(pollySource);
+pollyMutation.productVariant.product.descriptionHtml=
+ pollyMutation.productVariant.product.descriptionHtml.replace(
+ "PU405P-017_SMERALDO","PU405P-999_SMERALDO");
+const pollyWrong=await read(pollyExpected,{},{queryShopify:async()=>pollyMutation});
+assert.equal(pollyWrong.merchant_shoes_profile,undefined);
+assert.equal(pollyWrong.footwear_size.size,"39");
 console.log("Shopify admin-only Amazon SHOES field read regression tests passed.");
