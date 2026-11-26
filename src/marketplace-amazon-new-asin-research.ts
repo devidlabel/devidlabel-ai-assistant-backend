@@ -109,18 +109,28 @@ function entries(catalogRaw: unknown, sku: string): {product: Row; variant: Row}
     }
   }
   if(matches.length===1)return matches[0];
-  // A merchant may have a zero-stock, UNLISTED historical copy of an ACTIVE
-  // K-Way SKU. Never treat it as a second sellable identity, but only when
-  // SKU, EAN and brand agree and precisely one ACTIVE variant remains.
-  if(sku.startsWith("KWAY_")){
+  // Legacy zero-stock copies must never override the *only* ACTIVE SKU.
+  // K-Way retains its strict historical same-EAN proof. Refrigiwear migrated
+  // retired UNLISTED products to a new ACTIVE product with a new GTIN (or no
+  // GTIN in the legacy row). Accept that case only for a same-brand, exact
+  // same-SKU, inventory-tracked, zero-stock inactive copy; all other duplicate
+  // or positive-stock cases remain blocked. Amazon identity and GTIN uniqueness
+  // are independently checked after this selection.
+  const vendor=sku.startsWith("KWAY_")?"K-Way":
+    sku.startsWith("RFR_")?"Refrigiwear":null;
+  if(vendor){
     const active=matches.filter(x=>x.product.status==="ACTIVE"&&
-      x.product.vendor==="K-Way");
+      x.product.vendor===vendor);
     if(active.length===1&&
        typeof active[0].variant.barcode==="string"&&
        matches.every(x=>x===active[0]||
-         (x.product.vendor==="K-Way"&&
+         (x.product.vendor===vendor&&
           ["UNLISTED","ARCHIVED"].includes(String(x.product.status))&&
-          x.variant.barcode===active[0].variant.barcode&&
+          (vendor==="Refrigiwear"||
+            x.variant.barcode===active[0].variant.barcode)&&
+          (vendor!=="Refrigiwear"||
+            (x.variant.inventory_tracked===true&&
+             x.variant.inventory_levels_complete===true))&&
           Number.isSafeInteger(x.variant.inventory_quantity)&&
           x.variant.inventory_quantity===0)))
       return active[0];
@@ -152,14 +162,20 @@ function eanUniqueInShopify(catalogRaw: unknown, ean: string, expectedVariantId:
   if(selected.length!==1)return false;
   if(records.length===1)return true;
   const main=selected[0];
-  if(main.product.status!=="ACTIVE"||main.product.vendor!=="K-Way"||
-     typeof main.variant.sku!=="string"||!main.variant.sku.startsWith("KWAY_"))
+  const vendor=typeof main.variant.sku==="string"&&
+    main.variant.sku.startsWith("KWAY_")?"K-Way":
+    typeof main.variant.sku==="string"&&
+    main.variant.sku.startsWith("RFR_")?"Refrigiwear":null;
+  if(main.product.status!=="ACTIVE"||!vendor||main.product.vendor!==vendor)
     return false;
   return records.every(x=>x===main||
-    (x.product.vendor==="K-Way"&&
+    (x.product.vendor===vendor&&
      ["UNLISTED","ARCHIVED"].includes(String(x.product.status))&&
      x.variant.sku===main.variant.sku&&
      x.variant.barcode===main.variant.barcode&&
+     (vendor!=="Refrigiwear"||
+       (x.variant.inventory_tracked===true&&
+        x.variant.inventory_levels_complete===true))&&
      Number.isSafeInteger(x.variant.inventory_quantity)&&
      x.variant.inventory_quantity===0));
 }
