@@ -95,6 +95,29 @@ assert.equal(derive(socks,variant,
   "ECO_MCUACSXMOUNT0697W25_339_4146","SOCKS","IT",market,
   [...keys,"country_of_origin"]).country_of_origin,undefined,
   "AW26 evidence must not leak to other seasons");
+const maka={vendor:"Ecoalf",title:"Giacca Maka Black",
+  productType:"Giacche e cappotti",description:"Giacca Maka Black. Genere: Donna."};
+const makaAttrs=derive(maka,variant,"ECO_MCWGAJKMAKA00255W26_319_S",
+  "COAT","IT",market,keys);
+assert.equal(makaAttrs.fabric_type[0].value,"100% Poliestere riciclato");
+assert.equal(makaAttrs.outer[0].material[0].value,"100% Poliestere riciclato");
+assert.equal(makaAttrs.weave_type[0].value,"Tessuto tecnico");
+assert.equal(makaAttrs.water_resistance_level[0].value,"waterproof");
+assert.equal(makaAttrs.closure[0].type[0].value,"Zip e bottoni");
+assert.equal(makaAttrs.special_size_type[0].value,"Standard");
+assert.equal(makaAttrs.item_package_weight[0].value,1.1);
+assert.equal(makaAttrs.item_package_dimensions[0].height.value,12);
+assert.equal(makaAttrs.supplier_declared_dg_hz_regulation[0].value,
+  "not_applicable");
+assert.equal(makaAttrs.country_of_origin,undefined);
+for(const [p,sku] of [[{...maka,title:"Giacca Maka Orange"},
+  "ECO_MCWGAJKMAKA00255W26_319_S"],
+  [maka,"ECO_MCWGAJKMAKA00255W26_604_S"],
+  [{...maka,vendor:"Other Brand"},"ECO_MCWGAJKMAKA00255W26_319_S"]]){
+  const x=derive(p,variant,sku,"COAT","IT",market,keys);
+  assert.equal(x.item_package_dimensions,undefined);
+  assert.equal(x.water_resistance_level,undefined);
+}
 const col={vendor:"Colmar Originals",title:"Colmar Originals Gilet Uomo Ultra Leggero Nero",
   productType:"Gilet",description:"Questo gilet Colmar Originals da uomo ha tessuto esterno idrorepellente. "+
   "Chiusura frontale con zip. Esterno e fodera: 100% poliammide. "+
