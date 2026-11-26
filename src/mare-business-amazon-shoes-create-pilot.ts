@@ -235,6 +235,31 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
   // Merchant-sourced generic attributes need a fresh exact Shopify read and
   // a value-by-value match to the previously submitted validation preview.
   const confirmedShared=new Set<string>();
+  // Preserve the seller's already-declared 2026-10-27 shipping-box preset
+  // without mistaking it for measured product dimensions. The same exact
+  // merchant source and numeric literals must survive a *fresh* private
+  // Shopify read. This is not a supplier/GPSR declaration and must never
+  // validate a different weight, unknown battery state or another package.
+  const pack=obj(freshEvidence.merchant_standard_package);
+  const packProven=pack.source==="MERCHANT_STANDARD_ESTIMATE_2026_10_27"&&
+    pack.length_cm===35&&pack.width_cm===22&&pack.height_cm===12&&
+    pack.weight_kg===1&&pack.batteries_required===false&&
+    pack.manufacturer_certified===false;
+  if(packProven){
+    const expectedPackage:Record<string,unknown>={
+      batteries_required:[{value:false,marketplace_id:marketId}],
+      item_package_weight:[{value:1,unit:"kilograms",marketplace_id:marketId}],
+      item_package_dimensions:[{
+        length:{value:35,unit:"centimeters"},
+        width:{value:22,unit:"centimeters"},
+        height:{value:12,unit:"centimeters"},
+        marketplace_id:marketId
+      }]
+    };
+    for(const [key,value] of Object.entries(expectedPackage))
+      if(Object.hasOwn(attrs,key)&&JSON.stringify(attrs[key])===JSON.stringify(value))
+        confirmedShared.add(key);
+  }
   const sole=obj(freshEvidence.merchant_shoes_sole);
   if(Object.hasOwn(attrs,"sole_material")&&
      sole.source==="MERCHANT_EXPLICIT_SHOPIFY_SOLE_TEXT"){
