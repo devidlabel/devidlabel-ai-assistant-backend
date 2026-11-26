@@ -185,8 +185,11 @@ function merchantShoesExactProfile(raw:unknown,identity:{
     if(identity.productTitle.toLowerCase()!=="sneaker 6.02 panther "+color)return {};
     const literal=new RegExp("\\b(?:Puraai\\s+(?:6[.]02\\s+Panther|Panther\\s+6[.]02)|Panther\\s+6[.]02\\s+di\\s+Puraai)\\s+"+
       panther[1].replace(/_/g,"\\s+")+"\\b","i");
-    const sex=/\bsneaker donna\b|\bsneaker\s+da\s+donna\b/i.test(plain)?
-      "women":/\bsneaker uomo\b|\bsneaker\s+da\s+uomo\b/i.test(plain)?
+    const exactFamilyGender=new RegExp("\\bSneaker\\s+Puraai\\s+Panther\\s+6[.]02\\s+"+
+      panther[1].replace(/_/g,"\\s+")+"\\s+da\\s+(donna|uomo)\\b","i")
+      .exec(plain)?.[1].toLowerCase();
+    const sex=exactFamilyGender==="donna"||/\bsneaker donna\b|\bsneaker\s+da\s+donna\b/i.test(plain)?
+      "women":exactFamilyGender==="uomo"||/\bsneaker uomo\b|\bsneaker\s+da\s+uomo\b/i.test(plain)?
       "men":undefined;
     if(!literal.test(plain)||!sex)return {};
     const low=/\b(?:silhouette bassa|profilo basso|profilo low-top)\b/i.test(plain);
