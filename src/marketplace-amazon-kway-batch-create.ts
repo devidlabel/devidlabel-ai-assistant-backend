@@ -9,7 +9,7 @@ type Env = AmazonCredentials & MareBusinessShopifyEnv & {
 type Deps = { pilot?: typeof createKwayNewAsinPilot };
 const MARKET = new Set(["IT","DE","FR","ES"]);
 const TYPES = new Set(["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF",
-  "HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]);
+  "HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]);
 const SKU = /^KWAY_[A-Za-z0-9_ .-]{1,114}$/;
 type Item = {sku:string;product_type:string;source_marketplace?:"IT"|"DE"|"FR"|"ES";source_asin?:string};
 function obj(x: unknown): Obj { return x && typeof x==="object" && !Array.isArray(x)?x as Obj:{}; }

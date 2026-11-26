@@ -612,7 +612,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
           type:"object",additionalProperties:false,
           properties:{
             sku:{type:"string",minLength:6,maxLength:120,pattern:"^KWAY_[A-Za-z0-9_ .-]{1,114}$"},
-            product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]},
+            product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]},
             source_marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
             source_asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
           },required:["sku","product_type"]
@@ -631,7 +631,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       request_schema:{...schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
-        product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]},
+        product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]},
         source_marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         source_asin:{type:"string",pattern:"^[A-Z0-9]{10}$"}
       },["marketplace","sku","product_type"]),additionalProperties:false},
@@ -663,7 +663,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         items:{type:"array",minItems:1,maxItems:8,items:{type:"object",additionalProperties:false,
           properties:{sku:{type:"string",minLength:6,maxLength:120,pattern:"^KWAY_[A-Za-z0-9_ .-]{1,114}$"},
-          product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]}},
+          product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK","SWEATER","SWEATSHIRT","SCARF","HANDBAG","COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]}},
           required:["sku","product_type"]}}
       },["marketplace","items"]),additionalProperties:false},
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],[amazon,"Amazon SP-API credentials"],
@@ -678,7 +678,7 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
       request_schema:{...schema({
         marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
         sku:{type:"string",minLength:1,maxLength:120,pattern:"^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$"},
-        product_type:{type:"string",enum:["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG","SWEATER","SWEATSHIRT","SCARF","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]}
+        product_type:{type:"string",enum:["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG","SWEATER","SWEATSHIRT","SCARF","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]}
       },["marketplace","sku","product_type"]),additionalProperties:false},
       requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
         [amazon,"Amazon SP-API credentials"],

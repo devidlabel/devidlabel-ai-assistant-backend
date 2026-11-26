@@ -53,4 +53,10 @@ const failure=await previewKwayAsinBatch({marketplace:"FR",items:[
   });
 assert.equal(failure.rows[0].status,"PREVIEW_UNAVAILABLE");
 assert.equal(JSON.stringify(failure).includes("credential"),false);
+const wallet=await previewKwayAsinBatch({marketplace:"IT",items:[
+  {sku:"KWAY_K6116JW WNM",product_type:"WALLET"}]},env,{preview});
+assert.equal(wallet.validation_valid,1);
+assert.equal(wallet.rows[0].ready_for_next_guarded_step,true);
+assert.equal(wallet.provider_mutations,0);
+console.log("K-Way WALLET batch preview type acceptance: PASS");
 console.log("K-Way batch preview tests passed");

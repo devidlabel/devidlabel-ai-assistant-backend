@@ -454,6 +454,7 @@ const GENERIC_TECHNICAL_INSPECTION_FIELDS=[
   "item_depth_width_height","item_length_width_height","number_of_compartments",
   "number_of_pockets","compartment","capacity","lining_description",
   "storage_volume","strap_type","fit_type","collar_style","weave_type",
+  "wallet_compartment_type","size","inner","model_number","part_number",
 ] as const;
 
 
