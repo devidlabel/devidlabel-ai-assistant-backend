@@ -21,6 +21,7 @@ import { previewAmazonAccessoryUpcValidation } from "./marketplace-amazon-access
 import { previewAmazonGenericEanValidation } from "./marketplace-amazon-generic-ean-preview.js";
 import { previewKwayAsinBatch } from "./marketplace-amazon-kway-batch-preview.js";
 import { createRefrigiwearNewAsinPilot } from "./marketplace-amazon-refrigiwear-pilot.js";
+import { createAmazonNewAsinMultibrandBatch } from "./marketplace-amazon-multibrand-batch.js";
 import { createKwayNewAsinPilot } from "./marketplace-amazon-kway-pilot.js";
 import { createKwayNewAsinBatch } from "./marketplace-amazon-kway-batch-create.js";
 import { patchKwayRoulandGpsrContacts } from "./mare-business-amazon-kway-gpsr-contact-pilot.js";
@@ -534,6 +535,7 @@ async function executePreparedCapability(plan: StoredPlan, env: MareBusinessEnv)
   if (plan.capability_id === "amazon.accessory.upc.validation.preview") return textToolResult(await previewAmazonAccessoryUpcValidation(request,env));
   if (plan.capability_id === "amazon.kway.validation.batch.preview") return textToolResult(await previewKwayAsinBatch(request,env));
   if (plan.capability_id === "amazon.generic.ean.validation.preview") return textToolResult(await previewAmazonGenericEanValidation(request,env));
+  if (plan.capability_id === "amazon.new_asin.multibrand.create.batch") return textToolResult(await createAmazonNewAsinMultibrandBatch(request,env));
   if (plan.capability_id === "amazon.refrigiwear.new_asin.create.pilot") return textToolResult(await createRefrigiwearNewAsinPilot(request,env));
   if (plan.capability_id === "amazon.kway.new_asin.create.batch") return textToolResult(await createKwayNewAsinBatch(request,env));
   if (plan.capability_id === "amazon.kway.new_asin.create.pilot") return textToolResult(await createKwayNewAsinPilot(request,env));
