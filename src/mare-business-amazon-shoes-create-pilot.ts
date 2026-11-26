@@ -328,8 +328,9 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
   const sourcedXs=s.amazon_listing_brand==="Puraai"&&
     /^PUI_601_XS_(DUNE|EDEN)_[34][0-9]_EU$/.test(input.sku)&&
     profile.source==="SHOPIFY_EXACT_PURAAI_601_XS_COPY"&&
-    profile.model_number==="6.01"&&profile.age_group==="adult"&&
-    profile.gender==="women"&&profile.height_map==="low-top";
+    profile.model_number==="XS"&&profile.age_group==="adult"&&
+    profile.gender==="women"&&profile.height_map==="low-top"&&
+    profile.regular_width==="medium";
   if(sourcedHyper||sourcedPolly||sourcedPlay||sourcedPanther||
      sourcedModernHyper||sourcedXs){
     const expectedProfileAttrs:Record<string,unknown>={
@@ -373,7 +374,7 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
         height_map:[{value:"low-top",marketplace_id:marketId}],
         ...(profile.lifestyle==="Casual"?{
           lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
-        bullet_point:[{value:"Modello Puraai: 6.01 Xs",
+        bullet_point:[{value:"Modello Puraai: Sneaker XS",
           language_tag:locale,marketplace_id:marketId}]
       })
     };
