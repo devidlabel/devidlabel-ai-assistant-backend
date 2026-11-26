@@ -34,6 +34,36 @@ const sockAttrs=derive(socks,{compareAtPrice:"19.90",
   "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
   [...keys,"country_of_origin"]);
 assert.equal(sockAttrs.country_of_origin[0].value,"ES");
+
+const sizeResearch={
+  ptd_size_shapes_are_read_only:true,
+  ptd_size_shapes_not_schema_validation:true,
+  ptd_size_mapping_not_performed:true,
+  ptd_size_shapes:{apparel_size:{type:"array",items:{type:"object",
+    properties:{size:{type:"string"},size_to:{type:"string"},
+      size_class:{type:"string",enum:["numeric","alpha"]},
+      size_system:{type:"string",enum:["as6"]}},
+    required:["size","size_class","size_system"]}}}
+};
+const exactSock=derive(socks,{compareAtPrice:"19.90",
+  selectedOptions:[{name:"Taglia",value:"41-46"}],
+  inventoryItem:{countryCodeOfOrigin:"ES"}},
+  "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
+  [...keys,"country_of_origin","apparel_size","target_gender"],sizeResearch);
+assert.deepEqual(exactSock.apparel_size,[{size:"41",size_to:"46",
+  size_class:"numeric",size_system:"as6",marketplace_id:market}]);
+assert.equal(exactSock.target_gender[0].value,"unisex");
+const noPtd=derive(socks,{compareAtPrice:"19.90",
+  selectedOptions:[{name:"Taglia",value:"41-46"}]},
+  "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
+  [...keys,"apparel_size"],{});
+assert.equal(noPtd.apparel_size,undefined);
+const unsafeRange=derive(socks,{compareAtPrice:"19.90",
+  selectedOptions:[{name:"Taglia",value:"25-60"}]},
+  "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
+  [...keys,"apparel_size"],sizeResearch);
+assert.equal(unsafeRange.apparel_size,undefined);
+
 assert.equal(sockAttrs.fabric_type[0].value,
   "30% poliammide riciclata / 30% lana riciclata / "+
   "30% TENCEL Lyocell / 10% cashmere riciclato");
