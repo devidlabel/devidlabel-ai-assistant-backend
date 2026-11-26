@@ -111,4 +111,15 @@ assert.deepEqual(diagnostics.rows[0].amazon_issues,[{code:"8560",severity:"WARNI
 assert(!JSON.stringify(diagnostics).includes("PRIVATE"));
 assert(!JSON.stringify(diagnostics).includes("contact.invalid"));
 assert.equal(Object.hasOwn(result.rows[1],"amazon_preview_issues"),false);
+const wallet=await run({marketplace:"IT",items:[{
+ sku:"KWAY_K6116JW WNM",product_type:"WALLET"}]}, {}, {
+ pilot:async request=> {
+  assert.equal(request.product_type,"WALLET");
+  return {status:"BLOCKED_KWAY_PILOT",provider_write_attempted:false,
+   reason:"missing_wallet_schema_evidence"};
+ }});
+assert.equal(wallet.blocked_before_write,1);
+assert.equal(wallet.live_attempts,0);
+assert.equal(wallet.remaining_not_attempted,0);
+console.log("K-Way WALLET batch guarded acceptance: PASS");
 console.log("K-Way batch creation/expansion counting and no-retry: PASS");
