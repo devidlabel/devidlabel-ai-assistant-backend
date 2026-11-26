@@ -378,6 +378,44 @@ await test(async () => {
   assert.equal(JSON.stringify(result).includes("abcdef987654321"), false);
   assert.equal(result.asin_created_verified, false);
 });
+// Merchant's shared packing preset can pass the *same* source validation
+// gate as the Amazon preview; missing or altered merchant source never passes.
+const merchantPack={
+  source:"MERCHANT_STANDARD_ESTIMATE_2026_10_27",
+  length_cm:35,width_cm:22,height_cm:12,weight_kg:1,
+  batteries_required:false,manufacturer_certified:false
+};
+const packPayload={...commonPayload,attributes:{
+  ...commonPayload.attributes,
+  batteries_required:[{value:false,marketplace_id:marketId}],
+  item_package_weight:[{value:1,unit:"kilograms",marketplace_id:marketId}],
+  item_package_dimensions:[{
+    length:{value:35,unit:"centimeters"},
+    width:{value:22,unit:"centimeters"},
+    height:{value:12,unit:"centimeters"},marketplace_id:marketId
+  }]
+}};
+const packFresh={ok:true,model_name:"PlayNew",color:"White Bronze",
+  shopify_snapshot_price:"118.30",shopify_list_price_eur:169,
+  catalog_style:"Sneaker",
+  merchant_standard_package:merchantPack,
+  draft_values_review_only:true,ready_for_publication:false};
+await test(async()=>{
+  const h=harness({previewPayload:packPayload,freshEvidence:packFresh});
+  const result=await h.run();
+  assert.equal(result.status,"AMAZON_REJECTED_NEW_ASIN_SUBMISSION");
+  assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"),true,
+    "Sourced standardized 1 kg/35x22x12 cm must pass guards to real Amazon");
+});
+await test(async()=>{
+  const h=harness({previewPayload:packPayload,
+    freshEvidence:{...packFresh,merchant_standard_package:{...merchantPack,
+      weight_kg:1.5}}});
+  const result=await h.run();
+  assert.equal(result.status,"BLOCKED_NEW_ASIN_PILOT");
+  assert.equal(h.calls.includes("LIVE_DEFAULT_PUT"),false,
+    "A changed seller packing preset must fail closed");
+});
 console.log(JSON.stringify({
   ok: true, tests: count,
   zero_live_provider_calls: true, live_default_put_mocked: true,
