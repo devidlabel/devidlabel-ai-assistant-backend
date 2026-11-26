@@ -89,7 +89,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
        /^[_ .-]/.test(sku.slice(5+model.length))&&
        typeof product.description==="string"&&
        bulletRaw.every(x=>typeof x==="string"&&
-          x.length>=12&&x.length<=220&&!/[\\u0000-\\u001f<>]/.test(x)&&
+          x.length>=12&&x.length<=220&&safeText(x)===x&&
           (product.description as string).includes(x))&&
        new Set(bulletRaw).size===bulletRaw.length){
       set("bullet_point",bulletRaw.map(value=>({
