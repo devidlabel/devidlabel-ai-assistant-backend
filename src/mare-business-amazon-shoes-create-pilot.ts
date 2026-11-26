@@ -226,8 +226,20 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
       pilotOperator.name==="Medusa s.r.l."&&
       pilotOperator.source==="OFFICIAL_4B12_CONTACTS_NOT_GPSR";
     const manufacturer=freshEvidence.merchant_manufacturer_name;
+    const official=obj(freshEvidence.merchant_official_manufacturer);
+    const shoeProfile=obj(freshEvidence.merchant_shoes_profile);
+    const sourceMapped=(
+      /^4B12_HYPER_[DU][0-9]{4}_[34][0-9]_EU$/.test(input.sku)&&
+        shoeProfile.source==="SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY"||
+      /^4B12_(?:PLAYNEW|PLAYNEWSKY)_[DU][0-9]{4}_[34][0-9]_EU$/.test(input.sku)&&
+        shoeProfile.source==="SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY");
+    const officialVerified=s.amazon_listing_brand==="4B12"&&sourceMapped&&
+      official.source==="OFFICIAL_4B12_MANUFACTURER_NAME_20261126"&&
+      official.name==="Medusa s.r.l."&&
+      official.official_url==="https://4b12.it/contattaci";
     const supported=typeof manufacturer==="string"&&manufacturer.length>1?
-      manufacturer:modelPilot?"Medusa s.r.l.":null;
+      manufacturer:officialVerified?"Medusa s.r.l.":
+        modelPilot?"Medusa s.r.l.":null;
     if(!supported||JSON.stringify(attrs.manufacturer)!==
       JSON.stringify([{value:supported,language_tag:locale,marketplace_id:marketId}]))
       return false;
