@@ -310,7 +310,21 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   if(water&&levels[water])set("water_resistance_level",[
     {value:levels[water],marketplace_id:marketId}]);
   const fabric=val("fabric_type");
-  if(fabric&&(validatedRefrigiwearFabric(fabric)||
+  // Do not invent 100%-sum fiber composition for a documented technical
+  // fleece. Accept exact merchant descriptive prose only when the original
+  // live Shopify description, source Product ID and the dossier agree.
+  const fabricProof=obj(obj(fields.field_provenance).fabric_type);
+  const sourceDescription=typeof product.description==="string"?product.description:"";
+  const rfrDescriptiveFabric=isRefrigiwear&&
+    fields.fabric_type_kind==="TEXTILE_DESCRIPTION_WITHOUT_COMPOSITION_PERCENTAGES"&&
+    fields.fabric_type_status==="DOCUMENTED_SHOPIFY_PRODUCT_DESCRIPTION"&&
+    fabricProof.status==="DOCUMENTED_SHOPIFY_PRODUCT_DESCRIPTION"&&
+    fabricProof.source_product_id===product.id&&
+    fabricProof.source_field==="description"&&
+    fabricProof.no_composition_percentages===true&&
+    fabric===fabricProof.source_text&&
+    !!fabric&&sourceDescription.includes(fabric);
+  if(fabric&&(validatedRefrigiwearFabric(fabric)||rfrDescriptiveFabric||
      (isKway&&(validatedKwayLayeredFabric(fabric)||descriptiveFabric))))
     set("fabric_type",text(fabric));
   const material=val("material");
