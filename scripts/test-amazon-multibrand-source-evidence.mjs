@@ -127,7 +127,82 @@ const cb=derive(col,{compareAtPrice:"159.00"},"COL_11000026_8VX_99_48",
 assert.equal(cb.fabric_type[0].value,"100% poliammide");
 assert.equal(cb.manufacturer[0].value,"COLMAR");
 assert.equal(cb.water_resistance_level[0].value,"water_resistant");
-assert.equal(cb.color,undefined,"Do not invent color from product title");
+assert.equal(cb.color[0].value,"Nero","Use the exact SKU/model/color merchant title evidence");
+assert.equal(cb.model_name[0].value,"11000026");
+const sizeCb=derive(col,{compareAtPrice:"159.00",selectedOptions:[{name:"Taglia",value:"48"}]},
+  "COL_11000026_8VX_99_48","COAT","IT",market,keys);
+assert.equal(sizeCb.special_size_type[0].value,"Standard");
+const wrongColor=derive({...col,title:"Colmar Originals Gilet Uomo Ultra Leggero Blu"},
+  {selectedOptions:[{name:"Taglia",value:"48"}]},
+  "COL_11000026_8VX_99_48","COAT","IT",market,keys);
+assert.equal(wrongColor.color,undefined,"Exact title guard required");
+const wrongSize=derive(col,{selectedOptions:[{name:"Taglia",value:"50"}]},
+  "COL_11000026_8VX_99_48","COAT","IT",market,keys);
+assert.equal(wrongSize.special_size_type,undefined,"SKU and size must match");
+const hybrid={vendor:"Colmar Originals",
+  title:"Colmar Originals Giacca Uomo Ibrida Imbottita con Cappuccio Grigio Street",
+  productType:"Giacche e cappotti",description:"Una giacca ibrida con cappuccio e zip."};
+const h=derive(hybrid,{selectedOptions:[{name:"Taglia",value:"50"}]},
+  "COL_11000050_8ZR_378_50","COAT","IT",market,keys);
+assert.equal(h.color[0].value,"Grigio Street");
+assert.equal(h.model_name[0].value,"11000050");
+const provenanceKeys=[...keys,"country_of_origin","model_number","fit_type"];
+const sourced=derive({...col,title:"Colmar Originals Piumino Uomo Opaco con Cappuccio Blu Navy"},
+  {selectedOptions:[{name:"Taglia",value:"48"}],
+   inventoryItem:{countryCodeOfOrigin:"RO"}},
+  "COL_12000053R_4ZP_68_48","COAT","IT",market,provenanceKeys);
+assert.equal(sourced.color[0].value,"Blu Navy");
+assert.equal(sourced.country_of_origin[0].value,"RO");
+assert.equal(sourced.model_number[0].value,"12000053R");
+assert.equal(sourced.fit_type[0].value,"Regular");
+const blockedOrigin=derive(col,
+  {inventoryItem:{countryCodeOfOrigin:"ZZ"}},
+  "COL_11000026_8VX_99_48","COAT","IT",market,provenanceKeys);
+assert.equal(blockedOrigin.country_of_origin,undefined);
+const noOrigin=derive(col,
+  {inventoryItem:{countryCodeOfOrigin:null}},
+  "COL_11000026_8VX_99_48","COAT","IT",market,provenanceKeys);
+assert.equal(noOrigin.country_of_origin,undefined);
+const doubleZip=derive({...hybrid,description:"Chiusura a doppia zip, cappuccio fisso."},
+  {selectedOptions:[{name:"Taglia",value:"50"}]},
+  "COL_11000050_8ZR_378_50","COAT","IT",market,provenanceKeys);
+assert.equal(doubleZip.closure[0].type[0].value,"Zip");
+const blendSource={...hybrid,description:"Materiali e composizione Esterno principale: "+
+  "78% poliammide, 22% elastan; pannello secondario: 54% poliestere, "+
+  "20% poliammide, 20% acrilico, 6% lana; fodera: 100% poliestere."};
+const blended=derive(blendSource,variant,"COL_11000050_8ZR_378_50",
+  "COAT","IT",market,provenanceKeys);
+assert.equal(blended.fabric_type[0].value,"78% poliammide / 22% elastan");
+assert.equal(blended.outer[0].material[0].value,blended.fabric_type[0].value);
+const wrongSum=derive({...blendSource,description:
+  "Materiali e composizione Esterno principale: 78% poliammide, 21% elastan; "+
+  "fodera 100% poliestere."},variant,"COL_11000050_8ZR_378_50",
+  "COAT","IT",market,provenanceKeys);
+assert.equal(wrongSum.fabric_type,undefined,"99 percent shell must be rejected");
+const noOuter=derive({...blendSource,description:
+  "Materiali e composizione Imbottitura: 90% piumino d'anatra, "+
+  "10% piuma d'anatra."},variant,"COL_11000050_8ZR_378_50",
+  "COAT","IT",market,provenanceKeys);
+assert.equal(noOuter.fabric_type,undefined,"Do not claim filling as shell");
+const wool=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Pullover Uomo Heritage Mezza Zip in Lana Blu Navy Tofu Brick",
+  productType:"Maglieria",description:"Materiali e composizione 80% lana, "+
+  "20% poliammide. Seguire le indicazioni sull'etichetta."},variant,
+  "COL_44000015_3LW_942_M","SWEATER","IT",market,provenanceKeys);
+assert.equal(wool.fabric_type[0].value,"80% lana / 20% poliammide");
+
+for(const [title,sku,want] of [
+  ["Colmar Originals Piumino Donna Leggero con Cappuccio Beige Marrakech",
+   "COL_22000013_2YO_636_42","Beige Marrakech"],
+  ["Colmar Originals Cappotto Donna Lungo Imbottito Bianco Tofu",
+   "COL_20000011_2JY_624_40","Bianco Tofu"],
+  ["Colmar Originals Piumino Uomo Heritage con Cappuccio Marrakech Multicolor",
+   "COL_12000023_3JQ_636_54","Marrakech Multicolor"]]){
+   const test=derive({...col,title},variant,sku,"COAT","IT",market,provenanceKeys);
+   assert.equal(test.color[0].value,want);
+}
+
+
 assert.equal(cb.list_price[0].value_with_tax,159);
 for(const [p,sku,mkt] of [[{...col,vendor:"Other Brand"},"COL_11000026_8VX_99_48","IT"],
   [col,"ECO_MCMGAJKNIZO00188W26_128_S","IT"],

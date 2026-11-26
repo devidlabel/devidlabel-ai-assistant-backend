@@ -819,6 +819,50 @@ export function merchantMultibrandEvidenceAttrs(
   }
   const color=desc.match(/\bColore:\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ -]{1,45}?)(?=\s+Codice|\s+Stagione|$)/i)?.[1];
   if(candidate(color,46))set("color",text(plain(color!)));
+  // Colmar catalogue descriptors are derived from this exact merchant SKU,
+  // its Shopify title/options, and (when populated) its variant inventory origin.
+  // No seller logistics preset, product specification, hazmat, or GPSR value is
+  // inferred from model names or similar products.
+  if(isColmar){
+    const matchCode=/^COL_([A-Za-z0-9]{3,20})_[A-Za-z0-9]{2,8}_[A-Za-z0-9]{1,5}_[A-Za-z0-9]{1,8}$/.exec(sku);
+    if(matchCode){
+      set("model_name",[{value:matchCode[1],marketplace_id:marketId}]);
+      set("model_number",[{value:matchCode[1],marketplace_id:marketId}]);
+    }
+    // Only literal colour endings already present in the merchant's exact
+    // product title; never infer the colour from an unverified SKU colour code.
+    const allowedColors=[
+      "Blu Navy Tofu Brick","Marrakech Tofu Navy","Blu Navy Multicolor",
+      "Marrakech Multicolor","Grigio Street","Beige Marrakech",
+      "Bianco Tofu","Tofu Marrakech","Blu Navy","Nero"
+    ];
+    const exactColor=allowedColors.find(value=>title.endsWith(" "+value));
+    if(exactColor)set("color",text(exactColor));
+    const variantOrigin=obj(variant.inventoryItem).countryCodeOfOrigin;
+    // Shopify InventoryItem countryCodeOfOrigin is a variant-level merchant
+    // declaration, not evidence of where a brand's other garments are made.
+    const supportedOrigin=new Set(["IT","CN","TR","RO","PT","ES","FR","DE",
+      "BG","PL","TN","MA","BD","VN","IN","PK","ID","KH","MM","EG","AL",
+      "MD","UA","GR","CZ","SK","HU","SI","HR","LT","LV","EE","GB","US"]);
+    if(typeof variantOrigin==="string"&&supportedOrigin.has(variantOrigin)){
+      set("country_of_origin",[{value:variantOrigin,marketplace_id:marketId}]);
+    }
+    const optionSize=Array.isArray(variant.selectedOptions)?
+      variant.selectedOptions.map(obj).find(o=>
+        typeof o.name==="string"&&["taglia","size"].includes(o.name.toLowerCase()))?.value:undefined;
+    if(typeof optionSize==="string"&&/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&
+       sku.endsWith("_"+optionSize)&&/\b(?:Uomo|Donna)\b/.test(title)){
+      set("special_size_type",text("Standard"));
+    }
+    // Additional merchant-exact garment descriptions beyond the narrow
+    // "chiusura frontale con zip" path below.
+    if(/\b(?:chiusura\s+a\s+doppia\s+zip|zip\s+frontale\s+a\s+doppio\s+cursore)\b/i.test(desc)){
+      set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
+        marketplace_id:marketId}]);
+    }
+    if(/\bvestibilit[aà]\s+regular\b/i.test(desc))
+      set("fit_type",text("Regular"));
+  }
   if(isColmar)set("manufacturer",text("COLMAR"));
   if(isEco)set("manufacturer",text("Ecoalf"));
   // Official Ecoalf AW26 specification is common to the exact documented
@@ -938,6 +982,37 @@ export function merchantMultibrandEvidenceAttrs(
     set("fabric_type",text(mainFabric));
     set("outer",[{material:[{value:mainFabric,language_tag:"it_IT"}],
       marketplace_id:marketId}]);
+  }
+  // Only the documented principal OUTER shell composition may feed Amazon
+  // fabric_type/outer. Secondary panels, linings and down filling are kept
+  // separate, not added to the shell blend. The percentage total must be 100.
+  if(isColmar){
+    const normalized=plain(desc);
+    const marker=/(?:\bEsterno, secondo tessuto esterno e fodera|\bEsterno(?: principale| e fodera)?|\bTessuto (?:esterno(?: e fodera)?|principale))\s*:?\s*/i.exec(normalized);
+    const sweaterSection=pt==="SWEATER"||pt==="SWEATSHIRT";
+    const standalone=sweaterSection?
+      /\bMateriali e composizione\s+(?=\d{1,3}\s*%)/i.exec(normalized):null;
+    const source=marker||standalone;
+    if(source){
+      const raw=normalized.slice(source.index+source[0].length).split(/[.;]/,1)[0].trim();
+      if(raw.length>=8&&raw.length<=160&&/^\d{1,3}\s*%/.test(raw)){
+        const fibers: {percent:number;name:string}[]=[];
+        const fiberRe=/(\d{1,3})\s*%\s*(lana vergine|poliammide|poliestere|elastan|cotone|lana|acrilico|viscosa|nylon|cashmere)/gi;
+        let item:RegExpExecArray|null;
+        while((item=fiberRe.exec(raw))!==null){
+          fibers.push({percent:Number(item[1]),name:item[2].toLowerCase()});
+        }
+        const rest=raw.replace(fiberRe,"").replace(/[\s,;\/+\-]/g,"").replace(/e/g,"");
+        if(fibers.length>=1&&fibers.length<=4&&rest===""&&
+           fibers.every(x=>x.percent>0&&x.percent<=100)&&
+           fibers.reduce((n,x)=>n+x.percent,0)===100){
+          const shell=fibers.map(x=>x.percent+"% "+x.name).join(" / ");
+          set("fabric_type",text(shell));
+          set("outer",[{material:[{value:shell,language_tag:"it_IT"}],
+            marketplace_id:marketId}]);
+        }
+      }
+    }
   }
   if(/\bidrorepellente\b/i.test(desc))
     set("water_resistance_level",[{value:"water_resistant",marketplace_id:marketId}]);
