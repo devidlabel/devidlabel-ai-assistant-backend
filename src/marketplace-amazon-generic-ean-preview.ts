@@ -69,6 +69,35 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   if(!Object.hasOwn(MARKET_LOCALE,marketplace))return {};
   const locale=MARKET_LOCALE[marketplace as Market];
   const text=(value:string)=>[{value,language_tag:locale,marketplace_id:marketId}];
+  // Model-group K-Way bullets: the exact ACTIVE Shopify product description
+  // must contain every emitted sentence, and the original custom dossier
+  // must explicitly bind it to this Product GID and manufacturer model.
+  // Reuses one verified source across all size variants, not arbitrary copy.
+  if(isKway&&marketplace==="IT"&&
+     ["COAT","SWEATER","SWEATSHIRT","SHIRT","HAT","SCARF"].includes(pt)){
+    const bulletRaw=fields.bullet_point;
+    const proof=obj(obj(fields.field_provenance).bullet_point);
+    const model=val("model_number");
+    if(Array.isArray(bulletRaw)&&bulletRaw.length>=1&&bulletRaw.length<=5&&
+       proof.status==="DOCUMENTED_EXACT_LIVE_SHOPIFY_DESCRIPTION_SUBSTRINGS"&&
+       proof.source_product_id===product.id&&
+       proof.source_model===model&&
+       proof.source_field==="product.description"&&
+       proof.source_quoted_substrings===true&&
+       typeof model==="string"&&/^K[0-9]{4}[A-Z0-9]{2}$/.test(model)&&
+       sku.startsWith("KWAY_"+model)&&
+       /^[_ .-]/.test(sku.slice(5+model.length))&&
+       typeof product.description==="string"&&
+       bulletRaw.every(x=>typeof x==="string"&&
+          x.length>=12&&x.length<=220&&!/[\\u0000-\\u001f<>]/.test(x)&&
+          (product.description as string).includes(x))&&
+       new Set(bulletRaw).size===bulletRaw.length){
+      set("bullet_point",bulletRaw.map(value=>({
+        value,language_tag:locale,marketplace_id:marketId
+      })));
+    }
+  }
+
   // Navigation may intentionally contain several storefront audiences. Use
   // the independently recorded product department without changing that facet
   // or overriding an existing single-value merchant gender.
