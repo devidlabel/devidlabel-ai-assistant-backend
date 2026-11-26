@@ -788,7 +788,7 @@ function blocked(marketplace:string,sku:string,productType:string,reason:string)
  */
 export function merchantMultibrandEvidenceAttrs(
   product:Row,variant:Row,sku:string,pt:string,marketplace:string,
-  marketId:string,available:string[]
+  marketId:string,available:string[],research:Row={}
 ):Row{
   const isColmar=sku.startsWith("COL_")&&
     ["Colmar","Colmar Originals"].includes(String(product.vendor));
@@ -836,6 +836,44 @@ export function merchantMultibrandEvidenceAttrs(
     const documentedFabric="30% poliammide riciclata / 30% lana riciclata / "+
       "30% TENCEL Lyocell / 10% cashmere riciclato";
     set("fabric_type",text(documentedFabric));
+    set("outer",[{material:[{value:documentedFabric,language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+    const explicitGender=desc.match(/\\bGenere:\\s*(Uomo|Donna|Unisex)\\b/i)?.[1];
+    const targetGender=explicitGender?.toLowerCase()==="uomo"?"male":
+      explicitGender?.toLowerCase()==="donna"?"female":
+      explicitGender?.toLowerCase()==="unisex"?"unisex":undefined;
+    if(targetGender)set("target_gender",[{value:targetGender,marketplace_id:marketId}]);
+    // Preserve numeric EU ranges only when the actual Amazon LISTING PTD
+    // explicitly accepts as6/numeric, size_to and the required keys.
+    const sel=Array.isArray(variant.selectedOptions)?
+      variant.selectedOptions.map(obj):[];
+    const sizeOpts=sel.filter(o=>typeof o.name==="string"&&
+      ["taglia","size"].includes(o.name.toLowerCase()));
+    const sizeRaw=sizeOpts.length===1?sizeOpts[0].value:null;
+    const interval=typeof sizeRaw==="string"?
+      /^([3-4][0-9])\\s*[-–]\\s*([3-4][0-9])$/.exec(sizeRaw):null;
+    const schema=obj(obj(research.ptd_size_shapes).apparel_size);
+    const shape=obj(schema.items),properties=obj(shape.properties);
+    const systems=obj(properties.size_system).enum;
+    const classes=obj(properties.size_class).enum;
+    const required=shape.required;
+    const strictShape=research.ptd_size_shapes_are_read_only===true&&
+      research.ptd_size_shapes_not_schema_validation===true&&
+      research.ptd_size_mapping_not_performed===true&&
+      schema.type==="array"&&shape.type==="object"&&
+      Array.isArray(systems)&&systems.length===1&&systems[0]==="as6"&&
+      Array.isArray(classes)&&classes.includes("numeric")&&
+      obj(properties.size_to).type==="string"&&
+      Array.isArray(required)&&["size","size_class","size_system"].every(
+        field=>required.includes(field));
+    if(interval&&strictShape){
+      const lower=Number(interval[1]),upper=Number(interval[2]);
+      if(lower>=30&&upper<=49&&lower<upper&&upper-lower<=12)
+        set("apparel_size",[{
+          size:interval[1],size_to:interval[2],
+          size_class:"numeric",size_system:"as6",marketplace_id:marketId
+        }]);
+    }
   }
   const productType=candidate(product.productType,90);
   if(productType)set("item_type_name",text(productType));
@@ -1027,7 +1065,7 @@ export async function previewAmazonGenericEanValidation(
       research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens),
       obj(research.ptd_technical_shapes)),
     ...merchantMultibrandEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
-      research.available_schema_attribute_names as string[]),
+      research.available_schema_attribute_names as string[],research),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
