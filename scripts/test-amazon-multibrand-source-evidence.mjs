@@ -41,6 +41,7 @@ const sizeResearch={
   ptd_size_shapes_are_read_only:true,
   ptd_size_shapes_not_schema_validation:true,
   ptd_size_mapping_not_performed:true,
+  ptd_alpha_size_tokens:{apparel_size:["s","m","l","one_size"]},
   ptd_size_shapes:{apparel_size:{type:"array",items:{type:"object",
     properties:{size:{type:"string"},size_to:{type:"string"},
       size_class:{type:"string",enum:["numeric","alpha"]},
@@ -54,9 +55,10 @@ const exactSock=derive(socks,{compareAtPrice:"19.90",
   inventoryItem:{countryCodeOfOrigin:"ES"}},
   "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
   [...keys,"country_of_origin","apparel_size","target_gender"],sizeResearch);
-assert.deepEqual(exactSock.apparel_size,[{size:"41",size_to:"46",
-  size_class:"numeric",size_system:"as6",body_type:"regular",height_type:"regular",
+assert.deepEqual(exactSock.apparel_size,[{size:"l",
+  size_class:"alpha",size_system:"as6",body_type:"regular",height_type:"regular",
   marketplace_id:market}]);
+assert.equal(exactSock.bullet_point[0].value.includes("41-46"),true);
 assert.equal(exactSock.target_gender[0].value,"unisex");
 assert.equal(exactSock.weave_type[0].value,"Maglia");
 assert.equal(exactSock.style[0].value,"Sportivo");
