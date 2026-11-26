@@ -7,7 +7,9 @@ const {merchantMultibrandEvidenceAttrs:derive}=await import(
 const market="APJ6JRA9NG5V4";
 const keys=["model_name","department","age_range_description","color","manufacturer",
 "item_type_name","fabric_type","outer","water_resistance_level","closure",
-"style","batteries_required","care_instructions","list_price","bullet_point"];
+"style","batteries_required","care_instructions","list_price","bullet_point",
+"weave_type","special_size_type","item_package_dimensions","item_package_weight",
+"supplier_declared_dg_hz_regulation"];
 const eco={vendor:"Ecoalf",title:"Giacca Nizo Olive",productType:"Giacche e cappotti",
   description:"La Giacca Nizo Ecoalf nella variante Olive fa parte della collezione. "+
   "Modello: Nizo Genere: Uomo Colore: Olive Codice modello: MCMGAJKNIZO00188W26. "+
