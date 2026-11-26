@@ -880,6 +880,10 @@ export function merchantMultibrandEvidenceAttrs(
     const systems=obj(properties.size_system).enum;
     const classes=obj(properties.size_class).enum;
     const required=shape.required;
+    const bodyTokens=obj(properties.body_type).enum;
+    const heightTokens=obj(properties.height_type).enum;
+    const regularProfile=Array.isArray(bodyTokens)&&bodyTokens.includes("regular")&&
+      Array.isArray(heightTokens)&&heightTokens.includes("regular");
     const strictShape=research.ptd_size_shapes_are_read_only===true&&
       research.ptd_size_shapes_not_schema_validation===true&&
       research.ptd_size_mapping_not_performed===true&&
@@ -894,7 +898,9 @@ export function merchantMultibrandEvidenceAttrs(
       if(lower>=30&&upper<=49&&lower<upper&&upper-lower<=12)
         set("apparel_size",[{
           size:interval[1],size_to:interval[2],
-          size_class:"numeric",size_system:"as6",marketplace_id:marketId
+          size_class:"numeric",size_system:"as6",
+          ...(regularProfile?{body_type:"regular",height_type:"regular"}:{}),
+          marketplace_id:marketId
         }]);
     }
   }
