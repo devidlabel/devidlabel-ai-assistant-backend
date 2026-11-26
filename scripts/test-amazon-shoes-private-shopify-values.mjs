@@ -784,4 +784,43 @@ for(const [code,color,upper] of [
  const mismatch=await read(identity,{},{queryShopify:async()=>bad});
  assert.equal(mismatch.merchant_shoes_profile,undefined);
 }
+// Puraai 6.01 Xs has exact model/color SKU evidence, but no supplier
+// composition or country declaration. Always omit those unknown fields.
+for(const [color,size] of [["Dune","38"],["Eden","37"]]){
+ const identity={sku:"PUI_601_XS_"+color.toUpperCase()+"_"+size+"_EU",
+   variantId:"gid://shopify/ProductVariant/98765498777",
+   productTitle:"Sneaker 6.01 Xs "+color,
+   shopifyVendor:"Puraai",amazonBrand:"Puraai"};
+ const fixture=structuredClone(pollySource);
+ fixture.productVariant.id=identity.variantId;
+ fixture.productVariant.sku=identity.sku;
+ fixture.productVariant.product.title=identity.productTitle;
+ fixture.productVariant.product.fallbackModel={
+   type:"single_line_text_field",value:"6.01 Xs"};
+ fixture.productVariant.product.fallbackColorText={
+   type:"single_line_text_field",value:color};
+ fixture.productVariant.selectedOptions=[{name:"Numero",value:size+" EU"}];
+ fixture.productVariant.product.descriptionHtml=[
+   "<p>Puraai 6.01 Xs "+color+" è una sneaker donna dal profilo contemporaneo.</p>",
+   "<p>La silhouette bassa e la palette "+color.toLowerCase()+" rendono lo stile casual.</p>",
+   "<p>Modello: 6.01 Xs. Colore: "+color+".</p>"
+ ].join("");
+ const v=await read(identity,{},{queryShopify:async()=>fixture});
+ assert.equal(v.ok,true);
+ assert.equal(v.merchant_shoes_profile?.source,"SHOPIFY_EXACT_PURAAI_601_XS_COPY");
+ assert.equal(v.model_number,"6.01");
+ assert.equal(v.bullet_point,"6.01 Xs");
+ assert.equal(v.age_range_description,"adult");
+ assert.equal(v.footwear_size.size,"numeric_"+size);
+ assert.equal(v.footwear_size.gender,"women");
+ assert.equal(v.footwear_size.width,undefined);
+ assert.equal(v.country_of_origin,undefined);
+ assert.equal(v.merchant_official_manufacturer,undefined);
+ const wrong=structuredClone(fixture);
+ wrong.productVariant.product.descriptionHtml=
+   wrong.productVariant.product.descriptionHtml.replace("6.01 Xs "+color,
+     "6.01 Xs Another");
+ const w=await read(identity,{},{queryShopify:async()=>wrong});
+ assert.equal(w.merchant_shoes_profile,undefined);
+}
 console.log("Shopify admin-only Amazon SHOES field read regression tests passed.");
