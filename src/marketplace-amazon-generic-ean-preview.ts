@@ -988,7 +988,7 @@ export function merchantMultibrandEvidenceAttrs(
   // separate, not added to the shell blend. The percentage total must be 100.
   if(isColmar){
     const normalized=plain(desc);
-    const marker=/(?:\bEsterno(?: principale| e fodera)?|\bTessuto (?:esterno(?: e fodera)?|principale)|\bEsterno, secondo tessuto esterno e fodera)\s*:?\s*/i.exec(normalized);
+    const marker=/(?:\bEsterno, secondo tessuto esterno e fodera|\bEsterno(?: principale| e fodera)?|\bTessuto (?:esterno(?: e fodera)?|principale))\s*:?\s*/i.exec(normalized);
     const sweaterSection=pt==="SWEATER"||pt==="SWEATSHIRT";
     const standalone=sweaterSection?
       /\bMateriali e composizione\s+(?=\d{1,3}\s*%)/i.exec(normalized):null;
