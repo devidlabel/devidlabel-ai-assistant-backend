@@ -13,7 +13,7 @@ type Env=AmazonCredentials & MareBusinessShopifyEnv & {
 type Deps={research?:typeof researchAmazonNewAsinProductType;
   readShopify?:typeof shopifyGraphQL;
   getAccessToken?:typeof getAmazonAccessToken;fetch?:typeof fetch};
-const PRODUCT_TYPES=new Set(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG","SWEATER","SWEATSHIRT","SCARF","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"]);
+const PRODUCT_TYPES=new Set(["SOCKS","HANDBAG","SHIRT","COAT","HAT","BOOT","BACKPACK","COSMETIC_CASE","STORAGE_BAG","SWEATER","SWEATSHIRT","SCARF","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"]);
 const MARKET_LOCALE:Record<Market,string>={IT:"it_IT",DE:"de_DE",FR:"fr_FR",ES:"es_ES"};
 const SKU=/^[A-Za-z0-9][A-Za-z0-9_ .-]{0,119}$/;
 const EAN=/^\d{13}$/;
@@ -41,7 +41,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   // The generic EAN pilot remains preview-only; the source is NOT a GPSR approval.
   const commonTypes=["COAT","HAT","SHIRT","BACKPACK","SCARF","SWEATER","SWEATSHIRT",
     "HANDBAG","COSMETIC_CASE","STORAGE_BAG"];
-  const accessoryTypes=["TOTE_BAG","DUFFEL_BAG","WAIST_PACK"];
+  const accessoryTypes=["TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"];
   if(!(commonTypes.includes(pt)||(isKway&&accessoryTypes.includes(pt))))return {};
   const mf=obj(product.amazonPtd);
   if(mf.type!=="json"||typeof mf.value!=="string")return {};
@@ -275,7 +275,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
       const closure=localVal("closure"),outer=localVal("outer_material");
       if(closure)set("closure",[{type:[{value:closure,language_tag:locale}],marketplace_id:marketId}]);
       if(outer)set("outer",[{material:[{value:outer,language_tag:locale}],marketplace_id:marketId}]);
-      if(["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)){
+      if(["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"].includes(pt)){
         const inner=localVal("inner_material"),sizeInfo=localVal("size_info");
         if(inner)set("inner",[{material:[{value:inner,language_tag:locale}],marketplace_id:marketId}]);
         if(sizeInfo)set("size_info",[{display_name:[{value:sizeInfo,language_tag:locale}],marketplace_id:marketId}]);
@@ -340,7 +340,7 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
   if(lining)set("lining_description",text(lining));
   if(pt==="BACKPACK"&&val("size"))set("size",text(val("size")!));
   const n=fields.number_of_compartments;
-  if(["BACKPACK","HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&typeof n==="number"&&
+  if(["BACKPACK","HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"].includes(pt)&&typeof n==="number"&&
      Number.isInteger(n)&&n>=1&&n<=15)
     set("number_of_compartments",[{value:n,marketplace_id:marketId}]);
   // Amazon's DUFFEL_BAG "compartment" is a localized description array,
@@ -372,15 +372,15 @@ export function refrigiwearEvidenceAttrs(product:Row,variant:Row,sku:string,pt:s
     }
   }
   const pockets=fields.number_of_pockets;
-  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&typeof pockets==="number"&&
+  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"].includes(pt)&&typeof pockets==="number"&&
      Number.isInteger(pockets)&&pockets>=0&&pockets<=30)
     set("number_of_pockets",[{value:pockets,marketplace_id:marketId}]);
   const inner=val("inner_material");
-  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&inner)
+  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"].includes(pt)&&inner)
     set("inner",[{material:[{value:inner,language_tag:locale}],
       marketplace_id:marketId}]);
   const sizeInfo=val("size_info");
-  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK"].includes(pt)&&sizeInfo)
+  if(isKway&&["HANDBAG","TOTE_BAG","DUFFEL_BAG","WAIST_PACK","WALLET"].includes(pt)&&sizeInfo)
     set("size_info",[{display_name:[{value:sizeInfo,language_tag:locale}],
       marketplace_id:marketId}]);
   const volume=fields.storage_volume_liters;
