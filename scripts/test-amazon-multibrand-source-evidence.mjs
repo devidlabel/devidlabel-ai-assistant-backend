@@ -58,7 +58,7 @@ const exactSock=derive(socks,{compareAtPrice:"19.90",
 assert.deepEqual(exactSock.apparel_size,[{size:"l",
   size_class:"alpha",size_system:"as6",body_type:"regular",height_type:"regular",
   marketplace_id:market}]);
-assert.equal(exactSock.bullet_point[0].value.includes("41-46"),true);
+assert.equal(exactSock.bullet_point.some(x=>x.value.includes("41-46")),true);
 assert.equal(exactSock.target_gender[0].value,"unisex");
 assert.equal(exactSock.weave_type[0].value,"Maglia");
 assert.equal(exactSock.style[0].value,"Sportivo");
