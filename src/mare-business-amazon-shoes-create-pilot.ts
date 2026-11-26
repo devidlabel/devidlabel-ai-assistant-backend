@@ -325,7 +325,13 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
     !!pantherCode&&profile.model_number==="6.02"&&
     profile.age_group==="adult"&&
     ["women","men"].includes(String(profile.gender));
-  if(sourcedHyper||sourcedPolly||sourcedPlay||sourcedPanther||sourcedModernHyper){
+  const sourcedXs=s.amazon_listing_brand==="Puraai"&&
+    /^PUI_601_XS_(DUNE|EDEN)_[34][0-9]_EU$/.test(input.sku)&&
+    profile.source==="SHOPIFY_EXACT_PURAAI_601_XS_COPY"&&
+    profile.model_number==="6.01"&&profile.age_group==="adult"&&
+    profile.gender==="women"&&profile.height_map==="low-top";
+  if(sourcedHyper||sourcedPolly||sourcedPlay||sourcedPanther||
+     sourcedModernHyper||sourcedXs){
     const expectedProfileAttrs:Record<string,unknown>={
       model_number:[{value:profile.model_number,marketplace_id:marketId}],
       age_range_description:[{value:"Adulto",language_tag:locale,marketplace_id:marketId}],
@@ -357,12 +363,18 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
           lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
         bullet_point:[{value:"Modello Puraai: Panther 6.02",
           language_tag:locale,marketplace_id:marketId}]
-      }:{
+      }:sourcedModernHyper?{
         height_map:[{value:"low-top",marketplace_id:marketId}],
         ...(profile.lifestyle==="Casual"?{
           lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
         ...(profile.outer==="Pelle"?{
           outer:[{material:[{value:"Pelle",language_tag:locale}],marketplace_id:marketId}]}:{})
+      }:{
+        height_map:[{value:"low-top",marketplace_id:marketId}],
+        ...(profile.lifestyle==="Casual"?{
+          lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
+        bullet_point:[{value:"Modello Puraai: 6.01 Xs",
+          language_tag:locale,marketplace_id:marketId}]
       })
     };
     for(const [name,value] of Object.entries(expectedProfileAttrs))
