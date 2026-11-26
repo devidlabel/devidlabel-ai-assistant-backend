@@ -127,7 +127,20 @@ export async function previewAmazonNewAsinShoesValidation(
     profile.age_group==="adult"&&profile.gender==="women"&&
     profile.outer==="Microfibra riciclata"&&profile.inner==="Tessuto"&&
     profile.height_map==="low-top";
-  const sourcedProfile=merchantHyper||merchantPolly;
+  const playCode=/^4B12_(PLAYNEW|PLAYNEWSKY)_([DU][0-9]{4})_([34][0-9])_EU$/.exec(sku);
+  const pantherCode=/^PUI_602_(?:602_)?PANTHER_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(sku);
+  const merchantPlay=brand==="4B12"&&
+    profile.source==="SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY"&&
+    !!playCode&&profile.model_number===playCode[1]+"-"+playCode[2]&&
+    profile.age_group==="adult"&&
+    profile.gender===(playCode[2][0]==="D"?"women":"men")&&
+    profile.height_map==="low-top";
+  const merchantPanther=brand==="Puraai"&&
+    profile.source==="SHOPIFY_EXACT_PURAAI_PANTHER_602_COPY"&&
+    !!pantherCode&&profile.model_number==="6.02"&&
+    profile.age_group==="adult"&&
+    ["women","men"].includes(String(profile.gender)); 
+  const sourcedProfile=merchantHyper||merchantPolly||merchantPlay||merchantPanther;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
   // Preview-only locale texts for exact PlayNew style. Live writer remains
   // restricted to IT until per-country PTD and commercial eligibility proven.
@@ -231,6 +244,23 @@ export async function previewAmazonNewAsinShoesValidation(
         leather_type:[{value:"Pelle scamosciata",language_tag:locale,
           marketplace_id:marketId}]}:{})
     }:{}),
+    ...(merchantPlay?{
+      height_map:[{value:"low-top",marketplace_id:marketId}],
+      ...(profile.lifestyle==="Casual"?{
+        lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{}),
+      ...(["Pelle","Suede","Pelle e suede"].includes(String(profile.outer))?{
+        outer:[{material:[{value:profile.outer,language_tag:locale}],marketplace_id:marketId}]}:{}),
+      ...(profile.leather_type==="Pelle scamosciata"?{
+        leather_type:[{value:"Pelle scamosciata",language_tag:locale,
+          marketplace_id:marketId}]}:{})
+    }:{}),
+    ...(merchantPanther?{
+      ...(profile.height_map==="low-top"?{
+        height_map:[{value:"low-top",marketplace_id:marketId}]}:{}),
+      ...(profile.lifestyle==="Casual"?{
+        lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{})
+    }:{}),
+
 
 
     ...(explicitSoleValid?{sole_material:[{
@@ -365,10 +395,10 @@ export async function previewAmazonNewAsinShoesValidation(
             obj(evidence.footwear_size).age_group==="adult"&&
             obj(evidence.footwear_size).gender===
               (merchantHyper&&hyperCode?.[1][0]==="U"?"men":"women")&&
-            (merchantPolly?
-              obj(evidence.footwear_size).width===undefined:
+            (merchantHyper?
               profile.regular_width==="medium"&&
-                obj(evidence.footwear_size).width==="medium")
+                obj(evidence.footwear_size).width==="medium":
+              obj(evidence.footwear_size).width===undefined)
           ) ||
           (
             brand==="Pro-Keds"&&
