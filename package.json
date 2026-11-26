@@ -76,7 +76,7 @@
     "test:amazon-first-asin-media-price-pilot": "node scripts/test-amazon-first-asin-media-price-pilot.mjs && node scripts/test-amazon-refrigiwear-main-image-pilot.mjs && node scripts/test-amazon-refrigiwear-images-batch.mjs",
     "test:amazon-shoes-private-shopify-values": "node scripts/test-amazon-shoes-private-shopify-values.mjs",
     "test:amazon-accessory-upc-preview": "node scripts/test-amazon-accessory-upc-preview.mjs",
-    "test:amazon-generic-ean-preview": "node scripts/test-amazon-generic-ean-preview.mjs && node scripts/test-amazon-duffel-compartment.mjs && node scripts/test-amazon-refrigiwear-descriptive-fabric.mjs",
+    "test:amazon-generic-ean-preview": "node scripts/test-amazon-generic-ean-preview.mjs && node scripts/test-amazon-duffel-compartment.mjs && node scripts/test-amazon-refrigiwear-descriptive-fabric.mjs && node scripts/test-amazon-kway-model-bullets.mjs",
     "test:amazon-refrigiwear-pilot": "node scripts/test-amazon-refrigiwear-pilot.mjs",
     "test:amazon-kway-pilot": "node scripts/test-amazon-kway-pilot.mjs",
     "test:amazon-it-season-audit": "node scripts/test-amazon-it-season-audit.mjs",
