@@ -665,4 +665,75 @@ pollyMutation.productVariant.product.descriptionHtml=
 const pollyWrong=await read(pollyExpected,{},{queryShopify:async()=>pollyMutation});
 assert.equal(pollyWrong.merchant_shoes_profile,undefined);
 assert.equal(pollyWrong.footwear_size.size,"39");
+// Exact 4B12 Playnewsky model/color/SKU and merchant copy can supply
+// age, numeric EU size, upper and height; no width or origin is guessed.
+const skyExpected={sku:"4B12_PLAYNEWSKY_D2041_38_EU",
+ variantId:"gid://shopify/ProductVariant/9876543201",
+ productTitle:"Playnewsky D-2041 White/Silver",shopifyVendor:"4B12",
+ amazonBrand:"4B12"};
+const skyFixture=structuredClone(fallback);
+skyFixture.productVariant.id=skyExpected.variantId;
+skyFixture.productVariant.sku=skyExpected.sku;
+skyFixture.productVariant.product.title=skyExpected.productTitle;
+skyFixture.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Playnewsky"};
+skyFixture.productVariant.product.fallbackColorRef=undefined;
+skyFixture.productVariant.product.fallbackColorText={type:"single_line_text_field",value:"White/Silver"};
+skyFixture.productVariant.selectedOptions=[{name:"Numero",value:"38 EU"}];
+skyFixture.productVariant.product.descriptionHtml=[
+ "<p>Playnewsky D-2041 4B12</p>",
+ "<p>La Playnewsky D-2041 4B12 e una sneaker donna contemporanea.",
+ " La silhouette low-top e casual premium ha upper in pelle bianca con inserto suede grigio.</p>",
+ "<p>Reparto: Donna. Chiusura con lacci. Codice modello: PLAYNEWSKY-D2041.</p>"
+].join("");
+const skyRead=await read(skyExpected,{},{queryShopify:async()=>skyFixture});
+assert.equal(skyRead.ok,true);
+assert.equal(skyRead.merchant_shoes_profile?.source,
+ "SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY");
+assert.equal(skyRead.model_number,"PLAYNEWSKY-D2041");
+assert.equal(skyRead.merchant_shoes_profile.outer,"Pelle e suede");
+assert.equal(skyRead.merchant_shoes_profile.height_map,"low-top");
+assert.equal(skyRead.merchant_shoes_profile.lifestyle,"Casual");
+assert.equal(skyRead.age_range_description,"adult");
+assert.equal(skyRead.footwear_size.size,"numeric_38");
+assert.equal(skyRead.footwear_size.width,undefined);
+const skyDrift=structuredClone(skyFixture);
+skyDrift.productVariant.product.descriptionHtml=
+ skyDrift.productVariant.product.descriptionHtml.replace("PLAYNEWSKY-D2041","PLAYNEWSKY-D2042");
+assert.equal((await read(skyExpected,{},{queryShopify:async()=>skyDrift}))
+ .merchant_shoes_profile,undefined);
+// Puraai Panther models use two genuine SKU naming patterns. Both require
+// exact color and gender statements; unknown leather/shaft remains absent.
+const pantherExpected={sku:"PUI_602_PANTHER_ANGEL_37_EU",
+ variantId:"gid://shopify/ProductVariant/9876543210",
+ productTitle:"Sneaker 6.02 Panther Angel",shopifyVendor:"Puraai",
+ amazonBrand:"Puraai"};
+const pantherFixture=structuredClone(pollySource);
+pantherFixture.productVariant.id=pantherExpected.variantId;
+pantherFixture.productVariant.sku=pantherExpected.sku;
+pantherFixture.productVariant.product.title=pantherExpected.productTitle;
+pantherFixture.productVariant.product.fallbackColorText={
+ type:"single_line_text_field",value:"Angel"};
+pantherFixture.productVariant.product.fallbackModel={
+ type:"single_line_text_field",value:"Panther 6.02"};
+pantherFixture.productVariant.selectedOptions=[{name:"Numero",value:"37 EU"}];
+pantherFixture.productVariant.product.descriptionHtml=[
+ "<p>Sneaker Puraai Panther 6.02 Angel da donna in stile urbano.</p>",
+ "<p>Questa scarpa mostra un profilo basso e un look casual.</p>",
+ "<p>Modello: Panther 6.02. Colorazione: Angel.</p>"
+].join("");
+const pantherRead=await read(pantherExpected,{},{queryShopify:async()=>pantherFixture});
+assert.equal(pantherRead.ok,true);
+assert.equal(pantherRead.merchant_shoes_profile?.source,
+ "SHOPIFY_EXACT_PURAAI_PANTHER_602_COPY");
+assert.equal(pantherRead.model_number,"6.02");
+assert.equal(pantherRead.bullet_point,"Panther 6.02");
+assert.equal(pantherRead.merchant_shoes_profile.height_map,"low-top");
+assert.equal(pantherRead.merchant_shoes_profile.lifestyle,"Casual");
+assert.equal(pantherRead.footwear_size.size,"numeric_37");
+assert.equal(pantherRead.footwear_size.width,undefined);
+const pantherDrift=structuredClone(pantherFixture);
+pantherDrift.productVariant.product.descriptionHtml=
+ pantherDrift.productVariant.product.descriptionHtml.replace("Panther 6.02 Angel","Panther 6.02 Bambi");
+assert.equal((await read(pantherExpected,{},{queryShopify:async()=>pantherDrift}))
+ .merchant_shoes_profile,undefined);
 console.log("Shopify admin-only Amazon SHOES field read regression tests passed.");
