@@ -225,6 +225,25 @@ function merchantShoesExactProfile(raw:unknown,identity:{
       ...(casual?{lifestyle:"Casual"}:{})
     };
   }
+  // Two Puraai XS colorways without an exact Amazon EAN match use this
+  // same merchant editorial format. Never infer leather, country or width.
+  const xs=/^PUI_601_XS_(DUNE|EDEN)_([34][0-9])_EU$/.exec(identity.sku);
+  if(identity.shopifyVendor==="Puraai"&&xs){
+    const color=xs[1].toLowerCase();
+    if(identity.productTitle.toLowerCase()!=="sneaker 6.01 xs "+color)return {};
+    const literal=new RegExp("\\bPuraai\\s+6[.]01\\s+Vintage?\\s*"+color+"\\b","i");
+    const direct=new RegExp("\\bPuraai\\s+6[.]01\\s+Xs\\s+"+color+"\\b","i");
+    if((!literal.test(plain)&&!direct.test(plain))||
+       !/\bsneaker donna\b/i.test(plain)||
+       !/\bModello:\s*6[.]01\s+Xs\b/i.test(plain)||
+       !/\bsilhouette bassa\b/i.test(plain))return {};
+    return {
+      source:"SHOPIFY_EXACT_PURAAI_601_XS_COPY",
+      model_number:"6.01",bullet_point:"6.01 Xs",age_group:"adult",
+      gender:"women",height_map:"low-top",
+      ...(/\bcasual\b/i.test(plain)?{lifestyle:"Casual"}:{})
+    };
+  }
   const polly=/^PUI_(PU405P-[0-9]{3})_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(identity.sku);
   if(identity.shopifyVendor==="Puraai"&&polly){
     const color=polly[2].replace(/_/g," ").toLowerCase();
