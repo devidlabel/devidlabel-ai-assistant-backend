@@ -846,6 +846,65 @@ export function merchantMultibrandEvidenceAttrs(
       "MD","UA","GR","CZ","SK","HU","SI","HR","LT","LV","EE","GB","US"]);
     if(typeof variantOrigin==="string"&&supportedOrigin.has(variantOrigin)){
       set("country_of_origin",[{value:variantOrigin,marketplace_id:marketId}]);
+    }else if(variantOrigin===null||variantOrigin===undefined||variantOrigin===""){
+      // 2026-11-26 explicit merchant declaration: Colmar stock for this store
+      // is Made in China. This is merchant-provided provenance, not inferred
+      // from the Italian brand address; never override a conflicting variant.
+      set("country_of_origin",[{value:"CN",marketplace_id:marketId}]);
+    }
+    // Merchant explicitly approved standardized FBM packing on 2026-11-26.
+    // These are shipment-box/mailer allowances chosen by the seller, not
+    // measured garment dimensions or manufacturer-provided factory weights.
+    // Apply only to Colmar ordinary apparel/accessory classes for which the
+    // merchant has authorized this fulfilment preset, and never to Ecoalf.
+    const colmarPacking:Record<string,{length:number;width:number;height:number;weight:number}>={
+      COAT:{length:58,width:42,height:18,weight:1.8},
+      SWEATER:{length:40,width:32,height:10,weight:0.9},
+      SWEATSHIRT:{length:42,width:35,height:12,weight:1.2},
+      SHIRT:{length:38,width:30,height:7,weight:0.6},
+      HAT:{length:35,width:25,height:12,weight:0.5},
+      SCARF:{length:38,width:28,height:8,weight:0.6},
+      HANDBAG:{length:50,width:38,height:18,weight:1.5}
+    };
+    const packing=colmarPacking[pt];
+    if(packing){
+      set("item_package_dimensions",[{
+        length:{value:packing.length,unit:"centimeters"},
+        width:{value:packing.width,unit:"centimeters"},
+        height:{value:packing.height,unit:"centimeters"},
+        marketplace_id:marketId
+      }]);
+      set("item_package_weight",[{value:packing.weight,unit:"kilograms",
+        marketplace_id:marketId}]);
+      // Garments and standard non-electronic bags here have no intrinsic
+      // batteries/chemicals. Seller declaration for this scoped Colmar
+      // non-hazardous apparel cohort.
+      set("supplier_declared_dg_hz_regulation",[
+        {value:"not_applicable",marketplace_id:marketId}]);
+    }
+    if(["SWEATER","SWEATSHIRT","SCARF"].includes(pt)){
+      set("weave_type",text("Maglia"));
+    }else if(["COAT","SHIRT","HAT","HANDBAG"].includes(pt)){
+      set("weave_type",text("Tessuto"));
+    }
+    // General clothing style is a seller catalogue classification, not an
+    // unverified waterproof performance or supplier claim.
+    if(["COAT","SWEATER","SWEATSHIRT","SHIRT","HAT","HANDBAG"].includes(pt))
+      set("style",text("Casual"));
+    if(pt==="HAT"&&/_UNICA$/.test(sku)){
+      // For headwear Amazon uses its own size field. Only emit when one-size
+      // is actually indicated by the merchant SKU/Shopify variant.
+      const opt=Array.isArray(variant.selectedOptions)?
+        variant.selectedOptions.map(obj):[];
+      const headSize=opt.find(o=>typeof o.name==="string"&&
+        ["taglia","size"].includes(o.name.toLowerCase()))?.value;
+      if(headSize==="Unica"||headSize==="UNICA"||headSize==="Taglia unica"){
+        const shape=obj(obj(research.ptd_size_shapes).headwear_size);
+        const values=obj(obj(shape.items).properties).size;
+        const choices=obj(values).enum;
+        if(Array.isArray(choices)&&choices.includes("one_size"))
+          set("headwear_size",[{size:"one_size",marketplace_id:marketId}]);
+      }
     }
     const optionSize=Array.isArray(variant.selectedOptions)?
       variant.selectedOptions.map(obj).find(o=>
@@ -1017,6 +1076,11 @@ export function merchantMultibrandEvidenceAttrs(
   }
   if(/\bidrorepellente\b/i.test(desc))
     set("water_resistance_level",[{value:"water_resistant",marketplace_id:marketId}]);
+  if(isColmar&&/\bimpermeabile\b/i.test(desc)&&
+     !/\bnon\s+impermeabile\b/i.test(desc))
+    set("water_resistance_level",[{value:"waterproof",marketplace_id:marketId}]);
+  // Do not assert water resistance when the exact merchant description
+  // contains no supporting statement.
   if(/\bchiusura(?:\s+frontale)?\s+con\s+zip\b/i.test(desc))
     set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
       marketplace_id:marketId}]);
@@ -1039,6 +1103,12 @@ export function merchantMultibrandEvidenceAttrs(
     .filter(x=>x.length>=45&&x.length<=200);
   if(bullets.length)set("bullet_point",bullets.slice(0,3).map(value=>({
     value,language_tag:"it_IT",marketplace_id:marketId})));
+  else if(isColmar&&desc.length>=45){
+    // Short merchant descriptions: shorten existing literal source copy;
+    // no generated claims or borrowing details from related garments.
+    const value=plain(desc).slice(0,180).replace(/\s+\S*$/,"").trim();
+    if(value.length>=45)set("bullet_point",text(value));
+  }
   // The size disclosure must follow merchant bullets: the generic bullet
   // source mapper above would otherwise overwrite the size-specific bullet.
   if(ecoSockAW26){
