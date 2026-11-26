@@ -146,6 +146,38 @@ const h=derive(hybrid,{selectedOptions:[{name:"Taglia",value:"50"}]},
   "COL_11000050_8ZR_378_50","COAT","IT",market,keys);
 assert.equal(h.color[0].value,"Grigio Street");
 assert.equal(h.model_name[0].value,"11000050");
+const provenanceKeys=[...keys,"country_of_origin","model_number","fit_type"];
+const sourced=derive({...col,title:"Colmar Originals Piumino Uomo Opaco con Cappuccio Blu Navy"},
+  {selectedOptions:[{name:"Taglia",value:"48"}],
+   inventoryItem:{countryCodeOfOrigin:"RO"}},
+  "COL_12000053R_4ZP_68_48","COAT","IT",market,provenanceKeys);
+assert.equal(sourced.color[0].value,"Blu Navy");
+assert.equal(sourced.country_of_origin[0].value,"RO");
+assert.equal(sourced.model_number[0].value,"12000053R");
+assert.equal(sourced.fit_type[0].value,"Regular");
+const blockedOrigin=derive(col,
+  {inventoryItem:{countryCodeOfOrigin:"ZZ"}},
+  "COL_11000026_8VX_99_48","COAT","IT",market,provenanceKeys);
+assert.equal(blockedOrigin.country_of_origin,undefined);
+const noOrigin=derive(col,
+  {inventoryItem:{countryCodeOfOrigin:null}},
+  "COL_11000026_8VX_99_48","COAT","IT",market,provenanceKeys);
+assert.equal(noOrigin.country_of_origin,undefined);
+const doubleZip=derive({...hybrid,description:"Chiusura a doppia zip, cappuccio fisso."},
+  {selectedOptions:[{name:"Taglia",value:"50"}]},
+  "COL_11000050_8ZR_378_50","COAT","IT",market,provenanceKeys);
+assert.equal(doubleZip.closure[0].type[0].value,"Zip");
+for(const [title,sku,want] of [
+  ["Colmar Originals Piumino Donna Leggero con Cappuccio Beige Marrakech",
+   "COL_22000013_2YO_636_42","Beige Marrakech"],
+  ["Colmar Originals Cappotto Donna Lungo Imbottito Bianco Tofu",
+   "COL_20000011_2JY_624_40","Bianco Tofu"],
+  ["Colmar Originals Piumino Uomo Heritage con Cappuccio Marrakech Multicolor",
+   "COL_12000023_3JQ_636_54","Marrakech Multicolor"]]){
+   const test=derive({...col,title},variant,sku,"COAT","IT",market,provenanceKeys);
+   assert.equal(test.color[0].value,want);
+}
+
 
 assert.equal(cb.list_price[0].value_with_tax,159);
 for(const [p,sku,mkt] of [[{...col,vendor:"Other Brand"},"COL_11000026_8VX_99_48","IT"],
