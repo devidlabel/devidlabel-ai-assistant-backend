@@ -167,6 +167,30 @@ const doubleZip=derive({...hybrid,description:"Chiusura a doppia zip, cappuccio 
   {selectedOptions:[{name:"Taglia",value:"50"}]},
   "COL_11000050_8ZR_378_50","COAT","IT",market,provenanceKeys);
 assert.equal(doubleZip.closure[0].type[0].value,"Zip");
+const blendSource={...hybrid,description:"Materiali e composizione Esterno principale: "+
+  "78% poliammide, 22% elastan; pannello secondario: 54% poliestere, "+
+  "20% poliammide, 20% acrilico, 6% lana; fodera: 100% poliestere."};
+const blended=derive(blendSource,variant,"COL_11000050_8ZR_378_50",
+  "COAT","IT",market,provenanceKeys);
+assert.equal(blended.fabric_type[0].value,"78% poliammide / 22% elastan");
+assert.equal(blended.outer[0].material[0].value,blended.fabric_type[0].value);
+const wrongSum=derive({...blendSource,description:
+  "Materiali e composizione Esterno principale: 78% poliammide, 21% elastan; "+
+  "fodera 100% poliestere."},variant,"COL_11000050_8ZR_378_50",
+  "COAT","IT",market,provenanceKeys);
+assert.equal(wrongSum.fabric_type,undefined,"99 percent shell must be rejected");
+const noOuter=derive({...blendSource,description:
+  "Materiali e composizione Imbottitura: 90% piumino d'anatra, "+
+  "10% piuma d'anatra."},variant,"COL_11000050_8ZR_378_50",
+  "COAT","IT",market,provenanceKeys);
+assert.equal(noOuter.fabric_type,undefined,"Do not claim filling as shell");
+const wool=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Pullover Uomo Heritage Mezza Zip in Lana Blu Navy Tofu Brick",
+  productType:"Maglieria",description:"Materiali e composizione 80% lana, "+
+  "20% poliammide. Seguire le indicazioni sull'etichetta."},variant,
+  "COL_44000015_3LW_942_M","SWEATER","IT",market,provenanceKeys);
+assert.equal(wool.fabric_type[0].value,"80% lana / 20% poliammide");
+
 for(const [title,sku,want] of [
   ["Colmar Originals Piumino Donna Leggero con Cappuccio Beige Marrakech",
    "COL_22000013_2YO_636_42","Beige Marrakech"],
