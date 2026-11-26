@@ -17,6 +17,7 @@ const KNOWN = new Map<string,string>([
 const AMAZON_CATALOG_VERIFIED = new Map<string,string>([
   ["refrigiwear","RefrigiWear"],
   ["ecoalf","ECOALF"],
+  ["colmar originals","Colmar"],
 ]);
 export function resolveAmazonListingBrand(raw:unknown):BrandIdentity|null{
   if(typeof raw!=="string"||raw.length>100||!raw.trim())return null;
