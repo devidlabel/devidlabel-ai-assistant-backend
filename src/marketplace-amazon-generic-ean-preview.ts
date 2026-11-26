@@ -816,7 +816,7 @@ export async function previewAmazonGenericEanValidation(
      !research.required_attribute_names.includes("brand")||
      (research.title_category_conflict_detected===true &&
       !(pt==="SOCKS"&&research.product_type_discovery_source==="AMAZON_KEYWORDS_SHOPIFY_SOCKS")&&
-      !(pt==="COAT"&&sku.startsWith("RFR_")&&brand==="Refrigiwear"&&
+      !(pt==="COAT"&&sku.startsWith("RFR_")&&shop.brand==="Refrigiwear"&&
         research.product_type_discovery_source==="AMAZON_KEYWORDS_REFRIGIWEAR_COAT")&&
       !(pt==="COAT"&&sku.startsWith("KWAY_")&&brand==="K-Way"&&
         research.product_type_discovery_source==="AMAZON_KEYWORDS_KWAY_COAT"))||
@@ -826,7 +826,7 @@ export async function previewAmazonGenericEanValidation(
      typeof brand!=="string"||!brand.trim()||brand.length>100||
      !Number.isSafeInteger(shop.shopify_available)||(shop.shopify_available as number)<0||
      ((shop.shopify_available as number)===0&&
-      !(sku.startsWith("RFR_")&&brand==="Refrigiwear")&&
+      !(sku.startsWith("RFR_")&&shop.brand==="Refrigiwear")&&
       !(sku.startsWith("KWAY_")&&brand==="K-Way"))||
      typeof shop.variant_id!=="string"||
      !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(shop.variant_id))
