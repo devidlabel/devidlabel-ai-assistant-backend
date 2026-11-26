@@ -983,6 +983,37 @@ export function merchantMultibrandEvidenceAttrs(
     set("outer",[{material:[{value:mainFabric,language_tag:"it_IT"}],
       marketplace_id:marketId}]);
   }
+  // Only the documented principal OUTER shell composition may feed Amazon
+  // fabric_type/outer. Secondary panels, linings and down filling are kept
+  // separate, not added to the shell blend. The percentage total must be 100.
+  if(isColmar){
+    const normalized=plain(desc);
+    const marker=/(?:\bEsterno(?: principale| e fodera)?|\bTessuto (?:esterno(?: e fodera)?|principale)|\bEsterno, secondo tessuto esterno e fodera)\s*:?\s*/i.exec(normalized);
+    const sweaterSection=pt==="SWEATER"||pt==="SWEATSHIRT";
+    const standalone=sweaterSection?
+      /\bMateriali e composizione\s+(?=\d{1,3}\s*%)/i.exec(normalized):null;
+    const source=marker||standalone;
+    if(source){
+      const raw=normalized.slice(source.index+source[0].length).split(/[.;]/,1)[0].trim();
+      if(raw.length>=8&&raw.length<=160&&/^\d{1,3}\s*%/.test(raw)){
+        const fibers: {percent:number;name:string}[]=[];
+        const fiberRe=/(\d{1,3})\s*%\s*(lana vergine|poliammide|poliestere|elastan|cotone|lana|acrilico|viscosa|nylon|cashmere)/gi;
+        let item:RegExpExecArray|null;
+        while((item=fiberRe.exec(raw))!==null){
+          fibers.push({percent:Number(item[1]),name:item[2].toLowerCase()});
+        }
+        const rest=raw.replace(fiberRe,"").replace(/[\s,;\/+\-]/g,"").replace(/e/g,"");
+        if(fibers.length>=1&&fibers.length<=4&&rest===""&&
+           fibers.every(x=>x.percent>0&&x.percent<=100)&&
+           fibers.reduce((n,x)=>n+x.percent,0)===100){
+          const shell=fibers.map(x=>x.percent+"% "+x.name).join(" / ");
+          set("fabric_type",text(shell));
+          set("outer",[{material:[{value:shell,language_tag:"it_IT"}],
+            marketplace_id:marketId}]);
+        }
+      }
+    }
+  }
   if(/\bidrorepellente\b/i.test(desc))
     set("water_resistance_level",[{value:"water_resistant",marketplace_id:marketId}]);
   if(/\bchiusura(?:\s+frontale)?\s+con\s+zip\b/i.test(desc))
