@@ -887,7 +887,7 @@ export function merchantMultibrandEvidenceAttrs(
   }
   if(/\bidrorepellente\b/i.test(desc))
     set("water_resistance_level",[{value:"water_resistant",marketplace_id:marketId}]);
-  if(/\bchiusura\b.{0,55}\bzip\b/i.test(desc))
+  if(/\bchiusura(?:\s+frontale)?\s+con\s+zip\b/i.test(desc))
     set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
       marketplace_id:marketId}]);
   if(/\b(casual|urbano)\b/i.test(desc))set("style",text("Casual"));
