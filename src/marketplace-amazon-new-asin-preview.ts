@@ -141,6 +141,12 @@ export async function previewAmazonNewAsinShoesValidation(
     profile.age_group==="adult"&&
     ["women","men"].includes(String(profile.gender)); 
   const sourcedProfile=merchantHyper||merchantPolly||merchantPlay||merchantPanther;
+  const officialMaker=obj(evidence.merchant_official_manufacturer);
+  const verified4B12Maker=(merchantHyper||merchantPlay)&&
+    officialMaker.source==="OFFICIAL_4B12_MANUFACTURER_NAME_20261126"&&
+    officialMaker.name==="Medusa s.r.l."&&
+    officialMaker.official_url==="https://4b12.it/contattaci"&&
+    evidence.merchant_manufacturer_name===undefined;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace],locale=LOCALES[marketplace];
   // Preview-only locale texts for exact PlayNew style. Live writer remains
   // restricted to IT until per-country PTD and commercial eligibility proven.
@@ -318,6 +324,11 @@ export async function previewAmazonNewAsinShoesValidation(
       manufacturer:[{value:evidence.merchant_manufacturer_name,
         language_tag:locale,marketplace_id:marketId}]
     }:{}),
+    ...(verified4B12Maker?{
+      manufacturer:[{value:"Medusa s.r.l.",language_tag:locale,
+        marketplace_id:marketId}]
+    }:{}),
+
     // One controlled SKU39 market-IT pilot: merchandising and shipping-box
     // estimates, labelled non-certified and deliberately restricted.
     ...(/^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(sku)&&
