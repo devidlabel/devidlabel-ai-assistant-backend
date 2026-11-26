@@ -382,6 +382,41 @@ function ptdAlphaSizeLabelTokens(schema:Row):Row {
   }
   return output;
 }
+/** Exact numeric size wire tokens from *this* marketplace's live PTD.
+ * Amazon may encode a merchant's "48" as "numeric_48" even when the display
+ * label is "48". Accept only unique enum/enumNames pairs with identical
+ * numeric meaning. No inferred conversions, ranges or cross-market reuse.
+ */
+export function ptdNumericSizeLabelTokens(schema:Row):Row {
+  const root=obj(schema.properties), wrapper=obj(root.attributes);
+  const holder=wrapper.type==="object"&&Object.keys(obj(wrapper.properties)).length>0?
+    wrapper:schema;
+  const attributes=obj(holder.properties), output:Row={};
+  for(const field of ["shirt_size","apparel_size","headwear_size"]){
+    const attr=obj(attributes[field]),item=obj(attr.items),props=obj(item.properties);
+    const size=obj(props.size),classes=obj(props.size_class).enum;
+    const values=size.enum,labels=size.enumNames;
+    if(attr.type!=="array"||item.type!=="object"||size.type!=="string"||
+       obj(props.size_class).type!=="string"||
+       !Array.isArray(classes)||!classes.includes("numeric")||
+       !Array.isArray(values)||!Array.isArray(labels)||
+       values.length!==labels.length||values.length>10000||
+       values.some(x=>typeof x!=="string")||
+       labels.some(x=>typeof x!=="string"))continue;
+    const grouped:Record<string,Set<string>>={};
+    for(let i=0;i<values.length;i++){
+      const token=values[i] as string,label=labels[i] as string;
+      const m=/^numeric_([2-6][0-9])$/.exec(token);
+      if(!m||label!==m[1])continue;
+      (grouped[label]??=new Set()).add(token);
+    }
+    const matches:Row={};
+    for(const [label,tokens] of Object.entries(grouped))
+      if(tokens.size===1)matches[label]=[...tokens][0];
+    if(Object.keys(matches).length)output[field]=matches;
+  }
+  return output;
+}
 /** Bounded diagnostic pairs from the same official PTD size enum. These are
  * not a merchant-size mapping: unfamiliar or ambiguous labels remain visible
  * for review and never change the existing mapper or publication gates.
@@ -859,6 +894,7 @@ export async function researchAmazonNewAsinProductType(
       ptd_size_shapes: selectedAttributeShapes(rawSchema,GENERIC_SIZE_INSPECTION_FIELDS),
       ptd_alpha_size_tokens:ptdAlphaSizeTokens(rawSchema),
       ptd_alpha_size_label_tokens:ptdAlphaSizeLabelTokens(rawSchema),
+      ptd_numeric_size_label_tokens:ptdNumericSizeLabelTokens(rawSchema),
       ptd_alpha_size_enum_pairs:ptdAlphaSizeEnumPairs(rawSchema),
       ptd_alpha_size_enum_pairs_diagnostic_only:true,
       ptd_alpha_size_enum_pairs_not_size_mapping:true,

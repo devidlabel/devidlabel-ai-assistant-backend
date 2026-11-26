@@ -900,17 +900,32 @@ export function merchantMultibrandEvidenceAttrs(
         ["taglia","size"].includes(o.name.toLowerCase()))?.value;
       if(headSize==="Unica"||headSize==="UNICA"||headSize==="Taglia unica"){
         const shape=obj(obj(research.ptd_size_shapes).headwear_size);
-        const values=obj(obj(shape.items).properties).size;
-        const choices=obj(values).enum;
-        if(Array.isArray(choices)&&choices.includes("one_size"))
-          set("headwear_size",[{size:"one_size",marketplace_id:marketId}]);
+        const item=obj(shape.items),props=obj(item.properties);
+        const systems=obj(props.size_system).enum;
+        const classes=obj(props.size_class).enum;
+        const tokenSet=obj(research.ptd_alpha_size_tokens).headwear_size;
+        const mandatory=item.required;
+        if(shape.type==="array"&&item.type==="object"&&
+           Array.isArray(systems)&&systems.includes("as6")&&
+           Array.isArray(classes)&&classes.includes("alpha")&&
+           Array.isArray(mandatory)&&
+           ["size","size_class","size_system"].every(x=>mandatory.includes(x))&&
+           Array.isArray(tokenSet)&&tokenSet.includes("one_size"))
+          set("headwear_size",[{
+            size:"one_size",size_class:"alpha",size_system:"as6",
+            marketplace_id:marketId}]);
       }
     }
     const optionSize=Array.isArray(variant.selectedOptions)?
       variant.selectedOptions.map(obj).find(o=>
         typeof o.name==="string"&&["taglia","size"].includes(o.name.toLowerCase()))?.value:undefined;
-    if(typeof optionSize==="string"&&/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&
-       sku.endsWith("_"+optionSize)&&/\b(?:Uomo|Donna)\b/.test(title)){
+    if(typeof optionSize==="string"&&
+       ((/^(3[6-9]|4[0-9]|5[0-9]|60)$/.test(optionSize)&&pt==="COAT")||
+        (["SWEATER","SWEATSHIRT","SHIRT"].includes(pt)&&/^(XXS|XS|S|M|L|XL|XXL|XXXL)$/.test(optionSize))||
+        (pt==="HAT"&&["Unica","UNICA","Taglia unica"].includes(optionSize)))&&
+       (sku.endsWith("_"+optionSize)||
+         (pt==="HAT"&&sku.endsWith("_UNICA")))&&
+       /\b(?:Uomo|Donna)\b/.test(title)){
       set("special_size_type",text("Standard"));
     }
     // Additional merchant-exact garment descriptions beyond the narrow
@@ -1079,10 +1094,22 @@ export function merchantMultibrandEvidenceAttrs(
   if(isColmar&&/\bimpermeabile\b/i.test(desc)&&
      !/\bnon\s+impermeabile\b/i.test(desc))
     set("water_resistance_level",[{value:"waterproof",marketplace_id:marketId}]);
+  // Conservative seller default: do not claim water-resistance performance
+  // absent an exact Shopify/official claim. Scoped to Colmar apparel COAT /
+  // SWEATER; a positive water claim always overrides this non-claim baseline.
+  if(isColmar&&["COAT","SWEATER"].includes(pt)&&
+     !Object.hasOwn(attrs,"water_resistance_level")&&
+     !/\b(?:idrorepellente|impermeabile|waterproof)\b/i.test(desc))
+    set("water_resistance_level",[{value:"not_water_resistant",
+      marketplace_id:marketId}]);
   // Do not assert water resistance when the exact merchant description
   // contains no supporting statement.
-  if(/\bchiusura(?:\s+frontale)?\s+con\s+zip\b/i.test(desc))
+  if(/\bchiusura(?:\s+frontale)?\s+(?:con|a)\s+(?:doppia\s+)?zip\b/i.test(desc)||
+     (isColmar&&/\bzip a doppio cursore\b/i.test(desc)))
     set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+  if(isColmar&&/\bchiusura(?:\s+frontale)?\s+con\s+bottoni\b/i.test(desc))
+    set("closure",[{type:[{value:"Bottoni",language_tag:"it_IT"}],
       marketplace_id:marketId}]);
   if(/\b(casual|urbano)\b/i.test(desc))set("style",text("Casual"));
   if(/\bsportivo\b/i.test(desc))set("style",text("Sportivo"));
@@ -1288,14 +1315,33 @@ export async function previewAmazonGenericEanValidation(
     (marketplace==="DE"&&pt==="SWEATSHIRT"&&merchantSize.value?.size_class==="alpha");
   const regularFit=(marketplace==="IT"||(usesStandardProfile&&kwayStandardAdultSize(p,sku,marketplace)))&&
     ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
-    (sku.startsWith("RFR_")||sku.startsWith("KWAY_"))&&
+    (sku.startsWith("RFR_")||sku.startsWith("KWAY_")||
+      (sku.startsWith("COL_")&&p.vendor==="Colmar Originals"&&
+       merchantSize.value?.size_class==="numeric"))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
     (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
     Array.isArray(obj(sizeProps.height_type).enum)&&
     (obj(sizeProps.height_type).enum as string[]).includes("regular");
-  const mappedSize=regularFit?{...merchantSize.value,
-    body_type:"regular",height_type:"regular"}:merchantSize.value;
+  // Amazon's live PTD wire token for merchant IT 48 can be "numeric_48"
+  // rather than the display label "48". Use only a uniquely verified exact
+  // enum/enumNames pair returned by this marketplace's fresh PTD research.
+  // Only Colmar numeric apparel, never global numeric or EU cross-market.
+  const numericDisplay=merchantSize.value?.size;
+  const numericToken=typeof numericDisplay==="string"?
+    obj(obj(research.ptd_numeric_size_label_tokens).apparel_size)[numericDisplay]:
+    undefined;
+  const mappedColmarNumeric=sku.startsWith("COL_")&&
+    p.vendor==="Colmar Originals"&&marketplace==="IT"&&
+    merchantSize.attribute==="apparel_size"&&
+    merchantSize.value?.size_class==="numeric"&&
+    typeof numericDisplay==="string"&&/^[2-6][0-9]$/.test(numericDisplay)&&
+    typeof numericToken==="string"&&
+    numericToken==="numeric_"+numericDisplay;
+  const canonicalSize=mappedColmarNumeric?
+    {...merchantSize.value,size:numericToken}:merchantSize.value;
+  const mappedSize=regularFit?{...canonicalSize,
+    body_type:"regular",height_type:"regular"}:canonicalSize;
   const marketId=AMAZON_EU_MARKETPLACES[marketplace];
   const attributes={
     brand:[{value:brand,marketplace_id:marketId}],

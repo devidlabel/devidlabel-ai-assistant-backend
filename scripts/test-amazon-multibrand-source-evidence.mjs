@@ -146,6 +146,25 @@ const h=derive(hybrid,{selectedOptions:[{name:"Taglia",value:"50"}]},
   "COL_11000050_8ZR_378_50","COAT","IT",market,keys);
 assert.equal(h.color[0].value,"Grigio Street");
 assert.equal(h.model_name[0].value,"11000050");
+assert.equal(h.water_resistance_level[0].value,"not_water_resistant");
+const slimColmar={vendor:"Colmar Originals",
+  title:"Colmar Originals Piumino Donna Leggero con Cappuccio Nero",
+  productType:"Giacche e cappotti",
+  description:"Cappuccio fisso, chiusura frontale a doppia zip e tasche con zip. "+
+    "Tessuto idrorepellente con fibre riciclate."};
+const slimAttrs=derive(slimColmar,{selectedOptions:[{name:"Taglia",value:"42"}]},
+  "COL_22000013_2YO_99_42","COAT","IT",market,
+  [...keys,"country_of_origin","item_package_dimensions","item_package_weight"]);
+assert.equal(slimAttrs.closure[0].type[0].value,"Zip");
+assert.equal(slimAttrs.water_resistance_level[0].value,"water_resistant");
+assert.equal(slimAttrs.country_of_origin[0].value,"CN");
+const unverifiedWater=derive({...slimColmar,
+  description:"Un piumino donna con cappuccio e chiusura zip."},
+  {selectedOptions:[{name:"Taglia",value:"42"}]},
+  "COL_22000013_2YO_99_42","COAT","IT",market,keys);
+assert.equal(unverifiedWater.water_resistance_level[0].value,
+  "not_water_resistant",
+  "Colmar non-water-resistance claim is conservative if source contains no claim");
 const provenanceKeys=[...keys,"country_of_origin","model_number","fit_type"];
 const sourced=derive({...col,title:"Colmar Originals Piumino Uomo Opaco con Cappuccio Blu Navy"},
   {selectedOptions:[{name:"Taglia",value:"48"}],
@@ -183,16 +202,44 @@ assert.equal(colmarSweater.country_of_origin[0].value,"CN");
 assert.equal(colmarSweater.item_package_weight[0].value,0.9);
 assert.equal(colmarSweater.weave_type[0].value,"Maglia");
 assert.equal(colmarSweater.fabric_type[0].value,"80% lana / 20% poliammide");
+assert.equal(colmarSweater.water_resistance_level[0].value,"not_water_resistant");
+assert.equal(colmarSweater.special_size_type[0].value,"Standard");
+const colmarSweat=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Felpa Donna Heritage con Cappuccio Tofu Marrakech",
+  productType:"Felpe",description:"Felpa Heritage con cappuccio."},
+  {selectedOptions:[{name:"Taglia",value:"M"}]},
+  "COL_92000021_3ZN_624_M","SWEATSHIRT","IT",market,provenanceKeys);
+assert.equal(colmarSweat.special_size_type[0].value,"Standard");
+const colmarDown=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Piumino Uomo Opaco con Cappuccio Nero",
+  productType:"Giacche e cappotti",
+  description:"Zip a doppio cursore e cappuccio fisso."},
+  {selectedOptions:[{name:"Taglia",value:"48"}]},
+  "COL_12000053R_4ZP_99_48","COAT","IT",market,provenanceKeys);
+assert.equal(colmarDown.closure[0].type[0].value,"Zip");
+const colmarWoolCoat=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Cappotto Donna Lungo Imbottito Bianco Tofu",
+  productType:"Giacche e cappotti",
+  description:"Cappuccio e chiusura frontale con bottoni."},
+  {selectedOptions:[{name:"Taglia",value:"40"}]},
+  "COL_20000011_2JY_624_40","COAT","IT",market,provenanceKeys);
+assert.equal(colmarWoolCoat.closure[0].type[0].value,"Bottoni");
 const colmarHat=derive({vendor:"Colmar Originals",
   title:"Colmar Originals Cappello Aviatore Donna in Pelliccia Sintetica Bianco Tofu",
   productType:"Cappelli",description:"Cappello in pelliccia sintetica con fodera calda."},
   {selectedOptions:[{name:"Taglia",value:"Unica"}]},
   "COL_48000016E_3PD_624_UNICA","HAT","IT",market,
   [...provenanceKeys,"headwear_size"],
-  {ptd_size_shapes:{headwear_size:{items:{properties:{size:{enum:["one_size"]}}}}}});
+  {ptd_size_shapes:{headwear_size:{type:"array",items:{type:"object",
+    required:["size","size_class","size_system"],
+    properties:{size_system:{enum:["as6"]},size_class:{enum:["alpha"]}}}}},
+   ptd_alpha_size_tokens:{headwear_size:["s","m","l","one_size"]}});
 assert.equal(colmarHat.item_package_weight[0].value,0.5);
 assert.equal(colmarHat.country_of_origin[0].value,"CN");
 assert.equal(colmarHat.headwear_size[0].size,"one_size");
+assert.equal(colmarHat.headwear_size[0].size_system,"as6");
+assert.equal(colmarHat.headwear_size[0].size_class,"alpha");
+assert.equal(colmarHat.special_size_type[0].value,"Standard");
 const noEnumHat=derive({vendor:"Colmar Originals",
   title:"Colmar Originals Cappello Aviatore Donna in Pelliccia Sintetica Bianco Tofu",
   productType:"Cappelli",description:"Cappello in pelliccia sintetica con fodera calda."},

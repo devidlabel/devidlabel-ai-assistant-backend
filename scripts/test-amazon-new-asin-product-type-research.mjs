@@ -8,6 +8,27 @@ const compiled = await build({
 });
 const mod = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 const research = mod.researchAmazonNewAsinProductType;
+const numericSchema={properties:{attributes:{type:"object",properties:{
+  apparel_size:{type:"array",items:{type:"object",properties:{
+    size:{type:"string",enum:["numeric_46","numeric_48","numeric_50",
+      "numeric_52","numeric_54","numeric_56","m","numeric_47"],
+      enumNames:["46","48","50","52","54","56","M","48"]},
+    size_class:{type:"string",enum:["alpha","numeric"]}}}}
+}}}};
+const verifiedNumeric=mod.ptdNumericSizeLabelTokens(numericSchema);
+assert.deepEqual(verifiedNumeric.apparel_size,{
+  "46":"numeric_46","48":"numeric_48","50":"numeric_50",
+  "52":"numeric_52","54":"numeric_54","56":"numeric_56"});
+const ambiguousNumeric={properties:{attributes:{type:"object",properties:{
+  apparel_size:{type:"array",items:{type:"object",properties:{
+    size:{type:"string",enum:["numeric_48","numeric_48_other"],
+      enumNames:["48","48"]},
+    size_class:{type:"string",enum:["numeric"]}}}}
+}}}};
+assert.deepEqual(mod.ptdNumericSizeLabelTokens(ambiguousNumeric).apparel_size,
+  {"48":"numeric_48"},
+  "Only exact normalized PTD token matching its display size is accepted");
+
 const SKU = "GOB_105-0216 RED_Taglia unica";
 const EAN = "7427277372563";
 const MARKET_ID = "APJ6JRA9NG5V4";
