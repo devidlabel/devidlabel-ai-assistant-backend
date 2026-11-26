@@ -895,13 +895,38 @@ export function merchantMultibrandEvidenceAttrs(
         field=>required.includes(field));
     if(interval&&strictShape){
       const lower=Number(interval[1]),upper=Number(interval[2]);
-      if(lower>=30&&upper<=49&&lower<upper&&upper-lower<=12)
-        set("apparel_size",[{
-          size:interval[1],size_to:interval[2],
-          size_class:"numeric",size_system:"as6",
-          ...(regularProfile?{body_type:"regular",height_type:"regular"}:{}),
-          marketplace_id:marketId
-        }]);
+      const originalRange=interval[1]+"-"+interval[2];
+      if(lower>=30&&upper<=49&&lower<upper&&upper-lower<=12){
+        // Amazon IT SOCKS rejects exact 36-40 / 41-46 numeric interval values
+        // with 99022/90004205, even when both conditional qualifiers exist.
+        // Only use its LIVE PTD alpha labels, not an invented arbitrary token.
+        const alphaTokens=obj(research.ptd_alpha_size_tokens).apparel_size;
+        const curatedAlpha=originalRange==="41-46"?"l":
+          ["36-40","36-41"].includes(originalRange)?"m":undefined;
+        const alphaAllowed=curatedAlpha&&classes.includes("alpha")&&
+          Array.isArray(alphaTokens)&&alphaTokens.includes(curatedAlpha);
+        if(alphaAllowed){
+          set("apparel_size",[{
+            size:curatedAlpha,size_class:"alpha",size_system:"as6",
+            ...(regularProfile?{body_type:"regular",height_type:"regular"}:{}),
+            marketplace_id:marketId
+          }]);
+          // Expose the exact manufacturer size range to buyers even when
+          // Amazon displays its permitted M/L alpha size labels.
+          set("bullet_point",[{
+            value:"Taglia europea riportata dal produttore: "+originalRange+
+              " (corrispondenza taglia Amazon "+curatedAlpha.toUpperCase()+").",
+            language_tag:"it_IT",marketplace_id:marketId
+          }]);
+        }else{
+          set("apparel_size",[{
+            size:interval[1],size_to:interval[2],
+            size_class:"numeric",size_system:"as6",
+            ...(regularProfile?{body_type:"regular",height_type:"regular"}:{}),
+            marketplace_id:marketId
+          }]);
+        }
+      }
     }
   }
   const productType=candidate(product.productType,90);
