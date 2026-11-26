@@ -111,6 +111,63 @@ function merchantDescription(raw:unknown,identity?:{sku:string;productTitle:stri
     ...(closureLaces?{closure_laces:true as const}:dSource?{closure_laces:true as const}:{})};
 }
 /**
+ * Source-faithful retailer statements for narrow, exact Shopify SKU families.
+ * Every value comes from this exact product's merchant copy, not an inference
+ * from its brand, GTIN, marketing collection or another footwear model. These
+ * are seller listing declarations, not manufacturer-certified measurements.
+ */
+function merchantShoesExactProfile(raw:unknown,identity:{
+  sku:string;productTitle:string;shopifyVendor:string;
+}):Row {
+  if(typeof raw!=="string"||raw.length<100||raw.length>14000||
+     /<\s*(?:script|style|iframe|object|embed|svg|form)\b/i.test(raw))return {};
+  const plain=raw.replace(/<[^>]+>/g," ").replace(/&amp;/gi,"&")
+    .replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
+  if(!plain||/[<>]/.test(plain))return {};
+  const hyper=/^4B12_HYPER_([DU][0-9]{4})_([34][0-9])_EU$/.exec(identity.sku);
+  if(identity.shopifyVendor==="4B12"&&hyper&&
+     identity.productTitle.toLowerCase()==="sneaker hyper-"+hyper[1].toLowerCase()){
+    const code=hyper[1][0]+"-"+hyper[1].slice(1);
+    const sex=hyper[1].startsWith("D")?"donna":"uomo";
+    const sourceIdentity=new RegExp("\\bSneaker\\s+4B12\\s+Hyper\\s+"+code+"\\s+da\\s+"+sex+"\\b","i");
+    const second=new RegExp("\\b(?:il\\s+)?modello\\s+"+code+"\\s+da\\s+"+sex+"\\b","i");
+    if(!sourceIdentity.test(plain)||!second.test(plain))return {};
+    const madeInItaly=/\bMade in Italy\b/i.test(plain)&&
+      /\b(?:realizzata|realizzato|produzione|lavorazione)\s+(?:artigianalmente\s+|interamente\s+|in\s+)?(?:Made in )?Italia\b/i.test(plain);
+    const regular=/\bCalzata regolare\b/i.test(plain);
+    const leather=/\b(?:tomaia|realizzata|realizzato|base)\s+in\s+pelle\b/i.test(plain);
+    const suede=/\binserti\s+in\s+suede\b/i.test(plain);
+    return {
+      source:"SHOPIFY_EXACT_4B12_HYPER_PRODUCT_COPY",
+      model_number:code,
+      ...(madeInItaly?{country_of_origin:"IT"}:{}),
+      ...(regular?{regular_width:"medium"}:{}),
+      age_group:"adult",gender:sex==="donna"?"women":"men",
+      ...(leather?{outer:suede?"Pelle e suede":"Pelle"}:{}),
+      ...(suede?{leather_type:"Pelle scamosciata"}:{})
+    };
+  }
+  const polly=/^PUI_(PU405P-[0-9]{3})_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(identity.sku);
+  if(identity.shopifyVendor==="Puraai"&&polly){
+    const color=polly[2].replace(/_/g," ").toLowerCase();
+    if(identity.productTitle.toLowerCase()!=="4.05 polly "+color)return {};
+    const fullCode=polly[1]+"_"+polly[2];
+    if(!plain.includes("Codice: "+fullCode)||
+       !/\bSneaker Puraai donna modello Polly\b/i.test(plain)||
+       !/\bSneakers da donna basse firmate Puraai\b/i.test(plain)||
+       !/\btomaia in microfibra riciclata\b/i.test(plain)||
+       !/\bfodera in tessuto\b/i.test(plain))return {};
+    return {
+      source:"SHOPIFY_EXACT_PURAAI_POLLY_PRODUCT_COPY",
+      model_number:polly[1],bullet_point:"Tomaia in microfibra riciclata",
+      outer:"Microfibra riciclata",inner:"Tessuto",
+      leather_type:"Materiale sintetico",height_map:"low-top",
+      age_group:"adult",gender:"women"
+    };
+  }
+  return {};
+}
+/**
  * Merchant-authored model-specific composition for Royal Classic Pro-Keds.
  * This is strict exact-product HTML extraction for Amazon validation previews.
  * It is NOT a supplier certificate, GPSR attestation or live-write permission.
@@ -357,6 +414,11 @@ export async function readAmazonShoesPrivateShopifyValues(
     /^4B12_PLAYNEW_D2045_(?:37|38|39|40)_EU$/.test(expected.sku)&&
     targetGender==="female"&&typeof selectedSize==="string";
   const descriptionEvidence=merchantDescription(product.descriptionHtml,expected);
+  const exactProfile=merchantShoesExactProfile(product.descriptionHtml,expected);
+  if(typeof exactProfile.country_of_origin==="string"&&
+     typeof countryOfOrigin==="string"&&
+     exactProfile.country_of_origin!==countryOfOrigin)
+    return fail("shopify_origin_conflicts_exact_product_copy");
   const proKeds=proKedsComposition(product.descriptionHtml,expected);
   const proKedsAdultWidth=proKeds.source==="SHOPIFY_PROKEDS_ROYAL_CLASSIC_EXACT_HTML"&&
     proKeds.merchant_width==="wide"&&typeof selectedSize==="string"&&
@@ -372,6 +434,11 @@ export async function readAmazonShoesPrivateShopifyValues(
     Number(comparison)>=Number(now)&&Number(comparison)>0)?
     Number(comparison):undefined;
   return {ok:true,model_name:model,color,...descriptionEvidence,
+    ...(typeof exactProfile.source==="string"?{
+      merchant_shoes_profile:exactProfile,
+      model_number:descriptionEvidence.model_number??exactProfile.model_number,
+      bullet_point:descriptionEvidence.bullet_point??exactProfile.bullet_point,
+    }:{}),
     ...(styleEvidence.source?{merchant_shoes_style:styleEvidence}:{}),
     ...(merchantSole.source?{merchant_shoes_sole:merchantSole}:{}),
     ...(proKeds.source?{merchant_shoes_composition:proKeds,
@@ -409,14 +476,20 @@ export async function readAmazonShoesPrivateShopifyValues(
         source:"RETAILER_EXACT_MODEL_AND_GTIN_REVIEW"
       }
     }:{}),
-    ...(explicitAdultAge||playNewPilot||proKedsAdultWidth?{age_range_description:"adult"}:{}),
-    ...(countryOfOrigin?{country_of_origin:countryOfOrigin}:{}),
+    ...(explicitAdultAge||playNewPilot||proKedsAdultWidth||exactProfile.age_group==="adult"?{age_range_description:"adult"}:{}),
+    ...(countryOfOrigin||exactProfile.country_of_origin?
+      {country_of_origin:countryOfOrigin||exactProfile.country_of_origin}:{}),
     ...(targetGender?{target_gender:targetGender}:{}),
     ...(selectedSize?{footwear_size:{
-      size:playNewPilot||proKedsAdultWidth?"numeric_"+selectedSize:selectedSize,
+      size:playNewPilot||proKedsAdultWidth||typeof exactProfile.source==="string"?"numeric_"+selectedSize:selectedSize,
       size_class:"numeric",size_system:"eu_footwear_size_system",
       ...(playNewPilot?{age_group:"adult",gender:"women",width:"medium"}:{}),
       ...(proKedsAdultWidth?{age_group:"adult",gender:targetGender==="male"?"men":"women",width:"wide"}:{}),
+      ...(exactProfile.age_group==="adult"&&exactProfile.gender===
+        (targetGender==="male"?"men":"women")?{
+        age_group:"adult",gender:exactProfile.gender,
+        ...(exactProfile.regular_width==="medium"?{width:"medium"}:{})
+      }:{}),
     }}:{}),
     verified_paths:[...(merchantStandardPackage?["product.amazon_ptd_shoes.merchant_standard_estimated_package"]:[]),
       fields.has("amazon_brand")?"product.amazon_ptd_shoes.amazon_brand":identity.source==="MERCHANT_CONFIRMED_MAPPING"?"merchant_confirmed_vendor_brand_mapping":"product.vendor",
@@ -430,6 +503,7 @@ export async function readAmazonShoesPrivateShopifyValues(
       ...(selectedSize?["variant.selectedOptions",...(sizeNeedsSystemEvidence?["variant.mm-google-shopping.size_system"]:[])]:[]),
       ...(descriptionEvidence.product_description?["product.descriptionHtml"]:[]),
       ...(proKeds.source?["product.descriptionHtml.ProKedsStructuredComposition"]:[]),
+      ...(typeof exactProfile.source==="string"?["product.descriptionHtml.ExactFootwearProfile"]:[]),
       ...(merchantSole.source?["product.descriptionHtml.ExplicitSoleMaterial"]:[]),
       ...(styleEvidence.source?["product.descriptionHtml.ExplicitShoeStyle"]:[])],
     draft_values_review_only:true,public_storefront_access_used:false,
