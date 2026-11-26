@@ -821,6 +821,22 @@ export function merchantMultibrandEvidenceAttrs(
   if(candidate(color,46))set("color",text(plain(color!)));
   if(isColmar)set("manufacturer",text("COLMAR"));
   if(isEco)set("manufacturer",text("Ecoalf"));
+  // Official Ecoalf AW26 specification is common to the exact documented
+  // Mountain/Contraste sock models (not every Ecoalf sock).
+  // https://ecoalf.com/it/products/mountain-calze-unisex-medio-grigio-melange-aw26
+  // https://ecoalf.com/it/products/contraste-calze-alto-uomo-arancione-bruciato-aw26
+  // https://ecoalf.com/it/products/contraste-calze-basso-donna-bianco-sporco-aw26
+  const ecoSockAW26=isEco&&pt==="SOCKS"&&
+    /^ECO_(?:MCUACSXMOUNT0697W26|MCMACSXCONTH0697W26|MCWACSXCONTL0697W26)_[A-Za-z0-9_]+$/.test(sku);
+  if(ecoSockAW26){
+    const origin=obj(variant.inventoryItem).countryCodeOfOrigin;
+    if(origin===undefined||origin===null||origin==="ES"){
+      set("country_of_origin",[{value:"ES",marketplace_id:marketId}]);
+    }
+    const documentedFabric="30% poliammide riciclata / 30% lana riciclata / "+
+      "30% TENCEL Lyocell / 10% cashmere riciclato";
+    set("fabric_type",text(documentedFabric));
+  }
   const productType=candidate(product.productType,90);
   if(productType)set("item_type_name",text(productType));
   // Choose the main outer fabric, never concatenate separate lining/filling.
