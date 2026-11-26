@@ -905,7 +905,7 @@ export function merchantMultibrandEvidenceAttrs(
           ["36-40","36-41"].includes(originalRange)?"m":undefined;
         const alphaAllowed=curatedAlpha&&classes.includes("alpha")&&
           Array.isArray(alphaTokens)&&alphaTokens.includes(curatedAlpha);
-        if(alphaAllowed){
+        if(typeof curatedAlpha==="string"&&alphaAllowed){
           set("apparel_size",[{
             size:curatedAlpha,size_class:"alpha",size_system:"as6",
             ...(regularProfile?{body_type:"regular",height_type:"regular"}:{}),
