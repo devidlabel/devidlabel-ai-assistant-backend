@@ -739,4 +739,49 @@ pantherDrift.productVariant.product.descriptionHtml=
  pantherDrift.productVariant.product.descriptionHtml.replace("Panther 6.02 Angel","Panther 6.02 Bambi");
 assert.equal((await read(pantherExpected,{},{queryShopify:async()=>pantherDrift}))
  .merchant_shoes_profile,undefined);
+// Modern 4B12 Hyper-U family uses a different merchant title and lists
+// its gender, exact SKU model and low-top profile. No country or width guess.
+for(const [code,color,upper] of [
+  ["U3012","Bianco","sneaker low-top monocromatica con upper in pelle color bianco avorio"],
+  ["U3027","White/Black","sneaker Hyper in pelle bianca con dettagli neri"]
+]){
+ const sku="4B12_HYPER_"+code+"_40_EU";
+ const identity={sku,variantId:"gid://shopify/ProductVariant/9876500031",
+   productTitle:"Hyper U-"+code.slice(1)+" "+color,
+   shopifyVendor:"4B12",amazonBrand:"4B12"};
+ const fixture=structuredClone(fallback);
+ fixture.productVariant.id=identity.variantId;
+ fixture.productVariant.sku=sku;
+ fixture.productVariant.product.title=identity.productTitle;
+ fixture.productVariant.product.fallbackModel={type:"single_line_text_field",value:"Hyper"};
+ fixture.productVariant.product.fallbackColorRef=undefined;
+ fixture.productVariant.product.fallbackColorText={type:"single_line_text_field",value:color};
+ fixture.productVariant.product.fallbackGender={type:"list.single_line_text_field",value:'["Uomo"]'};
+ fixture.productVariant.selectedOptions=[{name:"Numero",value:"40 EU"}];
+ fixture.productVariant.product.descriptionHtml=[
+  "<h2>Hyper U-"+code.slice(1)+" 4B12</h2>",
+  "<p>La Hyper U-"+code.slice(1)+" 4B12 e una sneaker uomo nella colorazione "+color+".</p>",
+  "<p>La tomaia valorizza "+upper+". La silhouette low-top completa gli abbinamenti casual premium.</p>",
+  "<ul><li>Reparto: Uomo</li><li>Chiusura con lacci</li>",
+  "<li>Codice modello: HYPER-"+code+"</li></ul>"
+ ].join("");
+ const good=await read(identity,{},{queryShopify:async()=>fixture});
+ assert.equal(good.ok,true);
+ assert.equal(good.merchant_shoes_profile?.source,
+  "SHOPIFY_EXACT_4B12_HYPER_U_PRODUCT_COPY");
+ assert.equal(good.model_number,"HYPER-"+code);
+ assert.equal(good.age_range_description,"adult");
+ assert.equal(good.footwear_size.size,"numeric_40");
+ assert.equal(good.footwear_size.gender,"men");
+ assert.equal(good.footwear_size.width,undefined);
+ assert.equal(good.merchant_shoes_profile.height_map,"low-top");
+ assert.equal(good.merchant_shoes_profile.outer,"Pelle");
+ assert.equal(good.merchant_official_manufacturer?.name,"Medusa s.r.l.");
+ const bad=structuredClone(fixture);
+ bad.productVariant.product.descriptionHtml=
+  bad.productVariant.product.descriptionHtml.replace("Codice modello: HYPER-"+code,
+   "Codice modello: HYPER-U9999");
+ const mismatch=await read(identity,{},{queryShopify:async()=>bad});
+ assert.equal(mismatch.merchant_shoes_profile,undefined);
+}
 console.log("Shopify admin-only Amazon SHOES field read regression tests passed.");
