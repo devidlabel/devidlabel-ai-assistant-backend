@@ -51,6 +51,7 @@ const blocked=await run(input,{}, {pilot:async()=>{
     reason:"exact_zero_stock_preview_not_valid",provider_write_attempted:false};
 }});
 assert.equal(blocked.blocked_before_write,3);
+assert.equal(blocked.rows[0].status,"BLOCKED_NEW_ASIN_PREFLIGHT");
 assert.equal(blocked.live_attempts,0);
 assert.equal(n,3);
 n=0;
@@ -59,6 +60,18 @@ assert.equal(uncertain.stopped_on_uncertain_write,true);
 assert.equal(uncertain.rows[0].provider_write_attempted,"UNKNOWN");
 assert.equal(uncertain.remaining_not_attempted,2);
 assert.equal(n,1);
+const diagnostics=await run({marketplace:"IT",items:[first]}, {}, {pilot:async()=>({
+ status:"BLOCKED_REFRIGIWEAR_PILOT",reason:"amazon_validation_preview_not_accepted",
+ provider_write_attempted:false,preview_status:"INVALID",
+ preview_reason:"shopify_private_attributes_unavailable",
+ amazon_issues:[{code:"90220",attribute_names:["fabric_type"],
+   message:"private owner: contact@example.com"}]
+})});
+assert.equal(diagnostics.rows[0].preview_status,"INVALID");
+assert.equal(diagnostics.rows[0].preview_reason,"shopify_private_attributes_unavailable");
+assert.deepEqual(diagnostics.rows[0].amazon_issues,[{
+ code:"90220",attribute_names:["fabric_type"]}]);
+assert(!JSON.stringify(diagnostics).includes("contact@example.com"));
 const unsafe=await run({marketplace:"IT",items:[first]}, {}, {pilot:async()=>({
  status:"AMAZON_HTTP_REJECTED_OR_UNKNOWN",provider_write_attempted:true,
  amazon_issues:[{code:"5461",attribute_names:["brand"],

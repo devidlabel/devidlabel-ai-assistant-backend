@@ -53,7 +53,9 @@ function safeStatus(x:unknown):string {
   return typeof x==="string"&&/^[A-Z0-9_]{3,80}$/.test(x)?x:"UNKNOWN";
 }
 function resultRow(item:Item,raw:Row):Row {
-  const status=safeStatus(raw.status);
+  const originalStatus=safeStatus(raw.status);
+  const status=originalStatus==="BLOCKED_REFRIGIWEAR_PILOT"?
+    "BLOCKED_NEW_ASIN_PREFLIGHT":originalStatus;
   const verified=status==="NEW_ASIN_SELLER_LISTING_VERIFIED"&&
     raw.asin_created_verified===true&&
     typeof raw.asin==="string"&&ASIN.test(raw.asin)&&
@@ -79,6 +81,10 @@ function resultRow(item:Item,raw:Row):Row {
     ...(typeof raw.reason==="string"&&/^[a-z_]{3,100}$/.test(raw.reason)?
       {reason:raw.reason}:{}),
     ...(issues.length?{amazon_issues:issues}:{}),
+    ...(["INVALID","VALID","UNKNOWN"].includes(String(raw.preview_status))?
+      {preview_status:raw.preview_status}:{}),
+    ...(typeof raw.preview_reason==="string"&&/^[a-z_]{3,100}$/.test(raw.preview_reason)?
+      {preview_reason:raw.preview_reason}:{}),
     uncertain_write:attempted&&!verified&&!pending,
     awaiting_readback:pending};
 }

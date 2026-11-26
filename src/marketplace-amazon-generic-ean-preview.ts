@@ -24,7 +24,7 @@ const FIELD=/^[a-z][a-z0-9_]{0,119}$/;
 const MAX_BYTES=128000;
 const COLOR_QUERY='query GenericEanColorEvidence($colorId:ID!){metaobject(id:$colorId){id type displayName fields{key type value}}}';
 const COLOR_GID=/^gid:\/\/shopify\/Metaobject\/[1-9]\d{0,24}$/;
-const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{id title description vendor status amazonPtd:metafield(namespace:"custom",key:"amazon_product_attributes"){type value} fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
+const PRIVATE_QUERY='query GenericEanValidationEvidence($variantId:ID!){productVariant(id:$variantId){id sku barcode price compareAtPrice selectedOptions{name value} inventoryItem{countryCodeOfOrigin} product{id title description productType vendor status amazonPtd:metafield(namespace:"custom",key:"amazon_product_attributes"){type value} fabric:metafield(namespace:"marketplace",key:"fabric_composition"){type value} bullets:metafield(namespace:"marketplace",key:"bullet_points"){type value} colorRef:metafield(namespace:"features",key:"color"){type value} model:metafield(namespace:"custom",key:"marketplace_model_name"){type value} gender:metafield(namespace:"custom",key:"navigation_gender"){type value}}}}';
 
 /** Source-scoped product evidence for Refrigiwear and K-Way.
  * Brand, SKU and source Product GID must match. Explicit commercial/category
@@ -778,6 +778,137 @@ function blocked(marketplace:string,sku:string,productType:string,reason:string)
     brand_authorization_proven:false,gpsr_compliance_proven:false,
     full_schema_validated:false};
 }
+
+/**
+ * Source-grounded apparel evidence for Colmar Originals and Ecoalf.
+ * Never infers origin, GPSR contacts, physical package size or weight.
+ * Facts originate from the exact live Shopify product, its selected variant
+ * and the Amazon brand/manufacturer labels verified on current catalog items.
+ * This is an Amazon VALIDATION_PREVIEW candidate, NOT an approval to publish.
+ */
+export function merchantMultibrandEvidenceAttrs(
+  product:Row,variant:Row,sku:string,pt:string,marketplace:string,
+  marketId:string,available:string[],research:Row={}
+):Row{
+  const isColmar=sku.startsWith("COL_")&&
+    ["Colmar","Colmar Originals"].includes(String(product.vendor));
+  const isEco=sku.startsWith("ECO_")&&product.vendor==="Ecoalf";
+  if((!isColmar&&!isEco)||marketplace!=="IT"||!Array.isArray(available))return {};
+  const desc=typeof product.description==="string"?product.description:"";
+  const title=typeof product.title==="string"?product.title:"";
+  if(!desc||desc.length>12000||!title||title.length>200)return {};
+  const attrs:Row={};
+  const allowed=new Set(available);
+  const text=(value:string)=>[{value,language_tag:"it_IT",marketplace_id:marketId}];
+  const set=(name:string,value:unknown)=>{
+    if(allowed.has(name)&&value!==undefined)attrs[name]=value;
+  };
+  const plain=(s:string)=>s.replace(/\s+/g," ").trim();
+  const candidate=(value:unknown,max=160):string|undefined=>
+    typeof value==="string"&&value.trim().length>=2&&value.trim().length<=max&&
+    !/[\u0000-\u001f<>]/.test(value)?plain(value):undefined;
+  const originalModel=desc.match(/\bModello:\s*([A-Za-z0-9][A-Za-z0-9 .'-]{1,50}?)(?=\s+Genere:|\s+Colore:|\s+Codice|$)/i)?.[1];
+  const model=candidate(originalModel,60);
+  if(model)set("model_name",[{value:model,marketplace_id:marketId}]);
+  const genderField=desc.match(/\bGenere:\s*(Uomo|Donna|Unisex)\b/i)?.[1];
+  const gender=genderField||title.match(/\b(Uomo|Donna|Unisex)\b/i)?.[1];
+  if(gender){
+    const department=gender.charAt(0).toUpperCase()+gender.slice(1).toLowerCase();
+    set("department",text(department));
+    set("age_range_description",text("Adulto"));
+  }
+  const color=desc.match(/\bColore:\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ -]{1,45}?)(?=\s+Codice|\s+Stagione|$)/i)?.[1];
+  if(candidate(color,46))set("color",text(plain(color!)));
+  if(isColmar)set("manufacturer",text("COLMAR"));
+  if(isEco)set("manufacturer",text("Ecoalf"));
+  // Official Ecoalf AW26 specification is common to the exact documented
+  // Mountain/Contraste sock models (not every Ecoalf sock).
+  // https://ecoalf.com/it/products/mountain-calze-unisex-medio-grigio-melange-aw26
+  // https://ecoalf.com/it/products/contraste-calze-alto-uomo-arancione-bruciato-aw26
+  // https://ecoalf.com/it/products/contraste-calze-basso-donna-bianco-sporco-aw26
+  const ecoSockAW26=isEco&&pt==="SOCKS"&&
+    /^ECO_(?:MCUACSXMOUNT0697W26|MCMACSXCONTH0697W26|MCWACSXCONTL0697W26)_[A-Za-z0-9_]+$/.test(sku);
+  if(ecoSockAW26){
+    const origin=obj(variant.inventoryItem).countryCodeOfOrigin;
+    if(origin===undefined||origin===null||origin==="ES"){
+      set("country_of_origin",[{value:"ES",marketplace_id:marketId}]);
+    }
+    const documentedFabric="30% poliammide riciclata / 30% lana riciclata / "+
+      "30% TENCEL Lyocell / 10% cashmere riciclato";
+    set("fabric_type",text(documentedFabric));
+    set("outer",[{material:[{value:documentedFabric,language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+    const explicitGender=desc.match(/\bGenere:\s*(Uomo|Donna|Unisex)\b/i)?.[1];
+    const targetGender=explicitGender?.toLowerCase()==="uomo"?"male":
+      explicitGender?.toLowerCase()==="donna"?"female":
+      explicitGender?.toLowerCase()==="unisex"?"unisex":undefined;
+    if(targetGender)set("target_gender",[{value:targetGender,marketplace_id:marketId}]);
+    // Preserve numeric EU ranges only when the actual Amazon LISTING PTD
+    // explicitly accepts as6/numeric, size_to and the required keys.
+    const sel=Array.isArray(variant.selectedOptions)?
+      variant.selectedOptions.map(obj):[];
+    const sizeOpts=sel.filter(o=>typeof o.name==="string"&&
+      ["taglia","size"].includes(o.name.toLowerCase()));
+    const sizeRaw=sizeOpts.length===1?sizeOpts[0].value:null;
+    const interval=typeof sizeRaw==="string"?
+      /^([3-4][0-9])\s*[-–]\s*([3-4][0-9])$/.exec(sizeRaw):null;
+    const schema=obj(obj(research.ptd_size_shapes).apparel_size);
+    const shape=obj(schema.items),properties=obj(shape.properties);
+    const systems=obj(properties.size_system).enum;
+    const classes=obj(properties.size_class).enum;
+    const required=shape.required;
+    const strictShape=research.ptd_size_shapes_are_read_only===true&&
+      research.ptd_size_shapes_not_schema_validation===true&&
+      research.ptd_size_mapping_not_performed===true&&
+      schema.type==="array"&&shape.type==="object"&&
+      Array.isArray(systems)&&systems.length===1&&systems[0]==="as6"&&
+      Array.isArray(classes)&&classes.includes("numeric")&&
+      obj(properties.size_to).type==="string"&&
+      Array.isArray(required)&&["size","size_class","size_system"].every(
+        field=>required.includes(field));
+    if(interval&&strictShape){
+      const lower=Number(interval[1]),upper=Number(interval[2]);
+      if(lower>=30&&upper<=49&&lower<upper&&upper-lower<=12)
+        set("apparel_size",[{
+          size:interval[1],size_to:interval[2],
+          size_class:"numeric",size_system:"as6",marketplace_id:marketId
+        }]);
+    }
+  }
+  const productType=candidate(product.productType,90);
+  if(productType)set("item_type_name",text(productType));
+  // Choose the main outer fabric, never concatenate separate lining/filling.
+  const match=desc.match(/(?:Tessuto principale|Tessuto esterno e fodera|Esterno e fodera|Esterno)\s*:?\s*(100\s*%\s*(?:poliammide|cotone|poliestere|nylon|lana|viscosa|acrilico|elastan))\b/i);
+  if(match){
+    const mainFabric=plain(match[1]).replace(/\s*%\s*/,"% ");
+    set("fabric_type",text(mainFabric));
+    set("outer",[{material:[{value:mainFabric,language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+  }
+  if(/\bidrorepellente\b/i.test(desc))
+    set("water_resistance_level",[{value:"water_resistant",marketplace_id:marketId}]);
+  if(/\bchiusura(?:\s+frontale)?\s+con\s+zip\b/i.test(desc))
+    set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+  if(/\b(casual|urbano)\b/i.test(desc))set("style",text("Casual"));
+  if(/\bsportivo\b/i.test(desc))set("style",text("Sportivo"));
+  if(["COAT","HAT","SHIRT","SWEATER","SWEATSHIRT","SCARF","SOCKS"].includes(pt))
+    set("batteries_required",[{value:false,marketplace_id:marketId}]);
+  // Source-neutral care advice is a direction to inspect the sewn-in label,
+  // not a fabricated claim about permitted washing temperature.
+  if(["COAT","HAT","SHIRT","SWEATER","SWEATSHIRT","SCARF","SOCKS"].includes(pt))
+    set("care_instructions",text("Seguire le indicazioni riportate sull'etichetta"));
+  const compare=typeof variant.compareAtPrice==="string"?
+    Number(variant.compareAtPrice):NaN;
+  if(Number.isFinite(compare)&&compare>0&&compare<10000)
+    set("list_price",[{currency:"EUR",value_with_tax:compare,marketplace_id:marketId}]);
+  // Product-description sentences are merchant-provided factual marketing copy.
+  const bullets=desc.split(/[.!?]\s+/).map(x=>plain(x)).filter(x=>x.length>=45&&x.length<=200);
+  if(bullets.length)set("bullet_point",bullets.slice(0,3).map(value=>({
+    value,language_tag:"it_IT",marketplace_id:marketId})));
+  return attrs;
+}
+
 export async function previewAmazonGenericEanValidation(
   raw:unknown,env:Env,deps:Deps={},
 ):Promise<Row>{
@@ -816,7 +947,7 @@ export async function previewAmazonGenericEanValidation(
      !research.required_attribute_names.includes("brand")||
      (research.title_category_conflict_detected===true &&
       !(pt==="SOCKS"&&research.product_type_discovery_source==="AMAZON_KEYWORDS_SHOPIFY_SOCKS")&&
-      !(pt==="COAT"&&sku.startsWith("RFR_")&&brand==="Refrigiwear"&&
+      !(pt==="COAT"&&sku.startsWith("RFR_")&&shop.brand==="Refrigiwear"&&
         research.product_type_discovery_source==="AMAZON_KEYWORDS_REFRIGIWEAR_COAT")&&
       !(pt==="COAT"&&sku.startsWith("KWAY_")&&brand==="K-Way"&&
         research.product_type_discovery_source==="AMAZON_KEYWORDS_KWAY_COAT"))||
@@ -826,7 +957,7 @@ export async function previewAmazonGenericEanValidation(
      typeof brand!=="string"||!brand.trim()||brand.length>100||
      !Number.isSafeInteger(shop.shopify_available)||(shop.shopify_available as number)<0||
      ((shop.shopify_available as number)===0&&
-      !(sku.startsWith("RFR_")&&brand==="Refrigiwear")&&
+      !(sku.startsWith("RFR_")&&shop.brand==="Refrigiwear")&&
       !(sku.startsWith("KWAY_")&&brand==="K-Way"))||
      typeof shop.variant_id!=="string"||
      !/^gid:\/\/shopify\/ProductVariant\/[1-9]\d{0,24}$/.test(shop.variant_id))
@@ -933,6 +1064,8 @@ export async function previewAmazonGenericEanValidation(
     ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
       research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens),
       obj(research.ptd_technical_shapes)),
+    ...merchantMultibrandEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
+      research.available_schema_attribute_names as string[],research),
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}

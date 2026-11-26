@@ -22,6 +22,8 @@ for(const [vendor,amazon] of [["Refrigiwear","RefrigiWear"],["Ecoalf","ECOALF"]]
   assert.equal(x.requires_amazon_brand_eligibility_check,true);
 }
 assert.equal(resolve("Colmar").amazon_brand,"Colmar");
+assert.equal(resolve("Colmar Originals").amazon_brand,"Colmar");
+assert.equal(resolve("Colmar Originals").source,"AMAZON_CATALOG_VERIFIED_MAPPING");
 assert.equal(resolve("Pro-Keds").amazon_brand,"Pro-Keds");
 assert.equal(resolve("Pro-Keds").source,"SHOPIFY_VENDOR_UNVERIFIED");
 assert.equal(resolve("Back 70 Streetwear").source,"SHOPIFY_VENDOR_UNVERIFIED",
