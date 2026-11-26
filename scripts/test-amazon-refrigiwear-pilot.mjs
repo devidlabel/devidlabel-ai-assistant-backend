@@ -10,6 +10,7 @@ const env={AMAZON_SP_API_SELLER_ID:seller,AMAZON_OFFER_PREVIEW_ENABLED:"true"};
 const input={marketplace:"IT",sku,product_type:"HAT",allow_known_missing_attributes:true};
 const previewAttributes={brand:[{value:"Refrigiwear",marketplace_id:market}],
  item_name:[{value:"Berretto Clark White",marketplace_id:market,language_tag:"it_IT"}],
+ model_number:[{value:"B31908",marketplace_id:market}],
  externally_assigned_product_identifier:[{value:ean,type:"ean",marketplace_id:market}]};
 const pBody={productType:"HAT",requirements:"LISTING",attributes:previewAttributes};
 const src={ok:true,status:"REQUIREMENTS_REVIEW_REQUIRED",marketplace:"IT",sku,
@@ -69,6 +70,7 @@ assert.deepEqual(first.calls.bodies[0].attributes.fulfillment_availability,
  [{fulfillment_channel_code:"DEFAULT",quantity:0,marketplace_id:market}]);
 assert.equal(first.calls.bodies[0].attributes.purchasable_offer,undefined);
 assert.deepEqual(first.calls.bodies[0].attributes.brand,previewAttributes.brand);
+assert.deepEqual(first.calls.bodies[0].attributes.model_number,previewAttributes.model_number);
 const zeroStock=makeDeps({research:async()=>({...src,
  shopify:{...src.shopify,shopify_available:0}})});
 const zeroResult=await run(input,env,zeroStock.deps);
