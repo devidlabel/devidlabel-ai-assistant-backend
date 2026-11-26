@@ -127,7 +127,26 @@ const cb=derive(col,{compareAtPrice:"159.00"},"COL_11000026_8VX_99_48",
 assert.equal(cb.fabric_type[0].value,"100% poliammide");
 assert.equal(cb.manufacturer[0].value,"COLMAR");
 assert.equal(cb.water_resistance_level[0].value,"water_resistant");
-assert.equal(cb.color,undefined,"Do not invent color from product title");
+assert.equal(cb.color[0].value,"Nero","Use the exact SKU/model/color merchant title evidence");
+assert.equal(cb.model_name[0].value,"11000026");
+const sizeCb=derive(col,{compareAtPrice:"159.00",selectedOptions:[{name:"Taglia",value:"48"}]},
+  "COL_11000026_8VX_99_48","COAT","IT",market,keys);
+assert.equal(sizeCb.special_size_type[0].value,"Standard");
+const wrongColor=derive({...col,title:"Colmar Originals Gilet Uomo Ultra Leggero Blu"},
+  {selectedOptions:[{name:"Taglia",value:"48"}]},
+  "COL_11000026_8VX_99_48","COAT","IT",market,keys);
+assert.equal(wrongColor.color,undefined,"Exact title guard required");
+const wrongSize=derive(col,{selectedOptions:[{name:"Taglia",value:"50"}]},
+  "COL_11000026_8VX_99_48","COAT","IT",market,keys);
+assert.equal(wrongSize.special_size_type,undefined,"SKU and size must match");
+const hybrid={vendor:"Colmar Originals",
+  title:"Colmar Originals Giacca Uomo Ibrida Imbottita con Cappuccio Grigio Street",
+  productType:"Giacche e cappotti",description:"Una giacca ibrida con cappuccio e zip."};
+const h=derive(hybrid,{selectedOptions:[{name:"Taglia",value:"50"}]},
+  "COL_11000050_8ZR_378_50","COAT","IT",market,keys);
+assert.equal(h.color[0].value,"Grigio Street");
+assert.equal(h.model_name[0].value,"11000050");
+
 assert.equal(cb.list_price[0].value_with_tax,159);
 for(const [p,sku,mkt] of [[{...col,vendor:"Other Brand"},"COL_11000026_8VX_99_48","IT"],
   [col,"ECO_MCMGAJKNIZO00188W26_128_S","IT"],
