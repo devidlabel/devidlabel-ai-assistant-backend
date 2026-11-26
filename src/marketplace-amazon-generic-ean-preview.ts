@@ -838,7 +838,7 @@ export function merchantMultibrandEvidenceAttrs(
     set("fabric_type",text(documentedFabric));
     set("outer",[{material:[{value:documentedFabric,language_tag:"it_IT"}],
       marketplace_id:marketId}]);
-    const explicitGender=desc.match(/\\bGenere:\\s*(Uomo|Donna|Unisex)\\b/i)?.[1];
+    const explicitGender=desc.match(/\bGenere:\s*(Uomo|Donna|Unisex)\b/i)?.[1];
     const targetGender=explicitGender?.toLowerCase()==="uomo"?"male":
       explicitGender?.toLowerCase()==="donna"?"female":
       explicitGender?.toLowerCase()==="unisex"?"unisex":undefined;
@@ -851,7 +851,7 @@ export function merchantMultibrandEvidenceAttrs(
       ["taglia","size"].includes(o.name.toLowerCase()));
     const sizeRaw=sizeOpts.length===1?sizeOpts[0].value:null;
     const interval=typeof sizeRaw==="string"?
-      /^([3-4][0-9])\\s*[-–]\\s*([3-4][0-9])$/.exec(sizeRaw):null;
+      /^([3-4][0-9])\s*[-–]\s*([3-4][0-9])$/.exec(sizeRaw):null;
     const schema=obj(obj(research.ptd_size_shapes).apparel_size);
     const shape=obj(schema.items),properties=obj(shape.properties);
     const systems=obj(properties.size_system).enum;
