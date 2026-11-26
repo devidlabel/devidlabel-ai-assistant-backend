@@ -584,6 +584,31 @@ export function buildMareBusinessCapabilities(env: MareBusinessCapabilityEnv): M
         [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true (validation only)"]]
     }),
     capability({
+      id:"amazon.new_asin.multibrand.create.batch",
+      provider:"amazon",domain:"marketplace",operation:"execute",
+      risk:"live_write",approval:"explicit",implemented:true,
+      configured:businessAuth&&amazon&&amazonSellerId&&shopify&&env.AMAZON_OFFER_PREVIEW_ENABLED==="true",
+      description:"Guarded 1-12 Colmar, Ecoalf, Refrigiwear, MC2, Rains or Red Sox direct SP-API new-ASIN LISTINGs. For each SKU verify merchant EAN, Shopify source, absence in every EU marketplace, exact Amazon zero-stock VALIDATION_PREVIEW and trusted readback. No invented specifications, price, positive stock, Channable changes or automatic retry; stop on ambiguous write.",
+      request_schema:{...schema({
+        marketplace:{type:"string",enum:["IT","DE","FR","ES"]},
+        items:{type:"array",minItems:1,maxItems:12,items:{
+          type:"object",additionalProperties:false,
+          properties:{
+            sku:{type:"string",minLength:1,maxLength:120,
+              pattern:"^(COL_|ECO_|RFR_|MC2_|RNS_|RSX_)[A-Za-z0-9_ .-]+$"},
+            product_type:{type:"string",enum:["COAT","HAT","SHIRT","BACKPACK",
+              "SWEATER","SWEATSHIRT","SCARF","SOCKS","HANDBAG","BOOT",
+              "COSMETIC_CASE","STORAGE_BAG","TOTE_BAG","DUFFEL_BAG",
+              "WAIST_PACK","WALLET"]}
+          },required:["sku","product_type"]}}
+      },["marketplace","items"]),additionalProperties:false},
+      requirements:[[businessAuth,"MARE_BUSINESS_ACCESS_TOKEN"],
+        [amazon,"Amazon SP-API credentials"],
+        [amazonSellerId,"AMAZON_SP_API_SELLER_ID"],
+        [shopify,"Shopify OAuth/KV and private plan store"],
+        [env.AMAZON_OFFER_PREVIEW_ENABLED==="true","AMAZON_OFFER_PREVIEW_ENABLED=true"]]
+    }),
+    capability({
       id:"amazon.refrigiwear.new_asin.create.pilot",
       provider:"amazon",domain:"marketplace",operation:"execute",
       risk:"live_write",approval:"explicit",implemented:true,
