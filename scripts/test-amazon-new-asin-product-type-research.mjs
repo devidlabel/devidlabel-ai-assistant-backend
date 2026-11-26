@@ -692,6 +692,70 @@ for(const [status,quantity,barcode] of [
   assert.equal(blockedKway.status,"BLOCKED_SHOPIFY");
 }
 
+const RFR_MIGRATED_SKU="RFR_G92708_NY0185_G06000_M";
+const RFR_ACTIVE_EAN="8058136890875";
+const RFR_OLD_EAN="8058136666593";
+function migratedRefrigiwearCatalog(oldStatus="UNLISTED",oldStock=0,
+  oldEan=RFR_OLD_EAN,oldTracked=true){
+  const catalog=shopify(),active=catalog.products[0];
+  active.vendor="Refrigiwear";
+  active.title="Speed Jacket Black";
+  active.product_type="Giacche e cappotti";
+  active.variants[0].sku=RFR_MIGRATED_SKU;
+  active.variants[0].barcode=RFR_ACTIVE_EAN;
+  active.variants[0].inventory_quantity=1;
+  const old=structuredClone(active);
+  old.status=oldStatus;
+  old.variants[0].id="gid://shopify/ProductVariant/999993";
+  old.variants[0].barcode=oldEan;
+  old.variants[0].inventory_quantity=oldStock;
+  old.variants[0].inventory_tracked=oldTracked;
+  return {...catalog,product_count:2,inline_product_count:2,products:[active,old]};
+}
+async function checkRfrHistorical(oldStatus="UNLISTED",oldStock=0,
+  oldEan=RFR_OLD_EAN,oldTracked=true,alter){
+  const events=[];
+  return research({marketplace:"IT",sku:RFR_MIGRATED_SKU,product_type:"COAT"},env,deps(events,{
+    readShopify:async()=>{
+      const catalog=migratedRefrigiwearCatalog(oldStatus,oldStock,oldEan,oldTracked);
+      if(alter)alter(catalog);
+      return catalog;
+    },
+    readListing:async()=>({ok:true,marketplace:"IT",provider_mutations:0,
+      can_change_stock:false,results:[{sku:RFR_MIGRATED_SKU,state:"VERIFIED_ABSENT"}]}),
+    readCatalogMatch:async()=>({ok:true,result:{marketplace:"IT",complete:true,
+      identifiers:[{ean:RFR_ACTIVE_EAN,state:"NO_EXACT_MATCH",exact_match_count:0,asins:[]}]}}),
+    fetch:fakeFetch(events,{refrigiwearCoat:true}),
+  }));
+}
+for(const [oldStatus,oldEan] of [["UNLISTED",RFR_OLD_EAN],
+  ["ARCHIVED",RFR_OLD_EAN],["UNLISTED",null],["UNLISTED",RFR_ACTIVE_EAN]]){
+  const result=await checkRfrHistorical(oldStatus,0,oldEan);
+  assert.equal(result.status,"REQUIREMENTS_REVIEW_REQUIRED",
+    "Unique ACTIVE Refrigiwear must win over a zero-stock historical row");
+  assert.equal(result.shopify.ean,RFR_ACTIVE_EAN);
+  assert.equal(result.shopify.shopify_available,1);
+}
+for(const test of [
+  ()=>checkRfrHistorical("ACTIVE",0),
+  ()=>checkRfrHistorical("UNLISTED",1),
+  ()=>checkRfrHistorical("UNLISTED",0,RFR_OLD_EAN,false),
+  ()=>checkRfrHistorical("UNLISTED",0,RFR_OLD_EAN,true,
+    c=>{c.products[1].vendor="Another Brand";}),
+  ()=>checkRfrHistorical("UNLISTED",0,RFR_OLD_EAN,true,
+    c=>{c.products.push(structuredClone(c.products[0]));
+      c.products[2].variants[0].id="gid://shopify/ProductVariant/888888";
+      c.product_count++;c.inline_product_count++;}),
+  ()=>checkRfrHistorical("UNLISTED",0,RFR_OLD_EAN,true,
+    c=>{const other=structuredClone(c.products[0]);
+      other.variants[0].id="gid://shopify/ProductVariant/888889";
+      other.variants[0].sku="RFR_UNRELATED_TEST_MODEL";
+      c.products.push(other);c.product_count++;c.inline_product_count++;}),
+]){
+  const result=await test();
+  assert.equal(result.status,"BLOCKED_SHOPIFY",
+    "Positive, active, foreign-brand, untracked or conflicting barcode duplicates block");
+}
 const missingBarcode=await research(req,env,deps([],{
   readShopify:async()=>{const x=shopify();x.products[0].variants[0].barcode=null;return x;},
 }));
