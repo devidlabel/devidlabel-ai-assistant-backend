@@ -26,6 +26,30 @@ assert.equal(a.batteries_required[0].value,false);
 for(const k of ["country_of_origin","gpsr_manufacturer_reference",
   "dsa_responsible_party_address","item_package_weight","item_package_dimensions",
   "fulfillment_availability","purchasable_offer"])assert.equal(a[k],undefined);
+const socks={vendor:"Ecoalf",title:"Calze Mountain Medium Grey Melange",
+  productType:"Calze",description:"Modello: Mountain Socks Genere: Unisex "+
+    "Colore: Medium Grey Melange Codice modello: MCUACSXMOUNT0697W26"};
+const sockAttrs=derive(socks,{compareAtPrice:"19.90",
+  inventoryItem:{countryCodeOfOrigin:null}},
+  "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
+  [...keys,"country_of_origin"]);
+assert.equal(sockAttrs.country_of_origin[0].value,"ES");
+assert.equal(sockAttrs.fabric_type[0].value,
+  "30% poliammide riciclata / 30% lana riciclata / "+
+  "30% TENCEL Lyocell / 10% cashmere riciclato");
+assert.equal(sockAttrs.color[0].value,"Medium Grey Melange");
+assert.equal(sockAttrs.model_name[0].value,"Mountain Socks");
+assert.equal(sockAttrs.list_price[0].value_with_tax,19.9);
+const conflicting=derive(socks,{compareAtPrice:"19.90",
+  inventoryItem:{countryCodeOfOrigin:"CN"}},
+  "ECO_MCUACSXMOUNT0697W26_339_4146","SOCKS","IT",market,
+  [...keys,"country_of_origin"]);
+assert.equal(conflicting.country_of_origin,undefined,
+  "Never override a conflicting Shopify origin declaration");
+assert.equal(derive(socks,variant,
+  "ECO_MCUACSXMOUNT0697W25_339_4146","SOCKS","IT",market,
+  [...keys,"country_of_origin"]).country_of_origin,undefined,
+  "AW26 evidence must not leak to other seasons");
 const col={vendor:"Colmar Originals",title:"Colmar Originals Gilet Uomo Ultra Leggero Nero",
   productType:"Gilet",description:"Questo gilet Colmar Originals da uomo ha tessuto esterno idrorepellente. "+
   "Chiusura frontale con zip. Esterno e fodera: 100% poliammide. "+
