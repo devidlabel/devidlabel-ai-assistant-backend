@@ -610,6 +610,7 @@ assert.deepEqual(hyperVerified.footwear_size,{
  age_group:"adult",gender:"women",width:"medium"
 });
 assert.equal(hyperVerified.merchant_shoes_profile.outer,"Pelle e suede");
+assert.equal(hyperVerified.merchant_official_manufacturer?.name,"Medusa s.r.l.");
 const hyperNotProven=await fromDSeriesHtml(hyperComplete.replace(
  "Produzione interamente Made in Italy.","Produzione non specificata."));
 assert.equal(hyperNotProven.merchant_shoes_profile,undefined);
@@ -691,6 +692,7 @@ assert.equal(skyRead.merchant_shoes_profile?.source,
  "SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY");
 assert.equal(skyRead.model_number,"PLAYNEWSKY-D2041");
 assert.equal(skyRead.merchant_shoes_profile.outer,"Pelle e suede");
+assert.equal(skyRead.merchant_official_manufacturer?.name,"Medusa s.r.l.");
 assert.equal(skyRead.merchant_shoes_profile.height_map,"low-top");
 assert.equal(skyRead.merchant_shoes_profile.lifestyle,"Casual");
 assert.equal(skyRead.age_range_description,"adult");
@@ -729,6 +731,7 @@ assert.equal(pantherRead.model_number,"6.02");
 assert.equal(pantherRead.bullet_point,"Panther 6.02");
 assert.equal(pantherRead.merchant_shoes_profile.height_map,"low-top");
 assert.equal(pantherRead.merchant_shoes_profile.lifestyle,"Casual");
+assert.equal(pantherRead.merchant_official_manufacturer,undefined);
 assert.equal(pantherRead.footwear_size.size,"numeric_37");
 assert.equal(pantherRead.footwear_size.width,undefined);
 const pantherDrift=structuredClone(pantherFixture);
