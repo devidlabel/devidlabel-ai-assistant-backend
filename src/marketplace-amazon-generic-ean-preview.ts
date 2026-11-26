@@ -975,6 +975,41 @@ export function merchantMultibrandEvidenceAttrs(
       }]);
     }
   }
+  // Ecoalf's official AW26 Black Maka jacket lists the model's exact
+  // technical shell and commercial specifications. Apply only to Black
+  // 319 model code/season/size variants of the same live Shopify product.
+  // https://ecoalf.com/it/products/maka-giacca-donna-nero-aw26
+  const officialMaka=isEco&&pt==="COAT"&&product.title==="Giacca Maka Black"&&
+    /^ECO_MCWGAJKMAKA00255W26_319_(XS|S|M|L|XL)$/.test(sku);
+  if(officialMaka){
+    // The 58% UTO + 42% textile-to-textile polyester blend sums to 100%
+    // recycled polyester; do not combine the lining or FELLEX filling.
+    const shell="100% Poliestere riciclato";
+    set("fabric_type",text(shell));
+    set("outer",[{material:[{value:shell,language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+    set("weave_type",text("Tessuto tecnico"));
+    set("water_resistance_level",[{value:"waterproof",marketplace_id:marketId}]);
+    set("closure",[{type:[{value:"Zip e bottoni",language_tag:"it_IT"}],
+      marketplace_id:marketId}]);
+    set("style",text("Tecnico"));
+    set("special_size_type",text("Standard"));
+    set("care_instructions",text("Non lavare"));
+    // Seller FBM mailer envelope (45 x 35 x 12 cm), not a manufacturer
+    // item dimension. Shipping allowance 1.10 kg includes the verified
+    // 0.85 kg jacket + packing material reserve.
+    set("item_package_dimensions",[{
+      length:{value:45,unit:"centimeters"},
+      width:{value:35,unit:"centimeters"},
+      height:{value:12,unit:"centimeters"},
+      marketplace_id:marketId
+    }]);
+    set("item_package_weight",[{value:1.1,unit:"kilograms",
+      marketplace_id:marketId}]);
+    set("supplier_declared_dg_hz_regulation",[{
+      value:"not_applicable",marketplace_id:marketId
+    }]);
+  }
   return attrs;
 }
 
