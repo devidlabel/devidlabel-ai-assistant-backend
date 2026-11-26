@@ -1079,9 +1079,19 @@ export function merchantMultibrandEvidenceAttrs(
   if(isColmar&&/\bimpermeabile\b/i.test(desc)&&
      !/\bnon\s+impermeabile\b/i.test(desc))
     set("water_resistance_level",[{value:"waterproof",marketplace_id:marketId}]);
+  // The exact 11000050 hybrid jackets have no certified water resistance
+  // asserted by the merchant. Default to not_water_resistant rather than
+  // fabricating a water-resistant technical claim; do not generalize to
+  // other Colmar models or override an actual documented property.
+  if(isColmar&&pt==="COAT"&&
+     /^COL_11000050_8ZR_(99|378)_(48|50|52|54)$/.test(sku)&&
+     !Object.hasOwn(attrs,"water_resistance_level")&&
+     !/\b(?:idrorepellente|impermeabile|waterproof)\b/i.test(desc))
+    set("water_resistance_level",[{value:"not_water_resistant",
+      marketplace_id:marketId}]);
   // Do not assert water resistance when the exact merchant description
   // contains no supporting statement.
-  if(/\bchiusura(?:\s+frontale)?\s+con\s+zip\b/i.test(desc))
+  if(/\bchiusura(?:\s+frontale)?\s+(?:con|a)\s+(?:doppia\s+)?zip\b/i.test(desc))
     set("closure",[{type:[{value:"Zip",language_tag:"it_IT"}],
       marketplace_id:marketId}]);
   if(/\b(casual|urbano)\b/i.test(desc))set("style",text("Casual"));
@@ -1288,7 +1298,9 @@ export async function previewAmazonGenericEanValidation(
     (marketplace==="DE"&&pt==="SWEATSHIRT"&&merchantSize.value?.size_class==="alpha");
   const regularFit=(marketplace==="IT"||(usesStandardProfile&&kwayStandardAdultSize(p,sku,marketplace)))&&
     ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
-    (sku.startsWith("RFR_")||sku.startsWith("KWAY_"))&&
+    (sku.startsWith("RFR_")||sku.startsWith("KWAY_")||
+      (sku.startsWith("COL_")&&p.vendor==="Colmar Originals"&&
+       merchantSize.value?.size_class==="numeric"))&&
     merchantSize.attribute===(pt==="SHIRT"?"shirt_size":"apparel_size")&&merchantSize.value&&
     Array.isArray(obj(sizeProps.body_type).enum)&&
     (obj(sizeProps.body_type).enum as string[]).includes("regular")&&
