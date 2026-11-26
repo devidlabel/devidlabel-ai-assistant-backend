@@ -419,8 +419,8 @@ export async function previewAmazonNewAsinShoesValidation(
             obj(evidence.footwear_size).size===
               "numeric_"+sku.match(/_([34][0-9])_EU$/)?.[1]&&
             obj(evidence.footwear_size).age_group==="adult"&&
-            obj(evidence.footwear_size).gender===
-              (merchantHyper&&hyperCode?.[1][0]==="U"?"men":"women")&&
+            ["women","men"].includes(String(profile.gender))&&
+            obj(evidence.footwear_size).gender===profile.gender&&
             (merchantHyper?
               profile.regular_width==="medium"&&
                 obj(evidence.footwear_size).width==="medium":
