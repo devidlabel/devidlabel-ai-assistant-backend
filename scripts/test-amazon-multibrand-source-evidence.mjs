@@ -162,7 +162,48 @@ assert.equal(blockedOrigin.country_of_origin,undefined);
 const noOrigin=derive(col,
   {inventoryItem:{countryCodeOfOrigin:null}},
   "COL_11000026_8VX_99_48","COAT","IT",market,provenanceKeys);
-assert.equal(noOrigin.country_of_origin,undefined);
+assert.equal(noOrigin.country_of_origin[0].value,"CN",
+  "2026-11-26 explicit merchant origin declaration fills missing Colmar source");
+assert.equal(noOrigin.item_package_weight[0].value,1.8);
+assert.deepEqual(
+  [noOrigin.item_package_dimensions[0].length.value,
+   noOrigin.item_package_dimensions[0].width.value,
+   noOrigin.item_package_dimensions[0].height.value],
+  [58,42,18]);
+assert.equal(noOrigin.supplier_declared_dg_hz_regulation[0].value,"not_applicable");
+assert.equal(noOrigin.weave_type[0].value,"Tessuto");
+assert.equal(noOrigin.style[0].value,"Casual");
+const colmarSweater=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Pullover Uomo Heritage Mezza Zip in Lana Blu Navy Tofu Brick",
+  productType:"Maglieria",
+  description:"Materiali e composizione 80% lana, 20% poliammide. Vestibilita regular."},
+  {selectedOptions:[{name:"Taglia",value:"M"}]},
+  "COL_44000015_3LW_942_M","SWEATER","IT",market,provenanceKeys);
+assert.equal(colmarSweater.country_of_origin[0].value,"CN");
+assert.equal(colmarSweater.item_package_weight[0].value,0.9);
+assert.equal(colmarSweater.weave_type[0].value,"Maglia");
+assert.equal(colmarSweater.fabric_type[0].value,"80% lana / 20% poliammide");
+const colmarHat=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Cappello Aviatore Donna in Pelliccia Sintetica Bianco Tofu",
+  productType:"Cappelli",description:"Cappello in pelliccia sintetica con fodera calda."},
+  {selectedOptions:[{name:"Taglia",value:"Unica"}]},
+  "COL_48000016E_3PD_624_UNICA","HAT","IT",market,
+  [...provenanceKeys,"headwear_size"],
+  {ptd_size_shapes:{headwear_size:{items:{properties:{size:{enum:["one_size"]}}}}}});
+assert.equal(colmarHat.item_package_weight[0].value,0.5);
+assert.equal(colmarHat.country_of_origin[0].value,"CN");
+assert.equal(colmarHat.headwear_size[0].size,"one_size");
+const noEnumHat=derive({vendor:"Colmar Originals",
+  title:"Colmar Originals Cappello Aviatore Donna in Pelliccia Sintetica Bianco Tofu",
+  productType:"Cappelli",description:"Cappello in pelliccia sintetica con fodera calda."},
+  {selectedOptions:[{name:"Taglia",value:"Unica"}]},
+  "COL_48000016E_3PD_624_UNICA","HAT","IT",market,
+  [...provenanceKeys,"headwear_size"],{});
+assert.equal(noEnumHat.headwear_size,undefined,
+  "Do not invent Amazon headwear shape without live PTD");
+const noCrossBrand=derive({...col,vendor:"Ecoalf"},variant,
+  "COL_11000026_8VX_99_48","COAT","IT",market,provenanceKeys);
+assert.deepEqual(noCrossBrand,{});
 const doubleZip=derive({...hybrid,description:"Chiusura a doppia zip, cappuccio fisso."},
   {selectedOptions:[{name:"Taglia",value:"50"}]},
   "COL_11000050_8ZR_378_50","COAT","IT",market,provenanceKeys);
