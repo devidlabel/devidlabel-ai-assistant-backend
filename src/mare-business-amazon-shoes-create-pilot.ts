@@ -295,7 +295,7 @@ function payloadVerified(body: Row, marketId: string, research: Row, input: Inpu
   if(sourcedHyper||sourcedPolly){
     const expectedProfileAttrs:Record<string,unknown>={
       model_number:[{value:profile.model_number,marketplace_id:marketId}],
-      age_range_description:[{value:"Adulti",language_tag:locale,marketplace_id:marketId}],
+      age_range_description:[{value:"Adulto",language_tag:locale,marketplace_id:marketId}],
       ...(sourcedHyper?{
         country_of_origin:[{value:"IT",marketplace_id:marketId}],
         outer:[{material:[{value:profile.outer,language_tag:locale}],marketplace_id:marketId}],
