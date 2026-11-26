@@ -129,6 +129,7 @@ export async function previewAmazonNewAsinShoesValidation(
     profile.height_map==="low-top";
   const playCode=/^4B12_(PLAYNEW|PLAYNEWSKY)_([DU][0-9]{4})_([34][0-9])_EU$/.exec(sku);
   const pantherCode=/^PUI_602_(?:602_)?PANTHER_([A-Z_]{3,40})_([34][0-9])_EU$/.exec(sku);
+  const xsCode=/^PUI_601_XS_(DUNE|EDEN)_([34][0-9])_EU$/.exec(sku);
   const modernHyperCode=/^4B12_HYPER_(U[0-9]{4})_([34][0-9])_EU$/.exec(sku);
   const merchantPlay=brand==="4B12"&&
     profile.source==="SHOPIFY_EXACT_4B12_PLAY_FAMILY_COPY"&&
@@ -146,8 +147,12 @@ export async function previewAmazonNewAsinShoesValidation(
     !!modernHyperCode&&profile.model_number==="HYPER-"+modernHyperCode[1]&&
     profile.age_group==="adult"&&profile.gender==="men"&&
     profile.height_map==="low-top";
+  const merchantXs=brand==="Puraai"&&
+    !!xsCode&&profile.source==="SHOPIFY_EXACT_PURAAI_601_XS_COPY"&&
+    profile.model_number==="6.01"&&profile.gender==="women"&&
+    profile.age_group==="adult"&&profile.height_map==="low-top";
   const sourcedProfile=merchantHyper||merchantPolly||merchantPlay||
-    merchantPanther||merchantHyperU;
+    merchantPanther||merchantHyperU||merchantXs;
   const officialMaker=obj(evidence.merchant_official_manufacturer);
   const verified4B12Maker=(merchantHyper||merchantPlay||merchantHyperU)&&
     officialMaker.source==="OFFICIAL_4B12_MANUFACTURER_NAME_20261126"&&
@@ -280,6 +285,11 @@ export async function previewAmazonNewAsinShoesValidation(
       ...(profile.outer==="Pelle"?{
         outer:[{material:[{value:"Pelle",language_tag:locale}],
           marketplace_id:marketId}]}:{})
+    }:{}),
+    ...(merchantXs?{
+      height_map:[{value:"low-top",marketplace_id:marketId}],
+      ...(profile.lifestyle==="Casual"?{
+        lifestyle:[{value:"Casual",language_tag:locale,marketplace_id:marketId}]}:{})
     }:{}),
 
 
