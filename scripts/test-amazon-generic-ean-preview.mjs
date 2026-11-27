@@ -595,6 +595,59 @@ for(const market of ["IT","DE","FR","ES"]){
   }
  }
 }
+ // Amazon IT 99022: adult Standard body/height qualifiers are source-backed
+ // ONLY for the exact Ecoalf Maka Black AW26 jacket and its documented size.
+ async function verifyMakaSize(title="Giacca Maka Black",skuValue="ECO_MCWGAJKMAKA00255W26_319_S",
+   description="Giacca Maka Black. Modello: Maka Genere: Donna Colore: Black.",vendor="Ecoalf"){
+   const pt="COAT",market="IT",field="apparel_size";
+   const researched=sizeResearch(pt,market,field);
+   researched.sku=skuValue;
+   researched.shopify={...researched.shopify,
+     brand:vendor,amazon_listing_brand:vendor,product_title:title};
+   researched.available_schema_attribute_names=[...new Set([
+     ...researched.available_schema_attribute_names,
+     "special_size_type","age_range_description"])];
+   researched.ptd_alpha_size_tokens={[field]:["s"]};
+   researched.ptd_alpha_size_label_tokens={[field]:{S:"s"}};
+   Object.assign(researched.ptd_size_shapes[field].items.properties,{
+     body_type:{type:"string",enum:["regular","slim"]},
+     height_type:{type:"string",enum:["regular","tall"]}
+   });
+   const data=privateData();
+   data.productVariant.sku=skuValue;
+   data.productVariant.selectedOptions=[{name:"Taglia",value:"S"}];
+   Object.assign(data.productVariant.product,{vendor,title,description});
+   const base=deps(pt,market);
+   let attrs;
+   const result=await run({marketplace:market,sku:skuValue,product_type:pt},env,{
+     ...base,research:async()=>researched,
+     readShopify:async(e,q,v)=>q.includes("metaobject(id:")?
+       base.readShopify(e,q,v):data,
+     fetch:async(_url,init)=>{
+       attrs=JSON.parse(init.body).attributes;
+       return new Response(JSON.stringify({sku:skuValue,status:"VALID",
+         submissionId:"maka-99022-verified",issues:[]}),
+         {status:200,headers:{"content-type":"application/json"}});
+     }
+   });
+   assert.equal(result.provider_validation_status,"VALID",JSON.stringify(result));
+   return attrs.apparel_size[0];
+ }
+ assert.deepEqual(await verifyMakaSize(),{
+   size:"s",size_class:"alpha",size_system:"as6",
+   body_type:"regular",height_type:"regular",marketplace_id:markets.IT
+ });
+ const plainMakaSize={size:"s",size_class:"alpha",size_system:"as6",
+   marketplace_id:markets.IT};
+ assert.deepEqual(await verifyMakaSize("Giacca Nizo Olive"),plainMakaSize);
+ assert.deepEqual(await verifyMakaSize("Giacca Maka Black",
+   "ECO_MCWGAJKMAKA00255W26_604_S"),plainMakaSize);
+ assert.deepEqual(await verifyMakaSize("Giacca Maka Black",
+   "ECO_MCWGAJKMAKA00255W26_319_S","Giacca Maka Black."),plainMakaSize);
+ assert.deepEqual(await verifyMakaSize("Giacca Maka Black",
+   "ECO_MCWGAJKMAKA00255W26_319_S",
+   "Giacca Maka Black. Genere: Donna.", "Other Brand"),plainMakaSize);
+
 const standardSizeNegatives=[
  ["wrong product",({dossier})=>{dossier.source_product_id="gid://shopify/Product/101";}],
  ["unverified scope",({dossier})=>{dossier.amazon_ptd_evidence.source_scope="UNVERIFIED";}],
