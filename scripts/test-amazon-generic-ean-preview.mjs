@@ -683,7 +683,7 @@ for(const market of Object.keys(markets)){
    research.ptd_alpha_size_label_tokens[field].XXXL="3x_l";
   });
   assert.deepEqual(value,{size:"3x_l",size_class:"alpha",size_system:sizeSystems[market],
-   ...(market!=="DE"||pt==="SWEATSHIRT"?{body_type:"regular",height_type:"regular"}:{}),
+   ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
    marketplace_id:markets[market]},market+" "+pt+" XXXL");
  }
 }
