@@ -589,7 +589,8 @@ for(const market of ["IT","DE","FR","ES"]){
   for(const [label,wire,sizeClass] of [["M","m","alpha"],["XXL","xx_l","alpha"],["40","40","numeric"]]){
    const value=await captureStandardAdultSize(market,pt,label);
    assert.deepEqual(value,{size:wire,size_class:sizeClass,size_system:sizeSystems[market],
-    ...(market!=="DE"||(pt==="SWEATSHIRT"&&sizeClass==="alpha")?{body_type:"regular",height_type:"regular"}:{}),
+    // K-Way DE SWEATSHIRT alpha previews return 90248 for both regular qualifiers.
+    ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
     marketplace_id:markets[market]},market+" "+pt+" "+label);
   }
  }
@@ -682,7 +683,7 @@ for(const market of Object.keys(markets)){
    research.ptd_alpha_size_label_tokens[field].XXXL="3x_l";
   });
   assert.deepEqual(value,{size:"3x_l",size_class:"alpha",size_system:sizeSystems[market],
-   ...(market!=="DE"||pt==="SWEATSHIRT"?{body_type:"regular",height_type:"regular"}:{}),
+   ...(market!=="DE"?{body_type:"regular",height_type:"regular"}:{}),
    marketplace_id:markets[market]},market+" "+pt+" XXXL");
  }
 }

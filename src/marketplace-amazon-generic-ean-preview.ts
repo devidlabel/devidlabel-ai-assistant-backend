@@ -1310,9 +1310,14 @@ export async function previewAmazonGenericEanValidation(
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
-  // German 99022 previews require both qualifiers for adult alpha sweatshirts.
+  // Amazon DE conditional sizing varies by brand: K-Way adult alpha SWEATSHIRT
+  // previews reject both regular qualifiers with 90248. Other mappings stay guarded.
   const usesStandardProfile=marketplace==="FR"||marketplace==="ES"||
-    (marketplace==="DE"&&pt==="SWEATSHIRT"&&merchantSize.value?.size_class==="alpha");
+    // Amazon DE live previews on adult K-Way SWEATSHIRT alpha sizes reject
+    // both optional qualifiers with 90248 (expected at most zero). Keep the
+    // previous qualifier behavior for other brands until evidenced otherwise.
+    (marketplace==="DE"&&pt==="SWEATSHIRT"&&
+      merchantSize.value?.size_class==="alpha"&&!sku.startsWith("KWAY_"));
   const regularFit=(marketplace==="IT"||(usesStandardProfile&&kwayStandardAdultSize(p,sku,marketplace)))&&
     ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
     (sku.startsWith("RFR_")||sku.startsWith("KWAY_")||
