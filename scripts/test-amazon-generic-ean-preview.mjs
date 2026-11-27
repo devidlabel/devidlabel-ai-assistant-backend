@@ -604,6 +604,9 @@ for(const market of ["IT","DE","FR","ES"]){
    researched.sku=skuValue;
    researched.shopify={...researched.shopify,
      brand:vendor,amazon_listing_brand:vendor,product_title:title};
+   researched.available_schema_attribute_names=[...new Set([
+     ...researched.available_schema_attribute_names,
+     "special_size_type","age_range_description"])];
    researched.ptd_alpha_size_tokens={[field]:["s"]};
    researched.ptd_alpha_size_label_tokens={[field]:{S:"s"}};
    Object.assign(researched.ptd_size_shapes[field].items.properties,{
