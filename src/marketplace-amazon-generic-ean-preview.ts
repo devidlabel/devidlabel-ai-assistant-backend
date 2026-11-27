@@ -1308,6 +1308,16 @@ export async function previewAmazonGenericEanValidation(
     return blocked(marketplace,sku,pt,"amazon_ptd_fabric_schema_unverified");
   const merchantSize=structuredSizeFromPtd(research,v.selectedOptions,pt);
   if(!merchantSize.ok)return blocked(marketplace,sku,pt,"shopify_size_or_amazon_ptd_size_unverified");
+  const multibrandEvidence=merchantMultibrandEvidenceAttrs(p,v,sku,pt,marketplace,
+    AMAZON_EU_MARKETPLACES[marketplace],research.available_schema_attribute_names as string[],research);
+  // Amazon IT 99022 requires both conditional adult Standard qualifiers for
+  // Ecoalf Maka Black AW26. Match only the official exact-model source dossier,
+  // live Shopify age group, vendor, color and known size SKU; never generalize.
+  const ecoMakaAdultStandard=marketplace==="IT"&&pt==="COAT"&&
+    p.vendor==="Ecoalf"&&p.title==="Giacca Maka Black"&&
+    /^ECO_MCWGAJKMAKA00255W26_319_(XS|S|M|L|XL)$/.test(sku)&&
+    obj((multibrandEvidence.special_size_type as Row[]|undefined)?.[0]).value==="Standard"&&
+    obj((multibrandEvidence.age_range_description as Row[]|undefined)?.[0]).value==="Adulto";
   const sizeShape=obj(obj(research.ptd_size_shapes)[pt==="SHIRT"?"shirt_size":"apparel_size"]);
   const sizeProps=obj(obj(sizeShape.items).properties);
   // German 99022 previews require both qualifiers for adult alpha sweatshirts.
@@ -1315,7 +1325,7 @@ export async function previewAmazonGenericEanValidation(
     (marketplace==="DE"&&pt==="SWEATSHIRT"&&merchantSize.value?.size_class==="alpha");
   const regularFit=(marketplace==="IT"||(usesStandardProfile&&kwayStandardAdultSize(p,sku,marketplace)))&&
     ["COAT","SHIRT","SWEATER","SWEATSHIRT"].includes(pt)&&
-    (sku.startsWith("RFR_")||sku.startsWith("KWAY_")||
+    (sku.startsWith("RFR_")||sku.startsWith("KWAY_")||ecoMakaAdultStandard||
       (sku.startsWith("COL_")&&p.vendor==="Colmar Originals"&&
        ((merchantSize.value?.size_class==="numeric"&&pt==="COAT")||
         (merchantSize.value?.size_class==="alpha"&&
@@ -1365,8 +1375,7 @@ export async function previewAmazonGenericEanValidation(
     ...refrigiwearEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
       research.available_schema_attribute_names as string[],obj(research.ptd_alpha_size_tokens),
       obj(research.ptd_technical_shapes)),
-    ...merchantMultibrandEvidenceAttrs(p,v,sku,pt,marketplace,marketId,
-      research.available_schema_attribute_names as string[],research),
+    ...multibrandEvidence,
   };
   let token:string;
   try{token=await(deps.getAccessToken??getAmazonAccessToken)(env);}
